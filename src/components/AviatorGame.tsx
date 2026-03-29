@@ -1,0 +1,661 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { ArrowLeft, Info, Wallet, Play, X, History, Users, TrendingUp } from 'lucide-react';
+
+interface AviatorGameProps {
+  onClose: () => void;
+  userBalance: number;
+  onBalanceUpdate: (newBalance: number) => void;
+}
+
+export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: AviatorGameProps) {
+  const [multiplier, setMultiplier] = useState(1.00);
+  const [isFlying, setIsFlying] = useState(false);
+  const [hasCrashed, setHasCrashed] = useState(false);
+  const [betAmount, setBetAmount] = useState(100);
+  const [isBetPlaced, setIsBetPlaced] = useState(false);
+  const [isCashedOut, setIsCashedOut] = useState(false);
+  const [isAutoBet, setIsAutoBet] = useState(false);
+  const [isAutoCashOut, setIsAutoCashOut] = useState(false);
+  const [autoCashOutValue, setAutoCashOutValue] = useState(2.00);
+  const [cashOutMultiplier, setCashOutMultiplier] = useState(0);
+  const [history, setHistory] = useState<number[]>([1.25, 10.42, 2.15, 1.05, 5.30, 1.88, 25.10]);
+  const [gamePhase, setGamePhase] = useState<'betting' | 'flying' | 'crashed'>('betting');
+  const [bettingCountdown, setBettingCountdown] = useState(5);
+  const [parallaxOffset, setParallaxOffset] = useState({ x: 0, y: 0 });
+  const [betHistory, setBetHistory] = useState<{
+    multiplier: number;
+    amount: number;
+    win: number;
+    isWin: boolean;
+  }[]>([]);
+  
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownRef = useRef<NodeJS.Timeout | null>(null);
+  const crashPointRef = useRef(0);
+
+  // Start a new round
+  const startNewRound = () => {
+    setMultiplier(1.00);
+    setHasCrashed(false);
+    setIsCashedOut(false);
+    setCashOutMultiplier(0);
+    setGamePhase('betting');
+    setBettingCountdown(5);
+    
+    // Random crash point between 1.01 and 10.00 (weighted towards lower values)
+    const random = Math.random();
+    if (random < 0.1) crashPointRef.current = 1.00 + Math.random() * 0.1; // 10% chance crash early
+    else if (random < 0.5) crashPointRef.current = 1.1 + Math.random() * 1.5; // 40% chance crash between 1.1 and 2.6
+    else if (random < 0.8) crashPointRef.current = 2.6 + Math.random() * 3.0; // 30% chance crash between 2.6 and 5.6
+    else crashPointRef.current = 5.6 + Math.random() * 15.0; // 20% chance crash high
+    
+    // Betting countdown
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    countdownRef.current = setInterval(() => {
+      setBettingCountdown(prev => {
+        if (prev <= 1) {
+          if (countdownRef.current) clearInterval(countdownRef.current);
+          setGamePhase('flying');
+          setIsFlying(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  useEffect(() => {
+    startNewRound();
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (gamePhase === 'flying' && isFlying) {
+      timerRef.current = setInterval(() => {
+        setMultiplier(prev => {
+          const next = prev + (prev * 0.007); // Slower exponential growth (was 0.01)
+          if (next >= crashPointRef.current) {
+            handleCrash(next);
+            return next;
+          }
+          return next;
+        });
+      }, 100);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [gamePhase, isFlying]);
+
+  // Parallax Effect
+  useEffect(() => {
+    if (gamePhase === 'flying' && isFlying) {
+      const interval = setInterval(() => {
+        setParallaxOffset(prev => ({
+          x: (prev.x - 0.2) % 100,
+          y: (prev.y + 0.1) % 100
+        }));
+      }, 50);
+      return () => clearInterval(interval);
+    } else if (gamePhase === 'betting') {
+      setParallaxOffset({ x: 0, y: 0 });
+    }
+  }, [gamePhase, isFlying]);
+
+  const handleCrash = (finalMultiplier: number) => {
+    setIsFlying(false);
+    setHasCrashed(true);
+    setGamePhase('crashed');
+    setHistory(prev => [Number(finalMultiplier.toFixed(2)), ...prev.slice(0, 9)]);
+    
+    // Add to my bet history if a bet was placed
+    if (isBetPlaced) {
+      setBetHistory(prev => [
+        {
+          multiplier: isCashedOut ? cashOutMultiplier : Number(finalMultiplier.toFixed(2)),
+          amount: betAmount,
+          win: isCashedOut ? betAmount * cashOutMultiplier : 0,
+          isWin: isCashedOut
+        },
+        ...prev.slice(0, 9)
+      ]);
+    }
+
+    setIsBetPlaced(false);
+    
+    // Start next round after 3 seconds
+    setTimeout(startNewRound, 3000);
+  };
+
+  const placeBet = React.useCallback(() => {
+    if (gamePhase !== 'betting' || userBalance < betAmount || isBetPlaced) return;
+    onBalanceUpdate(userBalance - betAmount);
+    setIsBetPlaced(true);
+  }, [gamePhase, userBalance, betAmount, isBetPlaced, onBalanceUpdate]);
+
+  const cashOut = React.useCallback(() => {
+    if (!isBetPlaced || isCashedOut || hasCrashed || gamePhase !== 'flying') return;
+    const winAmount = betAmount * multiplier;
+    onBalanceUpdate(userBalance + winAmount);
+    setIsCashedOut(true);
+    setCashOutMultiplier(multiplier);
+
+    // Auto-hide cashout popup after 2 seconds
+    setTimeout(() => {
+      setIsCashedOut(false);
+    }, 2000);
+  }, [isBetPlaced, isCashedOut, hasCrashed, gamePhase, betAmount, multiplier, onBalanceUpdate, userBalance]);
+
+  useEffect(() => {
+    if (gamePhase === 'betting' && isAutoBet && !isBetPlaced) {
+      placeBet();
+    }
+  }, [gamePhase, isAutoBet, isBetPlaced, placeBet]);
+
+  useEffect(() => {
+    if (isAutoCashOut && isBetPlaced && !isCashedOut && isFlying && multiplier >= autoCashOutValue) {
+      cashOut();
+    }
+  }, [multiplier, isAutoCashOut, isBetPlaced, isCashedOut, isFlying, autoCashOutValue, cashOut]);
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-[#0b0b0b] flex flex-col max-w-md mx-auto font-sans overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between p-3 bg-[#1b1b1b] border-b border-white/5">
+        <div className="flex items-center gap-3">
+          <button onClick={onClose} className="text-gray-400 hover:text-white p-1">
+            <ArrowLeft size={20} />
+          </button>
+          <div className="relative">
+            <svg width="32" height="32" viewBox="0 0 24 24" className="drop-shadow-[0_0_8px_rgba(250,204,21,0.6)]">
+              <defs>
+                <linearGradient id="goldLogo" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#fef08a" />
+                  <stop offset="50%" stopColor="#eab308" />
+                  <stop offset="100%" stopColor="#a16207" />
+                </linearGradient>
+              </defs>
+              <path 
+                d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" 
+                fill="url(#goldLogo)"
+                stroke="#fff"
+                strokeWidth="0.5"
+              />
+            </svg>
+            <div className="absolute -top-1 -right-1 bg-red-600 text-white text-[6px] font-bold px-1 rounded-sm border border-yellow-400">VIP</div>
+          </div>
+          <div className="flex flex-col">
+            <span className="bg-gradient-to-r from-yellow-200 via-yellow-400 to-yellow-600 text-transparent bg-clip-text font-black italic text-sm tracking-tighter">AVIATOR</span>
+            <span className="text-[9px] text-gray-500 uppercase tracking-widest leading-none">GOLDEN VIP</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 bg-black/40 px-3 py-1 rounded-full border border-white/10">
+            <Wallet size={14} className="text-yellow-500" />
+            <span className="text-white font-bold text-xs">৳ {userBalance.toLocaleString()}</span>
+          </div>
+          <button className="text-gray-400">
+            <Info size={18} />
+          </button>
+        </div>
+      </div>
+
+      {/* Multiplier History Bar */}
+      <div className="flex gap-1.5 px-3 py-2 bg-[#141414] overflow-x-auto no-scrollbar border-b border-white/5">
+        {history.map((val, i) => (
+          <div 
+            key={i} 
+            className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+              val < 2 ? 'bg-blue-900/30 text-blue-400 border border-blue-800/50' : 
+              val < 10 ? 'bg-purple-900/30 text-purple-400 border border-purple-800/50' : 
+              'bg-pink-900/30 text-pink-400 border border-pink-800/50'
+            }`}
+          >
+            {val.toFixed(2)}x
+          </div>
+        ))}
+      </div>
+
+      {/* Main Game Area */}
+      <div className={`flex-1 relative bg-[#0b0b0b] flex flex-col overflow-hidden transition-all duration-300 ${hasCrashed ? 'animate-shake' : ''}`}>
+        {/* Real Background Image */}
+        <img 
+          src="https://images.unsplash.com/photo-1536431311719-398b6704d4cc?auto=format&fit=crop&q=80&w=1200" 
+          className={`absolute inset-0 w-[120%] h-[120%] -left-[10%] -top-[10%] object-cover pointer-events-none transition-opacity duration-500 ${hasCrashed ? 'opacity-40 mix-blend-multiply grayscale blur-sm' : 'opacity-30 mix-blend-overlay'}`}
+          style={{ 
+            transform: `translate(${parallaxOffset.x}px, ${parallaxOffset.y}px) scale(${isFlying ? 1.1 : 1})`,
+            transition: hasCrashed ? 'all 0.5s ease-out' : 'transform 0.1s linear, opacity 0.5s ease'
+          }}
+          alt="Game Background"
+          referrerPolicy="no-referrer"
+        />
+        
+        {/* Vignette Effect */}
+        <div className={`absolute inset-0 z-10 pointer-events-none transition-all duration-1000 ${isFlying ? 'shadow-[inset_0_0_150px_rgba(0,0,0,0.8)]' : 'shadow-[inset_0_0_50px_rgba(0,0,0,0.5)]'}`}></div>
+
+        {/* Crash Flash Effect */}
+        {hasCrashed && (
+          <>
+            <div className="absolute inset-0 z-50 bg-white animate-flash pointer-events-none"></div>
+            <div className="absolute inset-0 z-40 bg-red-600/40 animate-pulse pointer-events-none"></div>
+            <div className="absolute inset-0 z-40 shadow-[inset_0_0_150px_rgba(239,68,68,0.7)] pointer-events-none"></div>
+            
+            {/* Cracked Screen Overlay */}
+            <div className="absolute inset-0 z-50 pointer-events-none opacity-40 mix-blend-overlay animate-in fade-in duration-100">
+              <svg viewBox="0 0 100 100" className="w-full h-full stroke-white/30 fill-none" strokeWidth="0.5">
+                <path d="M0,20 L30,40 L10,70 M30,40 L60,30 L90,50 M60,30 L50,0 M10,70 L40,90 L80,70 M40,90 L20,100 M80,70 L100,80 M80,70 L70,100" />
+                <path d="M50,50 L55,45 L65,48 L70,40 M55,45 L52,35 M65,48 L75,55" />
+              </svg>
+            </div>
+
+            {/* Explosion Particles */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none">
+              {[...Array(20)].map((_, i) => (
+                <div 
+                  key={i}
+                  className="absolute w-3 h-3 bg-gradient-to-br from-red-500 to-orange-500 rounded-full animate-particle"
+                  style={{
+                    '--tx': `${(Math.random() - 0.5) * 400}px`,
+                    '--ty': `${(Math.random() - 0.5) * 400}px`,
+                    '--delay': `${Math.random() * 0.1}s`
+                  } as any}
+                ></div>
+              ))}
+            </div>
+
+            {/* Static Noise Effect */}
+            <div className="absolute inset-0 z-50 pointer-events-none opacity-20 mix-blend-screen animate-static-noise"></div>
+
+            {/* Dramatic "CRASH" Text */}
+            <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
+              <span className="text-8xl font-black text-white/10 italic uppercase tracking-tighter animate-crash-text">CRASH</span>
+            </div>
+          </>
+        )}
+
+        {/* Grid Background */}
+        <div className={`absolute inset-0 opacity-10 transition-all duration-1000 ${isFlying ? 'blur-[0.5px]' : ''}`} style={{
+          backgroundImage: 'linear-gradient(#333 1px, transparent 1px), linear-gradient(90deg, #333 1px, transparent 1px)',
+          backgroundSize: '40px 40px'
+        }}></div>
+
+        {/* Speed Lines */}
+        {gamePhase === 'flying' && !hasCrashed && (
+          <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+            {[...Array(6)].map((_, i) => (
+              <div 
+                key={i}
+                className="absolute h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent animate-speed-line"
+                style={{
+                  top: `${20 + i * 15}%`,
+                  width: `${100 + Math.random() * 100}px`,
+                  left: '-200px',
+                  animationDelay: `${Math.random() * 2}s`,
+                  animationDuration: `${0.5 + Math.random() * 0.5}s`
+                } as any}
+              ></div>
+            ))}
+          </div>
+        )}
+
+        {/* Multiplier Display */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 text-center">
+          {gamePhase === 'betting' ? (
+            <div className="flex flex-col items-center">
+              <span className="text-gray-400 text-xs uppercase font-bold tracking-widest mb-2">WAITING FOR NEXT ROUND</span>
+              <div className="relative w-24 h-24 flex items-center justify-center">
+                <svg className="absolute inset-0 w-full h-full -rotate-90">
+                  <circle cx="48" cy="48" r="44" fill="transparent" stroke="#333" strokeWidth="4" />
+                  <circle 
+                    cx="48" cy="48" r="44" fill="transparent" stroke="#ef4444" strokeWidth="4" 
+                    strokeDasharray={276}
+                    strokeDashoffset={276 - (276 * bettingCountdown / 5)}
+                    className="transition-all duration-1000 ease-linear"
+                  />
+                </svg>
+                <span className="text-3xl font-black text-white">{bettingCountdown}s</span>
+              </div>
+            </div>
+          ) : (
+            <div className={`flex flex-col items-center transition-all duration-500 ${hasCrashed ? 'scale-150' : 'scale-110'} ${isFlying ? 'animate-motion-blur' : ''}`}>
+              <h1 className={`text-6xl font-black italic tracking-tighter drop-shadow-[0_0_30px_rgba(255,255,255,0.3)] transition-colors duration-300 ${hasCrashed ? 'text-red-500 animate-glitch' : 'text-white'} ${isFlying ? 'animate-chromatic' : ''}`}>
+                {multiplier.toFixed(2)}x
+              </h1>
+              {hasCrashed && (
+                <div className="flex flex-col items-center animate-in zoom-in fade-in duration-300">
+                  <div className="relative">
+                    <span className="text-red-500 font-black text-4xl uppercase tracking-tighter italic drop-shadow-[0_0_20px_rgba(239,68,68,0.8)] animate-pulse">FLEW AWAY!</span>
+                    <div className="absolute -inset-2 bg-red-600/20 blur-xl -z-10 animate-pulse"></div>
+                  </div>
+                  <div className="mt-4 px-4 py-1.5 bg-red-600/30 border border-red-500/50 rounded-full backdrop-blur-sm">
+                    <span className="text-red-300 text-[10px] font-black uppercase tracking-[0.2em]">Next round starting...</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Plane and Graph Animation */}
+        {(gamePhase === 'flying' || hasCrashed) && (
+          <div className={`absolute inset-0 z-10 pointer-events-none transition-opacity duration-1000 ${hasCrashed ? 'opacity-0' : 'opacity-100'}`}>
+            <div className={`absolute ${hasCrashed ? 'animate-[crash-plane_1s_ease-in_forwards]' : 'animate-[fly-aviator_1s_linear_infinite]'}`} style={{ bottom: '40%', right: '20%' }}>
+              <div className="relative">
+                {/* Smoke Trail */}
+                <div className={`absolute right-full top-1/2 -translate-y-1/2 w-48 h-2 bg-gradient-to-l from-red-500/40 to-transparent blur-md transform origin-right rotate-12 ${hasCrashed ? 'animate-pulse' : ''} ${isFlying ? 'blur-[2px]' : ''}`}></div>
+                <svg 
+                  viewBox="0 0 100 100" 
+                  className={`w-24 h-24 drop-shadow-[0_0_25px_rgba(250,204,21,0.8)] transform -rotate-45 ${hasCrashed ? 'brightness-50' : ''} ${isFlying ? 'blur-[0.5px] animate-chromatic' : ''}`}
+                >
+                  <defs>
+                    <linearGradient id="planeGradGame" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#fef08a" />
+                      <stop offset="50%" stopColor="#eab308" />
+                      <stop offset="100%" stopColor="#a16207" />
+                    </linearGradient>
+                  </defs>
+                  <path 
+                    d="M15,50 L45,45 L85,25 L90,30 L55,50 L90,70 L85,75 L45,55 Z" 
+                    fill="url(#planeGradGame)" 
+                    stroke="white" 
+                    strokeWidth="1.5"
+                  />
+                  <path d="M45,45 L50,35 L60,35 L55,45 Z" fill="#fee2e2" opacity="0.8" />
+                  <circle cx="15" cy="50" r="4" fill="#fef08a" />
+                  {/* VIP Text on Wing */}
+                  <text x="50" y="55" fill="white" fontSize="8" fontWeight="bold" transform="rotate(45 50 55)">VIP</text>
+                </svg>
+              </div>
+            </div>
+            {!hasCrashed && (
+              <svg className="w-full h-full">
+                <path 
+                  d={`M 0 ${window.innerHeight * 0.6} Q ${window.innerWidth * 0.4} ${window.innerHeight * 0.6} ${window.innerWidth * 0.8} ${window.innerHeight * 0.3}`}
+                  fill="none"
+                  stroke="url(#lineGradient)"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  className={`animate-[dash_2s_linear_infinite] ${isFlying ? 'blur-[0.5px]' : ''}`}
+                  style={{ strokeDasharray: '10, 10' }}
+                />
+                <defs>
+                  <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="transparent" />
+                    <stop offset="100%" stopColor="#ef4444" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            )}
+            
+            {/* Plane Icon */}
+            {!hasCrashed && (
+              <div className={`absolute top-[30%] right-[15%] transform -translate-y-1/2 animate-float ${isFlying ? 'blur-[0.5px] animate-chromatic' : ''}`}>
+                 <svg width="60" height="40" viewBox="0 0 24 24" className="drop-shadow-[0_0_15px_rgba(250,204,21,0.8)]">
+                    <path 
+                      d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" 
+                      fill="url(#planeGradGame)"
+                    />
+                 </svg>
+                 {/* Engine Flame */}
+                 <div className={`absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-1 bg-yellow-400 blur-sm animate-pulse ${isFlying ? 'blur-[1px]' : ''}`}></div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Live Players List (Sidebar) */}
+        <div className={`absolute left-2 top-20 bottom-32 w-24 bg-black/40 backdrop-blur-md rounded-xl border border-white/5 p-2 overflow-hidden z-30 transition-all duration-1000 ${isFlying ? 'blur-[0.5px]' : ''}`}>
+          <div className="flex items-center gap-1 mb-2 border-b border-white/10 pb-1">
+            <Users size={10} className="text-gray-500" />
+            <span className="text-[8px] text-gray-400 font-bold uppercase">All Bets</span>
+          </div>
+          <div className="space-y-1.5 overflow-y-auto h-full no-scrollbar pb-4">
+            {[...Array(12)].map((_, i) => (
+              <div key={i} className="flex flex-col gap-0.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-[8px] text-gray-500">Player_{i}</span>
+                  <span className="text-[8px] text-white font-bold">৳{(Math.random() * 500).toFixed(0)}</span>
+                </div>
+                {gamePhase === 'flying' && Math.random() > 0.7 && (
+                  <div className="text-[7px] text-green-400 font-bold">{(1.1 + Math.random() * 2).toFixed(2)}x</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* My Bets History (Right Sidebar) */}
+        <div className={`absolute right-2 top-20 bottom-32 w-24 bg-black/40 backdrop-blur-md rounded-xl border border-white/5 p-2 overflow-hidden z-30 transition-all duration-1000 ${isFlying ? 'blur-[0.5px]' : ''}`}>
+          <div className="flex items-center gap-1 mb-2 border-b border-white/10 pb-1">
+            <History size={10} className="text-gray-500" />
+            <span className="text-[8px] text-gray-400 font-bold uppercase">My Bets</span>
+          </div>
+          <div className="space-y-1.5 overflow-y-auto h-full no-scrollbar pb-4">
+            {betHistory.length === 0 ? (
+              <div className="text-[7px] text-gray-600 text-center mt-4 italic">No bets yet</div>
+            ) : (
+              betHistory.map((bet, i) => (
+                <div key={i} className="flex flex-col gap-0.5 border-b border-white/5 pb-1">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[7px] text-gray-500">৳{bet.amount}</span>
+                    <span className={`text-[8px] font-black ${bet.isWin ? 'text-green-400' : 'text-red-400'}`}>
+                      {bet.isWin ? `+৳${bet.win.toFixed(0)}` : `-${bet.amount}`}
+                    </span>
+                  </div>
+                  <div className={`text-[7px] font-bold ${bet.isWin ? 'text-green-500' : 'text-red-500'}`}>
+                    {bet.multiplier.toFixed(2)}x
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Betting Controls */}
+      <div className="p-3 bg-[#1b1b1b] border-t border-white/5 space-y-3">
+        {/* Auto Controls */}
+        <div className="flex gap-2">
+          <button 
+            onClick={() => setIsAutoBet(!isAutoBet)}
+            className={`flex-1 py-1.5 rounded-lg border text-[9px] font-bold transition-all ${
+              isAutoBet ? 'bg-blue-500/20 border-blue-500 text-blue-500' : 'bg-black/40 border-white/10 text-gray-500'
+            }`}
+          >
+            AUTO BET
+          </button>
+          <div className={`flex-[1.5] flex items-center gap-2 px-2 py-1 rounded-lg border transition-all ${
+            isAutoCashOut ? 'bg-orange-500/20 border-orange-500' : 'bg-black/40 border-white/10'
+          }`}>
+            <button 
+              onClick={() => setIsAutoCashOut(!isAutoCashOut)}
+              className={`text-[9px] font-bold ${isAutoCashOut ? 'text-orange-500' : 'text-gray-500'}`}
+            >
+              AUTO CASHOUT
+            </button>
+            <div className="flex-1 flex items-center justify-end gap-1">
+              <input 
+                type="number" 
+                step="0.1"
+                min="1.1"
+                value={autoCashOutValue}
+                onChange={(e) => setAutoCashOutValue(parseFloat(e.target.value) || 1.1)}
+                className="bg-transparent text-white text-[10px] font-bold w-10 text-right outline-none"
+              />
+              <span className="text-gray-500 text-[9px]">x</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          {/* Bet Amount Selector */}
+          <div className="flex-1 bg-black/40 rounded-xl border border-white/10 p-2 flex flex-col items-center">
+            <div className="flex items-center justify-between w-full mb-2">
+               <button 
+                 onClick={() => setBetAmount(prev => Math.max(1, prev - 10))} 
+                 disabled={isBetPlaced || gamePhase !== 'betting'}
+                 className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-white active:scale-90 transition-transform disabled:opacity-50"
+               >
+                 -
+               </button>
+               <div className="flex flex-col items-center">
+                 <span className="text-[8px] text-gray-500 font-bold uppercase tracking-widest">Amount</span>
+                 <span className="text-sm font-black text-white">৳ {betAmount}</span>
+               </div>
+               <button 
+                 onClick={() => setBetAmount(prev => prev + 10)} 
+                 disabled={isBetPlaced || gamePhase !== 'betting'}
+                 className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-white active:scale-90 transition-transform disabled:opacity-50"
+               >
+                 +
+               </button>
+            </div>
+            <div className="grid grid-cols-3 gap-1 w-full">
+              {[1, 10, 100, 500, 1000, 10000].map(val => (
+                <button 
+                  key={val} 
+                  disabled={isBetPlaced || gamePhase !== 'betting'}
+                  onClick={() => setBetAmount(val)}
+                  className={`text-[9px] font-bold py-1.5 rounded bg-gray-800/50 border transition-all active:scale-95 ${
+                    betAmount === val ? 'border-yellow-500 text-yellow-500 bg-yellow-500/10' : 'border-white/5 text-gray-400 hover:text-white'
+                  } disabled:opacity-30`}
+                >
+                  {val >= 1000 ? `${val/1000}k` : val}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Main Action Button */}
+          <div className="flex-1">
+            {isBetPlaced && !isCashedOut && !hasCrashed && gamePhase === 'flying' ? (
+              <button 
+                onClick={cashOut}
+                className="w-full h-full bg-gradient-to-b from-orange-400 to-orange-600 rounded-xl shadow-[0_4px_15px_rgba(249,115,22,0.4)] flex flex-col items-center justify-center p-2 active:scale-95 transition-transform"
+              >
+                <span className="text-black font-black text-lg leading-none">CASH OUT</span>
+                <span className="text-black font-bold text-sm mt-1">৳ {(betAmount * multiplier).toFixed(2)}</span>
+              </button>
+            ) : (
+              <button 
+                disabled={isBetPlaced || gamePhase !== 'betting'}
+                onClick={placeBet}
+                className={`w-full h-full rounded-xl flex flex-col items-center justify-center p-2 transition-all ${
+                  isBetPlaced ? 'bg-gray-800 text-gray-500' : 
+                  gamePhase === 'betting' ? 'bg-gradient-to-b from-green-400 to-green-600 shadow-[0_4px_15px_rgba(34,197,94,0.4)] active:scale-95' :
+                  'bg-gray-800 text-gray-500'
+                }`}
+              >
+                <span className="text-black font-black text-lg leading-none">BET</span>
+                <span className="text-black font-bold text-sm mt-1">৳ {betAmount}</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Cashed Out Message Overlay */}
+        {isCashedOut && (
+          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 z-40 bg-green-500/90 backdrop-blur-md px-6 py-3 rounded-2xl border border-green-400 shadow-2xl animate-in zoom-in duration-300">
+            <div className="text-center">
+              <p className="text-black text-[10px] font-black uppercase tracking-widest">You Cashed Out At</p>
+              <h2 className="text-black font-black text-3xl italic">{cashOutMultiplier.toFixed(2)}x</h2>
+              <p className="text-black font-bold text-sm">Win: ৳ {(betAmount * cashOutMultiplier).toFixed(2)}</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <style>{`
+        @keyframes fly-aviator {
+          0% { transform: translate(0, 0) rotate(-45deg); }
+          50% { transform: translate(10px, -10px) rotate(-45deg); }
+          100% { transform: translate(0, 0) rotate(-45deg); }
+        }
+        @keyframes dash {
+          to { stroke-dashoffset: -20; }
+        }
+        @keyframes float {
+          0%, 100% { transform: translateY(-50%) translateX(0); }
+          50% { transform: translateY(-55%) translateX(5px); }
+        }
+        @keyframes loading {
+          from { transform: translateX(-100%); }
+          to { transform: translateX(100%); }
+        }
+        @keyframes shake {
+          0%, 100% { transform: translate(0, 0); }
+          5%, 15%, 25%, 35%, 45%, 55%, 65%, 75%, 85%, 95% { transform: translate(-8px, -8px); }
+          10%, 20%, 30%, 40%, 50%, 60%, 70%, 80%, 90% { transform: translate(8px, 8px); }
+        }
+        @keyframes crash-text {
+          0% { transform: scale(0.5); opacity: 0; filter: blur(20px); }
+          10% { transform: scale(1.2); opacity: 0.8; filter: blur(0px); }
+          100% { transform: scale(1.5); opacity: 0; filter: blur(40px); }
+        }
+        @keyframes flash {
+          0% { opacity: 0; }
+          10% { opacity: 0.8; }
+          100% { opacity: 0; }
+        }
+        @keyframes crash-plane {
+          0% { transform: translate(0, 0) rotate(-45deg) scale(1); }
+          50% { transform: translate(50px, 100px) rotate(90deg) scale(0.8); opacity: 0.5; }
+          100% { transform: translate(150px, 300px) rotate(360deg) scale(0); opacity: 0; }
+        }
+        @keyframes glitch {
+          0% { transform: translate(0); text-shadow: -2px 0 #ff00c1, 2px 0 #00fff9; }
+          20% { transform: translate(-2px, 2px); }
+          40% { transform: translate(-2px, -2px); text-shadow: 2px 0 #ff00c1, -2px 0 #00fff9; }
+          60% { transform: translate(2px, 2px); }
+          80% { transform: translate(2px, -2px); text-shadow: -2px 0 #ff00c1, 2px 0 #00fff9; }
+          100% { transform: translate(0); }
+        }
+        @keyframes particle {
+          0% { transform: translate(0, 0) scale(1); opacity: 1; }
+          100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
+        }
+        @keyframes speed-line {
+          0% { transform: translateX(0); opacity: 0; }
+          50% { opacity: 1; }
+          100% { transform: translateX(100vw); opacity: 0; }
+        }
+        @keyframes motion-blur {
+          0%, 100% { filter: blur(0px); transform: scale(1); }
+          50% { filter: blur(1px); transform: scale(1.02); }
+        }
+        @keyframes chromatic {
+          0%, 100% { text-shadow: 0 0 0 rgba(255,0,0,0.5), 0 0 0 rgba(0,255,0,0.5), 0 0 0 rgba(0,0,255,0.5); }
+          50% { text-shadow: -1px 0 0 rgba(255,0,0,0.5), 1px 0 0 rgba(0,255,0,0.5), 0 1px 0 rgba(0,0,255,0.5); }
+        }
+        .animate-glitch { animation: glitch 0.2s ease-in-out infinite; }
+        .animate-particle { animation: particle 0.8s ease-out var(--delay) forwards; }
+        .animate-speed-line { animation: speed-line linear infinite; }
+        .animate-motion-blur { animation: motion-blur 0.5s ease-in-out infinite; }
+        .animate-chromatic { animation: chromatic 0.3s ease-in-out infinite; }
+        @keyframes static-noise {
+          0%, 100% { background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E"); transform: translate(0,0); }
+          10% { transform: translate(-5%,-5%); }
+          20% { transform: translate(-10%,5%); }
+          30% { transform: translate(5%,-10%); }
+          40% { transform: translate(-5%,15%); }
+          50% { transform: translate(-10%,-5%); }
+          60% { transform: translate(15%,0); }
+          70% { transform: translate(0,10%); }
+          80% { transform: translate(-15%,0); }
+          90% { transform: translate(10%,5%); }
+        }
+        .animate-static-noise { animation: static-noise 0.2s steps(1) infinite; }
+        .animate-crash-text { animation: crash-text 0.8s ease-out forwards; }
+        .animate-shake { animation: shake 0.6s cubic-bezier(.36,.07,.19,.97) both; }
+        .animate-flash { animation: flash 0.4s ease-out both; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
+    </div>
+  );
+}
