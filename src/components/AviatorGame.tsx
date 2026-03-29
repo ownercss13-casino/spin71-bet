@@ -348,28 +348,83 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
               <div className="relative">
                 {/* Smoke Trail */}
                 <div className={`absolute right-full top-1/2 -translate-y-1/2 w-48 h-2 bg-gradient-to-l from-red-500/40 to-transparent blur-md transform origin-right rotate-12 ${hasCrashed ? 'animate-pulse' : ''} ${isFlying ? 'blur-[2px]' : ''}`}></div>
-                <svg 
-                  viewBox="0 0 100 100" 
-                  className={`w-24 h-24 drop-shadow-[0_0_25px_rgba(250,204,21,0.8)] transform -rotate-45 ${hasCrashed ? 'brightness-50' : ''} ${isFlying ? 'blur-[0.5px] animate-chromatic' : ''}`}
-                >
-                  <defs>
-                    <linearGradient id="planeGradGame" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#fef08a" />
-                      <stop offset="50%" stopColor="#eab308" />
-                      <stop offset="100%" stopColor="#a16207" />
-                    </linearGradient>
-                  </defs>
-                  <path 
-                    d="M15,50 L45,45 L85,25 L90,30 L55,50 L90,70 L85,75 L45,55 Z" 
-                    fill="url(#planeGradGame)" 
-                    stroke="white" 
-                    strokeWidth="1.5"
-                  />
-                  <path d="M45,45 L50,35 L60,35 L55,45 Z" fill="#fee2e2" opacity="0.8" />
-                  <circle cx="15" cy="50" r="4" fill="#fef08a" />
-                  {/* VIP Text on Wing */}
-                  <text x="50" y="55" fill="white" fontSize="8" fontWeight="bold" transform="rotate(45 50 55)">VIP</text>
-                </svg>
+                
+                {/* Stylized Anime Plane */}
+                <div className="relative transform -rotate-12">
+                  <svg 
+                    viewBox="0 0 120 80" 
+                    className={`w-32 h-24 drop-shadow-[0_0_30px_rgba(239,68,68,0.6)] ${hasCrashed ? 'brightness-50' : ''} ${isFlying ? 'blur-[0.5px] animate-chromatic' : ''}`}
+                  >
+                    <defs>
+                      <linearGradient id="planeBodyGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#ff4d4d" />
+                        <stop offset="100%" stopColor="#990000" />
+                      </linearGradient>
+                      <linearGradient id="wingGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="#ff6666" />
+                        <stop offset="100%" stopColor="#cc0000" />
+                      </linearGradient>
+                      <filter id="glow">
+                        <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                        <feMerge>
+                          <feMergeNode in="coloredBlur"/>
+                          <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                      </filter>
+                    </defs>
+                    
+                    {/* Main Body - Sleek Anime Shape */}
+                    <path 
+                      d="M10,40 Q30,35 60,35 L100,38 L110,40 L100,42 L60,45 Q30,45 10,40 Z" 
+                      fill="url(#planeBodyGrad)" 
+                      stroke="#fff" 
+                      strokeWidth="1.5"
+                    />
+                    
+                    {/* Cockpit */}
+                    <path 
+                      d="M45,35 Q55,25 75,35 Z" 
+                      fill="#87ceeb" 
+                      stroke="#fff" 
+                      strokeWidth="1"
+                      opacity="0.9"
+                    />
+                    
+                    {/* Main Wing */}
+                    <path 
+                      d="M40,40 L20,65 L50,65 L70,40 Z" 
+                      fill="url(#wingGrad)" 
+                      stroke="#fff" 
+                      strokeWidth="1.5"
+                    />
+                    
+                    {/* Tail Wing */}
+                    <path 
+                      d="M15,40 L5,25 L25,25 L30,40 Z" 
+                      fill="url(#wingGrad)" 
+                      stroke="#fff" 
+                      strokeWidth="1.5"
+                    />
+                    
+                    {/* Propeller Hub */}
+                    <circle cx="110" cy="40" r="3" fill="#333" stroke="#fff" strokeWidth="1" />
+                    
+                    {/* Speed Lines on Plane */}
+                    <line x1="20" y1="38" x2="40" y2="38" stroke="#fff" strokeWidth="1" opacity="0.5" />
+                    <line x1="25" y1="42" x2="45" y2="42" stroke="#fff" strokeWidth="1" opacity="0.5" />
+                  </svg>
+
+                  {/* VIP Tag Overlay */}
+                  <div className="absolute -top-2 -left-2 bg-gradient-to-r from-yellow-400 to-yellow-600 text-black text-[10px] font-black px-2 py-0.5 rounded-sm shadow-lg transform -rotate-12 border border-yellow-300 animate-pulse">
+                    VIP
+                  </div>
+
+                  {/* LIVE Indicator */}
+                  <div className="absolute top-0 -right-4 flex items-center gap-1 bg-black/60 backdrop-blur-sm px-1.5 py-0.5 rounded-full border border-red-500/50">
+                    <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-ping"></div>
+                    <span className="text-[8px] font-black text-white tracking-tighter">LIVE</span>
+                  </div>
+                </div>
               </div>
             </div>
             {!hasCrashed && (
@@ -572,9 +627,9 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
 
       <style>{`
         @keyframes fly-aviator {
-          0% { transform: translate(0, 0) rotate(-45deg); }
-          50% { transform: translate(10px, -10px) rotate(-45deg); }
-          100% { transform: translate(0, 0) rotate(-45deg); }
+          0% { transform: translate(0, 0) rotate(-12deg); }
+          50% { transform: translate(15px, -15px) rotate(-12deg); }
+          100% { transform: translate(0, 0) rotate(-12deg); }
         }
         @keyframes dash {
           to { stroke-dashoffset: -20; }
@@ -603,9 +658,9 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
           100% { opacity: 0; }
         }
         @keyframes crash-plane {
-          0% { transform: translate(0, 0) rotate(-45deg) scale(1); }
-          50% { transform: translate(50px, 100px) rotate(90deg) scale(0.8); opacity: 0.5; }
-          100% { transform: translate(150px, 300px) rotate(360deg) scale(0); opacity: 0; }
+          0% { transform: translate(0, 0) rotate(-12deg) scale(1); }
+          50% { transform: translate(50px, 100px) rotate(45deg) scale(0.8); opacity: 0.5; }
+          100% { transform: translate(150px, 300px) rotate(180deg) scale(0); opacity: 0; }
         }
         @keyframes glitch {
           0% { transform: translate(0); text-shadow: -2px 0 #ff00c1, 2px 0 #00fff9; }
