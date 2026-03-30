@@ -1,10 +1,16 @@
 import React, { useState, useEffect } from "react";
+import { doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { signInWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
+import { db, auth, googleProvider, handleFirestoreError, OperationType } from './firebase';
 import ProfileView from "./components/ProfileView";
 import InviteView from "./components/InviteView";
-import ShopView from "./components/ShopView";
+import RewardsView from "./components/RewardsView";
+import DepositView from "./components/DepositView";
 import AviatorGame from "./components/AviatorGame";
+import SupportChat from "./components/SupportChat";
 import { GameGrid, Game } from "./components/GameGrid";
 import { CasinoGallery } from "./components/CasinoGallery";
+import { saveItem, getSavedItems, removeItem, updateUserProfile, updateFavorites } from './services/firebaseService';
 import {
   Menu,
   Search,
@@ -26,6 +32,7 @@ import {
   Star,
   X,
   Share2,
+  Send,
   Fish,
   Ticket,
   Play,
@@ -37,27 +44,103 @@ import {
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
-  const [activeTab, setActiveTab] = useState<'home' | 'profile' | 'invite' | 'shop'>('home');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userData, setUserData] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'home' | 'profile' | 'invite' | 'deposit' | 'rewards'>('home');
   const [activeCategory, setActiveCategory] = useState('সেরা');
+  const [favorites, setFavorites] = useState<string[]>([]);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [showGallery, setShowGallery] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    if (isLoggedIn && userData?.id) {
+      updateFavorites(userData.id, favorites);
+    }
+  }, [favorites, isLoggedIn, userData?.id]);
   const [balance, setBalance] = useState(24590.50);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSupportChatOpen, setIsSupportChatOpen] = useState(false);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
     setTimeout(() => setIsRefreshing(false), 1000);
   };
 
+  const handleGoogleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (error) {
+      console.error("Google Login Error:", error);
+    }
+  };
+
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const firebaseUid = user.uid;
+        
+        // Fetch user data from Firestore
+        try {
+          const userDoc = await getDoc(doc(db, 'users', firebaseUid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            setUserData({ ...userData, id: firebaseUid });
+            setBalance(userData.balance || 0);
+            setFavorites(userData.favorites || []);
+            setIsLoggedIn(true);
+          } else {
+            // Create new user document
+            const newUser = {
+              username: user.displayName || 'Player',
+              phoneNumber: '01XXXXXXXXX',
+              password: 'google-auth',
+              balance: 0,
+              createdAt: serverTimestamp(),
+              gmail: user.email,
+              isGmailLinked: true,
+              favorites: []
+            };
+            await setDoc(doc(db, 'users', firebaseUid), newUser);
+            setUserData({ ...newUser, id: firebaseUid });
+            setBalance(0);
+            setFavorites([]);
+            setIsLoggedIn(true);
+          }
+        } catch (e) {
+          console.error("Failed to fetch/create user data", e);
+        }
+      } else {
+        setIsLoggedIn(false);
+        setUserData(null);
+        setFavorites([]);
+      }
+    });
+
     // Hide splash screen after 3 seconds
     const timer = setTimeout(() => {
       setShowSplash(false);
     }, 3000);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      unsubscribe();
+    };
   }, []);
+
+  useEffect(() => {
+    // Save balance changes to localStorage
+    if (isLoggedIn && userData) {
+      const updatedUser = { ...userData, balance };
+      localStorage.setItem('spin71_user', JSON.stringify(updatedUser));
+    }
+  }, [balance, isLoggedIn, userData]);
+
+  const handleLogout = () => {
+    signOut(auth);
+    setIsLoggedIn(false);
+    setUserData(null);
+  };
 
   if (showSplash) {
     return (
@@ -222,6 +305,21 @@ export default function App() {
     );
   }
 
+  if (!isLoggedIn) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-teal-900 p-6">
+        <h1 className="text-3xl font-bold text-white mb-8">SPIN71BET</h1>
+        <button 
+          onClick={handleGoogleLogin}
+          className="bg-white text-gray-800 font-bold py-3 px-6 rounded-lg flex items-center gap-3 hover:bg-gray-100 transition-colors shadow-lg"
+        >
+          <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt="Google" className="w-5 h-5" />
+          Google দিয়ে লগইন করুন
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-md mx-auto bg-[#16a374] min-h-screen relative overflow-x-hidden font-sans text-white pb-16 flex flex-col">
       {activeTab === 'home' && (
@@ -287,6 +385,25 @@ export default function App() {
           <Search size={22} className="text-teal-50" />
         </div>
       </header>
+
+      {/* User Info Bar */}
+      <div className="bg-[#128a61]/50 px-4 py-2 flex items-center justify-between border-b border-teal-700/30 backdrop-blur-sm sticky top-[52px] z-30">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-400 to-yellow-600 p-0.5 shadow-lg">
+            <div className="w-full h-full bg-[#16a374] rounded-full flex items-center justify-center border-2 border-white">
+              <User size={14} className="text-white" />
+            </div>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[10px] text-teal-200 font-bold uppercase tracking-wider leading-none">স্বাগতম (Welcome)</span>
+            <span className="text-xs font-black text-white tracking-tight">{userData?.username || 'Player_SPIN71'}</span>
+          </div>
+        </div>
+        <div className="flex flex-col items-end">
+          <span className="text-[10px] text-teal-200 font-bold uppercase tracking-wider leading-none">আইডি (ID)</span>
+          <span className="text-xs font-mono text-yellow-400 font-bold">{userData?.id || '84729104'}</span>
+        </div>
+      </div>
 
       {/* Hero Banner */}
       <div className="p-2">
@@ -531,7 +648,13 @@ export default function App() {
         </div>
 
         {/* Grid */}
-        <GameGrid category={activeCategory} searchQuery={searchQuery} onGameSelect={setSelectedGame} />
+        <GameGrid 
+          category={activeCategory} 
+          searchQuery={searchQuery} 
+          onGameSelect={setSelectedGame} 
+          favorites={favorites}
+          setFavorites={setFavorites}
+        />
       </div>
 
       {/* Game Play Modal */}
@@ -610,7 +733,10 @@ export default function App() {
                 <p className="text-white font-bold text-sm">৳ {balance.toLocaleString()}</p>
               </div>
             </div>
-            <button className="bg-teal-800 text-white px-4 py-1.5 rounded-lg text-xs font-bold border border-teal-700">
+            <button 
+              onClick={() => setActiveTab('deposit')}
+              className="bg-teal-800 text-white px-4 py-1.5 rounded-lg text-xs font-bold border border-teal-700"
+            >
               জমা করুন
             </button>
           </div>
@@ -649,8 +775,8 @@ export default function App() {
                   <User size={24} className="text-white" />
                 </div>
                 <div>
-                  <p className="text-white font-bold text-sm">Player_SPIN71</p>
-                  <p className="text-teal-300 text-[10px]">ID: 84729104</p>
+                  <p className="text-white font-bold text-sm">{userData?.username || 'Player_SPIN71'}</p>
+                  <p className="text-teal-300 text-[10px]">ID: {userData?.id || '84729104'}</p>
                 </div>
               </div>
             </div>
@@ -659,24 +785,35 @@ export default function App() {
             <nav className="flex-1 p-4 space-y-2">
               {[
                 { id: 'home', icon: Home, label: 'বাড়ি (Home)' },
+                { id: 'rewards', icon: Gift, label: 'পুরস্কার (Rewards)' },
                 { id: 'profile', icon: User, label: 'প্রোফাইল (Profile)' },
                 { id: 'invite', icon: Users, label: 'আমন্ত্রণ (Invite)' },
-                { id: 'shop', icon: Gift, label: 'শপ (Shop)' },
+                { id: 'telegram', icon: Send, label: 'টেলিগ্রাম (Telegram)' },
               ].map((link) => (
                 <button
                   key={link.id}
                   onClick={() => {
-                    setActiveTab(link.id as any);
+                    if (link.id === 'telegram') {
+                      setIsSupportChatOpen(true);
+                    } else {
+                      setActiveTab(link.id as any);
+                    }
                     setIsSidebarOpen(false);
                   }}
                   className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all ${activeTab === link.id ? 'bg-yellow-500 text-black font-bold shadow-lg' : 'text-teal-100 hover:bg-teal-800/50'}`}
                 >
-                  <link.icon size={20} />
+                  <link.icon size={20} className={link.id === 'telegram' ? 'text-blue-400' : ''} />
                   <span>{link.label}</span>
                 </button>
               ))}
               <div className="h-px bg-teal-600/30 my-4"></div>
-              <button className="w-full flex items-center gap-4 px-4 py-3 rounded-xl text-teal-100 hover:bg-teal-800/50 transition-all">
+              <button 
+                onClick={() => {
+                  setActiveTab('deposit');
+                  setIsSidebarOpen(false);
+                }}
+                className="w-full flex items-center gap-4 px-4 py-3 rounded-xl text-teal-100 hover:bg-teal-800/50 transition-all"
+              >
                 <Wallet size={20} />
                 <span>জমা (Deposit)</span>
               </button>
@@ -688,7 +825,10 @@ export default function App() {
 
             {/* Sidebar Footer */}
             <div className="p-4 border-t border-teal-600/50">
-              <button className="w-full flex items-center justify-center gap-2 py-3 text-red-400 font-bold hover:bg-red-900/20 rounded-xl transition-all">
+              <button 
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center gap-2 py-3 text-red-400 font-bold hover:bg-red-900/20 rounded-xl transition-all"
+              >
                 <LogOut size={18} />
                 <span>লগ আউট</span>
               </button>
@@ -697,9 +837,13 @@ export default function App() {
         </div>
       )}
 
-      {activeTab === 'profile' && <ProfileView onTabChange={setActiveTab} balance={balance} />}
+      {activeTab === 'profile' && <ProfileView onTabChange={setActiveTab} balance={balance} userData={userData} onLogout={handleLogout} />}
       {activeTab === 'invite' && <InviteView onTabChange={setActiveTab} />}
-      {activeTab === 'shop' && <ShopView onTabChange={setActiveTab} />}
+      {activeTab === 'rewards' && <RewardsView onTabChange={setActiveTab} userData={userData} setUserData={setUserData} balance={balance} setBalance={setBalance} />}
+      {activeTab === 'deposit' && <DepositView onTabChange={setActiveTab} balance={balance} />}
+
+      {/* Support Chat */}
+      <SupportChat isOpen={isSupportChatOpen} onClose={() => setIsSupportChatOpen(false)} />
 
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-[#16a374] border-t border-teal-600/50 flex justify-between px-6 py-2 text-[11px] text-teal-200 z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
@@ -711,12 +855,11 @@ export default function App() {
           <span>বাড়ি</span>
         </div>
         <div 
-          onClick={() => setActiveTab('shop')}
-          className={`flex flex-col items-center gap-1 relative cursor-pointer transition-colors ${activeTab === 'shop' ? 'text-white' : 'hover:text-white'}`}
+          onClick={() => setActiveTab('rewards')}
+          className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${activeTab === 'rewards' ? 'text-white' : 'hover:text-white'}`}
         >
           <Gift size={22} />
-          <span>শপ</span>
-          <span className="absolute -top-1 -right-2 bg-red-600 text-white text-[7px] font-bold px-1 rounded-full animate-pulse">REAL</span>
+          <span>পুরস্কার</span>
         </div>
         <div 
           onClick={() => setActiveTab('invite')}
@@ -725,7 +868,10 @@ export default function App() {
           <Users size={22} />
           <span>আমন্ত্রণ</span>
         </div>
-        <div className="flex flex-col items-center gap-1 relative cursor-pointer hover:text-white transition-colors">
+        <div 
+          onClick={() => setActiveTab('deposit')}
+          className={`flex flex-col items-center gap-1 relative cursor-pointer transition-colors ${activeTab === 'deposit' ? 'text-white' : 'hover:text-white'}`}
+        >
           <Wallet size={22} />
           <span>জমা</span>
           <span className="absolute -top-1 -right-3 bg-red-600 text-white text-[9px] font-bold px-1 rounded-full border border-[#16a374]">

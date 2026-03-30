@@ -3,11 +3,21 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "8657727956:AAGjuy8q4KCG00Is62-qsuD7W_XW5rIEjNw";
-let adminChatId: string | null = "7354725295";
+let adminChatId: string | null = process.env.TELEGRAM_ADMIN_CHAT_ID || "7354725295";
 
-const chatHistory: any[] = [
-  { id: 1, text: "স্বাগতম! আমরা আপনাকে কীভাবে সাহায্য করতে পারি?", sender: 'agent', time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }
-];
+// Multi-user chat history: { [userId: string]: Message[] }
+const chatHistories: Record<string, any[]> = {};
+// Map Telegram message IDs to User IDs to handle replies correctly
+const telegramMsgToUser: Record<number, string> = {};
+
+function getChatHistory(userId: string) {
+  if (!chatHistories[userId]) {
+    chatHistories[userId] = [
+      { id: 1, text: "স্বাগতম! আমরা আপনাকে কীভাবে সাহায্য করতে পারি?", sender: 'agent', time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }
+    ];
+  }
+  return chatHistories[userId];
+}
 
 async function pollTelegramUpdates() {
   let offset = 0;
@@ -21,11 +31,31 @@ async function pollTelegramUpdates() {
           offset = update.update_id + 1;
           
           if (update.message && update.message.text) {
-            adminChatId = update.message.chat.id.toString();
+            const chatId = update.message.chat.id.toString();
+            const text = update.message.text;
+            const replyTo = update.message.reply_to_message;
             
-            chatHistory.push({
+            // If it's a message from the admin (or anyone to the bot)
+            adminChatId = chatId;
+            
+            let targetUserId = "84729104"; // Default fallback
+            
+            // Try to find which user this reply is for
+            if (replyTo && telegramMsgToUser[replyTo.message_id]) {
+              targetUserId = telegramMsgToUser[replyTo.message_id];
+            } else {
+              // Try to extract user ID from the text if the admin didn't use "reply"
+              // Format: "[User: 84729104] Message"
+              const match = text.match(/\[User:\s*(\d+)\]/);
+              if (match) {
+                targetUserId = match[1];
+              }
+            }
+
+            const history = getChatHistory(targetUserId);
+            history.push({
               id: Date.now() + Math.random(),
-              text: update.message.text,
+              text: text.replace(/\[User:\s*\d+\]\s*/, ""), // Clean up the text if it had the tag
               sender: 'agent',
               time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
             });
@@ -60,7 +90,10 @@ async function startServer() {
       id: "84729104",
       balance: 24590.50,
       vipLevel: 3,
-      vipProgress: 75
+      vipProgress: 75,
+      email: "player@spin71bet.com",
+      phone: "+880 1712-345678",
+      registrationDate: "2025-11-15"
     });
   });
 
@@ -75,11 +108,12 @@ async function startServer() {
   });
 
   app.get("/api/chat", (req, res) => {
-    res.json(chatHistory);
+    const userId = req.query.userId as string || "84729104";
+    res.json(getChatHistory(userId));
   });
 
   app.post("/api/chat", async (req, res) => {
-    const { text } = req.body;
+    const { text, userId = "84729104" } = req.body;
     if (!text) {
       res.status(400).json({ error: "Text is required" });
       return;
@@ -91,24 +125,31 @@ async function startServer() {
       sender: 'user',
       time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
     };
-    chatHistory.push(userMsg);
+    
+    const history = getChatHistory(userId);
+    history.push(userMsg);
 
     if (adminChatId) {
       try {
-        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        const tgRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             chat_id: adminChatId,
-            text: `User: ${text}`
+            text: `[User: ${userId}] ${text}`
           })
         });
+        const tgData = await tgRes.json() as any;
+        if (tgData.ok && tgData.result) {
+          // Map the Telegram message ID to the User ID so we can handle replies
+          telegramMsgToUser[tgData.result.message_id] = userId;
+        }
       } catch (err) {
         console.error("Failed to send to Telegram:", err);
       }
     } else {
       console.warn("No admin chat ID found. Please send a message to the bot first.");
-      chatHistory.push({
+      history.push({
         id: Date.now() + 1,
         text: "সিস্টেম বার্তা: অ্যাডমিন এখনো চ্যাটে যুক্ত হননি। দয়া করে টেলিগ্রাম বটে একটি মেসেজ পাঠিয়ে অ্যাডমিনকে যুক্ত হতে বলুন। (System: Admin has not connected to the bot yet.)",
         sender: 'agent',

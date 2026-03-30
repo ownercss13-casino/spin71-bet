@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Info, Wallet, Play, X, History, Users, TrendingUp } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface AviatorGameProps {
   onClose: () => void;
@@ -12,6 +13,7 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
   const [isFlying, setIsFlying] = useState(false);
   const [hasCrashed, setHasCrashed] = useState(false);
   const [betAmount, setBetAmount] = useState(100);
+  const [betError, setBetError] = useState<string | null>(null);
   const [isBetPlaced, setIsBetPlaced] = useState(false);
   const [isCashedOut, setIsCashedOut] = useState(false);
   const [isAutoBet, setIsAutoBet] = useState(false);
@@ -28,10 +30,49 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
     win: number;
     isWin: boolean;
   }[]>([]);
+  const [liveBets, setLiveBets] = useState<{ id: number; name: string; amount: number; cashedOut: boolean; cashOutMultiplier?: number }[]>([]);
+  const [justPlacedBet, setJustPlacedBet] = useState(false);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const crashPointRef = useRef(0);
+  const multiplierRef = useRef(1.00);
+
+  useEffect(() => {
+    multiplierRef.current = multiplier;
+  }, [multiplier]);
+
+  useEffect(() => {
+    if (gamePhase === 'betting') {
+      const newBets = Array.from({ length: 12 }, (_, i) => ({
+        id: Date.now() + i,
+        name: `Player_${Math.floor(Math.random() * 9000) + 1000}`,
+        amount: Math.floor(Math.random() * 500) + 10,
+        cashedOut: false,
+      }));
+      setLiveBets(newBets);
+    } else if (gamePhase === 'flying' && isFlying) {
+      const interval = setInterval(() => {
+        setLiveBets(prev => prev.map(bet => {
+          if (!bet.cashedOut && Math.random() > 0.95) {
+            return { ...bet, cashedOut: true, cashOutMultiplier: multiplierRef.current };
+          }
+          return bet;
+        }));
+      }, 500);
+      return () => clearInterval(interval);
+    }
+  }, [gamePhase, isFlying]);
+
+  useEffect(() => {
+    if (betAmount <= 0) {
+      setBetError("Bet must be positive");
+    } else if (betAmount > userBalance) {
+      setBetError("Insufficient balance");
+    } else {
+      setBetError(null);
+    }
+  }, [betAmount, userBalance]);
 
   // Start a new round
   const startNewRound = () => {
@@ -133,9 +174,11 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
   };
 
   const placeBet = React.useCallback(() => {
-    if (gamePhase !== 'betting' || userBalance < betAmount || isBetPlaced) return;
+    if (gamePhase !== 'betting' || userBalance < betAmount || isBetPlaced || betAmount <= 0) return;
     onBalanceUpdate(userBalance - betAmount);
     setIsBetPlaced(true);
+    setJustPlacedBet(true);
+    setTimeout(() => setJustPlacedBet(false), 1000);
   }, [gamePhase, userBalance, betAmount, isBetPlaced, onBalanceUpdate]);
 
   const cashOut = React.useCallback(() => {
@@ -164,7 +207,11 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
   }, [multiplier, isAutoCashOut, isBetPlaced, isCashedOut, isFlying, autoCashOutValue, cashOut]);
 
   return (
-    <div className="fixed inset-0 z-[100] bg-[#0b0b0b] flex flex-col max-w-md mx-auto font-sans overflow-hidden">
+    <div 
+      className="fixed inset-0 z-[100] bg-[#0b0b0b] flex flex-col max-w-md mx-auto font-sans overflow-hidden select-none"
+      onContextMenu={(e) => e.preventDefault()}
+      onCopy={(e) => e.preventDefault()}
+    >
       {/* Header */}
       <div className="flex items-center justify-between p-3 bg-[#1b1b1b] border-b border-white/5">
         <div className="flex items-center gap-3">
@@ -190,7 +237,7 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
             <div className="absolute -top-1 -right-1 bg-red-600 text-white text-[6px] font-bold px-1 rounded-sm border border-yellow-400">VIP</div>
           </div>
           <div className="flex flex-col">
-            <span className="bg-gradient-to-r from-yellow-200 via-yellow-400 to-yellow-600 text-transparent bg-clip-text font-black italic text-sm tracking-tighter">AVIATOR</span>
+            <span className="bg-gradient-to-r from-yellow-200 via-yellow-400 to-yellow-600 text-transparent bg-clip-text font-black italic text-sm tracking-tighter">CRASH GAME</span>
             <span className="text-[9px] text-gray-500 uppercase tracking-widest leading-none">GOLDEN VIP</span>
           </div>
         </div>
@@ -207,26 +254,30 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
 
       {/* Multiplier History Bar */}
       <div className="flex gap-1.5 px-3 py-2 bg-[#141414] overflow-x-auto no-scrollbar border-b border-white/5">
-        {history.map((val, i) => (
-          <div 
-            key={i} 
-            className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
-              val < 2 ? 'bg-blue-900/30 text-blue-400 border border-blue-800/50' : 
-              val < 10 ? 'bg-purple-900/30 text-purple-400 border border-purple-800/50' : 
-              'bg-pink-900/30 text-pink-400 border border-pink-800/50'
-            }`}
-          >
-            {val.toFixed(2)}x
-          </div>
-        ))}
+        {history.map((val, i) => {
+          const isWin = val >= 2.0; // Assuming 2.0x is a "win" threshold for visual distinction
+          return (
+            <div 
+              key={i} 
+              className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 flex items-center gap-1 ${
+                isWin 
+                  ? 'bg-green-900/30 text-green-400 border border-green-800/50 shadow-[0_0_5px_rgba(74,222,128,0.2)]' 
+                  : 'bg-red-900/30 text-red-400 border border-red-800/50'
+              }`}
+            >
+              {isWin ? <span className="text-[8px]">▲</span> : <span className="text-[8px]">▼</span>}
+              {val.toFixed(2)}x
+            </div>
+          );
+        })}
       </div>
 
       {/* Main Game Area */}
-      <div className={`flex-1 relative bg-[#0b0b0b] flex flex-col overflow-hidden transition-all duration-300 ${hasCrashed ? 'animate-shake' : ''}`}>
+      <div className={`flex-1 relative bg-[#0b0b0b] flex flex-col overflow-hidden transition-all duration-300 ${hasCrashed ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}>
         {/* Real Background Image */}
         <img 
           src="https://images.unsplash.com/photo-1536431311719-398b6704d4cc?auto=format&fit=crop&q=80&w=1200" 
-          className={`absolute inset-0 w-[120%] h-[120%] -left-[10%] -top-[10%] object-cover pointer-events-none transition-opacity duration-500 ${hasCrashed ? 'opacity-40 mix-blend-multiply grayscale blur-sm' : 'opacity-30 mix-blend-overlay'}`}
+          className={`absolute inset-0 w-[120%] h-[120%] -left-[10%] -top-[10%] object-cover pointer-events-none transition-opacity duration-500 ${hasCrashed ? 'opacity-40 mix-blend-multiply grayscale blur-md scale-110' : 'opacity-30 mix-blend-overlay'}`}
           style={{ 
             transform: `translate(${parallaxOffset.x}px, ${parallaxOffset.y}px) scale(${isFlying ? 1.1 : 1})`,
             transition: hasCrashed ? 'all 0.5s ease-out' : 'transform 0.1s linear, opacity 0.5s ease'
@@ -344,7 +395,14 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
         {/* Plane and Graph Animation */}
         {(gamePhase === 'flying' || hasCrashed) && (
           <div className={`absolute inset-0 z-10 pointer-events-none transition-opacity duration-1000 ${hasCrashed ? 'opacity-0' : 'opacity-100'}`}>
-            <div className={`absolute ${hasCrashed ? 'animate-[crash-plane_1s_ease-in_forwards]' : 'animate-[fly-aviator_1s_linear_infinite]'}`} style={{ bottom: '40%', right: '20%' }}>
+            <div 
+              className={`absolute ${hasCrashed ? 'animate-[crash-plane_1s_ease-in_forwards]' : ''}`} 
+              style={{ 
+                bottom: '40%', 
+                right: '20%',
+                animation: !hasCrashed ? `fly-aviator ${Math.max(0.4, 1.5 / Math.pow(multiplier, 0.3))}s cubic-bezier(0.42, 0, 0.58, 1) infinite` : undefined
+              }}
+            >
               <div className="relative">
                 {/* Smoke Trail */}
                 <div className={`absolute right-full top-1/2 -translate-y-1/2 w-48 h-2 bg-gradient-to-l from-red-500/40 to-transparent blur-md transform origin-right rotate-12 ${hasCrashed ? 'animate-pulse' : ''} ${isFlying ? 'blur-[2px]' : ''}`}></div>
@@ -352,8 +410,8 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
                 {/* Stylized Anime Plane */}
                 <div className="relative transform -rotate-12">
                   <svg 
-                    viewBox="0 0 120 80" 
-                    className={`w-32 h-24 drop-shadow-[0_0_30px_rgba(239,68,68,0.6)] ${hasCrashed ? 'brightness-50' : ''} ${isFlying ? 'blur-[0.5px] animate-chromatic' : ''}`}
+                    viewBox="-20 0 140 80" 
+                    className={`w-40 h-24 drop-shadow-[0_0_30px_rgba(239,68,68,0.6)] ${hasCrashed ? 'brightness-50' : ''} ${isFlying ? 'blur-[0.5px] animate-chromatic' : ''}`}
                   >
                     <defs>
                       <linearGradient id="planeBodyGrad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -364,6 +422,11 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
                         <stop offset="0%" stopColor="#ff6666" />
                         <stop offset="100%" stopColor="#cc0000" />
                       </linearGradient>
+                      <linearGradient id="thrustGrad" x1="100%" y1="0%" x2="0%" y2="0%">
+                        <stop offset="0%" stopColor="#fbbf24" />
+                        <stop offset="50%" stopColor="#ea580c" />
+                        <stop offset="100%" stopColor="transparent" />
+                      </linearGradient>
                       <filter id="glow">
                         <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
                         <feMerge>
@@ -373,6 +436,20 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
                       </filter>
                     </defs>
                     
+                    {/* Engine Thrust */}
+                    {isFlying && !hasCrashed && (
+                      <path 
+                        d="M10,38 Q-20,40 10,42 Z" 
+                        fill="url(#thrustGrad)" 
+                        style={{
+                          transformOrigin: '10px 40px',
+                          transform: `scaleX(${Math.min(4, 1 + (multiplier - 1) * 0.5)})`,
+                          transition: 'transform 0.1s linear'
+                        }}
+                        className="animate-pulse"
+                      />
+                    )}
+
                     {/* Main Body - Sleek Anime Shape */}
                     <path 
                       d="M10,40 Q30,35 60,35 L100,38 L110,40 L100,42 L60,45 Q30,45 10,40 Z" 
@@ -396,6 +473,10 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
                       fill="url(#wingGrad)" 
                       stroke="#fff" 
                       strokeWidth="1.5"
+                      style={{
+                        transformOrigin: '40px 40px',
+                        animation: isFlying && !hasCrashed ? `wing-flap ${Math.max(0.05, 0.2 - (multiplier - 1) * 0.01)}s infinite alternate` : 'none'
+                      }}
                     />
                     
                     {/* Tail Wing */}
@@ -470,17 +551,31 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
             <span className="text-[8px] text-gray-400 font-bold uppercase">All Bets</span>
           </div>
           <div className="space-y-1.5 overflow-y-auto h-full no-scrollbar pb-4">
-            {[...Array(12)].map((_, i) => (
-              <div key={i} className="flex flex-col gap-0.5">
-                <div className="flex justify-between items-center">
-                  <span className="text-[8px] text-gray-500">Player_{i}</span>
-                  <span className="text-[8px] text-white font-bold">৳{(Math.random() * 500).toFixed(0)}</span>
-                </div>
-                {gamePhase === 'flying' && Math.random() > 0.7 && (
-                  <div className="text-[7px] text-green-400 font-bold">{(1.1 + Math.random() * 2).toFixed(2)}x</div>
-                )}
-              </div>
-            ))}
+            <AnimatePresence>
+              {liveBets.map((bet, i) => (
+                <motion.div 
+                  key={bet.id} 
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.05, duration: 0.3 }}
+                  className={`flex flex-col gap-0.5 p-1 rounded transition-colors ${bet.cashedOut ? 'bg-green-500/10 border border-green-500/20' : 'border border-transparent'}`}
+                >
+                  <div className="flex justify-between items-center">
+                    <span className="text-[8px] text-gray-500">{bet.name}</span>
+                    <span className="text-[8px] text-white font-bold">৳{bet.amount}</span>
+                  </div>
+                  {bet.cashedOut && bet.cashOutMultiplier && (
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.5 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="text-[7px] text-green-400 font-bold"
+                    >
+                      {bet.cashOutMultiplier.toFixed(2)}x
+                    </motion.div>
+                  )}
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
         </div>
 
@@ -560,7 +655,20 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
                </button>
                <div className="flex flex-col items-center">
                  <span className="text-[8px] text-gray-500 font-bold uppercase tracking-widest">Amount</span>
-                 <span className="text-sm font-black text-white">৳ {betAmount}</span>
+                 <div className="flex items-center gap-1">
+                   <span className="text-sm font-black text-white">৳</span>
+                   <motion.input 
+                     whileFocus={{ scale: 1.05 }}
+                     type="number"
+                     value={betAmount === 0 ? '' : betAmount}
+                     onChange={(e) => {
+                       const val = parseInt(e.target.value) || 0;
+                       setBetAmount(val);
+                     }}
+                     disabled={isBetPlaced || gamePhase !== 'betting'}
+                     className="bg-transparent text-sm font-black text-white w-16 outline-none border-b border-transparent focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/20 transition-all text-center rounded"
+                   />
+                 </div>
                </div>
                <button 
                  onClick={() => setBetAmount(prev => prev + 10)} 
@@ -570,6 +678,11 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
                  +
                </button>
             </div>
+            {betError && gamePhase === 'betting' && !isBetPlaced && (
+              <div className="text-[8px] text-red-500 font-bold mb-1 animate-pulse">
+                {betError}
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-1 w-full">
               {[1, 10, 100, 500, 1000, 10000].map(val => (
                 <button 
@@ -587,28 +700,68 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
           </div>
 
           {/* Main Action Button */}
-          <div className="flex-1">
+          <div className="flex-1 flex gap-2">
             {isBetPlaced && !isCashedOut && !hasCrashed && gamePhase === 'flying' ? (
-              <button 
-                onClick={cashOut}
-                className="w-full h-full bg-gradient-to-b from-orange-400 to-orange-600 rounded-xl shadow-[0_4px_15px_rgba(249,115,22,0.4)] flex flex-col items-center justify-center p-2 active:scale-95 transition-transform"
-              >
-                <span className="text-black font-black text-lg leading-none">CASH OUT</span>
-                <span className="text-black font-bold text-sm mt-1">৳ {(betAmount * multiplier).toFixed(2)}</span>
-              </button>
+              <>
+                <motion.button 
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={cashOut}
+                  className="flex-1 h-full bg-gradient-to-b from-orange-400 to-orange-600 rounded-xl shadow-[0_4px_15px_rgba(249,115,22,0.4)] flex flex-col items-center justify-center p-2 transition-transform"
+                >
+                  <span className="text-black font-black text-sm leading-none">CASH OUT</span>
+                  <span className="text-black font-bold text-xs mt-1">৳ {(betAmount * multiplier).toFixed(2)}</span>
+                </motion.button>
+                <motion.button 
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={cashOut}
+                  className="flex-1 h-full bg-gradient-to-b from-yellow-400 to-yellow-600 rounded-xl shadow-[0_4px_15px_rgba(250,204,21,0.4)] flex flex-col items-center justify-center p-2 transition-transform"
+                >
+                  <span className="text-black font-black text-sm leading-none">SELL</span>
+                  <span className="text-black font-bold text-xs mt-1">৳ {(betAmount * multiplier).toFixed(2)}</span>
+                </motion.button>
+              </>
             ) : (
-              <button 
-                disabled={isBetPlaced || gamePhase !== 'betting'}
-                onClick={placeBet}
-                className={`w-full h-full rounded-xl flex flex-col items-center justify-center p-2 transition-all ${
-                  isBetPlaced ? 'bg-gray-800 text-gray-500' : 
-                  gamePhase === 'betting' ? 'bg-gradient-to-b from-green-400 to-green-600 shadow-[0_4px_15px_rgba(34,197,94,0.4)] active:scale-95' :
-                  'bg-gray-800 text-gray-500'
-                }`}
-              >
-                <span className="text-black font-black text-lg leading-none">BET</span>
-                <span className="text-black font-bold text-sm mt-1">৳ {betAmount}</span>
-              </button>
+              <div className="flex-1 flex gap-2">
+                <motion.button 
+                  animate={justPlacedBet ? { scale: [1, 1.1, 1], rotate: [0, 2, -2, 0] } : {}}
+                  transition={{ duration: 0.3 }}
+                  disabled={isBetPlaced || gamePhase !== 'betting' || !!betError}
+                  onClick={placeBet}
+                  className={`flex-[1.5] h-full rounded-xl flex flex-col items-center justify-center p-2 transition-all ${
+                    isBetPlaced ? 'bg-blue-900/40 border border-blue-500/30 text-blue-400' : 
+                    gamePhase === 'betting' ? (!!betError ? 'bg-red-900/40 border border-red-500/30 cursor-not-allowed' : 'bg-gradient-to-b from-green-400 to-green-600 shadow-[0_4px_15px_rgba(34,197,94,0.4)] active:scale-95') :
+                    'bg-gray-800 text-gray-500'
+                  }`}
+                >
+                  <span className={`font-black text-lg leading-none ${
+                    isBetPlaced ? 'text-blue-400' : 
+                    (!!betError && gamePhase === 'betting' ? 'text-red-400' : 'text-black')
+                  }`}>
+                    {isBetPlaced ? 'WAITING' : 
+                     (!!betError && gamePhase === 'betting' && !isBetPlaced ? 'INVALID' : 
+                      (gamePhase === 'betting' ? 'BET' : 'FLYING'))}
+                  </span>
+                  <span className={`font-bold text-sm mt-1 ${
+                    isBetPlaced ? 'text-blue-400/70' : 
+                    (!!betError && gamePhase === 'betting' ? 'text-red-400/70' : 'text-black/70')
+                  }`}>৳ {betAmount}</span>
+                </motion.button>
+                
+                <motion.button 
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setIsAutoBet(!isAutoBet)}
+                  className={`flex-1 h-full rounded-xl flex flex-col items-center justify-center p-2 transition-all border ${
+                    isAutoBet ? 'bg-blue-500 border-blue-400 text-white shadow-[0_4px_15px_rgba(59,130,246,0.4)]' : 'bg-black/40 border-white/10 text-gray-400'
+                  }`}
+                >
+                  <span className="font-black text-lg leading-none">BUY</span>
+                  <span className="font-bold text-[8px] mt-1 uppercase tracking-tighter">Auto Bet</span>
+                </motion.button>
+              </div>
             )}
           </div>
         </div>
@@ -628,8 +781,15 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
       <style>{`
         @keyframes fly-aviator {
           0% { transform: translate(0, 0) rotate(-12deg); }
-          50% { transform: translate(15px, -15px) rotate(-12deg); }
+          20% { transform: translate(10px, -15px) rotate(-10deg); }
+          40% { transform: translate(25px, -5px) rotate(-14deg); }
+          60% { transform: translate(15px, -20px) rotate(-11deg); }
+          80% { transform: translate(5px, -10px) rotate(-13deg); }
           100% { transform: translate(0, 0) rotate(-12deg); }
+        }
+        @keyframes wing-flap {
+          0% { transform: skewY(0deg); }
+          100% { transform: skewY(-5deg); }
         }
         @keyframes dash {
           to { stroke-dashoffset: -20; }
@@ -643,9 +803,9 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
           to { transform: translateX(100%); }
         }
         @keyframes shake {
-          0%, 100% { transform: translate(0, 0); }
-          5%, 15%, 25%, 35%, 45%, 55%, 65%, 75%, 85%, 95% { transform: translate(-8px, -8px); }
-          10%, 20%, 30%, 40%, 50%, 60%, 70%, 80%, 90% { transform: translate(8px, 8px); }
+          0%, 100% { transform: translate(0, 0) rotate(0deg); }
+          10%, 30%, 50%, 70%, 90% { transform: translate(-10px, -10px) rotate(-2deg); }
+          20%, 40%, 60%, 80% { transform: translate(10px, 10px) rotate(2deg); }
         }
         @keyframes crash-text {
           0% { transform: scale(0.5); opacity: 0; filter: blur(20px); }
@@ -658,9 +818,10 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
           100% { opacity: 0; }
         }
         @keyframes crash-plane {
-          0% { transform: translate(0, 0) rotate(-12deg) scale(1); }
-          50% { transform: translate(50px, 100px) rotate(45deg) scale(0.8); opacity: 0.5; }
-          100% { transform: translate(150px, 300px) rotate(180deg) scale(0); opacity: 0; }
+          0% { transform: translate(0, 0) rotate(-12deg) scale(1); filter: blur(0); }
+          20% { transform: translate(10px, 20px) rotate(0deg) scale(1.1); filter: blur(2px); }
+          50% { transform: translate(50px, 100px) rotate(45deg) scale(0.8); opacity: 0.5; filter: blur(5px); }
+          100% { transform: translate(150px, 300px) rotate(180deg) scale(0); opacity: 0; filter: blur(10px); }
         }
         @keyframes glitch {
           0% { transform: translate(0); text-shadow: -2px 0 #ff00c1, 2px 0 #00fff9; }

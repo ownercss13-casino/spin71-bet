@@ -32,9 +32,9 @@ const CASINO_IMAGES = [
     description: 'Luxury casino atmosphere'
   },
   {
-    title: 'Aviator Style Plane',
+    title: 'Crash Game Plane',
     url: 'https://images.unsplash.com/photo-1569154941061-e231b4725ef1?q=80&w=800&auto=format&fit=crop',
-    description: 'Modern aircraft for Aviator game'
+    description: 'Modern aircraft for Crash game'
   }
 ];
 

@@ -1,9 +1,35 @@
-import React from "react";
-import { Copy, HelpCircle, Share2, User, Users, Award, Facebook, Twitter, MessageCircle, Send, Gift, ChevronLeft } from "lucide-react";
+import React, { useState } from "react";
+import { Copy, HelpCircle, Share2, User, Users, Award, Facebook, Twitter, MessageCircle, Send, Gift, ChevronLeft, TrendingUp, DollarSign, Target, ShoppingCart, Package, Crown, Coins, Zap, Shield, Star } from "lucide-react";
 
-export default function InviteView({ onTabChange }: { onTabChange: (tab: any) => void }) {
-  const [totalShares, setTotalShares] = React.useState(12); // Initial placeholder
-  const currentReferrals = 3; // Placeholder for user's current referral count
+const shopCategories = [
+  { id: 'vip', name: 'ভিআইপি (VIP)', icon: Crown },
+  { id: 'coins', name: 'কয়েন (Coins)', icon: Coins },
+  { id: 'offers', name: 'অফার (Offers)', icon: Gift },
+];
+
+const shopItems = {
+  vip: [
+    { id: 'v1', name: 'VIP Bronze', price: '৳ 500', icon: Shield, color: 'text-orange-400', bg: 'bg-orange-400/20', border: 'border-orange-400/50', desc: 'দৈনিক ৫% ক্যাশব্যাক' },
+    { id: 'v2', name: 'VIP Silver', price: '৳ 1,000', icon: Star, color: 'text-gray-300', bg: 'bg-gray-300/20', border: 'border-gray-300/50', desc: 'দৈনিক ১০% ক্যাশব্যাক' },
+    { id: 'v3', name: 'VIP Gold', price: '৳ 5,000', icon: Crown, color: 'text-yellow-400', bg: 'bg-yellow-400/20', border: 'border-yellow-400/50', desc: 'দৈনিক ১৫% ক্যাশব্যাক' },
+  ],
+  coins: [
+    { id: 'c1', name: '10,000 Coins', price: '৳ 100', icon: Coins, color: 'text-yellow-500', bg: 'bg-yellow-500/20', border: 'border-yellow-500/50', desc: '+500 বোনাস' },
+    { id: 'c2', name: '50,000 Coins', price: '৳ 450', icon: Coins, color: 'text-yellow-500', bg: 'bg-yellow-500/20', border: 'border-yellow-500/50', desc: '+3,000 বোনাস' },
+    { id: 'c3', name: '100,000 Coins', price: '৳ 800', icon: Coins, color: 'text-yellow-500', bg: 'bg-yellow-500/20', border: 'border-yellow-500/50', desc: '+10,000 বোনাস' },
+  ],
+  offers: [
+    { id: 'o1', name: 'Welcome Pack', price: '৳ 200', icon: Zap, color: 'text-blue-400', bg: 'bg-blue-400/20', border: 'border-blue-400/50', desc: '20k Coins + VIP 1 Day' },
+    { id: 'o2', name: 'Weekend Special', price: '৳ 500', icon: Gift, color: 'text-purple-400', bg: 'bg-purple-400/20', border: 'border-purple-400/50', desc: '50k Coins + 5 Free Spins' },
+  ]
+};
+
+export default function InviteView({ onTabChange, initialSubTab = 'overview' }: { onTabChange: (tab: any) => void, initialSubTab?: string }) {
+  const [activeTab, setActiveTab] = useState(initialSubTab);
+  const [activeShopCategory, setActiveShopCategory] = useState('vip');
+  const [totalShares, setTotalShares] = useState(12);
+  const currentReferrals = 3;
+  const totalEarned = 1500;
 
   const incrementShares = () => setTotalShares(prev => prev + 1);
 
@@ -12,12 +38,13 @@ export default function InviteView({ onTabChange }: { onTabChange: (tab: any) =>
     if (currentReferrals >= max) return 100;
     return ((currentReferrals - min + 1) / (max - min + 1)) * 100;
   };
-  const referralLink = "http://l89vip.l89y.com/?referralCode=xjf8463";
+  
+  const referralLink = "https://spin71bet.com/?ref=xjf8463";
 
   const handleShare = async () => {
     const shareData = {
-      title: 'আমার রেফারেল লিঙ্ক',
-      text: 'আমার রেফারেল লিঙ্ক ব্যবহার করে যোগ দিন!',
+      title: 'SPIN71 BET - আমার রেফারেল লিঙ্ক',
+      text: 'আমার রেফারেল লিঙ্ক ব্যবহার করে যোগ দিন এবং বোনাস পান!',
       url: referralLink,
     };
 
@@ -26,207 +53,250 @@ export default function InviteView({ onTabChange }: { onTabChange: (tab: any) =>
         await navigator.share(shareData);
         incrementShares();
       } else {
-        alert('আপনার ব্রাউজার শেয়ারিং সাপোর্ট করে না। লিঙ্কটি কপি করে শেয়ার করুন।');
+        navigator.clipboard.writeText(referralLink);
+        alert('লিঙ্কটি কপি করা হয়েছে!');
+        incrementShares();
       }
     } catch (err: any) {
-      if (err.name === 'AbortError') {
-        console.log('Share canceled by user');
-      } else {
-        console.error('Error sharing:', err);
-      }
+      console.error('Error sharing:', err);
     }
   };
 
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(referralLink);
+    alert("লিঙ্কটি কপি করা হয়েছে!");
+    incrementShares();
+  };
+
   return (
-    <div className="p-4 text-white">
-      <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => onTabChange('home')}
-            className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors text-white"
-          >
-            <ChevronLeft size={20} />
-          </button>
-          <h1 className="text-xl font-bold">বন্ধুদের আমন্ত্রণ জানান</h1>
-        </div>
-        <button 
-          onClick={() => onTabChange('profile')}
-          className="text-teal-200 text-xs flex items-center gap-1 hover:text-white transition-colors"
-        >
-          প্রোফাইল দেখুন &rarr;
-        </button>
-      </div>
-      
-      {/* Tabs Placeholder */}
-      <div className="flex gap-4 mb-6 text-sm border-b border-teal-600 pb-2">
-        <span className="border-b-2 border-white pb-1">সংক্ষিপ্ত বর্ণনা</span>
-        <span className="text-teal-200">পুরস্কার</span>
-        <span className="text-teal-200">আয়</span>
-        <span className="text-teal-200">রেকর্ডস</span>
-        <span className="text-teal-200">লিডারবোর্ড</span>
-      </div>
-
-      {/* Revenue Goal */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-4 rounded-xl mb-6 shadow-lg flex justify-between items-center">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <h2 className="font-bold">রাজস্ব লক্ষ্য</h2>
-            <HelpCircle size={18} />
+    <div className="flex-1 overflow-y-auto pb-24 bg-[#0b0b0b]">
+      {/* Header */}
+      <div className="bg-[#128a61] p-4 pt-6 rounded-b-3xl shadow-lg relative overflow-hidden">
+        <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+        <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-yellow-400/20 rounded-full blur-3xl"></div>
+        
+        <div className="flex justify-between items-center relative z-10">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => onTabChange('home')}
+              className="p-2 bg-black/20 hover:bg-black/40 rounded-full transition-colors text-white backdrop-blur-sm"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <h2 className="text-2xl font-black italic tracking-tighter text-white drop-shadow-md">
+              SPIN71 <span className="text-yellow-400">INVITE</span>
+            </h2>
           </div>
-          <p className="text-sm text-blue-100">SPIN71 BET-এ পুরস্কার জিততে বন্ধুদের আমন্ত্রণ জানান</p>
+          <div className="bg-black/30 px-3 py-1.5 rounded-full flex items-center gap-2 border border-white/10 backdrop-blur-sm">
+            <Users size={16} className="text-yellow-400" />
+            <span className="text-white font-bold text-sm">আমন্ত্রণ</span>
+          </div>
         </div>
-        <button 
-          onClick={() => onTabChange('shop')}
-          className="bg-white/20 hover:bg-white/30 p-2 rounded-lg transition-colors"
-          title="শপ দেখুন"
-        >
-          <Gift size={20} />
-        </button>
-      </div>
 
-      {/* Referral Link */}
-      <div className="bg-white/10 p-4 rounded-xl mb-6">
-        <p className="text-sm mb-2">আপনার বন্ধুদের সাথে ভাগ করুন</p>
-        <div className="flex items-center gap-2 bg-white text-black p-2 rounded-lg">
-          <span className="text-xs truncate flex-1">{referralLink}</span>
-          <button 
-            onClick={() => {
-              navigator.clipboard.writeText(referralLink);
-              alert("লিঙ্কটি কপি করা হয়েছে!");
-              incrementShares();
-            }}
-            className="p-1 hover:bg-gray-200 rounded transition-colors"
-          >
-            <Copy size={16} />
-          </button>
-          <button 
-            onClick={() => {
-              window.open(`https://wa.me/?text=${encodeURIComponent("Join me on SPIN71 BET! " + referralLink)}`, '_blank');
-              incrementShares();
-            }} 
-            className="flex items-center justify-center w-8 h-8 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors"
-            title="WhatsApp"
-          >
-            <MessageCircle size={16} />
-          </button>
-          <button onClick={() => {
-            window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(referralLink)}`, '_blank');
-            incrementShares();
-          }} className="p-1 hover:bg-blue-100 rounded text-blue-600 transition-colors">
-            <Facebook size={16} />
-          </button>
-          <button onClick={() => {
-            window.open(`https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent("Join me on SPIN71 BET!")}`, '_blank');
-            incrementShares();
-          }} className="p-1 hover:bg-sky-100 rounded text-sky-600 transition-colors" title="Share on Telegram">
-            <Send size={16} />
-          </button>
-          <button 
-            onClick={handleShare}
-            className="p-1 hover:bg-gray-200 rounded transition-colors"
-          >
-            <Share2 size={16} />
-          </button>
-        </div>
-      </div>
-
-      {/* Referral Tiers */}
-      <div className="mb-8">
-        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-          <Award className="text-yellow-400" />
-          রেফারেল টায়ার ও বোনাস
-        </h3>
-        <div className="grid grid-cols-1 gap-4">
-          <div className="bg-gradient-to-r from-gray-700 to-gray-600 p-5 rounded-2xl border border-gray-500 shadow-lg flex items-center gap-5">
-            <div className="w-14 h-14 rounded-full bg-yellow-500/20 flex items-center justify-center text-yellow-400 shrink-0">
-              <User size={28} />
+        {/* Stats Summary */}
+        <div className="mt-6 grid grid-cols-2 gap-3 relative z-10">
+          <div className="bg-black/20 backdrop-blur-sm rounded-2xl p-3 border border-white/10">
+            <div className="flex items-center gap-2 text-teal-100 mb-1">
+              <Users size={14} />
+              <span className="text-xs">মোট রেফারেল</span>
             </div>
-            <div>
-              <p className="font-bold text-lg text-white">সিলভার টায়ার (Silver)</p>
-              <p className="text-sm text-gray-200">প্রয়োজন: <span className="font-bold text-white">১-৪ জন</span> রেফারেল</p>
-              <p className="text-sm text-gray-200">বোনাস: <span className="font-bold text-yellow-300">প্রতি রেফারেল ৳ ৫০</span></p>
-              <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
-                <div className="bg-yellow-400 h-2 rounded-full" style={{ width: `${getProgress(1, 4)}%` }}></div>
+            <div className="text-2xl font-black text-white">{currentReferrals} <span className="text-sm font-normal text-teal-200">জন</span></div>
+          </div>
+          <div className="bg-black/20 backdrop-blur-sm rounded-2xl p-3 border border-white/10">
+            <div className="flex items-center gap-2 text-teal-100 mb-1">
+              <DollarSign size={14} />
+              <span className="text-xs">মোট আয়</span>
+            </div>
+            <div className="text-2xl font-black text-yellow-400">৳ {totalEarned}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="px-4 mt-6">
+        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+          {[
+            { id: 'overview', name: 'সংক্ষিপ্ত বর্ণনা' },
+            { id: 'shop', name: 'শপ (Shop)' },
+            { id: 'earnings', name: 'আয়' },
+            { id: 'leaderboard', name: 'লিডারবোর্ড' }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-5 py-2.5 rounded-full font-bold whitespace-nowrap transition-all ${
+                activeTab === tab.id 
+                  ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-black shadow-[0_0_15px_rgba(250,204,21,0.4)]' 
+                  : 'bg-[#1b1b1b] text-gray-400 border border-white/5 hover:bg-[#252525]'
+              }`}
+            >
+              {tab.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {activeTab === 'overview' && (
+        <div className="p-4 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {/* Revenue Goal Banner */}
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-5 rounded-2xl shadow-lg relative overflow-hidden group">
+            <div className="absolute right-0 top-0 w-32 h-32 bg-white/10 rounded-full blur-2xl transform translate-x-1/2 -translate-y-1/2 group-hover:scale-150 transition-transform duration-700"></div>
+            <div className="flex justify-between items-center relative z-10">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <h2 className="font-bold text-white text-lg">রাজস্ব লক্ষ্য</h2>
+                  <Target size={18} className="text-blue-200" />
+                </div>
+                <p className="text-sm text-blue-100">বন্ধুদের আমন্ত্রণ জানান এবং এক্সট্রা বোনাস জিতুন!</p>
+              </div>
+              <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/30">
+                <Gift size={24} className="text-white" />
               </div>
             </div>
           </div>
-          <div className="bg-gradient-to-r from-amber-800 to-amber-700 p-5 rounded-2xl border border-amber-600 shadow-lg flex items-center gap-5">
-            <div className="w-14 h-14 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-300 shrink-0">
-              <Users size={28} />
+
+          {/* Share Section */}
+          <div className="bg-[#1b1b1b] p-5 rounded-2xl border border-white/5">
+            <h3 className="text-white font-bold mb-3 flex items-center gap-2">
+              <Share2 size={18} className="text-teal-400" />
+              আপনার রেফারেল লিঙ্ক শেয়ার করুন
+            </h3>
+            
+            <div className="flex items-center gap-2 bg-black/50 p-2 rounded-xl border border-white/10 mb-4">
+              <span className="text-sm text-gray-300 truncate flex-1 pl-2 font-mono">{referralLink}</span>
+              <button 
+                onClick={copyToClipboard}
+                className="bg-teal-600 hover:bg-teal-500 text-white p-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <Copy size={18} />
+                <span className="text-xs font-bold">কপি করুন</span>
+              </button>
             </div>
-            <div>
-              <p className="font-bold text-lg text-white">গোল্ড টায়ার (Gold)</p>
-              <p className="text-sm text-amber-100">প্রয়োজন: <span className="font-bold text-white">৫-৯ জন</span> রেফারেল</p>
-              <p className="text-sm text-amber-100">বোনাস: <span className="font-bold text-amber-300">৳ ৫০০ অতিরিক্ত বোনাস</span></p>
-              <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
-                <div className="bg-amber-400 h-2 rounded-full" style={{ width: `${getProgress(5, 9)}%` }}></div>
+
+            <div className="grid grid-cols-4 gap-3">
+              <button onClick={handleShare} className="flex flex-col items-center gap-2 group">
+                <div className="w-12 h-12 rounded-full bg-[#1877F2]/20 text-[#1877F2] flex items-center justify-center group-hover:bg-[#1877F2] group-hover:text-white transition-all">
+                  <Facebook size={24} />
+                </div>
+                <span className="text-[10px] text-gray-400">Facebook</span>
+              </button>
+              <button onClick={handleShare} className="flex flex-col items-center gap-2 group">
+                <div className="w-12 h-12 rounded-full bg-[#25D366]/20 text-[#25D366] flex items-center justify-center group-hover:bg-[#25D366] group-hover:text-white transition-all">
+                  <MessageCircle size={24} />
+                </div>
+                <span className="text-[10px] text-gray-400">WhatsApp</span>
+              </button>
+              <button onClick={handleShare} className="flex flex-col items-center gap-2 group">
+                <div className="w-12 h-12 rounded-full bg-[#0088cc]/20 text-[#0088cc] flex items-center justify-center group-hover:bg-[#0088cc] group-hover:text-white transition-all">
+                  <Send size={24} />
+                </div>
+                <span className="text-[10px] text-gray-400">Telegram</span>
+              </button>
+              <button onClick={handleShare} className="flex flex-col items-center gap-2 group">
+                <div className="w-12 h-12 rounded-full bg-white/10 text-white flex items-center justify-center group-hover:bg-white group-hover:text-black transition-all">
+                  <Share2 size={24} />
+                </div>
+                <span className="text-[10px] text-gray-400">More</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Progress Section */}
+          <div className="bg-[#1b1b1b] p-5 rounded-2xl border border-white/5">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-white font-bold flex items-center gap-2">
+                <TrendingUp size={18} className="text-yellow-400" />
+                আপনার অগ্রগতি
+              </h3>
+              <span className="text-xs text-gray-400">{currentReferrals}/10 বন্ধু</span>
+            </div>
+            
+            <div className="relative h-3 bg-black rounded-full overflow-hidden border border-white/10">
+              <div 
+                className="absolute top-0 left-0 h-full bg-gradient-to-r from-yellow-600 to-yellow-400 rounded-full transition-all duration-1000"
+                style={{ width: `${getProgress(0, 10)}%` }}
+              >
+                <div className="absolute inset-0 bg-white/20 animate-[loading_2s_linear_infinite]"></div>
+              </div>
+            </div>
+            
+            <div className="mt-4 flex justify-between text-xs text-gray-400">
+              <div className="flex flex-col items-center gap-1">
+                <div className="w-6 h-6 rounded-full bg-yellow-500/20 text-yellow-500 flex items-center justify-center border border-yellow-500/50">1</div>
+                <span>৳ 50</span>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <div className="w-6 h-6 rounded-full bg-yellow-500/20 text-yellow-500 flex items-center justify-center border border-yellow-500/50">5</div>
+                <span>৳ 300</span>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <div className="w-6 h-6 rounded-full bg-black text-gray-500 flex items-center justify-center border border-white/10">10</div>
+                <span>৳ 1000</span>
               </div>
             </div>
           </div>
-          <div className="bg-gradient-to-r from-indigo-800 to-indigo-700 p-5 rounded-2xl border border-indigo-600 shadow-lg flex items-center gap-5">
-            <div className="w-14 h-14 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-300 shrink-0">
-              <Award size={28} />
+        </div>
+      )}
+
+      {activeTab === 'shop' && (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {/* Categories */}
+          <div className="px-4 mt-6">
+            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+              {shopCategories.map(cat => (
+                <button
+                  key={cat.id}
+                  onClick={() => setActiveShopCategory(cat.id)}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-bold whitespace-nowrap transition-all ${
+                    activeShopCategory === cat.id 
+                      ? 'bg-teal-600 text-white shadow-[0_0_15px_rgba(20,184,166,0.4)]' 
+                      : 'bg-[#1b1b1b] text-gray-400 border border-white/5 hover:bg-[#252525]'
+                  }`}
+                >
+                  <cat.icon size={16} className={activeShopCategory === cat.id ? 'text-white' : 'text-gray-400'} />
+                  {cat.name}
+                </button>
+              ))}
             </div>
-            <div>
-              <p className="font-bold text-lg text-white">প্ল্যাটিনাম টায়ার (Platinum)</p>
-              <p className="text-sm text-indigo-100">প্রয়োজন: <span className="font-bold text-white">১০+ জন</span> রেফারেল</p>
-              <p className="text-sm text-indigo-100">বোনাস: <span className="font-bold text-indigo-300">৳ ১২০০ অতিরিক্ত বোনাস</span></p>
-              <div className="w-full bg-gray-800 rounded-full h-2 mt-2">
-                <div className="bg-indigo-400 h-2 rounded-full" style={{ width: `${getProgress(10, 20)}%` }}></div>
+          </div>
+
+          {/* Items Grid */}
+          <div className="p-4 grid grid-cols-2 gap-4">
+            {shopItems[activeShopCategory as keyof typeof shopItems].map(item => (
+              <div 
+                key={item.id} 
+                className={`bg-[#1b1b1b] rounded-2xl p-4 border ${item.border} flex flex-col items-center relative overflow-hidden group hover:scale-105 transition-transform`}
+              >
+                {/* Background Glow */}
+                <div className={`absolute inset-0 ${item.bg} opacity-20 group-hover:opacity-40 transition-opacity`}></div>
+                
+                <div className={`w-14 h-14 rounded-full ${item.bg} flex items-center justify-center mb-3 relative z-10 shadow-lg`}>
+                  <item.icon size={28} className={item.color} />
+                </div>
+                
+                <h3 className="text-white font-bold text-center text-sm mb-1 relative z-10">{item.name}</h3>
+                <p className="text-gray-400 text-[10px] text-center mb-3 h-6 relative z-10">{item.desc}</p>
+                
+                <div className="w-full mt-auto relative z-10">
+                  <button className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-bold py-2 rounded-xl text-sm shadow-lg transition-all active:scale-95 flex items-center justify-center gap-1">
+                    {item.price}
+                  </button>
+                </div>
               </div>
-            </div>
+            ))}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-white/10 p-4 rounded-xl">
-          <p className="text-xs text-teal-100">আজকের আয়</p>
-          <p className="text-xl font-bold">৳ 0.00</p>
-        </div>
-        <div className="bg-white/10 p-4 rounded-xl">
-          <p className="text-xs text-teal-100">গতকালের আয়</p>
-          <p className="text-xl font-bold">৳ 0.00</p>
-        </div>
-        <div className="bg-white/10 p-4 rounded-xl">
-          <p className="text-xs text-teal-100">মোট শেয়ার</p>
-          <p className="text-xl font-bold">{totalShares}</p>
-        </div>
-      </div>
-
-      {/* Total Earnings */}
-      <div className="bg-gradient-to-r from-yellow-600 to-yellow-700 p-4 rounded-xl shadow-lg mb-6">
-        <p className="text-xs text-yellow-100 mb-1">মোট আয় (Total Earnings)</p>
-        <p className="text-2xl font-bold text-white">৳ 0.00</p>
-      </div>
-
-      {/* Leaderboard */}
-      <div className="bg-white/10 p-4 rounded-xl">
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="font-bold">লিডারবোর্ড</h3>
-          <div className="group relative">
-            <HelpCircle size={18} className="text-teal-200 cursor-help" />
-            <div className="absolute right-0 w-48 p-2 bg-gray-800 text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
-              লিডারবোর্ডটি প্রতি ২৪ ঘণ্টায় একবার আপডেট করা হয়।
-            </div>
+      {activeTab !== 'overview' && activeTab !== 'shop' && (
+        <div className="p-8 flex flex-col items-center justify-center text-center animate-in fade-in duration-500">
+          <div className="w-20 h-20 bg-[#1b1b1b] rounded-full flex items-center justify-center mb-4 border border-white/5 shadow-lg">
+            <Award size={32} className="text-teal-500" />
           </div>
+          <h3 className="text-white font-bold text-lg mb-2">শীঘ্রই আসছে!</h3>
+          <p className="text-gray-400 text-sm">এই ফিচারটি নিয়ে আমরা কাজ করছি। খুব শীঘ্রই এটি যুক্ত করা হবে।</p>
         </div>
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between border-b border-white/10 pb-2">
-            <span>১. user_123</span>
-            <span>৫০ রেফারেল</span>
-          </div>
-          <div className="flex justify-between border-b border-white/10 pb-2">
-            <span>২. user_456</span>
-            <span>৪০ রেফারেল</span>
-          </div>
-          <div className="flex justify-between">
-            <span>৩. user_789</span>
-            <span>৩০ রেফারেল</span>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

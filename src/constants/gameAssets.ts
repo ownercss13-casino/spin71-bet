@@ -1,5 +1,5 @@
 export const GAME_IMAGES = {
-  AVIATOR: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=800",
+  CRASH_GAME: "https://images.unsplash.com/photo-1540962351504-03099e0a754b?auto=format&fit=crop&q=80&w=800",
   SUPER_ACE: "https://images.unsplash.com/photo-1596838132731-3301c3fd4317?auto=format&fit=crop&q=80&w=800",
   SUPER_ACE_2: "https://images.unsplash.com/photo-1606167668584-78701c57f13d?auto=format&fit=crop&q=80&w=800",
   WG_PLANE: "https://images.unsplash.com/photo-1559627814-4d0c75748d2b?auto=format&fit=crop&q=80&w=800",

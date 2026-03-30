@@ -1,0 +1,83 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and account information",
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "description": "User's unique username"
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "User's registered phone number"
+        },
+        "password": {
+          "type": "string",
+          "description": "User's hashed password"
+        },
+        "gmail": {
+          "type": "string",
+          "description": "User's linked Gmail address"
+        },
+        "balance": {
+          "type": "number",
+          "description": "User's current account balance"
+        },
+        "isGmailLinked": {
+          "type": "boolean",
+          "description": "Whether the user has linked their Gmail"
+        },
+        "favorites": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of favorite game IDs"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Account creation timestamp"
+        }
+      },
+      "required": ["username", "phoneNumber", "password", "balance"]
+    },
+    "SavedItem": {
+      "title": "SavedItem",
+      "description": "Items saved by the user",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "ID of the user who saved the item"
+        },
+        "itemId": {
+          "type": "string",
+          "description": "ID of the saved item"
+        },
+        "itemType": {
+          "type": "string",
+          "description": "Type of the saved item (e.g., game, product)"
+        },
+        "savedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the item was saved"
+        }
+      },
+      "required": ["userId", "itemId", "itemType", "savedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User document stored by their unique UID"
+    },
+    "/users/{userId}/savedItems/{savedItemId}": {
+      "schema": "SavedItem",
+      "description": "Collection of items saved by a specific user"
+    }
+  }
+}
