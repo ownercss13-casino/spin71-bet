@@ -40,6 +40,17 @@
           "type": "string",
           "format": "date-time",
           "description": "Account creation timestamp"
+        },
+        "profilePictureUrl": {
+          "type": "string",
+          "description": "URL or base64 string of the user's profile picture"
+        },
+        "claimedBonuses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of claimed bonus IDs"
         }
       },
       "required": ["username", "phoneNumber", "password", "balance"]

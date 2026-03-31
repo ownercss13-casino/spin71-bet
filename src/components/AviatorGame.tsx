@@ -20,7 +20,8 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
   const [isAutoCashOut, setIsAutoCashOut] = useState(false);
   const [autoCashOutValue, setAutoCashOutValue] = useState(2.00);
   const [cashOutMultiplier, setCashOutMultiplier] = useState(0);
-  const [history, setHistory] = useState<number[]>([1.25, 10.42, 2.15, 1.05, 5.30, 1.88, 25.10]);
+  const [history, setHistory] = useState<number[]>([]);
+  // Removed multiplierIndex
   const [gamePhase, setGamePhase] = useState<'betting' | 'flying' | 'crashed'>('betting');
   const [bettingCountdown, setBettingCountdown] = useState(5);
   const [parallaxOffset, setParallaxOffset] = useState({ x: 0, y: 0 });
@@ -35,6 +36,7 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
+  const roundTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const crashPointRef = useRef(0);
   const multiplierRef = useRef(1.00);
 
@@ -83,12 +85,12 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
     setGamePhase('betting');
     setBettingCountdown(5);
     
-    // Random crash point between 1.01 and 10.00 (weighted towards lower values)
-    const random = Math.random();
-    if (random < 0.1) crashPointRef.current = 1.00 + Math.random() * 0.1; // 10% chance crash early
-    else if (random < 0.5) crashPointRef.current = 1.1 + Math.random() * 1.5; // 40% chance crash between 1.1 and 2.6
-    else if (random < 0.8) crashPointRef.current = 2.6 + Math.random() * 3.0; // 30% chance crash between 2.6 and 5.6
-    else crashPointRef.current = 5.6 + Math.random() * 15.0; // 20% chance crash high
+    // Generate a random crash point between 1.00 and 15.00
+    // Bias towards lower numbers
+    const rand = Math.random();
+    const randomCrashPoint = 1 + Math.pow(rand, 2) * 14;
+    crashPointRef.current = Number(randomCrashPoint.toFixed(2));
+    console.log(`Round started: Crash point set to ${crashPointRef.current}`);
     
     // Betting countdown
     if (countdownRef.current) clearInterval(countdownRef.current);
@@ -110,6 +112,7 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (countdownRef.current) clearInterval(countdownRef.current);
+      if (roundTimeoutRef.current) clearTimeout(roundTimeoutRef.current);
     };
   }, []);
 
@@ -118,7 +121,9 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
       timerRef.current = setInterval(() => {
         setMultiplier(prev => {
           const next = prev + (prev * 0.007); // Slower exponential growth (was 0.01)
+          console.log(`Current: ${prev}, Next: ${next}, CrashPoint: ${crashPointRef.current}`);
           if (next >= crashPointRef.current) {
+            console.log(`Crashed at: ${next}`);
             handleCrash(next);
             return next;
           }
@@ -170,7 +175,7 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
     setIsBetPlaced(false);
     
     // Start next round after 3 seconds
-    setTimeout(startNewRound, 3000);
+    roundTimeoutRef.current = setTimeout(startNewRound, 3000);
   };
 
   const placeBet = React.useCallback(() => {
@@ -184,9 +189,10 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
   const cashOut = React.useCallback(() => {
     if (!isBetPlaced || isCashedOut || hasCrashed || gamePhase !== 'flying') return;
     const winAmount = betAmount * multiplier;
-    onBalanceUpdate(userBalance + winAmount);
     setIsCashedOut(true);
+    setIsBetPlaced(false);
     setCashOutMultiplier(multiplier);
+    onBalanceUpdate(userBalance + winAmount);
 
     // Auto-hide cashout popup after 2 seconds
     setTimeout(() => {

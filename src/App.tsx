@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { signInWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
 import { db, auth, googleProvider, handleFirestoreError, OperationType } from './firebase';
+import LoginPage from './LoginPage';
+import BonusCenter from './BonusCenter';
 import ProfileView from "./components/ProfileView";
 import InviteView from "./components/InviteView";
 import RewardsView from "./components/RewardsView";
@@ -10,7 +12,7 @@ import AviatorGame from "./components/AviatorGame";
 import SupportChat from "./components/SupportChat";
 import { GameGrid, Game } from "./components/GameGrid";
 import { CasinoGallery } from "./components/CasinoGallery";
-import { saveItem, getSavedItems, removeItem, updateUserProfile, updateFavorites } from './services/firebaseService';
+import { saveItem, getSavedItems, removeItem, updateUserProfile, updateFavorites, updateBalance } from './services/firebaseService';
 import {
   Menu,
   Search,
@@ -39,14 +41,15 @@ import {
   Info,
   ArrowLeft,
   Plane as PlaneIcon,
-  LogOut
+  LogOut,
+  Download
 } from "lucide-react";
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userData, setUserData] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'home' | 'profile' | 'invite' | 'deposit' | 'rewards'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'profile' | 'invite' | 'deposit' | 'rewards' | 'bonus'>('home');
   const [activeCategory, setActiveCategory] = useState('সেরা');
   const [favorites, setFavorites] = useState<string[]>([]);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
@@ -77,21 +80,16 @@ export default function App() {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    let unsubscribeDoc: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
         const firebaseUid = user.uid;
         
-        // Fetch user data from Firestore
+        // Initial fetch to create user if not exists
         try {
           const userDoc = await getDoc(doc(db, 'users', firebaseUid));
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            setUserData({ ...userData, id: firebaseUid });
-            setBalance(userData.balance || 0);
-            setFavorites(userData.favorites || []);
-            setIsLoggedIn(true);
-          } else {
-            // Create new user document
+          if (!userDoc.exists()) {
             const newUser = {
               username: user.displayName || 'Player',
               phoneNumber: '01XXXXXXXXX',
@@ -103,15 +101,29 @@ export default function App() {
               favorites: []
             };
             await setDoc(doc(db, 'users', firebaseUid), newUser);
-            setUserData({ ...newUser, id: firebaseUid });
-            setBalance(0);
-            setFavorites([]);
-            setIsLoggedIn(true);
           }
+          
+          // Clean up previous listener if any
+          if (unsubscribeDoc) unsubscribeDoc();
+
+          // Set up real-time listener
+          unsubscribeDoc = onSnapshot(doc(db, 'users', firebaseUid), (docSnap) => {
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              setUserData({ ...data, id: firebaseUid });
+              setBalance(data.balance || 0);
+              setFavorites(data.favorites || []);
+              setIsLoggedIn(true);
+            }
+          }, (error) => {
+            handleFirestoreError(error, OperationType.GET, `users/${firebaseUid}`);
+          });
         } catch (e) {
           console.error("Failed to fetch/create user data", e);
         }
       } else {
+        if (unsubscribeDoc) unsubscribeDoc();
+        unsubscribeDoc = null;
         setIsLoggedIn(false);
         setUserData(null);
         setFavorites([]);
@@ -122,9 +134,11 @@ export default function App() {
     const timer = setTimeout(() => {
       setShowSplash(false);
     }, 3000);
+
     return () => {
       clearTimeout(timer);
-      unsubscribe();
+      unsubscribeAuth();
+      if (unsubscribeDoc) unsubscribeDoc();
     };
   }, []);
 
@@ -140,6 +154,26 @@ export default function App() {
     signOut(auth);
     setIsLoggedIn(false);
     setUserData(null);
+  };
+
+  const handleBalanceUpdate = (newBalance: number) => {
+    setBalance(newBalance);
+    if (isLoggedIn && userData?.id) {
+      updateBalance(userData.id, newBalance);
+    }
+  };
+
+  const handleToggleFavorite = (gameId: string) => {
+    const newFavorites = favorites.includes(gameId)
+      ? favorites.filter(id => id !== gameId)
+      : [...favorites, gameId];
+    
+    setFavorites(newFavorites);
+    if (isLoggedIn && userData?.id) {
+      updateFavorites(userData.id, newFavorites).catch(err => {
+        console.error("Failed to update favorites in Firestore:", err);
+      });
+    }
   };
 
   if (showSplash) {
@@ -306,18 +340,7 @@ export default function App() {
   }
 
   if (!isLoggedIn) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-teal-900 p-6">
-        <h1 className="text-3xl font-bold text-white mb-8">SPIN71BET</h1>
-        <button 
-          onClick={handleGoogleLogin}
-          className="bg-white text-gray-800 font-bold py-3 px-6 rounded-lg flex items-center gap-3 hover:bg-gray-100 transition-colors shadow-lg"
-        >
-          <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt="Google" className="w-5 h-5" />
-          Google দিয়ে লগইন করুন
-        </button>
-      </div>
-    );
+    return <LoginPage />;
   }
 
   return (
@@ -337,7 +360,11 @@ export default function App() {
             <span className="text-teal-50">দৈনিক বিনামূল্যের অ্যাপ বোনাস</span>
           </div>
         </div>
-        <button className="bg-[#16a374] border border-teal-500 px-3 py-1 rounded text-[10px] font-medium text-white shadow-sm">
+        <button 
+          onClick={() => window.open('#', '_blank')}
+          className="bg-[#16a374] border border-teal-500 px-3 py-1 rounded text-[10px] font-medium text-white shadow-sm flex items-center gap-1"
+        >
+          <Download size={10} />
           ডাউনলোড করুন
         </button>
       </div>
@@ -653,7 +680,7 @@ export default function App() {
           searchQuery={searchQuery} 
           onGameSelect={setSelectedGame} 
           favorites={favorites}
-          setFavorites={setFavorites}
+          onToggleFavorite={handleToggleFavorite}
         />
       </div>
 
@@ -662,7 +689,7 @@ export default function App() {
         <AviatorGame 
           onClose={() => setSelectedGame(null)} 
           userBalance={balance}
-          onBalanceUpdate={setBalance}
+          onBalanceUpdate={handleBalanceUpdate}
         />
       ) : selectedGame && (
         <div className="fixed inset-0 z-[100] bg-black flex flex-col max-w-md mx-auto">
@@ -838,6 +865,7 @@ export default function App() {
       )}
 
       {activeTab === 'profile' && <ProfileView onTabChange={setActiveTab} balance={balance} userData={userData} onLogout={handleLogout} />}
+      {activeTab === 'bonus' && <BonusCenter userData={userData} balance={balance} onBalanceUpdate={setBalance} />}
       {activeTab === 'invite' && <InviteView onTabChange={setActiveTab} />}
       {activeTab === 'rewards' && <RewardsView onTabChange={setActiveTab} userData={userData} setUserData={setUserData} balance={balance} setBalance={setBalance} />}
       {activeTab === 'deposit' && <DepositView onTabChange={setActiveTab} balance={balance} />}
@@ -860,6 +888,13 @@ export default function App() {
         >
           <Gift size={22} />
           <span>পুরস্কার</span>
+        </div>
+        <div 
+          onClick={() => setActiveTab('bonus')}
+          className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${activeTab === 'bonus' ? 'text-white' : 'hover:text-white'}`}
+        >
+          <Gift size={22} />
+          <span>বোনাস</span>
         </div>
         <div 
           onClick={() => setActiveTab('invite')}

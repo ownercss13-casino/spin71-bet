@@ -19,32 +19,36 @@ export default function RegisterView({ onRegister, onBackToLogin }: RegisterView
   const [agreed, setAgreed] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-
-  // Phone Auth States
-  const [otp, setOtp] = useState('');
-  const [isOtpSent, setIsOtpSent] = useState(false);
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+  const [isOtpSent, setIsOtpSent] = useState(false);
   const recaptchaRef = useRef<HTMLDivElement>(null);
-  const recaptchaVerifier = useRef<RecaptchaVerifier | null>(null);
 
-  const setupRecaptcha = () => {
-    if (!recaptchaVerifier.current && recaptchaRef.current) {
-      recaptchaVerifier.current = new RecaptchaVerifier(auth, recaptchaRef.current, {
+  const sendOtp = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaRef.current!, {
         'size': 'invisible',
       });
+      const formattedPhone = `+880${phone.replace(/^0+/, '')}`;
+      const confirmation = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifier);
+      setConfirmationResult(confirmation);
+      setIsOtpSent(true);
+    } catch (err: any) {
+      console.error("OTP Error:", err);
+      setError("ওটিপি পাঠাতে সমস্যা হয়েছে। (Failed to send OTP.)");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleGoogleRegister = async () => {
     setIsLoading(true);
-    setError(null);
     try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      onRegister({ method: 'google', user: result.user });
-    } catch (err) {
-      console.error("Google Registration Error:", err);
-      setError("জিমেইল দিয়ে রেজিস্ট্রেশন ব্যর্থ হয়েছে। (Google registration failed.)");
+      const result = await signInWithPopup(auth, new GoogleAuthProvider());
+      onRegister(result.user);
+    } catch (err: any) {
+      setError("Google দিয়ে রেজিস্ট্রেশন করতে সমস্যা হয়েছে।");
     } finally {
       setIsLoading(false);
     }
@@ -52,33 +56,34 @@ export default function RegisterView({ onRegister, onBackToLogin }: RegisterView
 
   const handleFacebookRegister = async () => {
     setIsLoading(true);
-    setError(null);
     try {
-      const provider = new FacebookAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      onRegister({ method: 'facebook', user: result.user });
-    } catch (err) {
-      console.error("Facebook Registration Error:", err);
-      setError("ফেসবুক দিয়ে রেজিস্ট্রেশন ব্যর্থ হয়েছে। (Facebook registration failed.)");
+      const result = await signInWithPopup(auth, new FacebookAuthProvider());
+      onRegister(result.user);
+    } catch (err: any) {
+      setError("Facebook দিয়ে রেজিস্ট্রেশন করতে সমস্যা হয়েছে।");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const sendOtp = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      setupRecaptcha();
-      const formattedPhone = phone.startsWith('+') ? phone : `+88${phone}`;
-      const confirmation = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifier.current!);
-      setConfirmationResult(confirmation);
-      setIsOtpSent(true);
-    } catch (err: any) {
-      console.error("OTP Error:", err);
-      setError("ওটিপি পাঠানো ব্যর্থ হয়েছে। নম্বরটি সঠিক কিনা যাচাই করুন।");
-    } finally {
-      setIsLoading(false);
+  // Phone Auth States
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const handleOtpChange = (index: number, value: string) => {
+    if (isNaN(Number(value))) return;
+    const newOtp = [...otp];
+    newOtp[index] = value;
+    setOtp(newOtp);
+
+    if (value && index < 5) {
+      otpRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+      otpRefs.current[index - 1]?.focus();
     }
   };
 
@@ -87,7 +92,7 @@ export default function RegisterView({ onRegister, onBackToLogin }: RegisterView
     setError(null);
     try {
       if (confirmationResult) {
-        await confirmationResult.confirm(otp);
+        await confirmationResult.confirm(otp.join(''));
         // OTP verified, proceed to registration
         onRegister({ username, phone, password, referralCode });
       }
@@ -174,13 +179,26 @@ export default function RegisterView({ onRegister, onBackToLogin }: RegisterView
             <div className="space-y-5">
               <div className="space-y-2">
                 <label className="text-xs text-teal-300 font-bold ml-1 uppercase tracking-wider">ওটিপি (OTP)</label>
-                <input 
-                  type="text" 
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  placeholder="ওটিপি লিখুন"
-                  className="w-full bg-black/40 border border-teal-900/50 rounded-2xl py-3.5 px-4 text-white placeholder-gray-600 focus:outline-none focus:border-teal-500 transition-all"
-                />
+                <div className="flex gap-2 justify-center">
+                  {otp.map((digit, index) => (
+                    <input 
+                      key={index}
+                      type="text"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleOtpChange(index, e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(index, e)}
+                      ref={(el) => otpRefs.current[index] = el}
+                      className="w-10 h-12 bg-black/40 border border-teal-900/50 rounded-xl text-center text-white text-xl focus:outline-none focus:border-teal-500 transition-all"
+                    />
+                  ))}
+                </div>
+                <button 
+                  onClick={sendOtp}
+                  className="text-xs text-teal-400 hover:text-white underline mt-2 block w-full text-center"
+                >
+                  ওটিপি পুনরায় পাঠান (Resend OTP)
+                </button>
               </div>
               <button 
                 onClick={verifyOtp}

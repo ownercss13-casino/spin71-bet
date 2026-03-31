@@ -1,6 +1,19 @@
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, addDoc, getDocs, deleteDoc, doc, query, where, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { User } from 'firebase/auth';
+
+export interface User {
+  id: string;
+  username: string;
+  email: string;
+  phone?: string;
+  registrationDate: string;
+  balance: number;
+  vipLevel: number;
+  vipProgress: number;
+  favorites: string[];
+  profilePictureUrl?: string;
+  claimedBonuses: string[];
+}
 
 export interface SavedItem {
   id?: string;
@@ -64,6 +77,15 @@ export const updateFavorites = async (userId: string, favorites: string[]) => {
   const path = `users/${userId}`;
   try {
     await updateDoc(doc(db, path), { favorites });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+};
+
+export const updateBalance = async (userId: string, balance: number) => {
+  const path = `users/${userId}`;
+  try {
+    await updateDoc(doc(db, path), { balance });
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
   }

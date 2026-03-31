@@ -15,6 +15,7 @@ service cloud.firestore {
     //   - balance: number (required, >= 0)
     //   - isGmailLinked: bool (optional)
     //   - createdAt: timestamp (required)
+    //   - profilePictureUrl: string (optional, < 100000 chars)
     //
     // ===============================================================
 
@@ -42,7 +43,9 @@ service cloud.firestore {
              data.createdAt is timestamp &&
              (!('gmail' in data) || (data.gmail is string && isValidEmail(data.gmail))) &&
              (!('isGmailLinked' in data) || data.isGmailLinked is bool) &&
-             (!('favorites' in data) || (data.favorites is list && data.favorites.size() <= 100));
+             (!('favorites' in data) || (data.favorites is list && data.favorites.size() <= 100)) &&
+             (!('claimedBonuses' in data) || (data.claimedBonuses is list && data.claimedBonuses.size() <= 100)) &&
+             (!('profilePictureUrl' in data) || (data.profilePictureUrl is string && data.profilePictureUrl.size() < 100000));
     }
 
     function isValidSavedItem(data) {

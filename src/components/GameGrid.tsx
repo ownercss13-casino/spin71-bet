@@ -482,20 +482,25 @@ interface GameGridProps {
   searchQuery?: string;
   onGameSelect: (game: Game) => void;
   favorites: string[];
-  setFavorites: React.Dispatch<React.SetStateAction<string[]>>;
+  onToggleFavorite: (gameId: string) => void;
 }
 
-export const GameGrid: React.FC<GameGridProps> = ({ category, searchQuery = "", onGameSelect, favorites, setFavorites }) => {
+export const GameGrid: React.FC<GameGridProps> = ({ category, searchQuery = "", onGameSelect, favorites, onToggleFavorite }) => {
   const [selectedProvider, setSelectedProvider] = useState<string>('ALL');
   const [selectedGameForDetails, setSelectedGameForDetails] = useState<Game | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [category, selectedProvider]);
 
   const toggleFavorite = (e: React.MouseEvent, gameId: string) => {
     e.stopPropagation();
-    setFavorites(prev => 
-      prev.includes(gameId) 
-        ? prev.filter(id => id !== gameId) 
-        : [...prev, gameId]
-    );
+    onToggleFavorite(gameId);
   };
 
   const handleShowDetails = (e: React.MouseEvent, game: Game) => {
@@ -538,7 +543,11 @@ export const GameGrid: React.FC<GameGridProps> = ({ category, searchQuery = "", 
       </div>
 
       <div className="grid grid-cols-3 gap-2">
-        {filteredGames.length > 0 ? (
+        {loading ? (
+          [...Array(9)].map((_, i) => (
+            <div key={i} className="aspect-[3/4] rounded-xl bg-gray-800 animate-pulse shadow-md"></div>
+          ))
+        ) : filteredGames.length > 0 ? (
           filteredGames.map(game => (
             <GameCard 
               key={game.id} 

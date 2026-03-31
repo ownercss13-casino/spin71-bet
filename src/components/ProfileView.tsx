@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import useSWR from "swr";
 import SupportChat from "./SupportChat";
+import { updateUserProfile } from '../services/firebaseService';
 import {
   User,
   Settings,
@@ -60,12 +61,19 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout }
     setTimeout(() => setIsRefreshing(false), 1000);
   };
 
-  const handleProfilePicChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleProfilePicChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfilePic(reader.result as string);
+      reader.onloadend = async () => {
+        const base64String = reader.result as string;
+        setProfilePic(base64String);
+        // Update Firestore
+        const userId = userData?.id || profileData?.id;
+        if (userId) {
+          await updateUserProfile(userId, { profilePictureUrl: base64String });
+          refetchProfile();
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -419,18 +427,19 @@ function OverviewTab({ onTabChange, balance, isRefreshing, onRefresh, profileDat
 function HistoryTab({ email }: { email?: string }) {
   const [filterType, setFilterType] = useState('all');
   const [sortBy, setSortBy] = useState('date_desc');
+  const [selectedTrx, setSelectedTrx] = useState<any>(null);
 
   const transactions = useMemo(() => [
-    { id: 1, type: 'deposit', amount: '+৳5,000', date: '2026-03-29 14:30', status: 'সম্পন্ন', statusColor: 'text-green-400' },
-    { id: 2, type: 'withdraw', amount: '-৳2,000', date: '2026-03-28 09:15', status: 'প্রক্রিয়াধীন', statusColor: 'text-yellow-400' },
-    { id: 3, type: 'bet', amount: '-৳500', date: '2026-03-27 21:45', status: 'সম্পন্ন', statusColor: 'text-green-400' },
-    { id: 4, type: 'bonus', amount: '+৳1,000', date: '2026-03-26 10:00', status: 'সম্পন্ন', statusColor: 'text-green-400' },
-    { id: 5, type: 'bet', amount: '-৳1,200', date: '2026-03-25 18:20', status: 'সম্পন্ন', statusColor: 'text-green-400' },
-    { id: 6, type: 'deposit', amount: '+৳10,000', date: '2026-03-24 11:10', status: 'সম্পন্ন', statusColor: 'text-green-400' },
-    { id: 7, type: 'withdraw', amount: '-৳5,000', date: '2026-03-23 16:45', status: 'সম্পন্ন', statusColor: 'text-green-400' },
-    { id: 8, type: 'bet', amount: '-৳2,500', date: '2026-03-22 20:15', status: 'ব্যর্থ', statusColor: 'text-red-400' },
-    { id: 9, type: 'deposit', amount: '+৳2,000', date: '2026-03-21 12:30', status: 'সম্পন্ন', statusColor: 'text-green-400' },
-    { id: 10, type: 'bonus', amount: '+৳500', date: '2026-03-20 09:00', status: 'সম্পন্ন', statusColor: 'text-green-400' },
+    { id: 1, trxId: 'TXN1001', method: 'bKash', type: 'deposit', amount: '+৳5,000', date: '2026-03-29 14:30', status: 'সম্পন্ন', statusColor: 'text-green-400' },
+    { id: 2, trxId: 'TXN1002', method: 'Nagad', type: 'withdraw', amount: '-৳2,000', date: '2026-03-28 09:15', status: 'প্রক্রিয়াধীন', statusColor: 'text-yellow-400' },
+    { id: 3, trxId: 'TXN1003', method: 'Wallet', type: 'bet', amount: '-৳500', date: '2026-03-27 21:45', status: 'সম্পন্ন', statusColor: 'text-green-400' },
+    { id: 4, trxId: 'TXN1004', method: 'System', type: 'bonus', amount: '+৳1,000', date: '2026-03-26 10:00', status: 'সম্পন্ন', statusColor: 'text-green-400' },
+    { id: 5, trxId: 'TXN1005', method: 'Wallet', type: 'bet', amount: '-৳1,200', date: '2026-03-25 18:20', status: 'সম্পন্ন', statusColor: 'text-green-400' },
+    { id: 6, trxId: 'TXN1006', method: 'Rocket', type: 'deposit', amount: '+৳10,000', date: '2026-03-24 11:10', status: 'সম্পন্ন', statusColor: 'text-green-400' },
+    { id: 7, trxId: 'TXN1007', method: 'bKash', type: 'withdraw', amount: '-৳5,000', date: '2026-03-23 16:45', status: 'সম্পন্ন', statusColor: 'text-green-400' },
+    { id: 8, trxId: 'TXN1008', method: 'Wallet', type: 'bet', amount: '-৳2,500', date: '2026-03-22 20:15', status: 'ব্যর্থ', statusColor: 'text-red-400' },
+    { id: 9, trxId: 'TXN1009', method: 'Nagad', type: 'deposit', amount: '+৳2,000', date: '2026-03-21 12:30', status: 'সম্পন্ন', statusColor: 'text-green-400' },
+    { id: 10, trxId: 'TXN1010', method: 'System', type: 'bonus', amount: '+৳500', date: '2026-03-20 09:00', status: 'সম্পন্ন', statusColor: 'text-green-400' },
   ], []);
 
   const filteredAndSortedTransactions = useMemo(() => {
@@ -508,7 +517,7 @@ function HistoryTab({ email }: { email?: string }) {
       
       {filteredAndSortedTransactions.length > 0 ? (
         filteredAndSortedTransactions.map((trx: any) => (
-          <div key={trx.id} className="bg-teal-800/40 rounded-xl p-3 border border-teal-700/50 flex items-center justify-between">
+          <div key={trx.id} onClick={() => setSelectedTrx(trx)} className="bg-teal-800/40 rounded-xl p-3 border border-teal-700/50 flex items-center justify-between cursor-pointer hover:bg-teal-700/50 transition-colors">
             <div className="flex items-center gap-3">
               <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                 trx.type === 'deposit' ? 'bg-blue-500/20 text-blue-400' :
@@ -550,6 +559,56 @@ function HistoryTab({ email }: { email?: string }) {
       ) : (
         <div className="text-center py-8 text-teal-300/50">
           কোনো লেনদেন পাওয়া যায়নি
+        </div>
+      )}
+
+      {/* Transaction Details Modal */}
+      {selectedTrx && (
+        <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4" onClick={() => setSelectedTrx(null)}>
+          <div className="bg-teal-900 rounded-2xl p-6 max-w-sm w-full border border-teal-700 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-white">লেনদেনের বিস্তারিত</h3>
+              <button onClick={() => setSelectedTrx(null)} className="text-teal-300 hover:text-white">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div className="flex justify-between py-2 border-b border-teal-800">
+                <span className="text-teal-300 text-sm">লেনদেন আইডি:</span>
+                <span className="text-white font-mono font-bold">{selectedTrx.trxId}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-teal-800">
+                <span className="text-teal-300 text-sm">পদ্ধতি:</span>
+                <span className="text-white font-bold">{selectedTrx.method}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-teal-800">
+                <span className="text-teal-300 text-sm">ধরন:</span>
+                <span className="text-white font-bold">
+                  {selectedTrx.type === 'deposit' ? 'জমা' :
+                   selectedTrx.type === 'withdraw' ? 'উত্তোলন' :
+                   selectedTrx.type === 'bonus' ? 'বোনাস' : 'বাজি'}
+                </span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-teal-800">
+                <span className="text-teal-300 text-sm">পরিমাণ:</span>
+                <span className={`font-bold ${selectedTrx.amount.startsWith('+') ? 'text-green-400' : 'text-white'}`}>{selectedTrx.amount}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-teal-800">
+                <span className="text-teal-300 text-sm">তারিখ:</span>
+                <span className="text-white">{selectedTrx.date}</span>
+              </div>
+              <div className="flex justify-between py-2">
+                <span className="text-teal-300 text-sm">অবস্থা:</span>
+                <span className={`font-bold ${selectedTrx.statusColor}`}>{selectedTrx.status}</span>
+              </div>
+            </div>
+            <button 
+              onClick={() => setSelectedTrx(null)}
+              className="w-full mt-6 bg-yellow-500 text-black font-bold py-3 rounded-lg hover:bg-yellow-400 transition-colors"
+            >
+              বন্ধ করুন
+            </button>
+          </div>
         </div>
       )}
     </div>
