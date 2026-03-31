@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { X } from 'lucide-react';
+import { motion, useScroll, useTransform } from 'motion/react';
 
 interface CasinoGalleryProps {
   onClose: () => void;
@@ -38,51 +39,79 @@ const CASINO_IMAGES = [
   }
 ];
 
+const ParallaxCard: React.FC<{ img: typeof CASINO_IMAGES[0], index: number }> = ({ img, index }) => {
+  const ref = useRef(null);
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start end", "end start"]
+  });
+
+  const y = useTransform(scrollYProgress, [0, 1], ["-15%", "15%"]);
+
+  return (
+    <div ref={ref} className="bg-gray-900 rounded-xl overflow-hidden border border-gray-800 group relative">
+      <div className="relative aspect-video overflow-hidden">
+        <motion.img 
+          src={img.url} 
+          alt={img.title}
+          style={{ y, scale: 1.2 }}
+          className="w-full h-full object-cover"
+          referrerPolicy="no-referrer"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex items-end p-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 * (index % 2) }}
+          >
+            <h3 className="text-xl font-black text-white italic tracking-tighter mb-1">{img.title}</h3>
+            <p className="text-sm text-yellow-500/80 font-medium">{img.description}</p>
+          </motion.div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const CasinoGallery: React.FC<CasinoGalleryProps> = ({ onClose }) => {
   return (
-    <div className="fixed inset-0 z-[100] bg-black/95 flex flex-col p-4 overflow-y-auto">
-      <div className="flex justify-between items-center mb-6 sticky top-0 bg-black/95 py-2 z-10">
-        <h2 className="text-2xl font-bold text-yellow-400 italic">REAL CASINO ASSETS PREVIEW</h2>
+    <div className="fixed inset-0 z-[100] bg-black flex flex-col overflow-y-auto no-scrollbar">
+      {/* Animated Background Gradient */}
+      <div className="fixed inset-0 bg-gradient-to-br from-teal-900/20 via-black to-red-900/10 pointer-events-none" />
+
+      <div className="flex justify-between items-center p-6 sticky top-0 bg-black/80 backdrop-blur-md z-50 border-b border-white/5">
+        <div className="flex flex-col">
+          <h2 className="text-2xl font-black text-yellow-500 italic tracking-tighter leading-none">REAL CASINO</h2>
+          <span className="text-[10px] text-teal-400 font-bold tracking-[0.2em] uppercase mt-1">Assets Preview Gallery</span>
+        </div>
         <button 
           onClick={onClose}
-          className="p-2 bg-red-600 rounded-full text-white hover:bg-red-700 transition-colors"
+          className="w-10 h-10 bg-red-600/20 border border-red-500/50 rounded-full flex items-center justify-center text-red-500 hover:bg-red-600 hover:text-white transition-all active:scale-90"
         >
-          <X size={24} />
+          <X size={20} />
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-10">
+      <div className="p-4 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-8 pb-20 relative z-10">
         {CASINO_IMAGES.map((img, index) => (
-          <div key={index} className="bg-gray-900 rounded-xl overflow-hidden border border-gray-800 group">
-            <div className="relative aspect-video overflow-hidden">
-              <img 
-                src={img.url} 
-                alt={img.title}
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                referrerPolicy="no-referrer"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end p-4">
-                <div>
-                  <h3 className="text-lg font-bold text-white">{img.title}</h3>
-                  <p className="text-sm text-gray-300">{img.description}</p>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ParallaxCard key={index} img={img} index={index} />
         ))}
       </div>
       
-      <div className="mt-auto text-center p-6 bg-gray-900/50 rounded-xl border border-yellow-500/30">
-        <p className="text-yellow-200 text-sm mb-4">
-          আপনি কি এই ছবিগুলো আপনার গেমে ব্যবহার করতে চান? 
-          যদি চান, তবে আমি এগুলোকে বর্তমান গেম কার্ডগুলোতে সেট করে দিতে পারি।
-        </p>
-        <button 
-          onClick={onClose}
-          className="px-8 py-3 bg-gradient-to-r from-yellow-400 to-yellow-600 text-black font-bold rounded-full hover:scale-105 transition-transform"
-        >
-          গ্যালারি বন্ধ করুন
-        </button>
+      <div className="mt-auto p-8 relative z-10">
+        <div className="bg-teal-900/30 backdrop-blur-sm p-8 rounded-3xl border border-yellow-500/30 text-center shadow-2xl">
+          <div className="w-16 h-1 bg-yellow-500 mx-auto mb-6 rounded-full opacity-50" />
+          <p className="text-teal-100 text-lg mb-8 leading-relaxed max-w-md mx-auto">
+            আপনি কি এই হাই-কোয়ালিটি অ্যাসেটগুলো আপনার গেমে ব্যবহার করতে চান? 
+            আমি এগুলোকে আপনার প্ল্যাটফর্মে ইন্টিগ্রেট করে দিতে পারি।
+          </p>
+          <button 
+            onClick={onClose}
+            className="w-full max-w-xs px-10 py-4 bg-yellow-500 text-black font-black rounded-2xl hover:bg-yellow-400 transition-all shadow-[0_10px_20px_rgba(234,179,8,0.3)] active:scale-95"
+          >
+            গ্যালারি বন্ধ করুন
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -22,6 +22,7 @@ import {
   Gamepad2,
   Smartphone,
   KeyRound,
+  UserCog,
   Headset,
   HelpCircle,
   BadgeCheck,
@@ -50,15 +51,54 @@ const fetcher = (url: string) => fetch(url).then(res => {
   return res.json();
 });
 
-export default function ProfileView({ onTabChange, balance, userData, onLogout }: { onTabChange: (tab: any) => void, balance: number, userData: any, onLogout: () => void }) {
+export default function ProfileView({ onTabChange, balance, userData, onLogout, setIsLoading }: { onTabChange: (tab: any) => void, balance: number, userData: any, onLogout: () => void, setIsLoading: (loading: boolean) => void }) {
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'history' | 'settings'>('overview');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [profilePic, setProfilePic] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
+  const [editUsername, setEditUsername] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+
+  const handleOpenEditProfile = () => {
+    setEditUsername(userData?.username || profileData?.username || "");
+    setEditPhone(userData?.phoneNumber || userData?.phone || profileData?.phoneNumber || profileData?.phone || "");
+    setIsEditProfileModalOpen(true);
+  };
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const userId = userData?.id || profileData?.id;
+    if (!userId) return;
+
+    setIsLoading(true);
+    setIsUpdatingProfile(true);
+    try {
+      await updateUserProfile(userId, {
+        username: editUsername,
+        phoneNumber: editPhone
+      });
+      setIsEditProfileModalOpen(false);
+      refetchProfile();
+    } catch (err) {
+      console.error("Update profile error:", err);
+    } finally {
+      setTimeout(() => {
+        setIsUpdatingProfile(false);
+        setIsLoading(false);
+      }, 990);
+    }
+  };
 
   const handleRefresh = () => {
+    setIsLoading(true);
     setIsRefreshing(true);
-    setTimeout(() => setIsRefreshing(false), 1000);
+    setTimeout(() => {
+      setIsRefreshing(false);
+      setIsLoading(false);
+    }, 990);
   };
 
   const handleProfilePicChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -224,15 +264,94 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout }
 
       {/* Tab Content */}
       <div className="p-4">
-        {activeSubTab === 'overview' && <OverviewTab onTabChange={onTabChange} balance={balance} isRefreshing={isRefreshing} onRefresh={handleRefresh} profileData={profileData} userData={userData} />}
+        {activeSubTab === 'overview' && (
+        <OverviewTab 
+          onTabChange={onTabChange} 
+          balance={balance} 
+          isRefreshing={isRefreshing} 
+          onRefresh={handleRefresh} 
+          profileData={profileData} 
+          userData={userData} 
+          onEditProfile={handleOpenEditProfile}
+        />
+      )}
         {activeSubTab === 'history' && <HistoryTab email={profileData?.email} />}
         {activeSubTab === 'settings' && <SettingsTab profileData={profileData} onLogout={onLogout} />}
       </div>
+
+      {/* Edit Profile Modal */}
+      {isEditProfileModalOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-teal-900 border border-teal-500/30 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="p-4 border-b border-teal-700/50 flex items-center justify-between bg-teal-800/50">
+              <h3 className="font-bold text-white flex items-center gap-2">
+                <UserCog size={18} className="text-teal-400" /> 
+                প্রোফাইল এডিট করুন
+              </h3>
+              <button 
+                onClick={() => setIsEditProfileModalOpen(false)}
+                className="text-teal-400 hover:text-white p-1 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleUpdateProfile} className="p-5 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs text-teal-200 font-medium">ইউজার নেম (Username)</label>
+                <input 
+                  type="text" 
+                  value={editUsername}
+                  onChange={(e) => setEditUsername(e.target.value)}
+                  className="w-full bg-teal-950/50 border border-teal-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-teal-400 transition-colors"
+                  placeholder="আপনার ইউজার নেম লিখুন"
+                  required
+                />
+              </div>
+              
+              <div className="space-y-1.5">
+                <label className="text-xs text-teal-200 font-medium">ফোন নম্বর (Phone Number)</label>
+                <input 
+                  type="tel" 
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  className="w-full bg-teal-950/50 border border-teal-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-teal-400 transition-colors"
+                  placeholder="আপনার ফোন নম্বর লিখুন"
+                  required
+                />
+              </div>
+              
+              <div className="flex gap-3 pt-2">
+                <button 
+                  type="button"
+                  onClick={() => setIsEditProfileModalOpen(false)}
+                  className="flex-1 bg-teal-800 hover:bg-teal-700 text-teal-100 font-bold py-3 rounded-xl transition-colors"
+                >
+                  বাতিল করুন
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isUpdatingProfile}
+                  className="flex-1 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-400 hover:to-teal-500 text-white font-bold py-3 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  {isUpdatingProfile ? (
+                    <>
+                      <RefreshCw size={18} className="animate-spin" /> সংরক্ষণ হচ্ছে...
+                    </>
+                  ) : (
+                    'সংরক্ষণ করুন'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function OverviewTab({ onTabChange, balance, isRefreshing, onRefresh, profileData, userData }: { onTabChange: (tab: any) => void, balance: number, isRefreshing: boolean, onRefresh: () => void, profileData: any, userData: any }) {
+function OverviewTab({ onTabChange, balance, isRefreshing, onRefresh, profileData, userData, onEditProfile }: { onTabChange: (tab: any) => void, balance: number, isRefreshing: boolean, onRefresh: () => void, profileData: any, userData: any, onEditProfile: () => void }) {
   const [showPassword, setShowPassword] = useState(false);
 
   return (
@@ -288,7 +407,7 @@ function OverviewTab({ onTabChange, balance, isRefreshing, onRefresh, profileDat
       </div>
 
       {/* Quick Actions / Cross-links */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3">
         <button 
           onClick={() => onTabChange('invite')}
           className="bg-teal-800/40 rounded-xl p-4 border border-teal-700/50 flex flex-col items-center justify-center text-center hover:bg-teal-700/60 transition-all group"
@@ -298,16 +417,6 @@ function OverviewTab({ onTabChange, balance, isRefreshing, onRefresh, profileDat
           </div>
           <span className="text-white font-bold text-sm">বন্ধুদের আমন্ত্রণ জানান</span>
           <span className="text-teal-300 text-[10px] mt-1">বোনাস পান</span>
-        </button>
-        <button 
-          onClick={() => onTabChange('shop')}
-          className="bg-teal-800/40 rounded-xl p-4 border border-teal-700/50 flex flex-col items-center justify-center text-center hover:bg-teal-700/60 transition-all group"
-        >
-          <div className="w-12 h-12 rounded-full bg-teal-500/20 flex items-center justify-center mb-2 text-teal-300 group-hover:scale-110 transition-transform">
-            <Gift size={24} />
-          </div>
-          <span className="text-white font-bold text-sm">শপ ভিজিট করুন</span>
-          <span className="text-teal-300 text-[10px] mt-1">উপহার কিনুন</span>
         </button>
       </div>
 
@@ -348,6 +457,12 @@ function OverviewTab({ onTabChange, balance, isRefreshing, onRefresh, profileDat
           <h3 className="font-bold text-white flex items-center gap-2">
             <User size={16} className="text-teal-400" /> ব্যক্তিগত তথ্য (Personal Info)
           </h3>
+          <button 
+            onClick={onEditProfile}
+            className="text-[10px] bg-teal-700/50 hover:bg-teal-600/50 text-teal-100 px-2 py-1 rounded-lg border border-teal-600/50 transition-colors flex items-center gap-1"
+          >
+            <UserCog size={12} /> এডিট করুন (Edit)
+          </button>
         </div>
         <div className="p-3 space-y-3">
           <div className="flex items-center justify-between">
@@ -368,7 +483,7 @@ function OverviewTab({ onTabChange, balance, isRefreshing, onRefresh, profileDat
               </div>
               <div>
                 <p className="text-white text-sm font-medium">ফোন নম্বর (Phone)</p>
-                <p className="text-teal-200 text-xs">{profileData?.phone || 'Not provided'}</p>
+                <p className="text-teal-200 text-xs">{userData?.phoneNumber || userData?.phone || profileData?.phoneNumber || profileData?.phone || 'Not provided'}</p>
               </div>
             </div>
           </div>
@@ -639,7 +754,7 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
   const [isSettingUp2FA, setIsSettingUp2FA] = useState(false);
   const [setupStep, setSetupStep] = useState(1);
   const [verificationCode, setVerificationCode] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState(profileData?.phone || "");
+  const [phoneNumber, setPhoneNumber] = useState(profileData?.phoneNumber || profileData?.phone || "");
   const [isVerifying, setIsVerifying] = useState(false);
   const [setupError, setSetupError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);

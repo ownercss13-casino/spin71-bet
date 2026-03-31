@@ -43,24 +43,34 @@ export default function RegisterView({ onRegister, onBackToLogin }: RegisterView
   };
 
   const handleGoogleRegister = async () => {
+    if (isLoading) return;
     setIsLoading(true);
     try {
       const result = await signInWithPopup(auth, new GoogleAuthProvider());
       onRegister(result.user);
     } catch (err: any) {
-      setError("Google দিয়ে রেজিস্ট্রেশন করতে সমস্যা হয়েছে।");
+      if (err.code === 'auth/cancelled-popup-request') {
+        setError("আগের রেজিস্ট্রেশন অনুরোধটি বাতিল করা হয়েছে।");
+      } else {
+        setError("Google দিয়ে রেজিস্ট্রেশন করতে সমস্যা হয়েছে।");
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleFacebookRegister = async () => {
+    if (isLoading) return;
     setIsLoading(true);
     try {
       const result = await signInWithPopup(auth, new FacebookAuthProvider());
       onRegister(result.user);
     } catch (err: any) {
-      setError("Facebook দিয়ে রেজিস্ট্রেশন করতে সমস্যা হয়েছে।");
+      if (err.code === 'auth/cancelled-popup-request') {
+        setError("আগের রেজিস্ট্রেশন অনুরোধটি বাতিল করা হয়েছে।");
+      } else {
+        setError("Facebook দিয়ে রেজিস্ট্রেশন করতে সমস্যা হয়েছে।");
+      }
     } finally {
       setIsLoading(false);
     }

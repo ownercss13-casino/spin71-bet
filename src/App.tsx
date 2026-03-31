@@ -6,7 +6,6 @@ import LoginPage from './LoginPage';
 import BonusCenter from './BonusCenter';
 import ProfileView from "./components/ProfileView";
 import InviteView from "./components/InviteView";
-import RewardsView from "./components/RewardsView";
 import DepositView from "./components/DepositView";
 import AviatorGame from "./components/AviatorGame";
 import SupportChat from "./components/SupportChat";
@@ -14,6 +13,8 @@ import { GameGrid, Game } from "./components/GameGrid";
 import { CasinoGallery } from "./components/CasinoGallery";
 import { saveItem, getSavedItems, removeItem, updateUserProfile, updateFavorites, updateBalance } from './services/firebaseService';
 import {
+  AlertCircle,
+  X,
   Menu,
   Search,
   RefreshCw,
@@ -32,7 +33,6 @@ import {
   Wallet,
   User,
   Star,
-  X,
   Share2,
   Send,
   Fish,
@@ -49,12 +49,35 @@ export default function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userData, setUserData] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'home' | 'profile' | 'invite' | 'deposit' | 'rewards' | 'bonus'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'profile' | 'invite' | 'deposit' | 'bonus'>('home');
   const [activeCategory, setActiveCategory] = useState('সেরা');
   const [favorites, setFavorites] = useState<string[]>([]);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [showGallery, setShowGallery] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const [showDepositRequired, setShowDepositRequired] = useState(false);
+
+  const handleTabChange = (tab: any) => {
+    setIsLoading(true);
+    setTimeout(() => {
+      setActiveTab(tab);
+      setIsLoading(false);
+    }, 990);
+  };
+
+  const handleGameSelect = (game: Game | null) => {
+    if (game && !userData?.hasMadeDeposit) {
+      setShowDepositRequired(true);
+      return;
+    }
+    setIsLoading(true);
+    setTimeout(() => {
+      setSelectedGame(game);
+      setIsLoading(false);
+    }, 990);
+  };
 
   useEffect(() => {
     if (isLoggedIn && userData?.id) {
@@ -68,15 +91,7 @@ export default function App() {
 
   const handleRefresh = () => {
     setIsRefreshing(true);
-    setTimeout(() => setIsRefreshing(false), 1000);
-  };
-
-  const handleGoogleLogin = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error) {
-      console.error("Google Login Error:", error);
-    }
+    setTimeout(() => setIsRefreshing(false), 990);
   };
 
   useEffect(() => {
@@ -130,10 +145,10 @@ export default function App() {
       }
     });
 
-    // Hide splash screen after 3 seconds
+    // Hide splash screen after 0.99 seconds
     const timer = setTimeout(() => {
       setShowSplash(false);
-    }, 3000);
+    }, 990);
 
     return () => {
       clearTimeout(timer);
@@ -678,7 +693,7 @@ export default function App() {
         <GameGrid 
           category={activeCategory} 
           searchQuery={searchQuery} 
-          onGameSelect={setSelectedGame} 
+          onGameSelect={handleGameSelect} 
           favorites={favorites}
           onToggleFavorite={handleToggleFavorite}
         />
@@ -687,7 +702,7 @@ export default function App() {
       {/* Game Play Modal */}
       {selectedGame && selectedGame.id === '1' ? (
         <AviatorGame 
-          onClose={() => setSelectedGame(null)} 
+          onClose={() => handleGameSelect(null)} 
           userBalance={balance}
           onBalanceUpdate={handleBalanceUpdate}
         />
@@ -696,7 +711,7 @@ export default function App() {
           {/* Game Header */}
           <div className="flex items-center justify-between p-4 bg-teal-900 border-b border-teal-800">
             <button 
-              onClick={() => setSelectedGame(null)}
+              onClick={() => handleGameSelect(null)}
               className="text-white p-1 hover:bg-teal-800 rounded-full transition-colors"
             >
               <ArrowLeft size={24} />
@@ -761,7 +776,7 @@ export default function App() {
               </div>
             </div>
             <button 
-              onClick={() => setActiveTab('deposit')}
+              onClick={() => handleTabChange('deposit')}
               className="bg-teal-800 text-white px-4 py-1.5 rounded-lg text-xs font-bold border border-teal-700"
             >
               জমা করুন
@@ -812,7 +827,6 @@ export default function App() {
             <nav className="flex-1 p-4 space-y-2">
               {[
                 { id: 'home', icon: Home, label: 'বাড়ি (Home)' },
-                { id: 'rewards', icon: Gift, label: 'পুরস্কার (Rewards)' },
                 { id: 'profile', icon: User, label: 'প্রোফাইল (Profile)' },
                 { id: 'invite', icon: Users, label: 'আমন্ত্রণ (Invite)' },
                 { id: 'telegram', icon: Send, label: 'টেলিগ্রাম (Telegram)' },
@@ -823,7 +837,7 @@ export default function App() {
                     if (link.id === 'telegram') {
                       setIsSupportChatOpen(true);
                     } else {
-                      setActiveTab(link.id as any);
+                      handleTabChange(link.id as any);
                     }
                     setIsSidebarOpen(false);
                   }}
@@ -836,7 +850,7 @@ export default function App() {
               <div className="h-px bg-teal-600/30 my-4"></div>
               <button 
                 onClick={() => {
-                  setActiveTab('deposit');
+                  handleTabChange('deposit');
                   setIsSidebarOpen(false);
                 }}
                 className="w-full flex items-center gap-4 px-4 py-3 rounded-xl text-teal-100 hover:bg-teal-800/50 transition-all"
@@ -864,11 +878,10 @@ export default function App() {
         </div>
       )}
 
-      {activeTab === 'profile' && <ProfileView onTabChange={setActiveTab} balance={balance} userData={userData} onLogout={handleLogout} />}
-      {activeTab === 'bonus' && <BonusCenter userData={userData} balance={balance} onBalanceUpdate={setBalance} />}
-      {activeTab === 'invite' && <InviteView onTabChange={setActiveTab} />}
-      {activeTab === 'rewards' && <RewardsView onTabChange={setActiveTab} userData={userData} setUserData={setUserData} balance={balance} setBalance={setBalance} />}
-      {activeTab === 'deposit' && <DepositView onTabChange={setActiveTab} balance={balance} />}
+      {activeTab === 'profile' && <ProfileView onTabChange={handleTabChange} balance={balance} userData={userData} onLogout={handleLogout} setIsLoading={setIsLoading} />}
+      {activeTab === 'bonus' && <BonusCenter userData={userData} balance={balance} onBalanceUpdate={setBalance} setIsLoading={setIsLoading} onTabChange={handleTabChange} />}
+      {activeTab === 'invite' && <InviteView onTabChange={handleTabChange} setIsLoading={setIsLoading} userData={userData} />}
+      {activeTab === 'deposit' && <DepositView onTabChange={handleTabChange} balance={balance} setIsLoading={setIsLoading} userData={userData} />}
 
       {/* Support Chat */}
       <SupportChat isOpen={isSupportChatOpen} onClose={() => setIsSupportChatOpen(false)} />
@@ -876,35 +889,28 @@ export default function App() {
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-[#16a374] border-t border-teal-600/50 flex justify-between px-6 py-2 text-[11px] text-teal-200 z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
         <div 
-          onClick={() => setActiveTab('home')}
+          onClick={() => handleTabChange('home')}
           className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${activeTab === 'home' ? 'text-white' : 'hover:text-white'}`}
         >
           <Home size={22} />
           <span>বাড়ি</span>
         </div>
         <div 
-          onClick={() => setActiveTab('rewards')}
-          className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${activeTab === 'rewards' ? 'text-white' : 'hover:text-white'}`}
-        >
-          <Gift size={22} />
-          <span>পুরস্কার</span>
-        </div>
-        <div 
-          onClick={() => setActiveTab('bonus')}
+          onClick={() => handleTabChange('bonus')}
           className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${activeTab === 'bonus' ? 'text-white' : 'hover:text-white'}`}
         >
           <Gift size={22} />
           <span>বোনাস</span>
         </div>
         <div 
-          onClick={() => setActiveTab('invite')}
+          onClick={() => handleTabChange('invite')}
           className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${activeTab === 'invite' ? 'text-white' : 'hover:text-white'}`}
         >
           <Users size={22} />
           <span>আমন্ত্রণ</span>
         </div>
         <div 
-          onClick={() => setActiveTab('deposit')}
+          onClick={() => handleTabChange('deposit')}
           className={`flex flex-col items-center gap-1 relative cursor-pointer transition-colors ${activeTab === 'deposit' ? 'text-white' : 'hover:text-white'}`}
         >
           <Wallet size={22} />
@@ -914,13 +920,52 @@ export default function App() {
           </span>
         </div>
         <div 
-          onClick={() => setActiveTab('profile')}
+          onClick={() => handleTabChange('profile')}
           className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${activeTab === 'profile' ? 'text-white' : 'hover:text-white'}`}
         >
           <User size={22} />
           <span>প্রোফাইল</span>
         </div>
       </div>
+
+      {/* Deposit Required Popup */}
+      {showDepositRequired && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[200] p-6 animate-in fade-in duration-300">
+          <div className="bg-teal-900 p-8 rounded-3xl text-center relative shadow-2xl border-2 border-yellow-500 max-w-sm w-full animate-in zoom-in duration-300">
+            <button onClick={() => setShowDepositRequired(false)} className="absolute top-4 right-4 text-teal-300 hover:text-white">
+              <X size={24} />
+            </button>
+            <div className="w-20 h-20 bg-yellow-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(234,179,8,0.4)]">
+              <AlertCircle size={40} className="text-black" />
+            </div>
+            <h3 className="text-2xl font-black mb-2 text-white italic">ডিপোজিট আবশ্যক! (Deposit Required!)</h3>
+            <p className="text-teal-200 text-lg mb-6">গেম খেলতে আপনাকে অন্তত একটি সর্বনিম্ন ডিপোজিট করতে হবে।</p>
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={() => {
+                  setShowDepositRequired(false);
+                  handleTabChange('deposit');
+                }}
+                className="w-full bg-yellow-500 text-black font-black py-3 rounded-xl hover:bg-yellow-400 transition-colors shadow-lg"
+              >
+                ডিপোজিট করুন (Deposit Now)
+              </button>
+              <button 
+                onClick={() => setShowDepositRequired(false)}
+                className="w-full bg-teal-800 text-white font-bold py-2 rounded-xl hover:bg-teal-700 transition-colors"
+              >
+                পরে করব (Later)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
+          <div className="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin shadow-[0_0_15px_rgba(20,184,166,0.5)]"></div>
+        </div>
+      )}
 
       <style>{`
         @keyframes fly-around {

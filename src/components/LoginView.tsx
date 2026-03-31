@@ -17,30 +17,40 @@ export default function LoginView({ onLogin, onGoToRegister }: LoginViewProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleGoogleLogin = async () => {
+    if (isLoading) return;
     setIsLoading(true);
     setError(null);
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       onLogin({ method: 'google', user: result.user });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Google Login Error:", err);
-      setError("জিমেইল দিয়ে লগইন ব্যর্থ হয়েছে। (Google login failed.)");
+      if (err.code === 'auth/cancelled-popup-request') {
+        setError("আগের লগইন অনুরোধটি বাতিল করা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।");
+      } else {
+        setError("জিমেইল দিয়ে লগইন ব্যর্থ হয়েছে। (Google login failed.)");
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleFacebookLogin = async () => {
+    if (isLoading) return;
     setIsLoading(true);
     setError(null);
     try {
       const provider = new FacebookAuthProvider();
       const result = await signInWithPopup(auth, provider);
       onLogin({ method: 'facebook', user: result.user });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Facebook Login Error:", err);
-      setError("ফেসবুক দিয়ে লগইন ব্যর্থ হয়েছে। (Facebook login failed.)");
+      if (err.code === 'auth/cancelled-popup-request') {
+        setError("আগের লগইন অনুরোধটি বাতিল করা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।");
+      } else {
+        setError("ফেসবুক দিয়ে লগইন ব্যর্থ হয়েছে। (Facebook login failed.)");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -58,7 +68,7 @@ export default function LoginView({ onLogin, onGoToRegister }: LoginViewProps) {
     setIsLoading(true);
     try {
       // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1200));
+      await new Promise(resolve => setTimeout(resolve, 990));
       onLogin({ username, password });
     } catch (err) {
       setError("লগইন ব্যর্থ হয়েছে। সঠিক তথ্য দিন। (Login failed. Check credentials.)");

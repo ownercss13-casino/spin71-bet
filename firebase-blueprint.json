@@ -51,6 +51,27 @@
             "type": "string"
           },
           "description": "List of claimed bonus IDs"
+        },
+        "lastDailyBonusClaimedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of the last daily bonus claim"
+        },
+        "hasClaimedWelcomeBonus": {
+          "type": "boolean",
+          "description": "Whether the user has claimed the welcome bonus"
+        },
+        "hasMadeDeposit": {
+          "type": "boolean",
+          "description": "Whether the user has made at least one deposit"
+        },
+        "referralCount": {
+          "type": "number",
+          "description": "Total number of successful referrals"
+        },
+        "totalReferralEarnings": {
+          "type": "number",
+          "description": "Total earnings from referrals"
         }
       },
       "required": ["username", "phoneNumber", "password", "balance"]

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { ChevronLeft, Wallet, CreditCard, Building2, Smartphone, ShieldCheck, History, ArrowRight } from 'lucide-react';
 
+import { updateUserProfile } from '../services/firebaseService';
+
 const paymentMethods = [
   { id: 'bkash', name: 'bKash', icon: Smartphone, color: 'bg-[#e2136e]', bonus: '+5%' },
   { id: 'nagad', name: 'Nagad', icon: Smartphone, color: 'bg-[#f7931e]', bonus: '+5%' },
@@ -12,9 +14,26 @@ const paymentMethods = [
 
 const quickAmounts = [500, 1000, 2000, 5000, 10000, 25000];
 
-export default function DepositView({ onTabChange, balance }: { onTabChange: (tab: any) => void, balance: number }) {
+export default function DepositView({ onTabChange, balance, setIsLoading, userData }: { onTabChange: (tab: any) => void, balance: number, setIsLoading: (loading: boolean) => void, userData: any }) {
   const [selectedMethod, setSelectedMethod] = useState('bkash');
   const [amount, setAmount] = useState('1000');
+
+  const handleDeposit = async () => {
+    setIsLoading(true);
+    try {
+      if (userData?.id) {
+        await updateUserProfile(userData.id, { hasMadeDeposit: true });
+      }
+      setTimeout(() => {
+        setIsLoading(false);
+        alert('ডিপোজিট রিকোয়েস্ট সফল হয়েছে! আপনার ব্যালেন্স শীঘ্রই আপডেট হবে।');
+        onTabChange('home');
+      }, 990);
+    } catch (error) {
+      setIsLoading(false);
+      console.error("Error updating deposit status:", error);
+    }
+  };
 
   return (
     <div className="flex-1 overflow-y-auto pb-24 bg-[#0b0b0b]">
@@ -127,7 +146,10 @@ export default function DepositView({ onTabChange, balance }: { onTabChange: (ta
         </div>
 
         {/* Submit Button */}
-        <button className="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-black font-black text-lg py-4 rounded-xl shadow-[0_0_20px_rgba(250,204,21,0.4)] transition-all active:scale-95 flex items-center justify-center gap-2">
+        <button 
+          onClick={handleDeposit}
+          className="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-black font-black text-lg py-4 rounded-xl shadow-[0_0_20px_rgba(250,204,21,0.4)] transition-all active:scale-95 flex items-center justify-center gap-2"
+        >
           জমা করুন <ArrowRight size={20} />
         </button>
       </div>

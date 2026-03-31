@@ -5,7 +5,7 @@ export interface User {
   id: string;
   username: string;
   email: string;
-  phone?: string;
+  phoneNumber?: string;
   registrationDate: string;
   balance: number;
   vipLevel: number;
@@ -13,6 +13,11 @@ export interface User {
   favorites: string[];
   profilePictureUrl?: string;
   claimedBonuses: string[];
+  lastDailyBonusClaimedAt?: any;
+  hasClaimedWelcomeBonus?: boolean;
+  hasMadeDeposit?: boolean;
+  referralCount?: number;
+  totalReferralEarnings?: number;
 }
 
 export interface SavedItem {
@@ -67,7 +72,7 @@ export const removeItem = async (savedItemId: string) => {
 export const updateUserProfile = async (userId: string, data: Partial<User>) => {
   const path = `users/${userId}`;
   try {
-    await updateDoc(doc(db, path), data);
+    await updateDoc(doc(db, path), data as any);
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
@@ -86,6 +91,30 @@ export const updateBalance = async (userId: string, balance: number) => {
   const path = `users/${userId}`;
   try {
     await updateDoc(doc(db, path), { balance });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+};
+
+export const claimDailyBonus = async (userId: string, currentBalance: number) => {
+  const path = `users/${userId}`;
+  try {
+    await updateDoc(doc(db, path), {
+      balance: currentBalance + 6.77,
+      lastDailyBonusClaimedAt: serverTimestamp()
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+};
+
+export const claimWelcomeBonus = async (userId: string, currentBalance: number) => {
+  const path = `users/${userId}`;
+  try {
+    await updateDoc(doc(db, path), {
+      balance: currentBalance + 57,
+      hasClaimedWelcomeBonus: true
+    });
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
   }

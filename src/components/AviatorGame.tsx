@@ -708,28 +708,16 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
           {/* Main Action Button */}
           <div className="flex-1 flex gap-2">
             {isBetPlaced && !isCashedOut && !hasCrashed && gamePhase === 'flying' ? (
-              <>
-                <motion.button 
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={cashOut}
-                  className="flex-1 h-full bg-gradient-to-b from-orange-400 to-orange-600 rounded-xl shadow-[0_4px_15px_rgba(249,115,22,0.4)] flex flex-col items-center justify-center p-2 transition-transform"
-                >
-                  <span className="text-black font-black text-sm leading-none">CASH OUT</span>
-                  <span className="text-black font-bold text-xs mt-1">৳ {(betAmount * multiplier).toFixed(2)}</span>
-                </motion.button>
-                <motion.button 
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={cashOut}
-                  className="flex-1 h-full bg-gradient-to-b from-yellow-400 to-yellow-600 rounded-xl shadow-[0_4px_15px_rgba(250,204,21,0.4)] flex flex-col items-center justify-center p-2 transition-transform"
-                >
-                  <span className="text-black font-black text-sm leading-none">SELL</span>
-                  <span className="text-black font-bold text-xs mt-1">৳ {(betAmount * multiplier).toFixed(2)}</span>
-                </motion.button>
-              </>
+              <motion.button 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={cashOut}
+                className="flex-1 h-full bg-gradient-to-b from-orange-400 to-orange-600 rounded-xl shadow-[0_4px_15px_rgba(249,115,22,0.4)] flex flex-col items-center justify-center p-2 transition-transform"
+              >
+                <span className="text-black font-black text-sm leading-none">CASH OUT</span>
+                <span className="text-black font-bold text-xs mt-1">৳ {(betAmount * multiplier).toFixed(2)}</span>
+              </motion.button>
             ) : (
               <div className="flex-1 flex gap-2">
                 <motion.button 

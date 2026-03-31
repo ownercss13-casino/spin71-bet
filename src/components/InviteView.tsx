@@ -24,24 +24,39 @@ const shopItems = {
   ]
 };
 
-export default function InviteView({ onTabChange, initialSubTab = 'overview' }: { onTabChange: (tab: any) => void, initialSubTab?: string }) {
+export default function InviteView({ onTabChange, setIsLoading, userData, initialSubTab = 'overview' }: { onTabChange: (tab: any) => void, setIsLoading: (loading: boolean) => void, userData?: any, initialSubTab?: string }) {
   const [activeTab, setActiveTab] = useState(initialSubTab);
   const [activeShopCategory, setActiveShopCategory] = useState('vip');
   const [totalShares, setTotalShares] = useState(12);
-  const currentReferrals = 3;
-  const totalEarned = 1500;
+  
+  const currentReferrals = userData?.referralCount || 0;
+  const totalEarned = userData?.totalReferralEarnings || 0;
+
+  const tiers = [
+    { count: 1, reward: 50 },
+    { count: 5, reward: 300 },
+    { count: 10, reward: 1000 },
+    { count: 25, reward: 2500 },
+    { count: 50, reward: 5000 },
+  ];
+
+  const nextTier = tiers.find(t => t.count > currentReferrals) || tiers[tiers.length - 1];
+  const isMaxTier = currentReferrals >= tiers[tiers.length - 1].count;
+  
+  const progressToNext = isMaxTier ? 100 : (currentReferrals / nextTier.count) * 100;
 
   const incrementShares = () => setTotalShares(prev => prev + 1);
 
   const getProgress = (min: number, max: number) => {
     if (currentReferrals < min) return 0;
     if (currentReferrals >= max) return 100;
-    return ((currentReferrals - min + 1) / (max - min + 1)) * 100;
+    return ((currentReferrals - min) / (max - min)) * 100;
   };
   
   const referralLink = "https://spin71bet.com/?ref=xjf8463";
 
   const handleShare = async () => {
+    setIsLoading(true);
     const shareData = {
       title: 'SPIN71 BET - আমার রেফারেল লিঙ্ক',
       text: 'আমার রেফারেল লিঙ্ক ব্যবহার করে যোগ দিন এবং বোনাস পান!',
@@ -59,13 +74,27 @@ export default function InviteView({ onTabChange, initialSubTab = 'overview' }: 
       }
     } catch (err: any) {
       console.error('Error sharing:', err);
+    } finally {
+      setTimeout(() => setIsLoading(false), 990);
     }
   };
 
   const copyToClipboard = () => {
+    setIsLoading(true);
     navigator.clipboard.writeText(referralLink);
-    alert("লিঙ্কটি কপি করা হয়েছে!");
-    incrementShares();
+    setTimeout(() => {
+      setIsLoading(false);
+      alert("লিঙ্কটি কপি করা হয়েছে!");
+      incrementShares();
+    }, 990);
+  };
+
+  const handleBuyItem = (item: any) => {
+    setIsLoading(true);
+    setTimeout(() => {
+      setIsLoading(false);
+      alert(`${item.name} কেনার জন্য পর্যাপ্ত ব্যালেন্স নেই!`);
+    }, 990);
   };
 
   return (
@@ -138,6 +167,47 @@ export default function InviteView({ onTabChange, initialSubTab = 'overview' }: 
 
       {activeTab === 'overview' && (
         <div className="p-4 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {/* Next Reward Card */}
+          <div className="bg-gradient-to-br from-[#128a61] to-[#0a4d3c] p-5 rounded-2xl shadow-xl border border-white/10 relative overflow-hidden">
+            <div className="absolute -right-4 -top-4 w-24 h-24 bg-yellow-400/10 rounded-full blur-2xl"></div>
+            <div className="relative z-10">
+              <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center border border-yellow-500/30">
+                    <Award size={20} className="text-yellow-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-white font-black text-sm italic">পরবর্তী পুরস্কার (Next Reward)</h3>
+                    <p className="text-[10px] text-teal-200">আরও {isMaxTier ? 0 : nextTier.count - currentReferrals} জন বন্ধুকে আমন্ত্রণ জানান</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-yellow-400 font-black text-lg italic">৳ {nextTier.reward}</div>
+                  <div className="text-[9px] text-teal-300 uppercase font-bold tracking-wider">বোনাস</div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between text-[10px] font-bold text-teal-100">
+                  <span>অগ্রগতি (Progress)</span>
+                  <span>{Math.round(progressToNext)}%</span>
+                </div>
+                <div className="relative h-2.5 bg-black/40 rounded-full overflow-hidden border border-white/5">
+                  <div 
+                    className="absolute top-0 left-0 h-full bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-500 rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(250,204,21,0.3)]"
+                    style={{ width: `${progressToNext}%` }}
+                  >
+                    <div className="absolute inset-0 bg-white/20 animate-[loading_2s_linear_infinite]"></div>
+                  </div>
+                </div>
+                <div className="flex justify-between text-[9px] text-teal-300 font-medium">
+                  <span>{currentReferrals} রেফারেল</span>
+                  <span>{nextTier.count} রেফারেল</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Revenue Goal Banner */}
           <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-5 rounded-2xl shadow-lg relative overflow-hidden group">
             <div className="absolute right-0 top-0 w-32 h-32 bg-white/10 rounded-full blur-2xl transform translate-x-1/2 -translate-y-1/2 group-hover:scale-150 transition-transform duration-700"></div>
@@ -206,33 +276,36 @@ export default function InviteView({ onTabChange, initialSubTab = 'overview' }: 
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-white font-bold flex items-center gap-2">
                 <TrendingUp size={18} className="text-yellow-400" />
-                আপনার অগ্রগতি
+                পুরস্কারের স্তরসমূহ (Reward Tiers)
               </h3>
-              <span className="text-xs text-gray-400">{currentReferrals}/10 বন্ধু</span>
             </div>
             
-            <div className="relative h-3 bg-black rounded-full overflow-hidden border border-white/10">
+            <div className="relative h-4 bg-black rounded-full overflow-hidden border border-white/10 mb-6">
               <div 
-                className="absolute top-0 left-0 h-full bg-gradient-to-r from-yellow-600 to-yellow-400 rounded-full transition-all duration-1000"
-                style={{ width: `${getProgress(0, 10)}%` }}
+                className="absolute top-0 left-0 h-full bg-gradient-to-r from-teal-600 to-teal-400 rounded-full transition-all duration-1000"
+                style={{ width: `${getProgress(0, 50)}%` }}
               >
                 <div className="absolute inset-0 bg-white/20 animate-[loading_2s_linear_infinite]"></div>
               </div>
+              {/* Tier Markers */}
+              {tiers.map((tier, idx) => (
+                <div 
+                  key={idx}
+                  className="absolute top-0 w-0.5 h-full bg-white/20"
+                  style={{ left: `${(tier.count / 50) * 100}%` }}
+                />
+              ))}
             </div>
             
-            <div className="mt-4 flex justify-between text-xs text-gray-400">
-              <div className="flex flex-col items-center gap-1">
-                <div className="w-6 h-6 rounded-full bg-yellow-500/20 text-yellow-500 flex items-center justify-center border border-yellow-500/50">1</div>
-                <span>৳ 50</span>
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <div className="w-6 h-6 rounded-full bg-yellow-500/20 text-yellow-500 flex items-center justify-center border border-yellow-500/50">5</div>
-                <span>৳ 300</span>
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <div className="w-6 h-6 rounded-full bg-black text-gray-500 flex items-center justify-center border border-white/10">10</div>
-                <span>৳ 1000</span>
-              </div>
+            <div className="grid grid-cols-5 gap-1">
+              {tiers.map((tier, idx) => (
+                <div key={idx} className="flex flex-col items-center gap-1.5">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center border transition-all ${currentReferrals >= tier.count ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.3)]' : 'bg-black border-white/10 text-gray-500'}`}>
+                    <span className="text-[10px] font-black">{tier.count}</span>
+                  </div>
+                  <span className={`text-[9px] font-bold ${currentReferrals >= tier.count ? 'text-yellow-400' : 'text-gray-500'}`}>৳{tier.reward}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -278,7 +351,10 @@ export default function InviteView({ onTabChange, initialSubTab = 'overview' }: 
                 <p className="text-gray-400 text-[10px] text-center mb-3 h-6 relative z-10">{item.desc}</p>
                 
                 <div className="w-full mt-auto relative z-10">
-                  <button className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-bold py-2 rounded-xl text-sm shadow-lg transition-all active:scale-95 flex items-center justify-center gap-1">
+                  <button 
+                    onClick={() => handleBuyItem(item)}
+                    className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-bold py-2 rounded-xl text-sm shadow-lg transition-all active:scale-95 flex items-center justify-center gap-1"
+                  >
                     {item.price}
                   </button>
                 </div>

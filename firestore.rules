@@ -29,6 +29,10 @@ service cloud.firestore {
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
+    
+    function isAdmin() {
+      return isAuthenticated() && (request.auth.token.email == "owner.css13@gmail.com" && request.auth.token.email_verified == true);
+    }
 
     function isValidEmail(email) {
       return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
@@ -36,8 +40,8 @@ service cloud.firestore {
 
     function isValidUser(data) {
       return data.keys().hasAll(['username', 'phoneNumber', 'password', 'balance', 'createdAt']) &&
-             data.username is string && data.username.size() >= 3 && data.username.size() <= 20 &&
-             data.phoneNumber is string && data.phoneNumber.size() >= 10 && data.phoneNumber.size() <= 15 &&
+             data.username is string && data.username.size() >= 3 && data.username.size() <= 50 &&
+             data.phoneNumber is string && data.phoneNumber.size() >= 10 && data.phoneNumber.size() <= 25 &&
              data.password is string &&
              data.balance is number && data.balance >= 0 &&
              data.createdAt is timestamp &&
@@ -45,6 +49,11 @@ service cloud.firestore {
              (!('isGmailLinked' in data) || data.isGmailLinked is bool) &&
              (!('favorites' in data) || (data.favorites is list && data.favorites.size() <= 100)) &&
              (!('claimedBonuses' in data) || (data.claimedBonuses is list && data.claimedBonuses.size() <= 100)) &&
+             (!('lastDailyBonusClaimedAt' in data) || (data.lastDailyBonusClaimedAt is timestamp)) &&
+             (!('hasClaimedWelcomeBonus' in data) || (data.hasClaimedWelcomeBonus is bool)) &&
+             (!('hasMadeDeposit' in data) || (data.hasMadeDeposit is bool)) &&
+             (!('referralCount' in data) || (data.referralCount is number)) &&
+             (!('totalReferralEarnings' in data) || (data.totalReferralEarnings is number)) &&
              (!('profilePictureUrl' in data) || (data.profilePictureUrl is string && data.profilePictureUrl.size() < 100000));
     }
 
@@ -60,11 +69,10 @@ service cloud.firestore {
     // Rules
     // ===============================================================
     match /users/{userId} {
-      allow read: if isOwner(userId);
+      allow read: if isOwner(userId) || isAdmin();
       allow create: if isValidUser(request.resource.data); // Allow creation if data is valid
-      allow update: if isOwner(userId) && isValidUser(request.resource.data) &&
-                    request.resource.data.createdAt == resource.data.createdAt &&
-                    request.resource.data.username == resource.data.username;
+      allow update: if (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data) &&
+                    request.resource.data.createdAt == resource.data.createdAt;
 
       match /savedItems/{savedItemId} {
         allow read, write: if isOwner(userId) && isValidSavedItem(request.resource.data);

@@ -1,5 +1,5 @@
 {
-  "name": "",
-  "description": "",
-  "requestFramePermissions": []
+  "name": "SPIN71BET",
+  "description": "Premium Online Casino & Betting Platform",
+  "requestFramePermissions": ["camera", "microphone", "geolocation"]
 }
