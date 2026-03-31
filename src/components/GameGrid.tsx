@@ -79,7 +79,7 @@ export const games: Game[] = [
     id: '14',
     name: 'ফ্রুট স্লট',
     provider: 'SPIN',
-    image: 'https://images.unsplash.com/photo-1596838132731-3301c3fd4317?q=80&w=1000&auto=format&fit=crop',
+    image: GAME_IMAGES.CRASH_GAME,
     category: 'সেরা',
     isHot: true,
     bgColor: 'from-orange-500 to-red-600',
@@ -162,7 +162,7 @@ export const games: Game[] = [
     id: '8404a0b2d74ae068a04e47a0614910d8',
     name: '9game Game Lobby',
     provider: '9game',
-    image: 'https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?auto=format&fit=crop&q=80&w=800',
+    image: GAME_IMAGES.CRASH_GAME,
     category: 'সেরা',
     bgColor: 'from-blue-900 to-black',
     providerColor: 'text-blue-400'
@@ -171,7 +171,7 @@ export const games: Game[] = [
     id: '128647a7b008f2a60e2399410ded27f1',
     name: 'Lobby Marble Rush Lobby',
     provider: '9game',
-    image: 'https://images.unsplash.com/photo-1596838132731-3301c3fd4317?auto=format&fit=crop&q=80&w=800',
+    image: GAME_IMAGES.CRASH_GAME,
     category: 'সেরা',
     bgColor: 'from-green-900 to-black',
     providerColor: 'text-green-400'
@@ -180,7 +180,7 @@ export const games: Game[] = [
     id: '253130d684c063f74401e4ef77151f92',
     name: 'Lobby Marble - Legendary Circuit',
     provider: '9game',
-    image: 'https://images.unsplash.com/photo-1606167668584-78701c57f13d?auto=format&fit=crop&q=80&w=800',
+    image: GAME_IMAGES.CRASH_GAME,
     category: 'সেরা',
     bgColor: 'from-yellow-900 to-black',
     providerColor: 'text-yellow-400'
@@ -189,7 +189,7 @@ export const games: Game[] = [
     id: '52191bf0fbb916f6e9f897b6a53a0bf0',
     name: 'Marble - Extreme',
     provider: '9game',
-    image: 'https://images.unsplash.com/photo-1559627814-4d0c75748d2b?auto=format&fit=crop&q=80&w=800',
+    image: GAME_IMAGES.CRASH_GAME,
     category: 'সেরা',
     bgColor: 'from-red-900 to-black',
     providerColor: 'text-red-400'
@@ -198,7 +198,7 @@ export const games: Game[] = [
     id: '6f182636dc75754c60983390ebf2efd9',
     name: 'Crazy Ball Lobby',
     provider: '9game',
-    image: 'https://images.unsplash.com/photo-1516733725897-1aa73b87c8e8?auto=format&fit=crop&q=80&w=800',
+    image: GAME_IMAGES.CRASH_GAME,
     category: 'সেরা',
     bgColor: 'from-purple-900 to-black',
     providerColor: 'text-purple-400'
@@ -207,7 +207,7 @@ export const games: Game[] = [
     id: 'fa606a46442f4b263bb309e6791728ab',
     name: 'Lobby Crazy Ball - Legendray',
     provider: '9game',
-    image: 'https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?auto=format&fit=crop&q=80&w=800',
+    image: GAME_IMAGES.CRASH_GAME,
     category: 'সেরা',
     bgColor: 'from-pink-900 to-black',
     providerColor: 'text-pink-400'
@@ -216,7 +216,7 @@ export const games: Game[] = [
     id: '9921be5d4dd5becee73b106cb285901a',
     name: 'Crazy Ball - Turbo',
     provider: '9game',
-    image: 'https://images.unsplash.com/photo-1511193311914-0346f16efe90?auto=format&fit=crop&q=80&w=800',
+    image: GAME_IMAGES.CRASH_GAME,
     category: 'সেরা',
     bgColor: 'from-orange-900 to-black',
     providerColor: 'text-orange-400'
@@ -225,7 +225,7 @@ export const games: Game[] = [
     id: '3eacf3adbff9a5e4f5fbf40fd40ffcb3',
     name: 'Crazy Ball - Lightning',
     provider: '9game',
-    image: 'https://images.unsplash.com/photo-1606167668584-78701c57f13d?auto=format&fit=crop&q=80&w=800',
+    image: GAME_IMAGES.CRASH_GAME,
     category: 'সেরা',
     bgColor: 'from-yellow-600 to-black',
     providerColor: 'text-yellow-300'
@@ -234,7 +234,7 @@ export const games: Game[] = [
     id: '7a8a6226e76eeee09909a39f91f299d9',
     name: 'Plinko Lobby',
     provider: '9game',
-    image: 'https://images.unsplash.com/photo-1518133835878-5a93cc3f89e5?auto=format&fit=crop&q=80&w=800',
+    image: GAME_IMAGES.CRASH_GAME,
     category: 'সেরা',
     bgColor: 'from-teal-900 to-black',
     providerColor: 'text-teal-400'
@@ -243,7 +243,7 @@ export const games: Game[] = [
     id: 'ef88c31bd1673be60a6bf2d89c5c910c',
     name: 'Lobby Plinko Go',
     provider: '9game',
-    image: 'https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?auto=format&fit=crop&q=80&w=800',
+    image: GAME_IMAGES.CRASH_GAME,
     category: 'সেরা',
     bgColor: 'from-indigo-900 to-black',
     providerColor: 'text-indigo-400'
@@ -252,7 +252,7 @@ export const games: Game[] = [
     id: '1f581eadeeb24826ca35f0b0d26bb87c',
     name: 'Plinko PLUS',
     provider: '9game',
-    image: 'https://images.unsplash.com/photo-1511193311914-0346f16efe90?auto=format&fit=crop&q=80&w=800',
+    image: GAME_IMAGES.CRASH_GAME,
     category: 'সেরা',
     bgColor: 'from-blue-700 to-black',
     providerColor: 'text-blue-300'
@@ -261,7 +261,7 @@ export const games: Game[] = [
     id: 'b697605ec7dd691f307555f5cdba2919',
     name: 'Super Plinko',
     provider: '9game',
-    image: 'https://images.unsplash.com/photo-1596838132731-3301c3fd4317?auto=format&fit=crop&q=80&w=800',
+    image: GAME_IMAGES.CRASH_GAME,
     category: 'সেরা',
     bgColor: 'from-green-700 to-black',
     providerColor: 'text-green-300'
@@ -270,7 +270,7 @@ export const games: Game[] = [
     id: 'd23a5345630fb01ff86a6c13a1d1dbeb',
     name: 'Play Girl Lobby',
     provider: '9game',
-    image: 'https://images.unsplash.com/photo-1518133835878-5a93cc3f89e5?auto=format&fit=crop&q=80&w=800',
+    image: GAME_IMAGES.CRASH_GAME,
     category: 'সেরা',
     bgColor: 'from-pink-700 to-black',
     providerColor: 'text-pink-300'
@@ -279,7 +279,7 @@ export const games: Game[] = [
     id: 'dc5ed247d813915c1f2305c64c0306b7',
     name: 'Lobby Play Girl',
     provider: '9game',
-    image: 'https://images.unsplash.com/photo-1511193311914-0346f16efe90?auto=format&fit=crop&q=80&w=800',
+    image: GAME_IMAGES.CRASH_GAME,
     category: 'সেরা',
     bgColor: 'from-red-700 to-black',
     providerColor: 'text-red-300'
@@ -288,7 +288,7 @@ export const games: Game[] = [
     id: '2d4a275e35692af9e9fa86340484d966',
     name: 'Marble - Lightning',
     provider: '9game',
-    image: 'https://images.unsplash.com/photo-1606167668584-78701c57f13d?auto=format&fit=crop&q=80&w=800',
+    image: GAME_IMAGES.CRASH_GAME,
     category: 'সেরা',
     bgColor: 'from-yellow-700 to-black',
     providerColor: 'text-yellow-300'
@@ -297,7 +297,7 @@ export const games: Game[] = [
     id: 'pp1',
     name: 'সুইট বোনানজা',
     provider: 'PP',
-    image: 'https://images.unsplash.com/photo-1611996575749-79a3a250f563?auto=format&fit=crop&q=80&w=800',
+    image: GAME_IMAGES.CRASH_GAME,
     category: 'স্লট',
     isHot: true,
     bgColor: 'from-pink-500 to-purple-600',
@@ -307,7 +307,7 @@ export const games: Game[] = [
     id: 'png1',
     name: 'বুক অফ ডেড',
     provider: 'PNG',
-    image: 'https://images.unsplash.com/photo-1533241214477-fe178c187552?auto=format&fit=crop&q=80&w=800',
+    image: GAME_IMAGES.CRASH_GAME,
     category: 'স্লট',
     bgColor: 'from-yellow-700 to-red-800',
     providerColor: 'text-yellow-400'
@@ -316,7 +316,7 @@ export const games: Game[] = [
     id: 'net1',
     name: 'স্টারবার্স্ট',
     provider: 'NET',
-    image: 'https://images.unsplash.com/photo-1518133835878-5a93cc3f89e5?auto=format&fit=crop&q=80&w=800',
+    image: GAME_IMAGES.CRASH_GAME,
     category: 'স্লট',
     bgColor: 'from-purple-800 to-blue-900',
     providerColor: 'text-purple-300'
@@ -325,7 +325,7 @@ export const games: Game[] = [
     id: 'mg1',
     name: 'মেগা মুলাহ',
     provider: 'MG',
-    image: 'https://images.unsplash.com/photo-1596838132731-3301c3fd4317?auto=format&fit=crop&q=80&w=800',
+    image: GAME_IMAGES.CRASH_GAME,
     category: 'স্লট',
     bgColor: 'from-orange-600 to-yellow-600',
     providerColor: 'text-orange-200'
@@ -334,7 +334,7 @@ export const games: Game[] = [
     id: 'evo2',
     name: 'মনোপলি লাইভ',
     provider: 'EVO',
-    image: 'https://images.unsplash.com/photo-1606167668584-78701c57f13d?auto=format&fit=crop&q=80&w=800',
+    image: GAME_IMAGES.CRASH_GAME,
     category: 'লাইভ',
     isHot: true,
     bgColor: 'from-green-600 to-teal-800',
@@ -422,11 +422,6 @@ const GameCard: React.FC<GameCardProps> = ({ game, isFavorite, onSelect, onToggl
         <Info size={14} className="text-white" />
       </div>
 
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 w-full text-center z-20">
-        <span className={`${game.providerColor || 'text-white'} font-black italic text-sm tracking-wider drop-shadow-lg group-hover:scale-110 transition-transform inline-block`}>
-          {game.provider}
-        </span>
-      </div>
       {game.id === '5' && (
         <div className="absolute inset-0 flex items-center justify-center">
           <PlaneIcon className="text-pink-600 w-16 h-16 drop-shadow-lg transform -rotate-12 group-hover:scale-125 transition-transform" />

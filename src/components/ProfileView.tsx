@@ -43,7 +43,10 @@ import {
   Download,
   AlertTriangle,
   Eye,
-  EyeOff
+  EyeOff,
+  MapPin,
+  Calendar,
+  Loader2
 } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then(res => {
@@ -332,11 +335,11 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
                 <button 
                   type="submit"
                   disabled={isUpdatingProfile}
-                  className="flex-1 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-400 hover:to-teal-500 text-white font-bold py-3 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
+                  className="flex-1 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-400 hover:to-teal-500 text-white font-bold py-3 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
                   {isUpdatingProfile ? (
                     <>
-                      <RefreshCw size={18} className="animate-spin" /> সংরক্ষণ হচ্ছে...
+                      <Loader2 size={18} className="animate-spin" /> সংরক্ষণ হচ্ছে...
                     </>
                   ) : (
                     'সংরক্ষণ করুন'
@@ -542,6 +545,9 @@ function OverviewTab({ onTabChange, balance, isRefreshing, onRefresh, profileDat
 function HistoryTab({ email }: { email?: string }) {
   const [filterType, setFilterType] = useState('all');
   const [sortBy, setSortBy] = useState('date_desc');
+  const [dateRange, setDateRange] = useState('all');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
   const [selectedTrx, setSelectedTrx] = useState<any>(null);
 
   const transactions = useMemo(() => [
@@ -565,6 +571,25 @@ function HistoryTab({ email }: { email?: string }) {
     if (filterType !== 'all') {
       result = result.filter(trx => trx.type === filterType);
     }
+
+    const now = new Date();
+    if (dateRange === '7days') {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(now.getDate() - 7);
+      result = result.filter(trx => new Date(trx.date) >= sevenDaysAgo);
+    } else if (dateRange === '30days') {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(now.getDate() - 30);
+      result = result.filter(trx => new Date(trx.date) >= thirtyDaysAgo);
+    } else if (dateRange === 'custom' && customStartDate && customEndDate) {
+      const start = new Date(customStartDate);
+      const end = new Date(customEndDate);
+      end.setHours(23, 59, 59, 999);
+      result = result.filter(trx => {
+        const trxDate = new Date(trx.date);
+        return trxDate >= start && trxDate <= end;
+      });
+    }
     
     result.sort((a, b) => {
       if (sortBy === 'date_desc') {
@@ -584,7 +609,7 @@ function HistoryTab({ email }: { email?: string }) {
     });
     
     return result;
-  }, [transactions, filterType, sortBy]);
+  }, [transactions, filterType, sortBy, dateRange, customStartDate, customEndDate]);
 
   return (
     <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -595,39 +620,80 @@ function HistoryTab({ email }: { email?: string }) {
         </button>
       </div>
 
-      <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
-        <div className="relative flex-1 min-w-[120px]">
-          <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
-            <Filter size={14} className="text-teal-400" />
+      <div className="flex flex-col gap-2 mb-4">
+        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+          <div className="relative flex-1 min-w-[120px]">
+            <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
+              <Filter size={14} className="text-teal-400" />
+            </div>
+            <select 
+              value={filterType} 
+              onChange={(e) => setFilterType(e.target.value)}
+              className="w-full bg-teal-800/60 border border-teal-700/50 text-teal-100 text-xs rounded-lg pl-8 pr-2 py-2 appearance-none focus:outline-none focus:border-teal-500"
+            >
+              <option value="all">সব ধরন</option>
+              <option value="deposit">জমা</option>
+              <option value="withdraw">উত্তোলন</option>
+              <option value="bonus">বোনাস</option>
+              <option value="bet">বাজি</option>
+            </select>
           </div>
-          <select 
-            value={filterType} 
-            onChange={(e) => setFilterType(e.target.value)}
-            className="w-full bg-teal-800/60 border border-teal-700/50 text-teal-100 text-xs rounded-lg pl-8 pr-2 py-2 appearance-none focus:outline-none focus:border-teal-500"
-          >
-            <option value="all">সব ধরন</option>
-            <option value="deposit">জমা</option>
-            <option value="withdraw">উত্তোলন</option>
-            <option value="bonus">বোনাস</option>
-            <option value="bet">বাজি</option>
-          </select>
-        </div>
-        
-        <div className="relative flex-1 min-w-[140px]">
-          <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
-            <ArrowDownUp size={14} className="text-teal-400" />
+          
+          <div className="relative flex-1 min-w-[140px]">
+            <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
+              <ArrowDownUp size={14} className="text-teal-400" />
+            </div>
+            <select 
+              value={sortBy} 
+              onChange={(e) => setSortBy(e.target.value)}
+              className="w-full bg-teal-800/60 border border-teal-700/50 text-teal-100 text-xs rounded-lg pl-8 pr-2 py-2 appearance-none focus:outline-none focus:border-teal-500"
+            >
+              <option value="date_desc">নতুন থেকে পুরানো</option>
+              <option value="date_asc">পুরানো থেকে নতুন</option>
+              <option value="amount_desc">অ্যামাউন্ট (বেশি থেকে কম)</option>
+              <option value="amount_asc">অ্যামাউন্ট (কম থেকে বেশি)</option>
+            </select>
           </div>
-          <select 
-            value={sortBy} 
-            onChange={(e) => setSortBy(e.target.value)}
-            className="w-full bg-teal-800/60 border border-teal-700/50 text-teal-100 text-xs rounded-lg pl-8 pr-2 py-2 appearance-none focus:outline-none focus:border-teal-500"
-          >
-            <option value="date_desc">নতুন থেকে পুরানো</option>
-            <option value="date_asc">পুরানো থেকে নতুন</option>
-            <option value="amount_desc">অ্যামাউন্ট (বেশি থেকে কম)</option>
-            <option value="amount_asc">অ্যামাউন্ট (কম থেকে বেশি)</option>
-          </select>
+
+          <div className="relative flex-1 min-w-[140px]">
+            <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
+              <Calendar size={14} className="text-teal-400" />
+            </div>
+            <select 
+              value={dateRange} 
+              onChange={(e) => setDateRange(e.target.value)}
+              className="w-full bg-teal-800/60 border border-teal-700/50 text-teal-100 text-xs rounded-lg pl-8 pr-2 py-2 appearance-none focus:outline-none focus:border-teal-500"
+            >
+              <option value="all">সব সময়</option>
+              <option value="7days">গত ৭ দিন</option>
+              <option value="30days">গত ৩০ দিন</option>
+              <option value="custom">কাস্টম রেঞ্জ</option>
+            </select>
+          </div>
         </div>
+
+        {dateRange === 'custom' && (
+          <div className="flex gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex-1">
+              <label className="text-[10px] text-teal-300 mb-1 block">শুরুর তারিখ</label>
+              <input 
+                type="date" 
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="w-full bg-teal-800/60 border border-teal-700/50 text-teal-100 text-xs rounded-lg px-2 py-2 focus:outline-none focus:border-teal-500"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="text-[10px] text-teal-300 mb-1 block">শেষ তারিখ</label>
+              <input 
+                type="date" 
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="w-full bg-teal-800/60 border border-teal-700/50 text-teal-100 text-xs rounded-lg px-2 py-2 focus:outline-none focus:border-teal-500"
+              />
+            </div>
+          </div>
+        )}
       </div>
       
       {filteredAndSortedTransactions.length > 0 ? (
@@ -736,6 +802,67 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
   const [twoFAMethod, setTwoFAMethod] = useState<'app' | 'sms'>('app');
   const [isGoogleLinked, setIsGoogleLinked] = useState(false);
   const [isFacebookLinked, setIsFacebookLinked] = useState(false);
+  const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
+  const [isLinkingFacebook, setIsLinkingFacebook] = useState(false);
+  const [country, setCountry] = useState<string | null>(profileData?.country || null);
+  const [isFetchingLocation, setIsFetchingLocation] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
+  const fetchLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError("Geolocation is not supported by your browser");
+      return;
+    }
+
+    setIsFetchingLocation(true);
+    setLocationError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          // Use a free reverse geocoding API (e.g., bigdatacloud)
+          const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`);
+          if (!response.ok) throw new Error("Failed to fetch location data");
+          
+          const data = await response.json();
+          if (data.countryName) {
+            setCountry(data.countryName);
+            // In a real app, you would also update the user's profile in Firestore here
+            // await updateUserProfile(auth.currentUser!.uid, { country: data.countryName });
+          } else {
+             setLocationError("Could not determine country from location");
+          }
+        } catch (error) {
+          console.error("Error fetching location:", error);
+          setLocationError("Failed to get country name");
+        } finally {
+          setIsFetchingLocation(false);
+        }
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+        setLocationError("Location access denied or unavailable");
+        setIsFetchingLocation(false);
+      }
+    );
+  };
+
+  const handleLinkGoogle = () => {
+    setIsLinkingGoogle(true);
+    setTimeout(() => {
+      setIsGoogleLinked(!isGoogleLinked);
+      setIsLinkingGoogle(false);
+    }, 990);
+  };
+
+  const handleLinkFacebook = () => {
+    setIsLinkingFacebook(true);
+    setTimeout(() => {
+      setIsFacebookLinked(!isFacebookLinked);
+      setIsLinkingFacebook(false);
+    }, 990);
+  };
   const [isConfirmingLogout, setIsConfirmingLogout] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
@@ -774,7 +901,7 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
   const handleCopySecret = () => {
     navigator.clipboard.writeText(secretKey);
     setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 2000);
+    setTimeout(() => setIsCopied(false), 990);
   };
 
   const handleStart2FASetup = () => {
@@ -794,7 +921,7 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
     setSetupError(null);
     try {
       // Simulate verification
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await new Promise(resolve => setTimeout(resolve, 990));
       if (verificationCode === "123456") { // Mock success code
         generateRecoveryCodes();
         setShowRecoveryCodes(true);
@@ -829,14 +956,14 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
   const handleIdUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setIdStatus('pending');
-      setTimeout(() => setIdStatus('verified'), 3000);
+      setTimeout(() => setIdStatus('verified'), 990);
     }
   };
 
   const handleSelfieUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setSelfieStatus('pending');
-      setTimeout(() => setSelfieStatus('verified'), 3000);
+      setTimeout(() => setSelfieStatus('verified'), 990);
     }
   };
 
@@ -867,7 +994,7 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
     setIsUpdatingEmail(true);
     try {
       // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 990));
       setEmailSuccess("ইমেইল সফলভাবে আপডেট করা হয়েছে। (Email updated successfully.)");
     } catch (err) {
       setEmailError("ইমেইল আপডেট করতে সমস্যা হয়েছে। (Failed to update email.)");
@@ -888,7 +1015,7 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
     setIsChangingPassword(true);
     try {
       // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await new Promise(resolve => setTimeout(resolve, 990));
       setPasswordSuccess(`আপনার ইমেইলে (${email || profileData?.email}) একটি পাসওয়ার্ড রিসেট লিঙ্ক পাঠানো হয়েছে। (A password reset link has been sent to your email.)`);
     } catch (err) {
       setPasswordError("পাসওয়ার্ড রিসেট লিঙ্ক পাঠাতে সমস্যা হয়েছে। (Failed to send reset link.)");
@@ -918,7 +1045,7 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
     setIsChangingPassword(true);
     try {
       // Simulate API call for password change
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 990));
       
       // In a real app, you would make a fetch call here:
       // const res = await fetch('/api/user/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) });
@@ -933,7 +1060,7 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
       setTimeout(() => {
         setIsPasswordModalOpen(false);
         setPasswordSuccess(null);
-      }, 2000);
+      }, 990);
     } catch (err) {
       setPasswordError("পাসওয়ার্ড পরিবর্তন করতে সমস্যা হয়েছে। (Failed to change password.)");
     } finally {
@@ -979,13 +1106,61 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
             </div>
             <ChevronRight size={16} className="text-teal-500" />
           </button>
-          <button className="w-full flex items-center justify-between p-3 hover:bg-teal-700/30 transition-colors">
-            <div className="flex items-center gap-3">
-              <Bell size={16} className="text-teal-300" />
-              <span className="text-sm text-teal-50">বিজ্ঞপ্তি সেটিংস (Notification Settings)</span>
+          
+          {/* Linked Accounts Section moved to Security Center */}
+          <div className="p-3 space-y-3">
+            <div className="flex items-center gap-2 mb-1">
+              <Link size={14} className="text-teal-400" />
+              <span className="text-xs font-bold text-teal-100">লিঙ্ক করা অ্যাকাউন্ট (Linked Accounts)</span>
             </div>
-            <ChevronRight size={16} className="text-teal-500" />
-          </button>
+            <div className="space-y-2">
+              {/* Google Account */}
+              <div className={`w-full flex items-center justify-between p-2.5 rounded-lg border transition-all duration-300 ${isGoogleLinked ? 'bg-teal-800/50 border-teal-500/50 shadow-[0_0_10px_rgba(20,184,166,0.15)]' : 'bg-teal-900/30 border-teal-800/50 opacity-80'}`}>
+                <div className="flex items-center gap-3">
+                  <div className={`p-1.5 rounded-full transition-colors ${isGoogleLinked ? 'bg-red-500/20' : 'bg-gray-800/50'}`}>
+                    <Mail size={14} className={isGoogleLinked ? 'text-red-400' : 'text-gray-400'} />
+                  </div>
+                  <div className="text-left">
+                    <div className={`text-xs font-medium ${isGoogleLinked ? 'text-teal-50' : 'text-gray-300'}`}>Google</div>
+                    <div className={`text-[9px] flex items-center gap-1 ${isGoogleLinked ? 'text-teal-300' : 'text-gray-500'}`}>
+                      {isGoogleLinked && <CheckCircle2 size={8} />}
+                      {isGoogleLinked ? 'সংযুক্ত (Linked)' : 'সংযুক্ত নয় (Not Linked)'}
+                    </div>
+                  </div>
+                </div>
+                <button 
+                  onClick={handleLinkGoogle}
+                  disabled={isLinkingGoogle}
+                  className={`px-2.5 py-1 rounded text-[10px] font-bold transition-colors flex items-center gap-1 ${isGoogleLinked ? 'bg-teal-900/50 text-teal-400 hover:bg-teal-900 border border-teal-700/50' : 'bg-teal-600 text-white hover:bg-teal-500 shadow-md'}`}
+                >
+                  {isLinkingGoogle ? <RefreshCw size={10} className="animate-spin" /> : (isGoogleLinked ? 'বিচ্ছিন্ন করুন' : 'লিঙ্ক করুন')}
+                </button>
+              </div>
+              
+              {/* Facebook Account */}
+              <div className={`w-full flex items-center justify-between p-2.5 rounded-lg border transition-all duration-300 ${isFacebookLinked ? 'bg-teal-800/50 border-teal-500/50 shadow-[0_0_10px_rgba(20,184,166,0.15)]' : 'bg-teal-900/30 border-teal-800/50 opacity-80'}`}>
+                <div className="flex items-center gap-3">
+                  <div className={`p-1.5 rounded-full transition-colors ${isFacebookLinked ? 'bg-blue-500/20' : 'bg-gray-800/50'}`}>
+                    <Facebook size={14} className={isFacebookLinked ? 'text-blue-400' : 'text-gray-400'} />
+                  </div>
+                  <div className="text-left">
+                    <div className={`text-xs font-medium ${isFacebookLinked ? 'text-teal-50' : 'text-gray-300'}`}>Facebook</div>
+                    <div className={`text-[9px] flex items-center gap-1 ${isFacebookLinked ? 'text-teal-300' : 'text-gray-500'}`}>
+                      {isFacebookLinked && <CheckCircle2 size={8} />}
+                      {isFacebookLinked ? 'সংযুক্ত (Linked)' : 'সংযুক্ত নয় (Not Linked)'}
+                    </div>
+                  </div>
+                </div>
+                <button 
+                  onClick={handleLinkFacebook}
+                  disabled={isLinkingFacebook}
+                  className={`px-2.5 py-1 rounded text-[10px] font-bold transition-colors flex items-center gap-1 ${isFacebookLinked ? 'bg-teal-900/50 text-teal-400 hover:bg-teal-900 border border-teal-700/50' : 'bg-teal-600 text-white hover:bg-teal-500 shadow-md'}`}
+                >
+                  {isLinkingFacebook ? <RefreshCw size={10} className="animate-spin" /> : (isFacebookLinked ? 'বিচ্ছিন্ন করুন' : 'লিঙ্ক করুন')}
+                </button>
+              </div>
+            </div>
+          </div>
           
           {/* 2FA Setup inside Security Center */}
           <div className="p-3">
@@ -1331,172 +1506,68 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
               <ChevronRight size={16} className="text-teal-500" />
             </div>
           </button>
+          
+          {/* Notification Settings moved to General Settings */}
+          <button className="w-full flex items-center justify-between p-3 hover:bg-teal-700/30 transition-colors">
+            <div className="flex items-center gap-3">
+              <Bell size={16} className="text-teal-300" />
+              <span className="text-sm text-teal-50">বিজ্ঞপ্তি সেটিংস (Notification Settings)</span>
+            </div>
+            <ChevronRight size={16} className="text-teal-500" />
+          </button>
+        </div>
+      </div>
+
+      {/* Location Section */}
+      <div className="bg-teal-800/40 rounded-xl border border-teal-700/50 overflow-hidden">
+        <div className="p-3 border-b border-teal-700/50">
+          <h3 className="font-bold text-white text-sm flex items-center gap-2">
+            <MapPin size={16} className="text-teal-400" /> অবস্থান (Location)
+          </h3>
+        </div>
+        <div className="p-4 space-y-3">
+          {country ? (
+            <div className="flex items-center justify-between bg-teal-900/50 border border-teal-700/50 p-3 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-teal-800 flex items-center justify-center text-teal-300">
+                  <MapPin size={16} />
+                </div>
+                <div>
+                  <p className="text-xs text-teal-300">আপনার দেশ (Your Country)</p>
+                  <p className="text-sm font-bold text-white">{country}</p>
+                </div>
+              </div>
+              <div className="text-[10px] text-teal-400 bg-teal-900/80 px-2 py-1 rounded border border-teal-700/50">
+                Verified
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs text-teal-200 leading-relaxed">
+                ব্যক্তিগতকৃত অফার এবং কন্টেন্ট পেতে আপনার অবস্থান শেয়ার করুন। (Share your location to receive personalized offers and content.)
+              </p>
+              <button
+                onClick={fetchLocation}
+                disabled={isFetchingLocation}
+                className="w-full bg-teal-600 hover:bg-teal-500 disabled:bg-teal-800 text-white py-2.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2"
+              >
+                {isFetchingLocation ? (
+                  <><RefreshCw size={14} className="animate-spin" /> অবস্থান খোঁজা হচ্ছে...</>
+                ) : (
+                  <><MapPin size={14} /> অবস্থান শেয়ার করুন</>
+                )}
+              </button>
+              {locationError && (
+                <p className="text-[10px] text-red-400 text-center flex items-center justify-center gap-1">
+                  <AlertCircle size={12} /> {locationError}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Account Verification Section */}
-      <div className="bg-teal-800/40 rounded-xl border border-teal-700/50 overflow-hidden">
-        <div className="p-3 border-b border-teal-700/50 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <BadgeCheck size={16} className="text-teal-400" />
-            <h3 className="font-bold text-white text-sm">অ্যাকাউন্ট যাচাইকরণ</h3>
-          </div>
-          {isFullyVerified ? (
-            <span className="bg-green-500/20 text-green-400 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-green-500/30">
-              <CheckCircle2 size={10} /> যাচাইকৃত
-            </span>
-          ) : isPending ? (
-            <span className="bg-yellow-500/20 text-yellow-400 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-yellow-500/30">
-              <RefreshCw size={10} className="animate-spin" /> প্রক্রিয়াধীন
-            </span>
-          ) : (
-            <span className="bg-red-500/20 text-red-400 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-red-500/30">
-              <AlertCircle size={10} /> যাচাই করা হয়নি
-            </span>
-          )}
-        </div>
-        
-        <div className="p-4 space-y-3 bg-teal-900/20">
-          <p className="text-xs text-teal-100">আপনার অ্যাকাউন্ট সম্পূর্ণ সুরক্ষিত করতে এবং উত্তোলনের সীমা বাড়াতে আপনার পরিচয় যাচাই করুন।</p>
-          
-          <div className="space-y-2">
-            <input 
-              type="file" 
-              accept="image/*" 
-              className="hidden" 
-              ref={idInputRef} 
-              onChange={handleIdUpload} 
-            />
-            <button 
-              onClick={() => idStatus === 'unverified' && idInputRef.current?.click()}
-              disabled={idStatus !== 'unverified'}
-              className={`w-full flex items-center justify-between p-3 border rounded-lg transition-colors ${
-                idStatus === 'verified' ? 'bg-green-900/20 border-green-700/50 cursor-default' : 
-                idStatus === 'pending' ? 'bg-yellow-900/20 border-yellow-700/50 cursor-default' : 
-                'bg-teal-800/30 border-teal-700 hover:bg-teal-700/40'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-full ${
-                  idStatus === 'verified' ? 'bg-green-700/50 text-green-300' : 
-                  idStatus === 'pending' ? 'bg-yellow-700/50 text-yellow-300' : 
-                  'bg-teal-700/50 text-teal-300'
-                }`}>
-                  <FileText size={16} />
-                </div>
-                <div className="text-left">
-                  <div className="text-sm text-teal-50 font-medium">আইডি কার্ড আপলোড</div>
-                  <div className="text-[10px] text-teal-200">জাতীয় পরিচয়পত্র বা পাসপোর্ট</div>
-                </div>
-              </div>
-              {idStatus === 'verified' ? (
-                <CheckCircle2 size={16} className="text-green-500" />
-              ) : idStatus === 'pending' ? (
-                <RefreshCw size={16} className="text-yellow-500 animate-spin" />
-              ) : (
-                <ChevronRight size={16} className="text-teal-500" />
-              )}
-            </button>
-            
-            <input 
-              type="file" 
-              accept="image/*" 
-              capture="user"
-              className="hidden" 
-              ref={selfieInputRef} 
-              onChange={handleSelfieUpload} 
-            />
-            <button 
-              onClick={() => selfieStatus === 'unverified' && selfieInputRef.current?.click()}
-              disabled={selfieStatus !== 'unverified'}
-              className={`w-full flex items-center justify-between p-3 border rounded-lg transition-colors ${
-                selfieStatus === 'verified' ? 'bg-green-900/20 border-green-700/50 cursor-default' : 
-                selfieStatus === 'pending' ? 'bg-yellow-900/20 border-yellow-700/50 cursor-default' : 
-                'bg-teal-800/30 border-teal-700 hover:bg-teal-700/40'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-full ${
-                  selfieStatus === 'verified' ? 'bg-green-700/50 text-green-300' : 
-                  selfieStatus === 'pending' ? 'bg-yellow-700/50 text-yellow-300' : 
-                  'bg-teal-700/50 text-teal-300'
-                }`}>
-                  <Camera size={16} />
-                </div>
-                <div className="text-left">
-                  <div className="text-sm text-teal-50 font-medium">সেলফি যাচাইকরণ</div>
-                  <div className="text-[10px] text-teal-200">আপনার চেহারার লাইভ ছবি</div>
-                </div>
-              </div>
-              {selfieStatus === 'verified' ? (
-                <CheckCircle2 size={16} className="text-green-500" />
-              ) : selfieStatus === 'pending' ? (
-                <RefreshCw size={16} className="text-yellow-500 animate-spin" />
-              ) : (
-                <ChevronRight size={16} className="text-teal-500" />
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Linked Accounts Section */}
-      <div className="bg-teal-800/40 rounded-xl border border-teal-700/50 overflow-hidden">
-        <div className="p-3 border-b border-teal-700/50 flex items-center gap-2">
-          <Link size={16} className="text-teal-400" />
-          <h3 className="font-bold text-white text-sm">লিঙ্ক করা অ্যাকাউন্ট (Linked Accounts)</h3>
-        </div>
-        
-        <div className="p-4 space-y-3 bg-teal-900/20">
-          <p className="text-xs text-teal-100">দ্রুত লগইন করতে আপনার সামাজিক মিডিয়া অ্যাকাউন্টগুলো লিঙ্ক করুন।</p>
-          
-          <div className="space-y-2">
-            {/* Google Account */}
-            <div className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all duration-300 ${isGoogleLinked ? 'bg-teal-800/50 border-teal-500/50 shadow-[0_0_10px_rgba(20,184,166,0.15)]' : 'bg-teal-900/30 border-teal-800/50 opacity-80'}`}>
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-full transition-colors ${isGoogleLinked ? 'bg-red-500/20' : 'bg-gray-800/50'}`}>
-                  <Mail size={16} className={isGoogleLinked ? 'text-red-400' : 'text-gray-400'} />
-                </div>
-                <div className="text-left">
-                  <div className={`text-sm font-medium ${isGoogleLinked ? 'text-teal-50' : 'text-gray-300'}`}>Google</div>
-                  <div className={`text-[10px] flex items-center gap-1 ${isGoogleLinked ? 'text-teal-300' : 'text-gray-500'}`}>
-                    {isGoogleLinked && <CheckCircle2 size={10} />}
-                    {isGoogleLinked ? 'সংযুক্ত (Linked)' : 'সংযুক্ত নয় (Not Linked)'}
-                  </div>
-                </div>
-              </div>
-              <button 
-                onClick={() => setIsGoogleLinked(!isGoogleLinked)}
-                className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${isGoogleLinked ? 'bg-teal-900/50 text-teal-400 hover:bg-teal-900 border border-teal-700/50' : 'bg-teal-600 text-white hover:bg-teal-500 shadow-md'}`}
-              >
-                {isGoogleLinked ? 'বিচ্ছিন্ন করুন' : 'লিঙ্ক করুন'}
-              </button>
-            </div>
-            
-            {/* Facebook Account */}
-            <div className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all duration-300 ${isFacebookLinked ? 'bg-teal-800/50 border-teal-500/50 shadow-[0_0_10px_rgba(20,184,166,0.15)]' : 'bg-teal-900/30 border-teal-800/50 opacity-80'}`}>
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-full transition-colors ${isFacebookLinked ? 'bg-blue-500/20' : 'bg-gray-800/50'}`}>
-                  <Facebook size={16} className={isFacebookLinked ? 'text-blue-400' : 'text-gray-400'} />
-                </div>
-                <div className="text-left">
-                  <div className={`text-sm font-medium ${isFacebookLinked ? 'text-teal-50' : 'text-gray-300'}`}>Facebook</div>
-                  <div className={`text-[10px] flex items-center gap-1 ${isFacebookLinked ? 'text-teal-300' : 'text-gray-500'}`}>
-                    {isFacebookLinked && <CheckCircle2 size={10} />}
-                    {isFacebookLinked ? 'সংযুক্ত (Linked)' : 'সংযুক্ত নয় (Not Linked)'}
-                  </div>
-                </div>
-              </div>
-              <button 
-                onClick={() => setIsFacebookLinked(!isFacebookLinked)}
-                className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${isFacebookLinked ? 'bg-teal-900/50 text-teal-400 hover:bg-teal-900 border border-teal-700/50' : 'bg-teal-600 text-white hover:bg-teal-500 shadow-md'}`}
-              >
-                {isFacebookLinked ? 'বিচ্ছিন্ন করুন' : 'লিঙ্ক করুন'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
 
       <div className="bg-teal-800/40 rounded-xl border border-teal-700/50 overflow-hidden">
         <div className="p-3 border-b border-teal-700/50">

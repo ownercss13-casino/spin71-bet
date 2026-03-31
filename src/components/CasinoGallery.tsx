@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { X } from 'lucide-react';
 import { motion, useScroll, useTransform } from 'motion/react';
+import { GAME_IMAGES } from '../constants/gameAssets';
 
 interface CasinoGalleryProps {
   onClose: () => void;
@@ -9,32 +10,32 @@ interface CasinoGalleryProps {
 const CASINO_IMAGES = [
   {
     title: 'Real Slot Machine',
-    url: 'https://images.unsplash.com/photo-1596838132731-3301c3fd4317?q=80&w=800&auto=format&fit=crop',
+    url: GAME_IMAGES.CRASH_GAME,
     description: 'High-quality slot machine visual'
   },
   {
     title: 'Professional Roulette',
-    url: 'https://images.unsplash.com/photo-1606167668584-78701c57f13d?q=80&w=800&auto=format&fit=crop',
+    url: GAME_IMAGES.CRASH_GAME,
     description: 'Classic roulette table'
   },
   {
     title: 'Poker & Cards',
-    url: 'https://images.unsplash.com/photo-1511193311914-0346f16efe90?q=80&w=800&auto=format&fit=crop',
+    url: GAME_IMAGES.CRASH_GAME,
     description: 'Professional card game setup'
   },
   {
     title: 'Casino Dice (Sic Bo)',
-    url: 'https://images.unsplash.com/photo-1518133835878-5a93cc3f89e5?q=80&w=800&auto=format&fit=crop',
+    url: GAME_IMAGES.CRASH_GAME,
     description: 'High-stakes dice game'
   },
   {
     title: 'Casino Interior',
-    url: 'https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?q=80&w=800&auto=format&fit=crop',
+    url: GAME_IMAGES.CRASH_GAME,
     description: 'Luxury casino atmosphere'
   },
   {
     title: 'Crash Game Plane',
-    url: 'https://images.unsplash.com/photo-1569154941061-e231b4725ef1?q=80&w=800&auto=format&fit=crop',
+    url: GAME_IMAGES.CRASH_GAME,
     description: 'Modern aircraft for Crash game'
   }
 ];

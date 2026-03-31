@@ -73,7 +73,9 @@ export default function InviteView({ onTabChange, setIsLoading, userData, initia
         incrementShares();
       }
     } catch (err: any) {
-      console.error('Error sharing:', err);
+      if (err.name !== 'AbortError') {
+        console.error('Error sharing:', err);
+      }
     } finally {
       setTimeout(() => setIsLoading(false), 990);
     }

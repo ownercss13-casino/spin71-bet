@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronLeft, Wallet, CreditCard, Building2, Smartphone, ShieldCheck, History, ArrowRight } from 'lucide-react';
+import { ChevronLeft, Wallet, CreditCard, Building2, Smartphone, ShieldCheck, History, ArrowRight, Copy, Check, AlertCircle, X } from 'lucide-react';
 
 import { updateUserProfile } from '../services/firebaseService';
 
@@ -14,11 +14,36 @@ const paymentMethods = [
 
 const quickAmounts = [500, 1000, 2000, 5000, 10000, 25000];
 
-export default function DepositView({ onTabChange, balance, setIsLoading, userData }: { onTabChange: (tab: any) => void, balance: number, setIsLoading: (loading: boolean) => void, userData: any }) {
-  const [selectedMethod, setSelectedMethod] = useState('bkash');
+export default function DepositView({ onTabChange, balance, onBalanceUpdate, setIsLoading, userData }: { onTabChange: (tab: any) => void, balance: number, onBalanceUpdate: (amount: number) => void, setIsLoading: (loading: boolean) => void, userData: any }) {
+  const [selectedMethod, setSelectedMethod] = useState('nagad');
   const [amount, setAmount] = useState('1000');
+  const [trxId, setTrxId] = useState('');
+  const [senderNumber, setSenderNumber] = useState('');
+  const [isCopied, setIsCopied] = useState(false);
+  const [showSystemClosedPopup, setShowSystemClosedPopup] = useState(false);
 
   const handleDeposit = async () => {
+    if (selectedMethod !== 'nagad' && selectedMethod !== 'bkash') {
+      alert('এই মেথডটি খুব শীঘ্রই আসছে (Upcoming)! শুধুমাত্র বিকাশ এবং নগদ চালু আছে।');
+      return;
+    }
+
+    const depositAmount = parseFloat(amount);
+    if (isNaN(depositAmount) || depositAmount < 100 || depositAmount > 25000) {
+      alert('সর্বনিম্ন ডিপোজিট ১০০ টাকা এবং সর্বোচ্চ ২৫,০০০ টাকা।');
+      return;
+    }
+
+    if (!trxId.trim()) {
+      alert('দয়া করে ট্রানজেকশন আইডি (TrxID) দিন।');
+      return;
+    }
+
+    if (!senderNumber.trim()) {
+      alert('দয়া করে সেন্ডার নাম্বার দিন (যে নাম্বার থেকে টাকা পাঠিয়েছেন)।');
+      return;
+    }
+
     setIsLoading(true);
     try {
       if (userData?.id) {
@@ -26,7 +51,8 @@ export default function DepositView({ onTabChange, balance, setIsLoading, userDa
       }
       setTimeout(() => {
         setIsLoading(false);
-        alert('ডিপোজিট রিকোয়েস্ট সফল হয়েছে! আপনার ব্যালেন্স শীঘ্রই আপডেট হবে।');
+        onBalanceUpdate(balance + depositAmount);
+        alert('ডিপোজিট রিকোয়েস্ট সফল হয়েছে! আপনার ব্যালেন্স আপডেট হয়েছে।');
         onTabChange('home');
       }, 990);
     } catch (error) {
@@ -82,7 +108,13 @@ export default function DepositView({ onTabChange, balance, setIsLoading, userDa
             {paymentMethods.map(method => (
               <button
                 key={method.id}
-                onClick={() => setSelectedMethod(method.id)}
+                onClick={() => {
+                  if (method.id !== 'nagad' && method.id !== 'bkash') {
+                    setShowSystemClosedPopup(true);
+                    return;
+                  }
+                  setSelectedMethod(method.id);
+                }}
                 className={`relative flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${
                   selectedMethod === method.id 
                     ? 'bg-[#1b1b1b] border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.2)]' 
@@ -106,44 +138,113 @@ export default function DepositView({ onTabChange, balance, setIsLoading, userDa
           </div>
         </div>
 
-        {/* Amount Selection */}
-        <div className="bg-[#1b1b1b] p-4 rounded-2xl border border-white/5">
-          <h3 className="text-white font-bold mb-3">জমার পরিমাণ (৳)</h3>
-          
-          <div className="relative mb-4">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xl">৳</span>
-            <input 
-              type="number" 
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="w-full bg-black/50 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white font-bold text-xl focus:outline-none focus:border-teal-500 transition-colors"
-              placeholder="0.00"
-            />
-          </div>
+        {/* Dynamic Instructions & Form */}
+        {['nagad', 'bkash'].includes(selectedMethod) && (() => {
+          const isBkash = selectedMethod === 'bkash';
+          const theme = isBkash ? {
+            bg: 'bg-rose-500',
+            bgHover: 'hover:bg-rose-600',
+            text: 'text-rose-400',
+            border: 'border-rose-500',
+            lightBg: 'bg-rose-500/10',
+            lightBorder: 'border-rose-500/30',
+            number: '01860137045',
+            name: 'বিকাশ'
+          } : {
+            bg: 'bg-orange-500',
+            bgHover: 'hover:bg-orange-600',
+            text: 'text-orange-400',
+            border: 'border-orange-500',
+            lightBg: 'bg-orange-500/10',
+            lightBorder: 'border-orange-500/30',
+            number: '01789527096',
+            name: 'নগদ'
+          };
 
-          <div className="grid grid-cols-3 gap-2">
-            {quickAmounts.map(amt => (
-              <button
-                key={amt}
-                onClick={() => setAmount(amt.toString())}
-                className={`py-2 rounded-lg font-bold text-sm transition-colors ${
-                  amount === amt.toString()
-                    ? 'bg-teal-600 text-white'
-                    : 'bg-white/5 text-gray-300 hover:bg-white/10'
-                }`}
-              >
-                {amt.toLocaleString()}
-              </button>
-            ))}
-          </div>
-          
-          <div className="mt-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-xl flex items-start gap-3">
-            <ShieldCheck size={20} className="text-blue-400 shrink-0 mt-0.5" />
-            <p className="text-xs text-blue-200 leading-relaxed">
-              আপনার লেনদেন 100% সুরক্ষিত এবং এনক্রিপ্ট করা। জমা করার পর সাধারণত ১-৫ মিনিটের মধ্যে ব্যালেন্স যোগ হয়।
-            </p>
-          </div>
-        </div>
+          return (
+            <div className="bg-[#1b1b1b] p-4 rounded-2xl border border-white/5 space-y-4">
+              <div className={`${theme.lightBg} border ${theme.lightBorder} p-4 rounded-xl`}>
+                <p className={`${theme.text} text-sm font-bold mb-2`}>{theme.name} সেন্ড মানি (Send Money)</p>
+                <div className="flex items-center justify-between bg-black/50 p-3 rounded-lg border border-white/10">
+                  <span className="text-white font-mono text-lg tracking-wider">{theme.number}</span>
+                  <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(theme.number);
+                      setIsCopied(true);
+                      setTimeout(() => setIsCopied(false), 2000);
+                    }}
+                    className={`${theme.bg} ${theme.bgHover} text-white px-3 py-1.5 rounded text-xs font-bold transition-colors flex items-center gap-1`}
+                  >
+                    {isCopied ? <Check size={14} /> : <Copy size={14} />}
+                    {isCopied ? 'কপি হয়েছে' : 'কপি করুন'}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400 mt-2">উপরের নাম্বারে সেন্ড মানি করার পর নিচের তথ্যগুলো পূরণ করুন।</p>
+              </div>
+
+              {/* Amount Selection */}
+              <div>
+                <h3 className="text-white font-bold mb-3 text-sm">জমার পরিমাণ (৳)</h3>
+                <div className="relative mb-3">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xl">৳</span>
+                  <input 
+                    type="number" 
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className={`w-full bg-black/50 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white font-bold text-xl focus:outline-none focus:${theme.border} transition-colors`}
+                    placeholder="100 - 25000"
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {quickAmounts.map(amt => (
+                    <button
+                      key={amt}
+                      onClick={() => setAmount(amt.toString())}
+                      className={`py-2 rounded-lg font-bold text-sm transition-colors ${
+                        amount === amt.toString()
+                          ? `${theme.bg} text-white`
+                          : 'bg-white/5 text-gray-300 hover:bg-white/10'
+                      }`}
+                    >
+                      {amt.toLocaleString()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* TrxID Input */}
+              <div>
+                <h3 className="text-white font-bold mb-2 text-sm">ট্রানজেকশন আইডি (TrxID)</h3>
+                <input 
+                  type="text" 
+                  value={trxId}
+                  onChange={(e) => setTrxId(e.target.value)}
+                  className={`w-full bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-white font-mono focus:outline-none focus:${theme.border} transition-colors`}
+                  placeholder="যেমন: 8A7B6C5D4E"
+                />
+              </div>
+
+              {/* Sender Number Input */}
+              <div>
+                <h3 className="text-white font-bold mb-2 text-sm">সেন্ডার নাম্বার (যে নাম্বার থেকে টাকা পাঠিয়েছেন)</h3>
+                <input 
+                  type="tel" 
+                  value={senderNumber}
+                  onChange={(e) => setSenderNumber(e.target.value)}
+                  className={`w-full bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-white font-mono focus:outline-none focus:${theme.border} transition-colors`}
+                  placeholder="01XXXXXXXXX"
+                />
+              </div>
+
+              <div className="mt-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-xl flex items-start gap-3">
+                <ShieldCheck size={20} className="text-blue-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-blue-200 leading-relaxed">
+                  আপনার লেনদেন 100% সুরক্ষিত। জমা করার পর সাধারণত ১-৫ মিনিটের মধ্যে ব্যালেন্স যোগ হয়।
+                </p>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Submit Button */}
         <button 
@@ -153,6 +254,28 @@ export default function DepositView({ onTabChange, balance, setIsLoading, userDa
           জমা করুন <ArrowRight size={20} />
         </button>
       </div>
+
+      {/* System Closed Popup */}
+      {showSystemClosedPopup && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-6 animate-in fade-in duration-300">
+          <div className="bg-teal-900 p-8 rounded-3xl text-center relative shadow-2xl border-2 border-red-500 max-w-sm w-full animate-in zoom-in duration-300">
+            <button onClick={() => setShowSystemClosedPopup(false)} className="absolute top-4 right-4 text-teal-300 hover:text-white">
+              <X size={24} />
+            </button>
+            <div className="w-20 h-20 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(239,68,68,0.4)]">
+              <AlertCircle size={40} className="text-white" />
+            </div>
+            <h3 className="text-2xl font-black mb-2 text-white italic">সিস্টেম বন্ধ!</h3>
+            <p className="text-teal-200 text-lg mb-6">এই পেমেন্ট সিস্টেমটি আপাতত বন্ধ আছে।</p>
+            <button 
+              onClick={() => setShowSystemClosedPopup(false)}
+              className="w-full bg-red-500 text-white font-black py-3 rounded-xl hover:bg-red-400 transition-colors"
+            >
+              বন্ধ করুন
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

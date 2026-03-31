@@ -16,6 +16,12 @@ export default function BonusCenter({ userData, balance, onBalanceUpdate, setIsL
 
   const handleClaimDaily = async () => {
     if (userData?.id && canClaimDaily) {
+      if (!hasMadeDeposit) {
+        setErrorMessage("প্রথম জমা ছাড়া কোনো বোনাস নেওয়া যাবে না।");
+        setShowErrorPopup(true);
+        return;
+      }
+
       setIsLoading(true);
       try {
         await claimDailyBonus(userData.id, balance);
@@ -109,7 +115,7 @@ export default function BonusCenter({ userData, balance, onBalanceUpdate, setIsL
                 onClick={() => onTabChange('deposit')}
                 className="w-full font-black py-4 rounded-xl text-lg transition-all shadow-lg bg-yellow-500 text-black hover:bg-yellow-400 hover:scale-[1.02] active:scale-95"
               >
-                ডিপোজিট করুন (Deposit Now)
+                Deposit Now
               </button>
             ) : (
               <button 
@@ -117,7 +123,7 @@ export default function BonusCenter({ userData, balance, onBalanceUpdate, setIsL
                 disabled={hasClaimedWelcome}
                 className={`w-full font-black py-4 rounded-xl text-lg transition-all shadow-lg ${hasClaimedWelcome ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-yellow-500 text-black hover:bg-yellow-400 hover:scale-[1.02] active:scale-95'}`}
               >
-                {hasClaimedWelcome ? 'ইতিমধ্যে ক্লেইম করা হয়েছে' : '৫৭ টাকা ক্লেইম করুন'}
+                {hasClaimedWelcome ? 'ইতিমধ্যে ক্লেইম করা হয়েছে' : 'Claim Welcome Bonus'}
               </button>
             )}
           </div>

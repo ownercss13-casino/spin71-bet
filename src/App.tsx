@@ -11,6 +11,7 @@ import AviatorGame from "./components/AviatorGame";
 import SupportChat from "./components/SupportChat";
 import { GameGrid, Game } from "./components/GameGrid";
 import { CasinoGallery } from "./components/CasinoGallery";
+import { GAME_IMAGES } from "./constants/gameAssets";
 import { saveItem, getSavedItems, removeItem, updateUserProfile, updateFavorites, updateBalance } from './services/firebaseService';
 import {
   AlertCircle,
@@ -458,7 +459,7 @@ export default function App() {
           
           {/* Casino Background Image */}
           <img
-            src="https://images.unsplash.com/photo-1596838132731-3301c3fd4317?auto=format&fit=crop&q=80&w=800"
+            src={GAME_IMAGES.CRASH_GAME}
             alt="Casino Background"
             className="absolute inset-0 w-full h-full object-cover opacity-30 mix-blend-overlay scale-110 group-hover:scale-100 transition-transform duration-1000"
             referrerPolicy="no-referrer"
@@ -467,7 +468,7 @@ export default function App() {
           {/* Girl Image (Casino Host) */}
           <div className="absolute right-0 bottom-0 w-1/2 h-full z-20 pointer-events-none">
             <img 
-              src="https://images.unsplash.com/photo-1541271696563-3be2f99a3e1c?q=80&w=1000&auto=format&fit=crop" 
+              src={GAME_IMAGES.CRASH_GAME} 
               alt="Casino Host" 
               className="w-full h-full object-contain object-bottom transform scale-125 group-hover:scale-130 transition-transform duration-500 drop-shadow-[0_20px_40px_rgba(0,0,0,0.9)]"
               referrerPolicy="no-referrer"
@@ -546,58 +547,6 @@ export default function App() {
             <div className="w-1.5 h-1.5 rounded-full bg-white/50"></div>
             <div className="w-1.5 h-1.5 rounded-full bg-white/50"></div>
           </div>
-        </div>
-      </div>
-
-      {/* Promo Cards */}
-      <div className="grid grid-cols-3 gap-2 px-2">
-        <div className="bg-gradient-to-br from-teal-900 to-teal-800 rounded-lg p-2 relative h-20 overflow-hidden shadow-md border border-teal-700">
-          <span className="text-[11px] font-bold relative z-10 leading-tight block text-teal-50">
-            আমন্ত্রণ<br />পুরস্কার
-          </span>
-          <span className="text-yellow-400 font-bold text-sm relative z-10">
-            ৳৯৯৯
-          </span>
-          <div className="absolute bottom-1 left-1 z-10 bg-yellow-500 rounded-full p-0.5">
-            <Share2 size={12} className="text-black" />
-          </div>
-          <img
-            src="https://picsum.photos/seed/goddess/100/100"
-            className="absolute right-0 bottom-0 w-14 h-14 object-cover opacity-80"
-            alt="promo"
-          />
-        </div>
-        <div className="bg-gradient-to-br from-teal-900 to-teal-800 rounded-lg p-2 relative h-20 overflow-hidden shadow-md border border-teal-700">
-          <span className="text-[11px] font-bold relative z-10 leading-tight block text-teal-50">
-            অংশীদার
-          </span>
-          <span className="text-orange-400 font-black text-lg italic relative z-10 drop-shadow-md">
-            F999
-          </span>
-          <span className="absolute top-1 right-1 bg-red-600 text-white text-[9px] px-1 rounded-full z-10">
-            1
-          </span>
-          <img
-            src="https://picsum.photos/seed/slots/100/100"
-            className="absolute right-0 bottom-0 w-14 h-14 object-cover opacity-80"
-            alt="promo"
-          />
-        </div>
-        <div className="bg-gradient-to-br from-gray-900 to-black rounded-lg p-2 relative h-20 overflow-hidden shadow-md border border-gray-800">
-          <span className="text-[11px] font-bold relative z-10 leading-tight block text-orange-200">
-            অংশীদার
-          </span>
-          <span className="text-white font-black text-lg italic relative z-10 drop-shadow-md">
-            G777
-          </span>
-          <span className="absolute top-1 right-1 bg-red-600 text-white text-[9px] px-1 rounded-full z-10">
-            1
-          </span>
-          <img
-            src="https://picsum.photos/seed/casino2/100/100"
-            className="absolute right-0 bottom-0 w-14 h-14 object-cover opacity-80"
-            alt="promo"
-          />
         </div>
       </div>
 
@@ -881,7 +830,7 @@ export default function App() {
       {activeTab === 'profile' && <ProfileView onTabChange={handleTabChange} balance={balance} userData={userData} onLogout={handleLogout} setIsLoading={setIsLoading} />}
       {activeTab === 'bonus' && <BonusCenter userData={userData} balance={balance} onBalanceUpdate={setBalance} setIsLoading={setIsLoading} onTabChange={handleTabChange} />}
       {activeTab === 'invite' && <InviteView onTabChange={handleTabChange} setIsLoading={setIsLoading} userData={userData} />}
-      {activeTab === 'deposit' && <DepositView onTabChange={handleTabChange} balance={balance} setIsLoading={setIsLoading} userData={userData} />}
+      {activeTab === 'deposit' && <DepositView onTabChange={handleTabChange} balance={balance} onBalanceUpdate={handleBalanceUpdate} setIsLoading={setIsLoading} userData={userData} />}
 
       {/* Support Chat */}
       <SupportChat isOpen={isSupportChatOpen} onClose={() => setIsSupportChatOpen(false)} />

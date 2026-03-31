@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Info, Wallet, Play, X, History, Users, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { GAME_IMAGES } from '../constants/gameAssets';
 
 interface AviatorGameProps {
   onClose: () => void;
@@ -282,7 +283,7 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
       <div className={`flex-1 relative bg-[#0b0b0b] flex flex-col overflow-hidden transition-all duration-300 ${hasCrashed ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}>
         {/* Real Background Image */}
         <img 
-          src="https://images.unsplash.com/photo-1536431311719-398b6704d4cc?auto=format&fit=crop&q=80&w=1200" 
+          src={GAME_IMAGES.CRASH_GAME} 
           className={`absolute inset-0 w-[120%] h-[120%] -left-[10%] -top-[10%] object-cover pointer-events-none transition-opacity duration-500 ${hasCrashed ? 'opacity-40 mix-blend-multiply grayscale blur-md scale-110' : 'opacity-30 mix-blend-overlay'}`}
           style={{ 
             transform: `translate(${parallaxOffset.x}px, ${parallaxOffset.y}px) scale(${isFlying ? 1.1 : 1})`,
