@@ -76,6 +76,45 @@
       },
       "required": ["username", "phoneNumber", "password", "balance"]
     },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "A financial transaction (deposit, withdrawal, bonus, or bet)",
+      "type": "object",
+      "properties": {
+        "trxId": {
+          "type": "string",
+          "description": "Unique transaction identifier"
+        },
+        "method": {
+          "type": "string",
+          "description": "Payment method (e.g., bKash, Nagad, Rocket, Wallet, System)"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["deposit", "withdraw", "bonus", "bet"],
+          "description": "Type of transaction"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Transaction amount (positive for deposits/bonuses, negative for withdrawals/bets)"
+        },
+        "date": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of the transaction"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["সম্পন্ন", "প্রক্রিয়াধীন", "ব্যর্থ"],
+          "description": "Status of the transaction in Bengali"
+        },
+        "statusColor": {
+          "type": "string",
+          "description": "Tailwind color class for the status"
+        }
+      },
+      "required": ["trxId", "method", "type", "amount", "date", "status", "statusColor"]
+    },
     "SavedItem": {
       "title": "SavedItem",
       "description": "Items saved by the user",
@@ -100,6 +139,17 @@
         }
       },
       "required": ["userId", "itemId", "itemType", "savedAt"]
+    },
+    "Metadata": {
+      "title": "Metadata",
+      "description": "System-wide metadata and counters",
+      "type": "object",
+      "properties": {
+        "userCount": {
+          "type": "integer",
+          "description": "Total number of users registered"
+        }
+      }
     }
   },
   "firestore": {
@@ -110,6 +160,14 @@
     "/users/{userId}/savedItems/{savedItemId}": {
       "schema": "SavedItem",
       "description": "Collection of items saved by a specific user"
+    },
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Financial history for a specific user"
+    },
+    "/metadata/users": {
+      "schema": "Metadata",
+      "description": "Document containing the user counter"
     }
   }
 }

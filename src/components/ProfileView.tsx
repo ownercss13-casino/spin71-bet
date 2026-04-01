@@ -1,7 +1,17 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import useSWR from "swr";
+import AdminPanel from './AdminPanel';
 import SupportChat from "./SupportChat";
 import { updateUserProfile } from '../services/firebaseService';
+import { auth, googleProvider, db, handleFirestoreError, OperationType } from '../firebase';
+import { linkWithPopup, unlink, FacebookAuthProvider } from 'firebase/auth';
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  Timestamp
+} from 'firebase/firestore';
 import {
   User,
   Settings,
@@ -46,7 +56,8 @@ import {
   EyeOff,
   MapPin,
   Calendar,
-  Loader2
+  Loader2,
+  Building2
 } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then(res => {
@@ -54,8 +65,9 @@ const fetcher = (url: string) => fetch(url).then(res => {
   return res.json();
 });
 
-export default function ProfileView({ onTabChange, balance, userData, onLogout, setIsLoading }: { onTabChange: (tab: any) => void, balance: number, userData: any, onLogout: () => void, setIsLoading: (loading: boolean) => void }) {
-  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'history' | 'settings'>('overview');
+export default function ProfileView({ onTabChange, balance, userData, onLogout }: { onTabChange: (tab: any) => void, balance: number, userData: any, onLogout: () => void }) {
+  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'history' | 'settings' | 'withdraw'>('overview');
+  const [isTabLoading, setIsTabLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [profilePic, setProfilePic] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -64,6 +76,53 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
   const [editUsername, setEditUsername] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [updateSuccess, setUpdateSuccess] = useState(false);
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [adminPassword, setAdminPassword] = useState("");
+
+  const [totals, setTotals] = useState({
+    deposit: 0,
+    withdraw: 0,
+    bonus: 0,
+    rebate: 0
+  });
+
+  useEffect(() => {
+    if (!auth.currentUser) return;
+
+    const path = `users/${auth.currentUser.uid}/transactions`;
+    const q = query(collection(db, path));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const trxData = snapshot.docs.map(doc => doc.data());
+      
+      const newTotals = trxData.reduce((acc, trx) => {
+        const amountStr = String(trx.amount || "0");
+        const amount = parseFloat(amountStr.replace(/[^0-9.-]+/g,"")) || 0;
+        if (trx.type === 'deposit') acc.deposit += amount;
+        else if (trx.type === 'withdraw') acc.withdraw += amount;
+        else if (trx.type === 'bonus') acc.bonus += amount;
+        else if (trx.type === 'rebate') acc.rebate += amount;
+        return acc;
+      }, { deposit: 0, withdraw: 0, bonus: 0, rebate: 0 });
+      
+      setTotals(newTotals);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleSubTabChange = (tab: 'overview' | 'history' | 'settings' | 'withdraw') => {
+    if (tab === activeSubTab) return;
+    setIsTabLoading(true);
+    setTimeout(() => {
+      setActiveSubTab(tab);
+      setIsTabLoading(false);
+    }, 500);
+  };
 
   const handleOpenEditProfile = () => {
     setEditUsername(userData?.username || profileData?.username || "");
@@ -76,32 +135,28 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
     const userId = userData?.id || profileData?.id;
     if (!userId) return;
 
-    setIsLoading(true);
     setIsUpdatingProfile(true);
+    setUpdateSuccess(false);
     try {
       await updateUserProfile(userId, {
         username: editUsername,
         phoneNumber: editPhone
       });
+      setUpdateSuccess(true);
       setIsEditProfileModalOpen(false);
-      refetchProfile();
+      setUpdateSuccess(false);
     } catch (err) {
       console.error("Update profile error:", err);
     } finally {
-      setTimeout(() => {
-        setIsUpdatingProfile(false);
-        setIsLoading(false);
-      }, 990);
+      setIsUpdatingProfile(false);
     }
   };
 
   const handleRefresh = () => {
-    setIsLoading(true);
     setIsRefreshing(true);
     setTimeout(() => {
       setIsRefreshing(false);
-      setIsLoading(false);
-    }, 990);
+    }, 100);
   };
 
   const handleProfilePicChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -112,88 +167,16 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
         const base64String = reader.result as string;
         setProfilePic(base64String);
         // Update Firestore
-        const userId = userData?.id || profileData?.id;
+        const userId = userData?.id;
         if (userId) {
           await updateUserProfile(userId, { profilePictureUrl: base64String });
-          refetchProfile();
         }
       };
       reader.readAsDataURL(file);
     }
   };
   
-  const { data: profileData, error, isLoading: loading, mutate: refetchProfile } = useSWR('/api/user/profile', fetcher, {
-    revalidateOnFocus: true,
-    dedupingInterval: 5000,
-  });
-
-  if (loading) {
-    return (
-      <div className="flex-1 overflow-y-auto pb-20">
-        {/* Header Skeleton */}
-        <div className="bg-gradient-to-b from-teal-900/50 to-teal-800/30 p-4 pt-6 rounded-b-3xl shadow-md animate-pulse">
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-10 h-10 bg-teal-700/50 rounded-full"></div>
-            <div className="w-32 h-6 bg-teal-700/50 rounded-lg"></div>
-          </div>
-          <div className="flex items-center gap-6">
-            <div className="w-24 h-24 rounded-full bg-teal-700/50 shrink-0"></div>
-            <div className="flex-1 space-y-3">
-              <div className="w-3/4 h-8 bg-teal-700/50 rounded-lg"></div>
-              <div className="w-1/2 h-4 bg-teal-700/50 rounded-lg"></div>
-              <div className="w-full h-2.5 bg-teal-700/50 rounded-full mt-4"></div>
-            </div>
-          </div>
-        </div>
-
-        {/* Tabs Skeleton */}
-        <div className="flex px-4 mt-4 gap-2 animate-pulse">
-          <div className="flex-1 h-10 bg-teal-800/50 rounded-lg"></div>
-          <div className="flex-1 h-10 bg-teal-800/50 rounded-lg"></div>
-          <div className="flex-1 h-10 bg-teal-800/50 rounded-lg"></div>
-        </div>
-
-        {/* Content Skeleton */}
-        <div className="p-4 space-y-4 animate-pulse">
-          {/* Balance Card */}
-          <div className="h-28 bg-teal-800/40 rounded-2xl border border-teal-700/50"></div>
-          
-          {/* Quick Actions */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="h-28 bg-teal-800/40 rounded-xl border border-teal-700/50"></div>
-            <div className="h-28 bg-teal-800/40 rounded-xl border border-teal-700/50"></div>
-          </div>
-
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="h-24 bg-teal-800/40 rounded-xl border border-teal-700/50"></div>
-            <div className="h-24 bg-teal-800/40 rounded-xl border border-teal-700/50"></div>
-            <div className="h-24 bg-teal-800/40 rounded-xl border border-teal-700/50"></div>
-            <div className="h-24 bg-teal-800/40 rounded-xl border border-teal-700/50"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex-1 overflow-y-auto pb-20 flex items-center justify-center p-6">
-        <div className="bg-red-900/20 border border-red-500/50 rounded-xl p-6 text-center max-w-sm">
-          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <h3 className="text-red-300 font-bold mb-2">ত্রুটি (Error)</h3>
-          <p className="text-red-200/80 text-sm mb-4">আপনার প্রোফাইল ডেটা লোড করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন। (Failed to load profile data. Please try again.)</p>
-          <button 
-            onClick={() => refetchProfile()} 
-            className="bg-red-500/20 hover:bg-red-500/30 text-red-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 mx-auto"
-          >
-            <RefreshCw size={16} />
-            পুনরায় চেষ্টা করুন (Retry)
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const profileData = userData;
 
   return (
     <div className="flex-1 overflow-y-auto pb-20">
@@ -224,19 +207,31 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
             </div>
             <input type="file" ref={fileInputRef} onChange={handleProfilePicChange} accept="image/*" className="hidden" />
             <div className="absolute -bottom-2 -right-2 bg-gradient-to-r from-yellow-500 to-yellow-700 text-black text-xs font-black px-3 py-1 rounded-full border-2 border-yellow-300 shadow-lg">
-              VIP {profileData?.vipLevel || 3}
+              VIP {profileData?.vipLevel || 1}
             </div>
           </div>
           <div className="flex-1">
-            <h2 className="text-2xl font-black text-white drop-shadow-md tracking-tight">{userData?.username || profileData?.username || "Player_SPIN71BET"}</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-2xl font-black text-white drop-shadow-md tracking-tight">{userData?.username || profileData?.username || "Player_SPIN71BET"}</h2>
+              <button 
+                onClick={() => {
+                  navigator.clipboard.writeText(userData?.username || profileData?.username || "Player_SPIN71BET");
+                  // Optional: Add a toast or temporary state for feedback
+                }}
+                className="p-1 bg-white/10 hover:bg-white/20 rounded-md transition-colors text-white/70 hover:text-white"
+                title="Copy Username"
+              >
+                <Copy size={14} />
+              </button>
+            </div>
             <p className="text-teal-50 text-sm font-medium opacity-90">ID: {userData?.id || profileData?.id || "84729104"}</p>
             <div className="mt-2 flex flex-col gap-1.5">
               <div className="flex justify-between items-center">
                 <span className="text-[10px] text-yellow-300 font-black uppercase tracking-widest">VIP Progress</span>
-                <span className="text-[10px] text-yellow-300 font-bold">{profileData?.vipProgress || 75}% to VIP {profileData ? profileData.vipLevel + 1 : 4}</span>
+                <span className="text-[10px] text-yellow-300 font-bold">{profileData?.vipProgress || 0}% to VIP {(profileData?.vipLevel || 1) + 1}</span>
               </div>
               <div className="bg-black/30 rounded-full h-2.5 w-full overflow-hidden border border-white/10">
-                <div className="bg-gradient-to-r from-yellow-400 to-yellow-200 h-full rounded-full shadow-[0_0_10px_rgba(250,204,21,0.5)]" style={{ width: `${profileData?.vipProgress || 75}%` }}></div>
+                <div className="bg-gradient-to-r from-yellow-400 to-yellow-200 h-full rounded-full shadow-[0_0_10px_rgba(250,204,21,0.5)]" style={{ width: `${profileData?.vipProgress || 0}%` }}></div>
               </div>
             </div>
           </div>
@@ -246,19 +241,19 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
       {/* Navigation Tabs */}
       <div className="flex px-4 mt-4 gap-2">
         <button 
-          onClick={() => setActiveSubTab('overview')}
-          className={`flex-1 py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'overview' ? 'bg-yellow-500 text-black shadow-md' : 'bg-teal-800/50 text-teal-100 border border-teal-700'}`}
+          onClick={() => handleSubTabChange('withdraw')}
+          className={`flex-1 py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'withdraw' ? 'bg-yellow-500 text-black shadow-md' : 'bg-teal-800/50 text-teal-100 border border-teal-700'}`}
         >
-          ওভারভিউ
+          উত্তোলন
         </button>
         <button 
-          onClick={() => setActiveSubTab('history')}
+          onClick={() => handleSubTabChange('history')}
           className={`flex-1 py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'history' ? 'bg-yellow-500 text-black shadow-md' : 'bg-teal-800/50 text-teal-100 border border-teal-700'}`}
         >
           ইতিহাস
         </button>
         <button 
-          onClick={() => setActiveSubTab('settings')}
+          onClick={() => handleSubTabChange('settings')}
           className={`flex-1 py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'settings' ? 'bg-yellow-500 text-black shadow-md' : 'bg-teal-800/50 text-teal-100 border border-teal-700'}`}
         >
           সেটিংস
@@ -266,7 +261,16 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
       </div>
 
       {/* Tab Content */}
-      <div className="p-4">
+      <div className="p-4 relative min-h-[300px]">
+        {isTabLoading && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#0b0b0b]/60 backdrop-blur-[2px] rounded-2xl">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 size={40} className="text-yellow-500 animate-spin" />
+              <span className="text-teal-200 text-xs font-bold animate-pulse">লোড হচ্ছে...</span>
+            </div>
+          </div>
+        )}
+        
         {activeSubTab === 'overview' && (
         <OverviewTab 
           onTabChange={onTabChange} 
@@ -276,12 +280,59 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
           profileData={profileData} 
           userData={userData} 
           onEditProfile={handleOpenEditProfile}
+          totals={totals}
+          setShowAdminLogin={setShowAdminLogin}
         />
       )}
         {activeSubTab === 'history' && <HistoryTab email={profileData?.email} />}
-        {activeSubTab === 'settings' && <SettingsTab profileData={profileData} onLogout={onLogout} />}
+        {activeSubTab === 'withdraw' && <WithdrawTab onBack={() => handleSubTabChange('overview')} />}
+        {activeSubTab === 'settings' && <SettingsTab profileData={profileData} onLogout={onLogout} onEditProfile={handleOpenEditProfile} />}
       </div>
 
+      {/* Admin Panel */}
+      {showAdminPanel && (
+        <div className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-6 overflow-y-auto">
+          <AdminPanel onBack={() => setShowAdminPanel(false)} />
+        </div>
+      )}
+
+      {/* Admin Login Modal */}
+      {showAdminLogin && (
+        <div className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-6">
+          <div className="bg-teal-900 p-8 rounded-3xl w-full max-w-sm border border-teal-700 shadow-2xl">
+            <h3 className="text-xl font-bold text-white mb-6 text-center">এডমিন লগইন</h3>
+            <input 
+              type="password"
+              value={adminPassword}
+              onChange={(e) => setAdminPassword(e.target.value)}
+              className="w-full bg-teal-950 border border-teal-700 rounded-xl px-4 py-3 text-white mb-6 focus:outline-none focus:border-yellow-500"
+              placeholder="পাসওয়ার্ড লিখুন"
+            />
+            <div className="flex gap-3">
+              <button 
+                onClick={() => {
+                  if (adminPassword === 'ownercss13') {
+                    setShowAdminPanel(true);
+                    setShowAdminLogin(false);
+                    setAdminPassword("");
+                  } else {
+                    alert('ভুল পাসওয়ার্ড');
+                  }
+                }}
+                className="flex-1 bg-yellow-500 text-black font-bold py-3 rounded-xl hover:bg-yellow-400 transition-colors"
+              >
+                লগইন
+              </button>
+              <button 
+                onClick={() => setShowAdminLogin(false)}
+                className="flex-1 bg-teal-800 text-white font-bold py-3 rounded-xl hover:bg-teal-700 transition-colors"
+              >
+                বাতিল
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Edit Profile Modal */}
       {isEditProfileModalOpen && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
@@ -300,6 +351,13 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
             </div>
             
             <form onSubmit={handleUpdateProfile} className="p-5 space-y-4">
+              {updateSuccess && (
+                <div className="bg-green-500/20 border border-green-500/50 text-green-300 p-3 rounded-xl text-sm flex items-center gap-2 animate-in fade-in zoom-in duration-300">
+                  <CheckCircle2 size={18} />
+                  প্রোফাইল সফলভাবে আপডেট করা হয়েছে!
+                </div>
+              )}
+              
               <div className="space-y-1.5">
                 <label className="text-xs text-teal-200 font-medium">ইউজার নেম (Username)</label>
                 <input 
@@ -354,9 +412,36 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
   );
 }
 
-function OverviewTab({ onTabChange, balance, isRefreshing, onRefresh, profileData, userData, onEditProfile }: { onTabChange: (tab: any) => void, balance: number, isRefreshing: boolean, onRefresh: () => void, profileData: any, userData: any, onEditProfile: () => void }) {
-  const [showPassword, setShowPassword] = useState(false);
+function WithdrawTab({ onBack }: { onBack: () => void }) {
+  const methods = [
+    { name: 'Bank Transfer', icon: Building2 },
+    { name: 'bKash', icon: Smartphone },
+    { name: 'Nagad', icon: Smartphone },
+  ];
 
+  return (
+    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+      <div className="flex items-center gap-4 mb-4">
+        <button 
+          onClick={onBack}
+          className="p-2 bg-teal-800/50 hover:bg-teal-700/50 rounded-full transition-colors text-white"
+        >
+          <ChevronLeft size={20} />
+        </button>
+        <h3 className="text-white font-bold text-lg">উত্তোলন পদ্ধতি নির্বাচন করুন</h3>
+      </div>
+      <div className="grid grid-cols-1 gap-3">
+        {methods.map((method) => (
+          <button key={method.name} className="bg-teal-800/40 p-4 rounded-xl border border-teal-700/50 flex items-center gap-4 hover:bg-teal-700/60 transition-all">
+            <method.icon size={24} className="text-yellow-400" />
+            <span className="text-white font-bold">{method.name}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+function OverviewTab({ onTabChange, balance, isRefreshing, onRefresh, profileData, userData, onEditProfile, totals, setShowAdminLogin }: { onTabChange: (tab: any) => void, balance: number, isRefreshing: boolean, onRefresh: () => void, profileData: any, userData: any, onEditProfile: () => void, totals: any, setShowAdminLogin: (show: boolean) => void }) {
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
       {/* Account Balance Card */}
@@ -373,39 +458,18 @@ function OverviewTab({ onTabChange, balance, isRefreshing, onRefresh, profileDat
             </button>
           </div>
         </div>
-        <div className="bg-white/10 p-3 rounded-full">
+        <div 
+          className="bg-white/10 p-3 rounded-full cursor-pointer"
+          onClick={() => {
+            const count = (window as any).adminClickCount || 0;
+            (window as any).adminClickCount = count + 1;
+            if ((window as any).adminClickCount === 5) {
+              (window as any).adminClickCount = 0;
+              setShowAdminLogin(true);
+            }
+          }}
+        >
           <Wallet size={32} className="text-yellow-400" />
-        </div>
-      </div>
-
-      {/* Account Details Card */}
-      <div className="bg-teal-800/40 rounded-2xl p-5 border border-teal-700/50 shadow-lg">
-        <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-          <Shield size={16} className="text-yellow-400" /> অ্যাকাউন্ট তথ্য (Account Details)
-        </h3>
-        <div className="space-y-3">
-          <div className="flex justify-between items-center py-2 border-b border-teal-700/30">
-            <span className="text-xs text-teal-200">ইউজার নেম (Username)</span>
-            <span className="text-sm font-bold text-white">{userData?.username || profileData?.username || 'Player_SPIN71'}</span>
-          </div>
-          <div className="flex justify-between items-center py-2 border-b border-teal-700/30">
-            <span className="text-xs text-teal-200">আইডি নাম্বার (ID Number)</span>
-            <span className="text-sm font-mono text-yellow-400 font-bold">{userData?.id || profileData?.id || '84729104'}</span>
-          </div>
-          <div className="flex justify-between items-center py-2">
-            <span className="text-xs text-teal-200">পাসওয়ার্ড (Password)</span>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-mono text-white">
-                {showPassword ? (userData?.password || '••••••••') : '••••••••'}
-              </span>
-              <button 
-                onClick={() => setShowPassword(!showPassword)}
-                className="text-teal-400 hover:text-white transition-colors"
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -429,28 +493,28 @@ function OverviewTab({ onTabChange, balance, isRefreshing, onRefresh, profileDat
             <Wallet size={20} />
           </div>
           <span className="text-teal-100 text-xs mb-1">মোট জমা</span>
-          <span className="text-white font-bold">৳ 150,000</span>
+          <span className="text-white font-bold">৳ {totals.deposit.toLocaleString()}</span>
         </div>
         <div className="bg-teal-800/40 rounded-xl p-3 border border-teal-700/50 flex flex-col items-center justify-center text-center">
           <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center mb-2 text-green-300">
             <CreditCard size={20} />
           </div>
           <span className="text-teal-100 text-xs mb-1">মোট উত্তোলন</span>
-          <span className="text-white font-bold">৳ 125,400</span>
+          <span className="text-white font-bold">৳ {totals.withdraw.toLocaleString()}</span>
         </div>
         <div className="bg-teal-800/40 rounded-xl p-3 border border-teal-700/50 flex flex-col items-center justify-center text-center">
           <div className="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center mb-2 text-yellow-300">
             <Gift size={20} />
           </div>
           <span className="text-teal-100 text-xs mb-1">মোট বোনাস</span>
-          <span className="text-white font-bold">৳ 12,500</span>
+          <span className="text-white font-bold">৳ {totals.bonus.toLocaleString()}</span>
         </div>
         <div className="bg-teal-800/40 rounded-xl p-3 border border-teal-700/50 flex flex-col items-center justify-center text-center">
           <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center mb-2 text-purple-300">
             <Award size={20} />
           </div>
           <span className="text-teal-100 text-xs mb-1">রিবেট</span>
-          <span className="text-white font-bold">৳ 3,450</span>
+          <span className="text-white font-bold">৳ {totals.rebate.toLocaleString()}</span>
         </div>
       </div>
 
@@ -549,19 +613,44 @@ function HistoryTab({ email }: { email?: string }) {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [selectedTrx, setSelectedTrx] = useState<any>(null);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const transactions = useMemo(() => [
-    { id: 1, trxId: 'TXN1001', method: 'bKash', type: 'deposit', amount: '+৳5,000', date: '2026-03-29 14:30', status: 'সম্পন্ন', statusColor: 'text-green-400' },
-    { id: 2, trxId: 'TXN1002', method: 'Nagad', type: 'withdraw', amount: '-৳2,000', date: '2026-03-28 09:15', status: 'প্রক্রিয়াধীন', statusColor: 'text-yellow-400' },
-    { id: 3, trxId: 'TXN1003', method: 'Wallet', type: 'bet', amount: '-৳500', date: '2026-03-27 21:45', status: 'সম্পন্ন', statusColor: 'text-green-400' },
-    { id: 4, trxId: 'TXN1004', method: 'System', type: 'bonus', amount: '+৳1,000', date: '2026-03-26 10:00', status: 'সম্পন্ন', statusColor: 'text-green-400' },
-    { id: 5, trxId: 'TXN1005', method: 'Wallet', type: 'bet', amount: '-৳1,200', date: '2026-03-25 18:20', status: 'সম্পন্ন', statusColor: 'text-green-400' },
-    { id: 6, trxId: 'TXN1006', method: 'Rocket', type: 'deposit', amount: '+৳10,000', date: '2026-03-24 11:10', status: 'সম্পন্ন', statusColor: 'text-green-400' },
-    { id: 7, trxId: 'TXN1007', method: 'bKash', type: 'withdraw', amount: '-৳5,000', date: '2026-03-23 16:45', status: 'সম্পন্ন', statusColor: 'text-green-400' },
-    { id: 8, trxId: 'TXN1008', method: 'Wallet', type: 'bet', amount: '-৳2,500', date: '2026-03-22 20:15', status: 'ব্যর্থ', statusColor: 'text-red-400' },
-    { id: 9, trxId: 'TXN1009', method: 'Nagad', type: 'deposit', amount: '+৳2,000', date: '2026-03-21 12:30', status: 'সম্পন্ন', statusColor: 'text-green-400' },
-    { id: 10, trxId: 'TXN1010', method: 'System', type: 'bonus', amount: '+৳500', date: '2026-03-20 09:00', status: 'সম্পন্ন', statusColor: 'text-green-400' },
-  ], []);
+  useEffect(() => {
+    if (!auth.currentUser) return;
+
+    const path = `users/${auth.currentUser.uid}/transactions`;
+    const q = query(
+      collection(db, path),
+      orderBy('date', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const trxData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          // Convert Firestore Timestamp to string for display if needed
+          date: data.date instanceof Timestamp ? 
+                data.date.toDate().toLocaleString('en-GB', { 
+                  year: 'numeric', 
+                  month: '2-digit', 
+                  day: '2-digit', 
+                  hour: '2-digit', 
+                  minute: '2-digit' 
+                }).replace(/\//g, '-') : data.date
+        };
+      });
+      setTransactions(trxData);
+      setIsLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const filteredAndSortedTransactions = useMemo(() => {
     if (!transactions) return [];
@@ -696,7 +785,12 @@ function HistoryTab({ email }: { email?: string }) {
         )}
       </div>
       
-      {filteredAndSortedTransactions.length > 0 ? (
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-12 text-teal-400">
+          <Loader2 size={32} className="animate-spin mb-2" />
+          <p className="text-xs">লোড হচ্ছে...</p>
+        </div>
+      ) : filteredAndSortedTransactions.length > 0 ? (
         filteredAndSortedTransactions.map((trx: any) => (
           <div key={trx.id} onClick={() => setSelectedTrx(trx)} className="bg-teal-800/40 rounded-xl p-3 border border-teal-700/50 flex items-center justify-between cursor-pointer hover:bg-teal-700/50 transition-colors">
             <div className="flex items-center gap-3">
@@ -721,17 +815,15 @@ function HistoryTab({ email }: { email?: string }) {
                   <div className="flex items-center gap-1 text-[10px] text-teal-200">
                     <Clock size={10} /> {trx.date}
                   </div>
-                  {email && (
-                    <div className="flex items-center gap-1 text-[10px] text-teal-400">
-                      <Mail size={10} /> {email}
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1 text-[10px] text-teal-400">
+                    <span className="font-mono opacity-70">{trx.trxId}</span> • <span className="font-medium">{trx.method}</span>
+                  </div>
                 </div>
               </div>
             </div>
             <div className="text-right">
-              <p className={`text-sm font-bold ${trx.amount.startsWith('+') ? 'text-green-400' : 'text-white'}`}>
-                {trx.amount}
+              <p className={`text-sm font-bold ${trx.type === 'deposit' || trx.type === 'bonus' ? 'text-green-400' : 'text-white'}`}>
+                {trx.type === 'deposit' || trx.type === 'bonus' ? '+' : '-'}৳{Math.abs(trx.amount).toLocaleString()}
               </p>
               <p className={`text-[10px] mt-0.5 ${trx.statusColor}`}>{trx.status}</p>
             </div>
@@ -772,7 +864,9 @@ function HistoryTab({ email }: { email?: string }) {
               </div>
               <div className="flex justify-between py-2 border-b border-teal-800">
                 <span className="text-teal-300 text-sm">পরিমাণ:</span>
-                <span className={`font-bold ${selectedTrx.amount.startsWith('+') ? 'text-green-400' : 'text-white'}`}>{selectedTrx.amount}</span>
+                <span className={`font-bold ${selectedTrx.type === 'deposit' || selectedTrx.type === 'bonus' ? 'text-green-400' : 'text-white'}`}>
+                  {selectedTrx.type === 'deposit' || selectedTrx.type === 'bonus' ? '+' : '-'}৳{Math.abs(selectedTrx.amount).toLocaleString()}
+                </span>
               </div>
               <div className="flex justify-between py-2 border-b border-teal-800">
                 <span className="text-teal-300 text-sm">তারিখ:</span>
@@ -796,17 +890,52 @@ function HistoryTab({ email }: { email?: string }) {
   );
 }
 
-function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: () => void }) {
-  const [activeSettingsTab, setActiveSettingsTab] = useState<'general' | 'history'>('general');
+function SettingsTab({ profileData, onLogout, onEditProfile }: { profileData: any, onLogout: () => void, onEditProfile: () => void }) {
+  const [showPassword, setShowPassword] = useState(false);
   const [is2FAEnabled, setIs2FAEnabled] = useState(false);
   const [twoFAMethod, setTwoFAMethod] = useState<'app' | 'sms'>('app');
-  const [isGoogleLinked, setIsGoogleLinked] = useState(false);
-  const [isFacebookLinked, setIsFacebookLinked] = useState(false);
+  const [language, setLanguage] = useState<'bn' | 'en'>('bn');
+  
+  const toggleLanguage = () => {
+    setLanguage(prev => prev === 'bn' ? 'en' : 'bn');
+  };
+  
+  const [isGoogleLinked, setIsGoogleLinked] = useState(
+    auth.currentUser?.providerData.some(p => p.providerId === 'google.com') || false
+  );
+  const [isFacebookLinked, setIsFacebookLinked] = useState(
+    auth.currentUser?.providerData.some(p => p.providerId === 'facebook.com') || false
+  );
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        setIsGoogleLinked(user.providerData.some(p => p.providerId === 'google.com'));
+        setIsFacebookLinked(user.providerData.some(p => p.providerId === 'facebook.com'));
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
   const [isLinkingFacebook, setIsLinkingFacebook] = useState(false);
+  const [linkingError, setLinkingError] = useState<string | null>(null);
   const [country, setCountry] = useState<string | null>(profileData?.country || null);
   const [isFetchingLocation, setIsFetchingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!country && !isFetchingLocation) {
+      // Check if permission is already granted
+      if ('permissions' in navigator) {
+        navigator.permissions.query({ name: 'geolocation' as any }).then((result) => {
+          if (result.state === 'granted') {
+            fetchLocation();
+          }
+        });
+      }
+    }
+  }, [country]);
 
   const fetchLocation = () => {
     if (!navigator.geolocation) {
@@ -828,8 +957,10 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
           const data = await response.json();
           if (data.countryName) {
             setCountry(data.countryName);
-            // In a real app, you would also update the user's profile in Firestore here
-            // await updateUserProfile(auth.currentUser!.uid, { country: data.countryName });
+            // Update the user's profile in Firestore
+            if (auth.currentUser) {
+              await updateUserProfile(auth.currentUser.uid, { country: data.countryName });
+            }
           } else {
              setLocationError("Could not determine country from location");
           }
@@ -848,20 +979,70 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
     );
   };
 
-  const handleLinkGoogle = () => {
+  const handleLinkGoogle = async () => {
+    if (!auth.currentUser) return;
     setIsLinkingGoogle(true);
-    setTimeout(() => {
-      setIsGoogleLinked(!isGoogleLinked);
+    setLinkingError(null);
+    try {
+      if (isGoogleLinked) {
+        await unlink(auth.currentUser, 'google.com');
+        setIsGoogleLinked(false);
+        await updateUserProfile(auth.currentUser.uid, {
+          isGmailLinked: false,
+          gmail: null
+        } as any);
+      } else {
+        const result = await linkWithPopup(auth.currentUser, googleProvider);
+        setIsGoogleLinked(true);
+        await updateUserProfile(auth.currentUser.uid, {
+          isGmailLinked: true,
+          gmail: result.user.email
+        } as any);
+      }
+    } catch (error: any) {
+      console.error("Google linking error:", error);
+      if (error.code === 'auth/credential-already-in-use') {
+        setLinkingError("এই গুগল অ্যাকাউন্টটি ইতিমধ্যে অন্য একটি অ্যাকাউন্টের সাথে যুক্ত। (This Google account is already linked to another account.)");
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        // User closed the popup, do nothing
+      } else {
+        setLinkingError("গুগল অ্যাকাউন্ট লিঙ্ক করতে সমস্যা হয়েছে। আবার চেষ্টা করুন। (Failed to link Google account. Please try again.)");
+      }
+    } finally {
       setIsLinkingGoogle(false);
-    }, 990);
+    }
   };
 
-  const handleLinkFacebook = () => {
+  const handleLinkFacebook = async () => {
+    if (!auth.currentUser) return;
     setIsLinkingFacebook(true);
-    setTimeout(() => {
-      setIsFacebookLinked(!isFacebookLinked);
+    try {
+      if (isFacebookLinked) {
+        await unlink(auth.currentUser, 'facebook.com');
+        setIsFacebookLinked(false);
+        await updateUserProfile(auth.currentUser.uid, {
+          isFacebookLinked: false,
+          facebookEmail: null
+        } as any);
+      } else {
+        const facebookProvider = new FacebookAuthProvider();
+        const result = await linkWithPopup(auth.currentUser, facebookProvider);
+        setIsFacebookLinked(true);
+        await updateUserProfile(auth.currentUser.uid, {
+          isFacebookLinked: true,
+          facebookEmail: result.user.email
+        } as any);
+      }
+    } catch (error: any) {
+      console.error("Facebook linking error:", error);
+      if (error.code === 'auth/credential-already-in-use') {
+        alert("This Facebook account is already linked to another user.");
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        // User closed the popup, do nothing
+      }
+    } finally {
       setIsLinkingFacebook(false);
-    }, 990);
+    }
   };
   const [isConfirmingLogout, setIsConfirmingLogout] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -901,7 +1082,7 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
   const handleCopySecret = () => {
     navigator.clipboard.writeText(secretKey);
     setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 990);
+    setTimeout(() => setIsCopied(false), 2000);
   };
 
   const handleStart2FASetup = () => {
@@ -921,7 +1102,6 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
     setSetupError(null);
     try {
       // Simulate verification
-      await new Promise(resolve => setTimeout(resolve, 990));
       if (verificationCode === "123456") { // Mock success code
         generateRecoveryCodes();
         setShowRecoveryCodes(true);
@@ -955,15 +1135,13 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
 
   const handleIdUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setIdStatus('pending');
-      setTimeout(() => setIdStatus('verified'), 990);
+      setIdStatus('verified');
     }
   };
 
   const handleSelfieUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setSelfieStatus('pending');
-      setTimeout(() => setSelfieStatus('verified'), 990);
+      setSelfieStatus('verified');
     }
   };
 
@@ -994,7 +1172,6 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
     setIsUpdatingEmail(true);
     try {
       // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 990));
       setEmailSuccess("ইমেইল সফলভাবে আপডেট করা হয়েছে। (Email updated successfully.)");
     } catch (err) {
       setEmailError("ইমেইল আপডেট করতে সমস্যা হয়েছে। (Failed to update email.)");
@@ -1015,7 +1192,6 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
     setIsChangingPassword(true);
     try {
       // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 990));
       setPasswordSuccess(`আপনার ইমেইলে (${email || profileData?.email}) একটি পাসওয়ার্ড রিসেট লিঙ্ক পাঠানো হয়েছে। (A password reset link has been sent to your email.)`);
     } catch (err) {
       setPasswordError("পাসওয়ার্ড রিসেট লিঙ্ক পাঠাতে সমস্যা হয়েছে। (Failed to send reset link.)");
@@ -1045,7 +1221,6 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
     setIsChangingPassword(true);
     try {
       // Simulate API call for password change
-      await new Promise(resolve => setTimeout(resolve, 990));
       
       // In a real app, you would make a fetch call here:
       // const res = await fetch('/api/user/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) });
@@ -1057,10 +1232,8 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
       setConfirmPassword("");
       
       // Close modal after showing success message
-      setTimeout(() => {
-        setIsPasswordModalOpen(false);
-        setPasswordSuccess(null);
-      }, 990);
+      setIsPasswordModalOpen(false);
+      setPasswordSuccess(null);
     } catch (err) {
       setPasswordError("পাসওয়ার্ড পরিবর্তন করতে সমস্যা হয়েছে। (Failed to change password.)");
     } finally {
@@ -1070,24 +1243,61 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
 
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
-      {/* Settings Sub-Tabs */}
-      <div className="flex p-1 bg-teal-900/40 rounded-xl border border-teal-700/50">
-        <button 
-          onClick={() => setActiveSettingsTab('general')}
-          className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${activeSettingsTab === 'general' ? 'bg-teal-600 text-white shadow-lg' : 'text-teal-300 hover:text-white'}`}
-        >
-          <Settings size={14} /> সাধারণ সেটিংস
-        </button>
-        <button 
-          onClick={() => setActiveSettingsTab('history')}
-          className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${activeSettingsTab === 'history' ? 'bg-teal-600 text-white shadow-lg' : 'text-teal-300 hover:text-white'}`}
-        >
-          <Clock size={14} /> লেনদেনের ইতিহাস
-        </button>
-      </div>
+      {/* Account Details Card */}
+      <div className="bg-teal-800/40 rounded-2xl p-5 border border-teal-700/50 shadow-lg mb-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Shield size={16} className="text-yellow-400" /> অ্যাকাউন্ট তথ্য (Account Details)
+              </h3>
+              <button 
+                onClick={onEditProfile}
+                className="text-[10px] bg-teal-700/50 hover:bg-teal-600/50 text-teal-100 px-2 py-1 rounded-lg border border-teal-600/50 transition-colors flex items-center gap-1"
+              >
+                <UserCog size={12} /> এডিট করুন (Edit)
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center py-2 border-b border-teal-700/30">
+                <span className="text-xs text-teal-200">ইউজার নেম (Username)</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-white">{profileData?.username || 'Player_SPIN71'}</span>
+                  <button 
+                    onClick={() => navigator.clipboard.writeText(profileData?.username || 'Player_SPIN71')}
+                    className="p-1 bg-white/5 hover:bg-white/10 rounded transition-colors text-teal-400 hover:text-teal-200"
+                  >
+                    <Copy size={12} />
+                  </button>
+                </div>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-teal-700/30">
+                <span className="text-xs text-teal-200">আইডি নাম্বার (ID Number)</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-mono text-yellow-400 font-bold">{profileData?.id || '84729104'}</span>
+                  <button 
+                    onClick={() => navigator.clipboard.writeText(profileData?.id || '84729104')}
+                    className="p-1 bg-white/5 hover:bg-white/10 rounded transition-colors text-teal-400 hover:text-teal-200"
+                  >
+                    <Copy size={12} />
+                  </button>
+                </div>
+              </div>
+              <div className="flex justify-between items-center py-2">
+                <span className="text-xs text-teal-200">পাসওয়ার্ড (Password)</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-mono text-white">
+                    {showPassword ? (profileData?.password || '••••••••') : '••••••••'}
+                  </span>
+                  <button 
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="text-teal-400 hover:text-white transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
 
-      {activeSettingsTab === 'general' ? (
-        <>
           {/* Security Center Section */}
           <div className="bg-teal-800/40 rounded-xl border border-teal-700/50 overflow-hidden">
         <div className="p-3 border-b border-teal-700/50">
@@ -1114,8 +1324,22 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
               <span className="text-xs font-bold text-teal-100">লিঙ্ক করা অ্যাকাউন্ট (Linked Accounts)</span>
             </div>
             <div className="space-y-2">
+              {linkingError && (
+                <div 
+                  className="bg-red-500/10 border border-red-500/30 text-red-400 p-2.5 rounded-lg text-[10px] flex items-center gap-2 mb-2"
+                >
+                  <AlertCircle size={14} className="shrink-0" />
+                  <span className="flex-1">{linkingError}</span>
+                  <button onClick={() => setLinkingError(null)} className="ml-auto hover:text-white">
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
               {/* Google Account */}
-              <div className={`w-full flex items-center justify-between p-2.5 rounded-lg border transition-all duration-300 ${isGoogleLinked ? 'bg-teal-800/50 border-teal-500/50 shadow-[0_0_10px_rgba(20,184,166,0.15)]' : 'bg-teal-900/30 border-teal-800/50 opacity-80'}`}>
+              <div 
+                onClick={!isLinkingGoogle ? handleLinkGoogle : undefined}
+                className={`w-full flex items-center justify-between p-2.5 rounded-lg border transition-all duration-300 cursor-pointer ${isGoogleLinked ? 'bg-teal-800/50 border-teal-500/50 shadow-[0_0_10px_rgba(20,184,166,0.15)]' : 'bg-teal-900/30 border-teal-800/50 opacity-80 hover:bg-teal-800/40'}`}
+              >
                 <div className="flex items-center gap-3">
                   <div className={`p-1.5 rounded-full transition-colors ${isGoogleLinked ? 'bg-red-500/20' : 'bg-gray-800/50'}`}>
                     <Mail size={14} className={isGoogleLinked ? 'text-red-400' : 'text-gray-400'} />
@@ -1129,7 +1353,10 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
                   </div>
                 </div>
                 <button 
-                  onClick={handleLinkGoogle}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleLinkGoogle();
+                  }}
                   disabled={isLinkingGoogle}
                   className={`px-2.5 py-1 rounded text-[10px] font-bold transition-colors flex items-center gap-1 ${isGoogleLinked ? 'bg-teal-900/50 text-teal-400 hover:bg-teal-900 border border-teal-700/50' : 'bg-teal-600 text-white hover:bg-teal-500 shadow-md'}`}
                 >
@@ -1496,13 +1723,13 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
               {emailSuccess && <p className="text-[10px] text-green-400">{emailSuccess}</p>}
             </form>
           </div>
-          <button className="w-full flex items-center justify-between p-3 hover:bg-teal-700/30 transition-colors">
+          <button onClick={toggleLanguage} className="w-full flex items-center justify-between p-3 hover:bg-teal-700/30 transition-colors">
             <div className="flex items-center gap-3">
               <Settings size={16} className="text-teal-300" />
               <span className="text-sm text-teal-50">ভাষা (Language)</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-teal-200">বাংলা</span>
+              <span className="text-xs text-teal-200">{language === 'bn' ? 'বাংলা' : 'English'}</span>
               <ChevronRight size={16} className="text-teal-500" />
             </div>
           </button>
@@ -1649,10 +1876,6 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
           </div>
         </div>
       )}
-        </>
-      ) : (
-        <HistoryTab email={profileData?.email} />
-      )}
 
       {/* Password Change Modal */}
       {isPasswordModalOpen && (
@@ -1787,7 +2010,7 @@ function SettingsTab({ profileData, onLogout }: { profileData: any, onLogout: ()
       )}
 
       {/* Support Chat */}
-      <SupportChat isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      <SupportChat isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} userData={profileData} />
     </div>
   );
 }

@@ -51,6 +51,8 @@ export default function RegisterView({ onRegister, onBackToLogin }: RegisterView
     } catch (err: any) {
       if (err.code === 'auth/cancelled-popup-request') {
         setError("আগের রেজিস্ট্রেশন অনুরোধটি বাতিল করা হয়েছে।");
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        setError("রেজিস্ট্রেশন বাতিল করা হয়েছে। (Registration cancelled.)");
       } else {
         setError("Google দিয়ে রেজিস্ট্রেশন করতে সমস্যা হয়েছে।");
       }
@@ -68,6 +70,8 @@ export default function RegisterView({ onRegister, onBackToLogin }: RegisterView
     } catch (err: any) {
       if (err.code === 'auth/cancelled-popup-request') {
         setError("আগের রেজিস্ট্রেশন অনুরোধটি বাতিল করা হয়েছে।");
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        setError("রেজিস্ট্রেশন বাতিল করা হয়েছে। (Registration cancelled.)");
       } else {
         setError("Facebook দিয়ে রেজিস্ট্রেশন করতে সমস্যা হয়েছে।");
       }

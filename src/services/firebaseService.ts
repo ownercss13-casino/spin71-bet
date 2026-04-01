@@ -18,6 +18,9 @@ export interface User {
   hasMadeDeposit?: boolean;
   referralCount?: number;
   totalReferralEarnings?: number;
+  isGmailLinked?: boolean;
+  gmail?: string | null;
+  country?: string | null;
 }
 
 export interface SavedItem {
@@ -117,5 +120,30 @@ export const claimWelcomeBonus = async (userId: string, currentBalance: number) 
     });
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+};
+
+export const sendMessage = async (userId: string, text: string, sender: 'user' | 'agent') => {
+  const path = `users/${userId}/chat`;
+  try {
+    await addDoc(collection(db, path), {
+      text,
+      sender,
+      timestamp: serverTimestamp()
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, path);
+  }
+};
+
+export const clearChatHistory = async (userId: string) => {
+  const path = `users/${userId}/chat`;
+  try {
+    const q = query(collection(db, path));
+    const snapshot = await getDocs(q);
+    const deletePromises = snapshot.docs.map(d => deleteDoc(d.ref));
+    await Promise.all(deletePromises);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
   }
 };

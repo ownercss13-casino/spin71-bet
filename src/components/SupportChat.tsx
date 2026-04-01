@@ -1,19 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Send, X, MessageCircle, User, Loader2, Trash2 } from 'lucide-react';
-import useSWR from 'swr';
-
-const fetcher = (url: string) => fetch(url).then(res => res.json());
+import { db } from '../firebase';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { sendMessage, clearChatHistory } from '../services/firebaseService';
 
 interface Message {
-  id: number;
+  id: string;
   text: string;
   sender: 'user' | 'agent';
   time: string;
+  timestamp?: any;
 }
 
-export default function SupportChat({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
-  const { data: profileData } = useSWR('/api/user/profile', fetcher);
+export default function SupportChat({ isOpen, onClose, userData }: { isOpen: boolean, onClose: () => void, userData?: any }) {
   const [chatHistory, setChatHistory] = useState<Message[]>([]);
   const [chatMessage, setChatMessage] = useState("");
   const [isUserTyping, setIsUserTyping] = useState(false);
@@ -22,24 +22,35 @@ export default function SupportChat({ isOpen, onClose }: { isOpen: boolean, onCl
 
   // Fetch chat history from server
   useEffect(() => {
-    if (!profileData?.id || !isOpen) return;
+    if (!userData?.id || !isOpen) return;
     
-    const fetchChat = async () => {
-      try {
-        const res = await fetch(`/api/chat?userId=${profileData.id}`);
-        if (res.ok) {
-          const data = await res.json();
-          setChatHistory(data);
+    const path = `users/${userData.id}/chat`;
+    const q = query(collection(db, path), orderBy('timestamp', 'asc'));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const messages: Message[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        let timeString = "";
+        if (data.timestamp) {
+          const date = data.timestamp.toDate();
+          timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         }
-      } catch (err) {
-        console.error("Failed to fetch chat:", err);
-      }
-    };
+        messages.push({
+          id: doc.id,
+          text: data.text,
+          sender: data.sender,
+          time: timeString,
+          timestamp: data.timestamp
+        });
+      });
+      setChatHistory(messages);
+    }, (error) => {
+      console.error("Failed to fetch chat:", error);
+    });
 
-    fetchChat();
-    const interval = setInterval(fetchChat, 3000); // Poll every 3 seconds
-    return () => clearInterval(interval);
-  }, [profileData?.id, isOpen]);
+    return () => unsubscribe();
+  }, [userData?.id, isOpen]);
 
   useEffect(() => {
     if (chatEndRef.current) {
@@ -49,33 +60,30 @@ export default function SupportChat({ isOpen, onClose }: { isOpen: boolean, onCl
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatMessage.trim() || !profileData?.id) return;
+    if (!chatMessage.trim() || !userData?.id) return;
 
     const text = chatMessage.trim();
     setChatMessage("");
     setChatError(null);
 
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, userId: profileData.id })
-      });
+      await sendMessage(userData.id, text, 'user');
       
-      if (!res.ok) {
-        throw new Error("মেসেজ পাঠানো সম্ভব হয়নি। (Failed to send message.)");
-      }
+      // Simulate agent response
+      setTimeout(async () => {
+        await sendMessage(userData.id, "ধন্যবাদ আপনার মেসেজের জন্য। আমাদের একজন এজেন্ট শীঘ্রই আপনার সাথে যোগাযোগ করবে। (Thank you for your message. An agent will contact you shortly.)", 'agent');
+      }, 2000);
       
-      const newUserMsg = await res.json();
-      setChatHistory(prev => [...prev, newUserMsg]);
     } catch (err) {
       setChatError(err instanceof Error ? err.message : "মেসেজ পাঠানো সম্ভব হয়নি।");
     }
   };
 
-  const clearChat = () => {
+  const clearChat = async () => {
     if (window.confirm("আপনি কি নিশ্চিত যে আপনি চ্যাট হিস্ট্রি মুছে ফেলতে চান?")) {
-      setChatHistory([]);
+      if (userData?.id) {
+        await clearChatHistory(userData.id);
+      }
     }
   };
 

@@ -54,6 +54,8 @@ service cloud.firestore {
              (!('hasMadeDeposit' in data) || (data.hasMadeDeposit is bool)) &&
              (!('referralCount' in data) || (data.referralCount is number)) &&
              (!('totalReferralEarnings' in data) || (data.totalReferralEarnings is number)) &&
+             (!('vipLevel' in data) || (data.vipLevel is number)) &&
+             (!('vipProgress' in data) || (data.vipProgress is number)) &&
              (!('profilePictureUrl' in data) || (data.profilePictureUrl is string && data.profilePictureUrl.size() < 100000));
     }
 
@@ -65,18 +67,47 @@ service cloud.firestore {
              data.savedAt is timestamp;
     }
 
+    function isValidTransaction(data) {
+      return data.keys().hasAll(['trxId', 'method', 'type', 'amount', 'date', 'status', 'statusColor']) &&
+             data.trxId is string && data.trxId.size() > 0 && data.trxId.size() < 100 &&
+             data.method is string && data.method.size() > 0 && data.method.size() < 50 &&
+             data.type in ['deposit', 'withdraw', 'bonus', 'bet'] &&
+             data.amount is number &&
+             data.date is timestamp &&
+             data.status in ['সম্পন্ন', 'প্রক্রিয়াধীন', 'ব্যর্থ'] &&
+             data.statusColor is string && data.statusColor.size() > 0 && data.statusColor.size() < 50;
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create: if isValidUser(request.resource.data); // Allow creation if data is valid
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
       allow update: if (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data) &&
                     request.resource.data.createdAt == resource.data.createdAt;
 
       match /savedItems/{savedItemId} {
         allow read, write: if isOwner(userId) && isValidSavedItem(request.resource.data);
       }
+
+      match /transactions/{transactionId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidTransaction(request.resource.data);
+        allow update: if isAdmin() && isValidTransaction(request.resource.data);
+      }
+    }
+
+    match /metadata/users {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && 
+                    request.resource.data.keys().hasOnly(['userCount']) &&
+                    request.resource.data.userCount is int &&
+                    request.resource.data.userCount == 1;
+      allow update: if isAuthenticated() && 
+                    request.resource.data.keys().hasOnly(['userCount']) &&
+                    request.resource.data.userCount is int &&
+                    request.resource.data.userCount == resource.data.userCount + 1;
     }
   }
 }

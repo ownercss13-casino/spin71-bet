@@ -28,6 +28,8 @@ export default function LoginView({ onLogin, onGoToRegister }: LoginViewProps) {
       console.error("Google Login Error:", err);
       if (err.code === 'auth/cancelled-popup-request') {
         setError("আগের লগইন অনুরোধটি বাতিল করা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।");
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        setError("লগইন বাতিল করা হয়েছে। (Login cancelled.)");
       } else {
         setError("জিমেইল দিয়ে লগইন ব্যর্থ হয়েছে। (Google login failed.)");
       }
@@ -48,6 +50,8 @@ export default function LoginView({ onLogin, onGoToRegister }: LoginViewProps) {
       console.error("Facebook Login Error:", err);
       if (err.code === 'auth/cancelled-popup-request') {
         setError("আগের লগইন অনুরোধটি বাতিল করা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।");
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        setError("লগইন বাতিল করা হয়েছে। (Login cancelled.)");
       } else {
         setError("ফেসবুক দিয়ে লগইন ব্যর্থ হয়েছে। (Facebook login failed.)");
       }
@@ -68,7 +72,6 @@ export default function LoginView({ onLogin, onGoToRegister }: LoginViewProps) {
     setIsLoading(true);
     try {
       // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 990));
       onLogin({ username, password });
     } catch (err) {
       setError("লগইন ব্যর্থ হয়েছে। সঠিক তথ্য দিন। (Login failed. Check credentials.)");

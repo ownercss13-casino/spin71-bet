@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Gift, X, Calendar, Star, AlertCircle } from 'lucide-react';
+import { Gift, X, Calendar, Star, AlertCircle, RefreshCw } from 'lucide-react';
 import { claimDailyBonus, claimWelcomeBonus } from './services/firebaseService';
 
-export default function BonusCenter({ userData, balance, onBalanceUpdate, setIsLoading, onTabChange }: { userData: any, balance: number, onBalanceUpdate: (newBalance: number) => void, setIsLoading: (loading: boolean) => void, onTabChange: (tab: any) => void }) {
+export default function BonusCenter({ userData, balance, onBalanceUpdate, onTabChange }: { userData: any, balance: number, onBalanceUpdate: (newBalance: number) => void, onTabChange: (tab: any) => void }) {
   const [showPopup, setShowPopup] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
   const [popupMessage, setPopupMessage] = useState("");
   const [showErrorPopup, setShowErrorPopup] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -22,19 +23,19 @@ export default function BonusCenter({ userData, balance, onBalanceUpdate, setIsL
         return;
       }
 
-      setIsLoading(true);
-      try {
-        await claimDailyBonus(userData.id, balance);
-        onBalanceUpdate(balance + 6.77);
-        setTimeout(() => {
-          setIsLoading(false);
+      setIsClaiming(true);
+      setTimeout(async () => {
+        try {
+          await claimDailyBonus(userData.id, balance);
+          onBalanceUpdate(balance + 6.77);
           setPopupMessage("আপনি ৬.৭৭ টাকা ডেইলি বোনাস পেয়েছেন!");
           setShowPopup(true);
-        }, 990);
-      } catch (error) {
-        setIsLoading(false);
-        console.error("Error claiming daily bonus:", error);
-      }
+        } catch (error) {
+          console.error("Error claiming daily bonus:", error);
+        } finally {
+          setIsClaiming(false);
+        }
+      }, 500);
     }
   };
 
@@ -46,24 +47,32 @@ export default function BonusCenter({ userData, balance, onBalanceUpdate, setIsL
         return;
       }
 
-      setIsLoading(true);
-      try {
-        await claimWelcomeBonus(userData.id, balance);
-        onBalanceUpdate(balance + 57);
-        setTimeout(() => {
-          setIsLoading(false);
+      setIsClaiming(true);
+      setTimeout(async () => {
+        try {
+          await claimWelcomeBonus(userData.id, balance);
+          onBalanceUpdate(balance + 57);
           setPopupMessage("আপনি ৫৭ টাকা ওয়েলকাম বোনাস পেয়েছেন!");
           setShowPopup(true);
-        }, 990);
-      } catch (error) {
-        setIsLoading(false);
-        console.error("Error claiming welcome bonus:", error);
-      }
+        } catch (error) {
+          console.error("Error claiming welcome bonus:", error);
+        } finally {
+          setIsClaiming(false);
+        }
+      }, 500);
     }
   };
 
   return (
-    <div className="p-6 bg-[#0a4d3c] min-h-screen text-white pb-24">
+    <div className="p-6 bg-[#0a4d3c] min-h-screen text-white pb-24 relative">
+      {isClaiming && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm max-w-md mx-auto">
+          <div className="flex flex-col items-center gap-3 bg-teal-900/90 p-8 rounded-3xl border border-teal-500/30 shadow-2xl scale-110">
+            <RefreshCw size={48} className="text-yellow-500 animate-spin" />
+            <span className="text-white font-black italic uppercase tracking-tighter text-lg animate-pulse">Claiming...</span>
+          </div>
+        </div>
+      )}
       <h2 className="text-2xl font-black italic mb-6 text-yellow-400">বোনাস সেন্টার (Bonus Center)</h2>
       
       <div className="space-y-4">
@@ -102,20 +111,43 @@ export default function BonusCenter({ userData, balance, onBalanceUpdate, setIsL
             <Star size={80} />
           </div>
           <div className="relative z-10">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-yellow-500/20 rounded-lg">
-                <Star className="text-yellow-500" size={24} />
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-yellow-500/20 rounded-lg">
+                  <Star className="text-yellow-500" size={24} />
+                </div>
+                <h3 className="text-xl font-bold">ওয়েলকাম বোনাস (Welcome Bonus)</h3>
               </div>
-              <h3 className="text-xl font-bold">ওয়েলকাম বোনাস (Welcome Bonus)</h3>
+              <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${hasMadeDeposit ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
+                {hasMadeDeposit ? 'ডিপোজিট সম্পন্ন' : 'ডিপোজিট প্রয়োজন'}
+              </div>
             </div>
-            <p className="text-teal-200 text-sm mb-4">নতুন ইউজারদের জন্য ৫৭ টাকা বোনাস। (ডিপোজিট আবশ্যক)</p>
+
+            <div className="bg-teal-950/50 rounded-xl p-4 mb-4 border border-teal-700/50">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-teal-300 text-xs">বোনাস পরিমাণ:</span>
+                <span className="text-yellow-400 font-bold">৫৭.০০ টাকা</span>
+              </div>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-teal-300 text-xs">ওয়েজারিং (Wagering):</span>
+                <span className="text-white text-xs font-medium">১x (১ গুণ)</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-teal-300 text-xs">মেয়াদ (Validity):</span>
+                <span className="text-white text-xs font-medium">৭ দিন</span>
+              </div>
+            </div>
+
+            <p className="text-teal-200 text-[11px] mb-4 leading-relaxed italic">
+              * এই বোনাসটি শুধুমাত্র নতুন ইউজারদের জন্য। বোনাস ব্যালেন্স উইথড্র করার আগে অন্তত একবার গেম খেলতে হবে।
+            </p>
             
             {!hasClaimedWelcome && !hasMadeDeposit ? (
               <button 
                 onClick={() => onTabChange('deposit')}
-                className="w-full font-black py-4 rounded-xl text-lg transition-all shadow-lg bg-yellow-500 text-black hover:bg-yellow-400 hover:scale-[1.02] active:scale-95"
+                className="w-full font-black py-4 rounded-xl text-lg transition-all shadow-lg bg-yellow-500 text-black hover:bg-yellow-400 hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
               >
-                Deposit Now
+                ডিপোজিট করুন (Deposit Now)
               </button>
             ) : (
               <button 
@@ -123,7 +155,7 @@ export default function BonusCenter({ userData, balance, onBalanceUpdate, setIsL
                 disabled={hasClaimedWelcome}
                 className={`w-full font-black py-4 rounded-xl text-lg transition-all shadow-lg ${hasClaimedWelcome ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-yellow-500 text-black hover:bg-yellow-400 hover:scale-[1.02] active:scale-95'}`}
               >
-                {hasClaimedWelcome ? 'ইতিমধ্যে ক্লেইম করা হয়েছে' : 'Claim Welcome Bonus'}
+                {hasClaimedWelcome ? 'ইতিমধ্যে ক্লেইম করা হয়েছে' : 'বোনাস ক্লেইম করুন (Claim Bonus)'}
               </button>
             )}
           </div>

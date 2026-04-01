@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { signInWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
 import { db, auth, googleProvider, handleFirestoreError, OperationType } from './firebase';
 import LoginPage from './LoginPage';
+import LogoPreview from './LogoPreview';
 import BonusCenter from './BonusCenter';
 import ProfileView from "./components/ProfileView";
 import InviteView from "./components/InviteView";
 import DepositView from "./components/DepositView";
 import AviatorGame from "./components/AviatorGame";
 import SupportChat from "./components/SupportChat";
+import SlotGame from "./components/SlotGame";
+import PermissionManager from "./components/PermissionManager";
 import { GameGrid, Game } from "./components/GameGrid";
 import { CasinoGallery } from "./components/CasinoGallery";
 import { GAME_IMAGES } from "./constants/gameAssets";
@@ -43,7 +46,10 @@ import {
   ArrowLeft,
   Plane as PlaneIcon,
   LogOut,
-  Download
+  Copy,
+  Check,
+  Download,
+  Trophy
 } from "lucide-react";
 
 export default function App() {
@@ -56,16 +62,18 @@ export default function App() {
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [showGallery, setShowGallery] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
 
   const [showDepositRequired, setShowDepositRequired] = useState(false);
 
+  const [isTabLoading, setIsTabLoading] = useState(false);
+
   const handleTabChange = (tab: any) => {
-    setIsLoading(true);
+    if (tab === activeTab) return;
+    setIsTabLoading(true);
     setTimeout(() => {
       setActiveTab(tab);
-      setIsLoading(false);
-    }, 990);
+      setIsTabLoading(false);
+    }, 500);
   };
 
   const handleGameSelect = (game: Game | null) => {
@@ -73,12 +81,59 @@ export default function App() {
       setShowDepositRequired(true);
       return;
     }
-    setIsLoading(true);
-    setTimeout(() => {
-      setSelectedGame(game);
-      setIsLoading(false);
-    }, 990);
+    setSelectedGame(game);
   };
+
+  const LeaderboardView = () => (
+    <div className="p-4 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="bg-gradient-to-r from-yellow-600 to-yellow-800 p-4 rounded-2xl shadow-lg flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Trophy className="text-white" size={32} />
+          <div>
+            <h2 className="text-white font-black text-xl italic uppercase tracking-tighter">Leaderboard</h2>
+            <p className="text-yellow-200 text-[10px] font-bold">Top Winners of the Week</p>
+          </div>
+        </div>
+        <div className="bg-black/20 px-3 py-1 rounded-full border border-white/10">
+          <span className="text-white font-black text-sm italic">৳ 5.2M Pool</span>
+        </div>
+      </div>
+
+      <div className="bg-[#1b1b1b] rounded-2xl border border-white/5 overflow-hidden">
+        {[
+          { name: "Sabbir_99", win: "৳ 1,24,500", game: "Aviator", rank: 1 },
+          { name: "Rakib_H", win: "৳ 98,200", game: "Super Ace", rank: 2 },
+          { name: "Mitu_Khan", win: "৳ 85,400", game: "Magic Card", rank: 3 },
+          { name: "Arif_77", win: "৳ 62,100", game: "Crazy Time", rank: 4 },
+          { name: "Sumon_Pro", win: "৳ 45,800", game: "Aviator", rank: 5 },
+          { name: "Nila_22", win: "৳ 38,900", game: "Super Ace 2", rank: 6 },
+          { name: "Joy_Bet", win: "৳ 32,400", game: "Aviator", rank: 7 },
+          { name: "Emon_X", win: "৳ 28,500", game: "Slot Master", rank: 8 },
+        ].map((winner, i) => (
+          <div key={i} className="flex items-center justify-between p-4 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors">
+            <div className="flex items-center gap-4">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm ${
+                winner.rank === 1 ? 'bg-yellow-500 text-black shadow-[0_0_10px_rgba(234,179,8,0.5)]' :
+                winner.rank === 2 ? 'bg-gray-300 text-black' :
+                winner.rank === 3 ? 'bg-orange-500 text-black' :
+                'bg-gray-800 text-gray-400'
+              }`}>
+                {winner.rank}
+              </div>
+              <div>
+                <p className="text-white font-bold text-sm">{winner.name}</p>
+                <p className="text-gray-500 text-[10px] uppercase font-bold">{winner.game}</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-green-400 font-black text-sm">{winner.win}</p>
+              <p className="text-gray-600 text-[9px] font-bold">2 mins ago</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   useEffect(() => {
     if (isLoggedIn && userData?.id) {
@@ -89,10 +144,23 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSupportChatOpen, setIsSupportChatOpen] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showRegistrationSuccess, setShowRegistrationSuccess] = useState(false);
+  const [showLogoPreview, setShowLogoPreview] = useState(false);
+  const [aviatorLogo, setAviatorLogo] = useState<string | null>('https://storage.googleapis.com/genai-studio-user-uploads/projects/ais-dev-wxllhxlbpwpt7cv6zg665n/uploads/1743526563604-image.png');
+
+  const handleLogoSelect = (logo: string) => {
+    setAviatorLogo(logo);
+    if (userData?.id) {
+      updateDoc(doc(db, 'users', userData.id), {
+        aviatorLogo: logo
+      }).catch(err => handleFirestoreError(err, OperationType.UPDATE, `users/${userData.id}`));
+    }
+  };
 
   const handleRefresh = () => {
     setIsRefreshing(true);
-    setTimeout(() => setIsRefreshing(false), 990);
+    setTimeout(() => setIsRefreshing(false), 100);
   };
 
   useEffect(() => {
@@ -104,20 +172,43 @@ export default function App() {
         
         // Initial fetch to create user if not exists
         try {
-          const userDoc = await getDoc(doc(db, 'users', firebaseUid));
-          if (!userDoc.exists()) {
-            const newUser = {
-              username: user.displayName || 'Player',
-              phoneNumber: '01XXXXXXXXX',
-              password: 'google-auth',
-              balance: 0,
-              createdAt: serverTimestamp(),
-              gmail: user.email,
-              isGmailLinked: true,
-              favorites: []
-            };
-            await setDoc(doc(db, 'users', firebaseUid), newUser);
-          }
+          await runTransaction(db, async (transaction) => {
+            const userRef = doc(db, 'users', firebaseUid);
+            const userDoc = await transaction.get(userRef);
+            
+            if (!userDoc.exists()) {
+              const metadataRef = doc(db, 'metadata', 'users');
+              const metadataDoc = await transaction.get(metadataRef);
+              
+              let nextId = 101;
+              if (metadataDoc.exists()) {
+                nextId = (metadataDoc.data().userCount || 100) + 1;
+              }
+              
+              // Formatting the ID as K71 + number (e.g., K71101, K71102)
+              const username = `K71${nextId}`;
+              
+              const newUser: any = {
+                username: username,
+                phoneNumber: 'Not Provided',
+                password: user.isAnonymous ? 'anonymous-auth' : 'email-auth',
+                balance: 0,
+                createdAt: serverTimestamp(),
+                isGmailLinked: false,
+                favorites: [],
+                vipLevel: 1,
+                vipProgress: 0
+              };
+              
+              if (user.email) {
+                newUser.gmail = user.email;
+                newUser.isGmailLinked = true;
+              }
+              
+              transaction.set(userRef, newUser);
+              transaction.set(metadataRef, { userCount: nextId }, { merge: true });
+            }
+          });
           
           // Clean up previous listener if any
           if (unsubscribeDoc) unsubscribeDoc();
@@ -129,6 +220,7 @@ export default function App() {
               setUserData({ ...data, id: firebaseUid });
               setBalance(data.balance || 0);
               setFavorites(data.favorites || []);
+              setAviatorLogo(data.aviatorLogo || null);
               setIsLoggedIn(true);
             }
           }, (error) => {
@@ -149,7 +241,7 @@ export default function App() {
     // Hide splash screen after 0.99 seconds
     const timer = setTimeout(() => {
       setShowSplash(false);
-    }, 990);
+    }, 500);
 
     return () => {
       clearTimeout(timer);
@@ -185,8 +277,9 @@ export default function App() {
       : [...favorites, gameId];
     
     setFavorites(newFavorites);
-    if (isLoggedIn && userData?.id) {
-      updateFavorites(userData.id, newFavorites).catch(err => {
+    const userId = auth.currentUser?.uid;
+    if (isLoggedIn && userId) {
+      updateFavorites(userId, newFavorites).catch(err => {
         console.error("Failed to update favorites in Firestore:", err);
       });
     }
@@ -355,13 +448,29 @@ export default function App() {
     );
   }
 
-  if (!isLoggedIn) {
-    return <LoginPage />;
+  if (!isLoggedIn || showRegistrationSuccess) {
+    return (
+      <LoginPage 
+        onRegisterSuccess={() => setShowRegistrationSuccess(true)} 
+        onContinue={() => setShowRegistrationSuccess(false)} 
+      />
+    );
   }
 
   return (
     <div className="max-w-md mx-auto bg-[#16a374] min-h-screen relative overflow-x-hidden font-sans text-white pb-16 flex flex-col">
-      {activeTab === 'home' && (
+      {/* Main Content Area */}
+      <div className="relative min-h-[calc(100vh-120px)]">
+        {isTabLoading && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm max-w-md mx-auto">
+            <div className="flex flex-col items-center gap-3 bg-teal-900/90 p-8 rounded-3xl border border-teal-500/30 shadow-2xl scale-110">
+              <RefreshCw size={48} className="text-yellow-500 animate-spin" />
+              <span className="text-white font-black italic uppercase tracking-tighter text-lg animate-pulse">Loading...</span>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'home' && (
         <>
           {/* Top App Download Banner */}
       <div className="bg-[#128a61] px-2 py-1.5 flex items-center justify-between text-xs">
@@ -550,6 +659,25 @@ export default function App() {
         </div>
       </div>
 
+      {/* Leaderboard Preview */}
+      <div className="px-4">
+        <button 
+          onClick={() => setShowLeaderboard(true)}
+          className="w-full bg-gradient-to-r from-purple-900/40 to-blue-900/40 border border-white/10 rounded-2xl p-4 flex items-center justify-between group hover:border-white/30 transition-all"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center text-yellow-500">
+              <Trophy size={20} />
+            </div>
+            <div className="text-left">
+              <p className="text-white font-bold text-sm">Winner's Board</p>
+              <p className="text-gray-500 text-[10px] uppercase font-bold">Check top payouts</p>
+            </div>
+          </div>
+          <ChevronRight className="text-gray-500 group-hover:text-white transition-colors" />
+        </button>
+      </div>
+
       {/* Marquee Announcement */}
       <div className="flex items-center gap-2 px-3 py-2 text-sm text-teal-100 bg-[#16a374]">
         <Volume2 size={18} className="shrink-0 text-teal-200" />
@@ -652,8 +780,20 @@ export default function App() {
       {selectedGame && selectedGame.id === '1' ? (
         <AviatorGame 
           onClose={() => handleGameSelect(null)} 
-          userBalance={balance}
-          onBalanceUpdate={handleBalanceUpdate}
+          userBalance={userData?.balance || 0}
+          onBalanceUpdate={(newBalance) => {
+            if (userData?.id) updateBalance(userData.id, newBalance);
+          }}
+          logo={aviatorLogo}
+        />
+      ) : selectedGame && selectedGame.category === 'স্লট' ? (
+        <SlotGame 
+          game={selectedGame}
+          onClose={() => handleGameSelect(null)} 
+          userBalance={userData?.balance || 0}
+          onBalanceUpdate={(newBalance) => {
+            if (userData?.id) updateBalance(userData.id, newBalance);
+          }}
         />
       ) : selectedGame && (
         <div className="fixed inset-0 z-[100] bg-black flex flex-col max-w-md mx-auto">
@@ -721,7 +861,7 @@ export default function App() {
               </div>
               <div>
                 <p className="text-[10px] text-teal-400 uppercase font-bold">ব্যালেন্স</p>
-                <p className="text-white font-bold text-sm">৳ {balance.toLocaleString()}</p>
+                <p className="text-white font-bold text-sm">৳ {userData?.balance?.toLocaleString() || '0'}</p>
               </div>
             </div>
             <button 
@@ -765,8 +905,19 @@ export default function App() {
                 <div className="w-12 h-12 rounded-full bg-teal-800 border-2 border-yellow-500 flex items-center justify-center">
                   <User size={24} className="text-white" />
                 </div>
-                <div>
-                  <p className="text-white font-bold text-sm">{userData?.username || 'Player_SPIN71'}</p>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-white font-bold text-sm truncate max-w-[100px]">{userData?.username || 'Player_SPIN71'}</p>
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText(userData?.username || 'Player_SPIN71');
+                      }}
+                      className="p-1 bg-white/10 hover:bg-white/20 rounded transition-colors text-teal-200"
+                      title="Copy Username"
+                    >
+                      <Copy size={12} />
+                    </button>
+                  </div>
                   <p className="text-teal-300 text-[10px]">ID: {userData?.id || '84729104'}</p>
                 </div>
               </div>
@@ -779,12 +930,15 @@ export default function App() {
                 { id: 'profile', icon: User, label: 'প্রোফাইল (Profile)' },
                 { id: 'invite', icon: Users, label: 'আমন্ত্রণ (Invite)' },
                 { id: 'telegram', icon: Send, label: 'টেলিগ্রাম (Telegram)' },
+                { id: 'logo', icon: Star, label: 'লোগো জেনারেটর (Logo Generator)' },
               ].map((link) => (
                 <button
                   key={link.id}
                   onClick={() => {
                     if (link.id === 'telegram') {
                       setIsSupportChatOpen(true);
+                    } else if (link.id === 'logo') {
+                      setShowLogoPreview(true);
                     } else {
                       handleTabChange(link.id as any);
                     }
@@ -827,13 +981,37 @@ export default function App() {
         </div>
       )}
 
-      {activeTab === 'profile' && <ProfileView onTabChange={handleTabChange} balance={balance} userData={userData} onLogout={handleLogout} setIsLoading={setIsLoading} />}
-      {activeTab === 'bonus' && <BonusCenter userData={userData} balance={balance} onBalanceUpdate={setBalance} setIsLoading={setIsLoading} onTabChange={handleTabChange} />}
-      {activeTab === 'invite' && <InviteView onTabChange={handleTabChange} setIsLoading={setIsLoading} userData={userData} />}
-      {activeTab === 'deposit' && <DepositView onTabChange={handleTabChange} balance={balance} onBalanceUpdate={handleBalanceUpdate} setIsLoading={setIsLoading} userData={userData} />}
+      {activeTab === 'profile' && <ProfileView onTabChange={handleTabChange} balance={balance} userData={userData} onLogout={handleLogout} />}
+      {activeTab === 'bonus' && <BonusCenter userData={userData} balance={balance} onBalanceUpdate={setBalance} onTabChange={handleTabChange} />}
+      {activeTab === 'invite' && <InviteView onTabChange={handleTabChange} userData={userData} />}
+      {activeTab === 'deposit' && <DepositView onTabChange={handleTabChange} balance={balance} onBalanceUpdate={handleBalanceUpdate} userData={userData} />}
+      </div>
+
+      {/* Leaderboard Modal */}
+      {showLeaderboard && (
+        <div className="fixed inset-0 z-[120] bg-black flex flex-col max-w-md mx-auto">
+          <div className="flex items-center justify-between p-4 bg-[#1b1b1b] border-b border-white/5">
+            <button onClick={() => setShowLeaderboard(false)} className="text-gray-400 hover:text-white p-1">
+              <ArrowLeft size={24} />
+            </button>
+            <h2 className="text-white font-black text-lg italic uppercase tracking-tighter">Winners Board</h2>
+            <div className="w-8"></div>
+          </div>
+          <div className="flex-1 overflow-y-auto bg-[#0b0b0b]">
+            <LeaderboardView />
+          </div>
+        </div>
+      )}
 
       {/* Support Chat */}
-      <SupportChat isOpen={isSupportChatOpen} onClose={() => setIsSupportChatOpen(false)} />
+      <SupportChat isOpen={isSupportChatOpen} onClose={() => setIsSupportChatOpen(false)} userData={userData} />
+
+      {/* Logo Preview Modal */}
+      {showLogoPreview && (
+        <div className="fixed inset-0 z-[150] bg-black flex flex-col max-w-md mx-auto">
+          <LogoPreview onClose={() => setShowLogoPreview(false)} onSelect={handleLogoSelect} />
+        </div>
+      )}
 
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-[#16a374] border-t border-teal-600/50 flex justify-between px-6 py-2 text-[11px] text-teal-200 z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
@@ -910,11 +1088,7 @@ export default function App() {
         </div>
       )}
 
-      {isLoading && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
-          <div className="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin shadow-[0_0_15px_rgba(20,184,166,0.5)]"></div>
-        </div>
-      )}
+      {isLoggedIn && <PermissionManager />}
 
       <style>{`
         @keyframes fly-around {

@@ -97,16 +97,6 @@ async function startServer() {
     });
   });
 
-  app.get("/api/transactions", (req, res) => {
-    res.json([
-      { id: 'TRX-98234', type: 'deposit', amount: '+ ৳ 5,000', date: '2026-03-28 14:30', status: 'সফল', statusColor: 'text-green-400' },
-      { id: 'TRX-98233', type: 'withdraw', amount: '- ৳ 12,000', date: '2026-03-27 09:15', status: 'সফল', statusColor: 'text-green-400' },
-      { id: 'TRX-98232', type: 'bet', amount: '- ৳ 500', date: '2026-03-26 22:45', status: 'সম্পন্ন', statusColor: 'text-teal-300' },
-      { id: 'TRX-98231', type: 'bonus', amount: '+ ৳ 1,000', date: '2026-03-25 10:00', status: 'সফল', statusColor: 'text-green-400' },
-      { id: 'TRX-98230', type: 'deposit', amount: '+ ৳ 10,000', date: '2026-03-24 18:20', status: 'ব্যর্থ', statusColor: 'text-red-400' },
-    ]);
-  });
-
   app.get("/api/chat", (req, res) => {
     const userId = req.query.userId as string || "84729104";
     res.json(getChatHistory(userId));

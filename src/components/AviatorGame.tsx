@@ -7,9 +7,10 @@ interface AviatorGameProps {
   onClose: () => void;
   userBalance: number;
   onBalanceUpdate: (newBalance: number) => void;
+  logo?: string | null;
 }
 
-export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: AviatorGameProps) {
+export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, logo }: AviatorGameProps) {
   const [multiplier, setMultiplier] = useState(1.00);
   const [isFlying, setIsFlying] = useState(false);
   const [hasCrashed, setHasCrashed] = useState(false);
@@ -226,21 +227,25 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
             <ArrowLeft size={20} />
           </button>
           <div className="relative">
-            <svg width="32" height="32" viewBox="0 0 24 24" className="drop-shadow-[0_0_8px_rgba(250,204,21,0.6)]">
-              <defs>
-                <linearGradient id="goldLogo" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#fef08a" />
-                  <stop offset="50%" stopColor="#eab308" />
-                  <stop offset="100%" stopColor="#a16207" />
-                </linearGradient>
-              </defs>
-              <path 
-                d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" 
-                fill="url(#goldLogo)"
-                stroke="#fff"
-                strokeWidth="0.5"
-              />
-            </svg>
+            {logo ? (
+              <img src={logo} className="w-8 h-8 rounded-full border border-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)]" alt="Aviator Logo" />
+            ) : (
+              <svg width="32" height="32" viewBox="0 0 24 24" className="drop-shadow-[0_0_8px_rgba(250,204,21,0.6)]">
+                <defs>
+                  <linearGradient id="goldLogo" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#fef08a" />
+                    <stop offset="50%" stopColor="#eab308" />
+                    <stop offset="100%" stopColor="#a16207" />
+                  </linearGradient>
+                </defs>
+                <path 
+                  d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" 
+                  fill="url(#goldLogo)"
+                  stroke="#fff"
+                  strokeWidth="0.5"
+                />
+              </svg>
+            )}
             <div className="absolute -top-1 -right-1 bg-red-600 text-white text-[6px] font-bold px-1 rounded-sm border border-yellow-400">VIP</div>
           </div>
           <div className="flex flex-col">
@@ -414,93 +419,101 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate }: A
                 {/* Smoke Trail */}
                 <div className={`absolute right-full top-1/2 -translate-y-1/2 w-48 h-2 bg-gradient-to-l from-red-500/40 to-transparent blur-md transform origin-right rotate-12 ${hasCrashed ? 'animate-pulse' : ''} ${isFlying ? 'blur-[2px]' : ''}`}></div>
                 
-                {/* Stylized Anime Plane */}
+                {/* Stylized Anime Plane or Custom Logo */}
                 <div className="relative transform -rotate-12">
-                  <svg 
-                    viewBox="-20 0 140 80" 
-                    className={`w-40 h-24 drop-shadow-[0_0_30px_rgba(239,68,68,0.6)] ${hasCrashed ? 'brightness-50' : ''} ${isFlying ? 'blur-[0.5px] animate-chromatic' : ''}`}
-                  >
-                    <defs>
-                      <linearGradient id="planeBodyGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#ff4d4d" />
-                        <stop offset="100%" stopColor="#990000" />
-                      </linearGradient>
-                      <linearGradient id="wingGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="#ff6666" />
-                        <stop offset="100%" stopColor="#cc0000" />
-                      </linearGradient>
-                      <linearGradient id="thrustGrad" x1="100%" y1="0%" x2="0%" y2="0%">
-                        <stop offset="0%" stopColor="#fbbf24" />
-                        <stop offset="50%" stopColor="#ea580c" />
-                        <stop offset="100%" stopColor="transparent" />
-                      </linearGradient>
-                      <filter id="glow">
-                        <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-                        <feMerge>
-                          <feMergeNode in="coloredBlur"/>
-                          <feMergeNode in="SourceGraphic"/>
-                        </feMerge>
-                      </filter>
-                    </defs>
-                    
-                    {/* Engine Thrust */}
-                    {isFlying && !hasCrashed && (
-                      <path 
-                        d="M10,38 Q-20,40 10,42 Z" 
-                        fill="url(#thrustGrad)" 
-                        style={{
-                          transformOrigin: '10px 40px',
-                          transform: `scaleX(${Math.min(4, 1 + (multiplier - 1) * 0.5)})`,
-                          transition: 'transform 0.1s linear'
-                        }}
-                        className="animate-pulse"
-                      />
-                    )}
+                  {logo ? (
+                    <img 
+                      src={logo} 
+                      className={`w-24 h-24 object-contain drop-shadow-[0_0_30px_rgba(239,68,68,0.6)] ${hasCrashed ? 'brightness-50' : ''} ${isFlying ? 'blur-[0.5px] animate-chromatic' : ''}`}
+                      alt="Custom Aviator Logo"
+                    />
+                  ) : (
+                    <svg 
+                      viewBox="-20 0 140 80" 
+                      className={`w-40 h-24 drop-shadow-[0_0_30px_rgba(239,68,68,0.6)] ${hasCrashed ? 'brightness-50' : ''} ${isFlying ? 'blur-[0.5px] animate-chromatic' : ''}`}
+                    >
+                      <defs>
+                        <linearGradient id="planeBodyGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor="#ff4d4d" />
+                          <stop offset="100%" stopColor="#990000" />
+                        </linearGradient>
+                        <linearGradient id="wingGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                          <stop offset="0%" stopColor="#ff6666" />
+                          <stop offset="100%" stopColor="#cc0000" />
+                        </linearGradient>
+                        <linearGradient id="thrustGrad" x1="100%" y1="0%" x2="0%" y2="0%">
+                          <stop offset="0%" stopColor="#fbbf24" />
+                          <stop offset="50%" stopColor="#ea580c" />
+                          <stop offset="100%" stopColor="transparent" />
+                        </linearGradient>
+                        <filter id="glow">
+                          <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                          <feMerge>
+                            <feMergeNode in="coloredBlur"/>
+                            <feMergeNode in="SourceGraphic"/>
+                          </feMerge>
+                        </filter>
+                      </defs>
+                      
+                      {/* Engine Thrust */}
+                      {isFlying && !hasCrashed && (
+                        <path 
+                          d="M10,38 Q-20,40 10,42 Z" 
+                          fill="url(#thrustGrad)" 
+                          style={{
+                            transformOrigin: '10px 40px',
+                            transform: `scaleX(${Math.min(4, 1 + (multiplier - 1) * 0.5)})`,
+                            transition: 'transform 0.1s linear'
+                          }}
+                          className="animate-pulse"
+                        />
+                      )}
 
-                    {/* Main Body - Sleek Anime Shape */}
-                    <path 
-                      d="M10,40 Q30,35 60,35 L100,38 L110,40 L100,42 L60,45 Q30,45 10,40 Z" 
-                      fill="url(#planeBodyGrad)" 
-                      stroke="#fff" 
-                      strokeWidth="1.5"
-                    />
-                    
-                    {/* Cockpit */}
-                    <path 
-                      d="M45,35 Q55,25 75,35 Z" 
-                      fill="#87ceeb" 
-                      stroke="#fff" 
-                      strokeWidth="1"
-                      opacity="0.9"
-                    />
-                    
-                    {/* Main Wing */}
-                    <path 
-                      d="M40,40 L20,65 L50,65 L70,40 Z" 
-                      fill="url(#wingGrad)" 
-                      stroke="#fff" 
-                      strokeWidth="1.5"
-                      style={{
-                        transformOrigin: '40px 40px',
-                        animation: isFlying && !hasCrashed ? `wing-flap ${Math.max(0.05, 0.2 - (multiplier - 1) * 0.01)}s infinite alternate` : 'none'
-                      }}
-                    />
-                    
-                    {/* Tail Wing */}
-                    <path 
-                      d="M15,40 L5,25 L25,25 L30,40 Z" 
-                      fill="url(#wingGrad)" 
-                      stroke="#fff" 
-                      strokeWidth="1.5"
-                    />
-                    
-                    {/* Propeller Hub */}
-                    <circle cx="110" cy="40" r="3" fill="#333" stroke="#fff" strokeWidth="1" />
-                    
-                    {/* Speed Lines on Plane */}
-                    <line x1="20" y1="38" x2="40" y2="38" stroke="#fff" strokeWidth="1" opacity="0.5" />
-                    <line x1="25" y1="42" x2="45" y2="42" stroke="#fff" strokeWidth="1" opacity="0.5" />
-                  </svg>
+                      {/* Main Body - Sleek Anime Shape */}
+                      <path 
+                        d="M10,40 Q30,35 60,35 L100,38 L110,40 L100,42 L60,45 Q30,45 10,40 Z" 
+                        fill="url(#planeBodyGrad)" 
+                        stroke="#fff" 
+                        strokeWidth="1.5"
+                      />
+                      
+                      {/* Cockpit */}
+                      <path 
+                        d="M45,35 Q55,25 75,35 Z" 
+                        fill="#87ceeb" 
+                        stroke="#fff" 
+                        strokeWidth="1"
+                        opacity="0.9"
+                      />
+                      
+                      {/* Main Wing */}
+                      <path 
+                        d="M40,40 L20,65 L50,65 L70,40 Z" 
+                        fill="url(#wingGrad)" 
+                        stroke="#fff" 
+                        strokeWidth="1.5"
+                        style={{
+                          transformOrigin: '40px 40px',
+                          animation: isFlying && !hasCrashed ? `wing-flap ${Math.max(0.05, 0.2 - (multiplier - 1) * 0.01)}s infinite alternate` : 'none'
+                        }}
+                      />
+                      
+                      {/* Tail Wing */}
+                      <path 
+                        d="M15,40 L5,25 L25,25 L30,40 Z" 
+                        fill="url(#wingGrad)" 
+                        stroke="#fff" 
+                        strokeWidth="1.5"
+                      />
+                      
+                      {/* Propeller Hub */}
+                      <circle cx="110" cy="40" r="3" fill="#333" stroke="#fff" strokeWidth="1" />
+                      
+                      {/* Speed Lines on Plane */}
+                      <line x1="20" y1="38" x2="40" y2="38" stroke="#fff" strokeWidth="1" opacity="0.5" />
+                      <line x1="25" y1="42" x2="45" y2="42" stroke="#fff" strokeWidth="1" opacity="0.5" />
+                    </svg>
+                  )}
 
                   {/* VIP Tag Overlay */}
                   <div className="absolute -top-2 -left-2 bg-gradient-to-r from-yellow-400 to-yellow-600 text-black text-[10px] font-black px-2 py-0.5 rounded-sm shadow-lg transform -rotate-12 border border-yellow-300 animate-pulse">

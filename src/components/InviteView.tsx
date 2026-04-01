@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Copy, HelpCircle, Share2, User, Users, Award, Facebook, Twitter, MessageCircle, Send, Gift, ChevronLeft, TrendingUp, DollarSign, Target, ShoppingCart, Package, Crown, Coins, Zap, Shield, Star } from "lucide-react";
+import { Copy, HelpCircle, Share2, User, Users, Award, Facebook, Twitter, MessageCircle, Send, Gift, ChevronLeft, TrendingUp, DollarSign, Target, ShoppingCart, Package, Crown, Coins, Zap, Shield, Star, Activity } from "lucide-react";
 
 const shopCategories = [
   { id: 'vip', name: 'ভিআইপি (VIP)', icon: Crown },
@@ -24,13 +24,15 @@ const shopItems = {
   ]
 };
 
-export default function InviteView({ onTabChange, setIsLoading, userData, initialSubTab = 'overview' }: { onTabChange: (tab: any) => void, setIsLoading: (loading: boolean) => void, userData?: any, initialSubTab?: string }) {
+export default function InviteView({ onTabChange, userData, initialSubTab = 'overview' }: { onTabChange: (tab: any) => void, userData?: any, initialSubTab?: string }) {
   const [activeTab, setActiveTab] = useState(initialSubTab);
   const [activeShopCategory, setActiveShopCategory] = useState('vip');
   const [totalShares, setTotalShares] = useState(12);
   
   const currentReferrals = userData?.referralCount || 0;
   const totalEarned = userData?.totalReferralEarnings || 0;
+  const referralCode = userData?.referralCode || (userData?.id ? userData.id.substring(0, 6).toUpperCase() : 'SPIN71');
+  const referralLink = `https://spin71bet.com/?ref=${referralCode}`;
 
   const tiers = [
     { count: 1, reward: 50 },
@@ -52,11 +54,8 @@ export default function InviteView({ onTabChange, setIsLoading, userData, initia
     if (currentReferrals >= max) return 100;
     return ((currentReferrals - min) / (max - min)) * 100;
   };
-  
-  const referralLink = "https://spin71bet.com/?ref=xjf8463";
 
   const handleShare = async () => {
-    setIsLoading(true);
     const shareData = {
       title: 'SPIN71 BET - আমার রেফারেল লিঙ্ক',
       text: 'আমার রেফারেল লিঙ্ক ব্যবহার করে যোগ দিন এবং বোনাস পান!',
@@ -77,26 +76,18 @@ export default function InviteView({ onTabChange, setIsLoading, userData, initia
         console.error('Error sharing:', err);
       }
     } finally {
-      setTimeout(() => setIsLoading(false), 990);
+      // Done
     }
   };
 
   const copyToClipboard = () => {
-    setIsLoading(true);
     navigator.clipboard.writeText(referralLink);
-    setTimeout(() => {
-      setIsLoading(false);
-      alert("লিঙ্কটি কপি করা হয়েছে!");
-      incrementShares();
-    }, 990);
+    alert("লিঙ্কটি কপি করা হয়েছে!");
+    incrementShares();
   };
 
   const handleBuyItem = (item: any) => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      alert(`${item.name} কেনার জন্য পর্যাপ্ত ব্যালেন্স নেই!`);
-    }, 990);
+    alert(`${item.name} কেনার জন্য পর্যাপ্ত ব্যালেন্স নেই!`);
   };
 
   return (
@@ -125,20 +116,20 @@ export default function InviteView({ onTabChange, setIsLoading, userData, initia
         </div>
 
         {/* Stats Summary */}
-        <div className="mt-6 grid grid-cols-2 gap-3 relative z-10">
-          <div className="bg-black/20 backdrop-blur-sm rounded-2xl p-3 border border-white/10">
-            <div className="flex items-center gap-2 text-teal-100 mb-1">
-              <Users size={14} />
-              <span className="text-xs">মোট রেফারেল</span>
+        <div className="mt-6 grid grid-cols-2 gap-2 relative z-10">
+          <div className="bg-black/20 backdrop-blur-sm rounded-2xl p-2 border border-white/10 flex flex-col items-center justify-center text-center">
+            <div className="flex items-center gap-1 text-teal-100 mb-1">
+              <Users size={12} />
+              <span className="text-[10px]">সফল রেফারেল</span>
             </div>
-            <div className="text-2xl font-black text-white">{currentReferrals} <span className="text-sm font-normal text-teal-200">জন</span></div>
+            <div className="text-lg font-black text-white">{currentReferrals}</div>
           </div>
-          <div className="bg-black/20 backdrop-blur-sm rounded-2xl p-3 border border-white/10">
-            <div className="flex items-center gap-2 text-teal-100 mb-1">
-              <DollarSign size={14} />
-              <span className="text-xs">মোট আয়</span>
+          <div className="bg-black/20 backdrop-blur-sm rounded-2xl p-2 border border-white/10 flex flex-col items-center justify-center text-center">
+            <div className="flex items-center gap-1 text-teal-100 mb-1">
+              <DollarSign size={12} />
+              <span className="text-[10px]">মোট আয়</span>
             </div>
-            <div className="text-2xl font-black text-yellow-400">৳ {totalEarned}</div>
+            <div className="text-lg font-black text-yellow-400">৳ {totalEarned}</div>
           </div>
         </div>
       </div>
@@ -234,6 +225,23 @@ export default function InviteView({ onTabChange, setIsLoading, userData, initia
               আপনার রেফারেল লিঙ্ক শেয়ার করুন
             </h3>
             
+            <div className="mb-4 bg-black/30 p-3 rounded-xl border border-white/5 flex justify-between items-center">
+              <div>
+                <p className="text-[10px] text-teal-400 uppercase font-bold mb-1">আপনার রেফারেল কোড</p>
+                <p className="text-xl font-black text-yellow-400 tracking-wider">{referralCode}</p>
+              </div>
+              <button 
+                onClick={() => { 
+                  navigator.clipboard.writeText(referralCode); 
+                  alert('কোড কপি করা হয়েছে!'); 
+                  incrementShares(); 
+                }} 
+                className="p-2 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <Copy size={16} className="text-white" />
+              </button>
+            </div>
+
             <div className="flex items-center gap-2 bg-black/50 p-2 rounded-xl border border-white/10 mb-4">
               <span className="text-sm text-gray-300 truncate flex-1 pl-2 font-mono">{referralLink}</span>
               <button 
