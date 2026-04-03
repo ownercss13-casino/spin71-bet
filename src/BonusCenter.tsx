@@ -19,12 +19,6 @@ export default function BonusCenter({ userData, balance, onBalanceUpdate, onTabC
 
   const handleClaimDaily = async () => {
     if (userData?.id && canClaimDaily) {
-      if (!hasMadeDeposit) {
-        setErrorMessage("প্রথম জমা ছাড়া কোনো বোনাস নেওয়া যাবে না।");
-        setShowErrorPopup(true);
-        return;
-      }
-
       setIsClaiming(true);
       setTimeout(async () => {
         try {
@@ -43,12 +37,6 @@ export default function BonusCenter({ userData, balance, onBalanceUpdate, onTabC
 
   const handleClaimWelcome = async () => {
     if (userData?.id && !hasClaimedWelcome) {
-      if (!hasMadeDeposit) {
-        setErrorMessage("এই বোনাসটি পেতে আপনাকে অন্তত একটি ডিপোজিট করতে হবে।");
-        setShowErrorPopup(true);
-        return;
-      }
-
       setIsClaiming(true);
       setTimeout(async () => {
         try {

@@ -1,5 +1,5 @@
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
-import { collection, addDoc, getDocs, deleteDoc, doc, query, where, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, deleteDoc, doc, query, where, serverTimestamp, updateDoc, increment, setDoc } from 'firebase/firestore';
 
 export interface User {
   id: string;
@@ -8,6 +8,7 @@ export interface User {
   phoneNumber?: string;
   registrationDate: string;
   balance: number;
+  turnover: number;
   vipLevel: number;
   vipProgress: number;
   favorites: string[];
@@ -22,6 +23,17 @@ export interface User {
   gmail?: string | null;
   country?: string | null;
   role?: 'user' | 'agent' | 'admin';
+  aviatorLogo?: string | null;
+}
+
+export interface Notification {
+  id?: string;
+  title: string;
+  message: string;
+  type: 'bonus' | 'promotion' | 'account' | 'system';
+  read: boolean;
+  createdAt: any;
+  actionUrl?: string;
 }
 
 export interface SavedItem {
@@ -100,12 +112,28 @@ export const updateBalance = async (userId: string, balance: number) => {
   }
 };
 
+export const updateTurnover = async (userId: string, amount: number) => {
+  const path = `users/${userId}`;
+  try {
+    await updateDoc(doc(db, path), { 
+      turnover: increment(amount)
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+};
+
 export const claimDailyBonus = async (userId: string, currentBalance: number) => {
   const path = `users/${userId}`;
   try {
     await updateDoc(doc(db, path), {
       balance: currentBalance + 6.77,
       lastDailyBonusClaimedAt: serverTimestamp()
+    });
+    await addNotification(userId, {
+      title: "ডেইলি বোনাস প্রাপ্ত!",
+      message: "আপনি সফলভাবে ৳ ৬.৭৭ ডেইলি বোনাস পেয়েছেন।",
+      type: "bonus"
     });
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
@@ -119,8 +147,44 @@ export const claimWelcomeBonus = async (userId: string, currentBalance: number) 
       balance: currentBalance + 57,
       hasClaimedWelcomeBonus: true
     });
+    await addNotification(userId, {
+      title: "স্বাগতম বোনাস প্রাপ্ত!",
+      message: "আপনি সফলভাবে ৳ ৫৭ স্বাগতম বোনাস পেয়েছেন।",
+      type: "bonus"
+    });
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+};
+
+export const addNotification = async (userId: string, notification: Omit<Notification, 'id' | 'createdAt' | 'read'>) => {
+  const path = `users/${userId}/notifications`;
+  try {
+    await addDoc(collection(db, path), {
+      ...notification,
+      read: false,
+      createdAt: serverTimestamp()
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, path);
+  }
+};
+
+export const markNotificationAsRead = async (userId: string, notificationId: string) => {
+  const path = `users/${userId}/notifications/${notificationId}`;
+  try {
+    await updateDoc(doc(db, path), { read: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+};
+
+export const deleteNotification = async (userId: string, notificationId: string) => {
+  const path = `users/${userId}/notifications/${notificationId}`;
+  try {
+    await deleteDoc(doc(db, path));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
   }
 };
 
@@ -134,6 +198,42 @@ export const sendMessage = async (userId: string, text: string, sender: 'user' |
     });
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, path);
+  }
+};
+
+export const updateGlobalGameLogo = async (gameId: string, logoUrl: string) => {
+  const path = `global_config/game_logos`;
+  try {
+    await updateDoc(doc(db, path), {
+      [gameId]: logoUrl
+    });
+  } catch (error) {
+    // If document doesn't exist, create it
+    try {
+      await setDoc(doc(db, path), {
+        [gameId]: logoUrl
+      });
+    } catch (innerError) {
+      handleFirestoreError(innerError, OperationType.WRITE, path);
+    }
+  }
+};
+
+export const updateGlobalGameName = async (gameId: string, name: string) => {
+  const path = `global_config/game_names`;
+  try {
+    await updateDoc(doc(db, path), {
+      [gameId]: name
+    });
+  } catch (error) {
+    // If document doesn't exist, create it
+    try {
+      await setDoc(doc(db, path), {
+        [gameId]: name
+      });
+    } catch (innerError) {
+      handleFirestoreError(innerError, OperationType.WRITE, path);
+    }
   }
 };
 

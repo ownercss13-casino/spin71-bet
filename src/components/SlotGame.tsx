@@ -2,6 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, Info, Wallet, Play, RotateCcw, Star, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
+import { updateBalance, updateTurnover } from '../services/firebaseService';
+import { auth } from '../firebase';
+
 interface SlotGameProps {
   game: {
     id: string;
@@ -37,6 +40,11 @@ export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate }
     setIsSpinning(true);
     setWinAmount(0);
     setShowWin(false);
+
+    // Update turnover in database
+    if (auth.currentUser) {
+      updateTurnover(auth.currentUser.uid, betAmount);
+    }
 
     // Simulate spinning
     const spinDuration = 2000;

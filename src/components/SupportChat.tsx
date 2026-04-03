@@ -144,8 +144,14 @@ export default function SupportChat({ isOpen, onClose, userData }: { isOpen: boo
                 className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div className={`flex gap-2 max-w-[85%] ${msg.sender === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                  <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold ${msg.sender === 'user' ? 'bg-yellow-500 text-black' : 'bg-teal-700 text-white'}`}>
-                    {msg.sender === 'user' ? <User size={14} /> : 'A'}
+                  <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold overflow-hidden ${msg.sender === 'user' ? 'bg-yellow-500 text-black' : 'bg-teal-700 text-white'}`}>
+                    {msg.sender === 'user' ? (
+                      userData?.profilePictureUrl ? (
+                        <img src={userData.profilePictureUrl} alt="User" className="w-full h-full object-cover" />
+                      ) : (
+                        <User size={14} />
+                      )
+                    ) : 'A'}
                   </div>
                   <div className="flex flex-col">
                     <div className={`p-3 rounded-2xl text-sm shadow-sm ${

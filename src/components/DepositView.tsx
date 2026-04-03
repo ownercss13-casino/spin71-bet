@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { ChevronLeft, Wallet, CreditCard, Building2, Smartphone, ShieldCheck, History, ArrowRight, Copy, Check, AlertCircle, X, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ChevronLeft, Wallet, CreditCard, Building2, Smartphone, ShieldCheck, History, ArrowRight, Copy, Check, AlertCircle, X, RefreshCw, ArrowDownLeft, Loader2 } from 'lucide-react';
 
-import { updateUserProfile } from '../services/firebaseService';
-import { db, auth } from '../firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { updateUserProfile, addNotification } from '../services/firebaseService';
+import { db, auth, handleFirestoreError, OperationType } from '../firebase';
+import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
 
 const paymentMethods = [
   { id: 'bkash', name: 'বিকাশ', icon: Smartphone, color: 'bg-[#e2136e]', bonus: '+5%' },
@@ -24,6 +24,45 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
   const [senderNumber, setSenderNumber] = useState('');
   const [isCopied, setIsCopied] = useState(false);
   const [showSystemClosedPopup, setShowSystemClosedPopup] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [deposits, setDeposits] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+
+  useEffect(() => {
+    if (!auth.currentUser) return;
+
+    const path = `users/${auth.currentUser.uid}/transactions`;
+    const q = query(
+      collection(db, path),
+      where('type', '==', 'deposit'),
+      orderBy('date', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const trxData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          date: data.date instanceof Timestamp ? 
+                data.date.toDate().toLocaleString('en-GB', { 
+                  year: 'numeric', 
+                  month: '2-digit', 
+                  day: '2-digit', 
+                  hour: '2-digit', 
+                  minute: '2-digit' 
+                }).replace(/\//g, '-') : data.date
+        };
+      });
+      setDeposits(trxData);
+      setIsLoadingHistory(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+      setIsLoadingHistory(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const handleNextStep = () => {
     if (selectedMethod !== 'nagad' && selectedMethod !== 'bkash' && selectedMethod !== 'rocket') {
@@ -80,6 +119,12 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
         statusColor: 'bg-yellow-500/20 text-yellow-500'
       });
 
+      await addNotification(auth.currentUser.uid, {
+        title: "ডিপোজিট রিকোয়েস্ট!",
+        message: `আপনার ৳ ${depositAmount} ডিপোজিট রিকোয়েস্টটি সফলভাবে জমা হয়েছে। এডমিন এপ্রুভ করলে ব্যালেন্স যোগ হবে।`,
+        type: "account"
+      });
+
       showToast('ডিপোজিট রিকোয়েস্ট সফল হয়েছে! এডমিন এপ্রুভ করলে আপনার ব্যালেন্স আপডেট হবে।', 'success');
       onTabChange('home');
     } catch (error) {
@@ -117,8 +162,8 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
               SPIN71 <span className="text-yellow-400">DEPOSIT</span>
             </h2>
           </div>
-          <button className="bg-black/30 p-2 rounded-full hover:bg-black/50 transition-colors backdrop-blur-sm">
-            <History size={20} className="text-white" />
+          <button onClick={() => setShowHistory(!showHistory)} className={`p-2 rounded-full transition-colors backdrop-blur-sm ${showHistory ? 'bg-yellow-500 text-black' : 'bg-black/30 hover:bg-black/50 text-white'}`}>
+            <History size={20} />
           </button>
         </div>
 
@@ -135,7 +180,45 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
       </div>
 
       <div className="p-4 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {step === 1 ? (
+        {showHistory ? (
+          <div className="space-y-4">
+            <h4 className="text-white font-bold flex items-center gap-2">
+              <History size={18} className="text-teal-400" />
+              ডিপোজিটের ইতিহাস
+            </h4>
+            
+            {isLoadingHistory ? (
+              <div className="flex justify-center py-8">
+                <Loader2 size={24} className="animate-spin text-teal-500" />
+              </div>
+            ) : deposits.length > 0 ? (
+              <div className="space-y-3">
+                {deposits.map((trx) => (
+                  <div key={trx.id} className="bg-teal-900/20 p-4 rounded-2xl border border-teal-800/30 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center">
+                        <ArrowDownLeft size={18} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-white uppercase">{trx.method}</p>
+                        <p className="text-[10px] text-teal-200">{trx.date}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-green-400">+৳{Math.abs(trx.amount).toLocaleString()}</p>
+                      <p className={`text-[10px] mt-0.5 ${trx.statusColor || 'text-yellow-500'}`}>{trx.status}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-teal-900/20 p-8 rounded-2xl border border-teal-800/30 text-center">
+                <History size={32} className="text-teal-700 mx-auto mb-2" />
+                <p className="text-teal-400 text-sm">কোনো ডিপোজিটের ইতিহাস নেই</p>
+              </div>
+            )}
+          </div>
+        ) : step === 1 ? (
           <>
             {/* Payment Methods */}
             <div>

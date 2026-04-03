@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { updateTurnover } from '../services/firebaseService';
+import { auth } from '../firebase';
+import { useLiveAviator } from '../hooks/useLiveAviator';
 import { ArrowLeft, Info, Wallet, Play, X, History, Users, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GAME_IMAGES } from '../constants/gameAssets';
@@ -8,9 +11,11 @@ interface AviatorGameProps {
   userBalance: number;
   onBalanceUpdate: (newBalance: number) => void;
   logo?: string | null;
+  onLogoChange?: (newLogo: string) => void;
 }
 
-export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, logo }: AviatorGameProps) {
+export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, logo, onLogoChange }: AviatorGameProps) {
+  const { session } = useLiveAviator();
   const [multiplier, setMultiplier] = useState(1.00);
   const [isFlying, setIsFlying] = useState(false);
   const [hasCrashed, setHasCrashed] = useState(false);
@@ -24,7 +29,6 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
   const [cashOutMultiplier, setCashOutMultiplier] = useState(0);
   const [history, setHistory] = useState<number[]>([]);
   const [showFullHistory, setShowFullHistory] = useState(false);
-  // Removed multiplierIndex
   const [gamePhase, setGamePhase] = useState<'betting' | 'flying' | 'crashed'>('betting');
   const [bettingCountdown, setBettingCountdown] = useState(5);
   const [parallaxOffset, setParallaxOffset] = useState({ x: 0, y: 0 });
@@ -37,11 +41,43 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
   const [liveBets, setLiveBets] = useState<{ id: number; name: string; amount: number; cashedOut: boolean; cashOutMultiplier?: number }[]>([]);
   const [justPlacedBet, setJustPlacedBet] = useState(false);
   
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const countdownRef = useRef<NodeJS.Timeout | null>(null);
-  const roundTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const crashPointRef = useRef(0);
   const multiplierRef = useRef(1.00);
+
+  // Sync with shared session
+  useEffect(() => {
+    if (!session) return;
+
+    setMultiplier(session.multiplier);
+    setHistory(session.history || []);
+    
+    if (session.status === 'waiting') {
+      setGamePhase('betting');
+      setIsFlying(false);
+      setHasCrashed(false);
+      
+      // Calculate countdown based on startTime
+      const now = new Date();
+      const startTime = session.startTime?.toDate?.() || now;
+      const diff = Math.max(0, 5 - Math.floor((now.getTime() - startTime.getTime()) / 1000));
+      setBettingCountdown(diff);
+      
+      // Reset for new round
+      if (gamePhase !== 'betting') {
+        setIsCashedOut(false);
+        setCashOutMultiplier(0);
+        setIsBetPlaced(false);
+      }
+    } else if (session.status === 'running') {
+      setGamePhase('flying');
+      setIsFlying(true);
+      setHasCrashed(false);
+    } else if (session.status === 'crashed') {
+      setGamePhase('crashed');
+      setIsFlying(false);
+      setHasCrashed(true);
+      setMultiplier(session.multiplier); // Ensure it shows the crash point
+    }
+  }, [session, gamePhase]);
 
   useEffect(() => {
     multiplierRef.current = multiplier;
@@ -79,68 +115,6 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
     }
   }, [betAmount, userBalance]);
 
-  // Start a new round
-  const startNewRound = async () => {
-    setMultiplier(1.00);
-    setHasCrashed(false);
-    setIsCashedOut(false);
-    setCashOutMultiplier(0);
-    setGamePhase('betting');
-    setBettingCountdown(5);
-    
-    // Generate a random crash point between 1.00 and 15.00
-    // Bias towards lower numbers
-    const rand = Math.random();
-    const randomCrashPoint = 1 + Math.pow(rand, 2) * 14;
-    crashPointRef.current = Number(randomCrashPoint.toFixed(2));
-    console.log(`Round started: Crash point set to ${crashPointRef.current}`);
-    
-    // Betting countdown
-    if (countdownRef.current) clearInterval(countdownRef.current);
-    countdownRef.current = setInterval(() => {
-      setBettingCountdown(prev => {
-        if (prev <= 1) {
-          if (countdownRef.current) clearInterval(countdownRef.current);
-          setGamePhase('flying');
-          setIsFlying(true);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
-
-  useEffect(() => {
-    startNewRound();
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (countdownRef.current) clearInterval(countdownRef.current);
-      if (roundTimeoutRef.current) clearTimeout(roundTimeoutRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (gamePhase === 'flying' && isFlying) {
-      timerRef.current = setInterval(() => {
-        setMultiplier(prev => {
-          const next = prev + (prev * 0.007); // Slower exponential growth (was 0.01)
-          console.log(`Current: ${prev}, Next: ${next}, CrashPoint: ${crashPointRef.current}`);
-          if (next >= crashPointRef.current) {
-            console.log(`Crashed at: ${next}`);
-            handleCrash(next);
-            return next;
-          }
-          return next;
-        });
-      }, 100);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
-    }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [gamePhase, isFlying]);
-
   // Parallax Effect
   useEffect(() => {
     if (gamePhase === 'flying' && isFlying) {
@@ -156,37 +130,17 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
     }
   }, [gamePhase, isFlying]);
 
-  const handleCrash = (finalMultiplier: number) => {
-    setIsFlying(false);
-    setHasCrashed(true);
-    setGamePhase('crashed');
-    setHistory(prev => [Number(finalMultiplier.toFixed(2)), ...prev.slice(0, 19)]);
-    
-    // Add to my bet history if a bet was placed
-    if (isBetPlaced) {
-      setBetHistory(prev => [
-        {
-          multiplier: isCashedOut ? cashOutMultiplier : Number(finalMultiplier.toFixed(2)),
-          amount: betAmount,
-          win: isCashedOut ? betAmount * cashOutMultiplier : 0,
-          isWin: isCashedOut
-        },
-        ...prev.slice(0, 9)
-      ]);
-    }
-
-    setIsBetPlaced(false);
-    
-    // Start next round after 3 seconds
-    roundTimeoutRef.current = setTimeout(startNewRound, 3000);
-  };
-
   const placeBet = React.useCallback(() => {
     if (gamePhase !== 'betting' || userBalance < betAmount || isBetPlaced || betAmount <= 0) return;
     onBalanceUpdate(userBalance - betAmount);
     setIsBetPlaced(true);
     setJustPlacedBet(true);
     setTimeout(() => setJustPlacedBet(false), 1000);
+
+    // Update turnover in database
+    if (auth.currentUser) {
+      updateTurnover(auth.currentUser.uid, betAmount);
+    }
   }, [gamePhase, userBalance, betAmount, isBetPlaced, onBalanceUpdate]);
 
   const cashOut = React.useCallback(() => {
@@ -196,6 +150,16 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
     setIsBetPlaced(false);
     setCashOutMultiplier(multiplier);
     onBalanceUpdate(userBalance + winAmount);
+
+    setBetHistory(prev => [
+      {
+        multiplier: multiplier,
+        amount: betAmount,
+        win: winAmount,
+        isWin: true
+      },
+      ...prev.slice(0, 9)
+    ]);
 
     // Auto-hide cashout popup after 2 seconds
     setTimeout(() => {
@@ -215,11 +179,28 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
     }
   }, [multiplier, isAutoCashOut, isBetPlaced, isCashedOut, isFlying, autoCashOutValue, cashOut]);
 
+  // Handle crash for bet history
+  useEffect(() => {
+    if (gamePhase === 'crashed' && isBetPlaced && !isCashedOut) {
+      setBetHistory(prev => [
+        {
+          multiplier: multiplier,
+          amount: betAmount,
+          win: 0,
+          isWin: false
+        },
+        ...prev.slice(0, 9)
+      ]);
+      setIsBetPlaced(false);
+    }
+  }, [gamePhase, isBetPlaced, isCashedOut, multiplier, betAmount]);
+
   return (
     <div 
       className="fixed inset-0 z-[100] bg-[#0b0b0b] flex flex-col max-w-md mx-auto font-sans overflow-hidden select-none min-h-[100dvh] safe-top safe-bottom"
       onContextMenu={(e) => e.preventDefault()}
       onCopy={(e) => e.preventDefault()}
+      style={{ touchAction: 'none' }}
     >
       {/* Header */}
       <div className="flex items-center justify-between p-3 bg-[#1b1b1b] border-b border-white/5">
@@ -589,68 +570,6 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
             )}
           </div>
         )}
-
-        {/* Live Players List (Sidebar) */}
-        <div className={`absolute left-2 top-20 bottom-32 w-24 bg-black/40 backdrop-blur-md rounded-xl border border-white/5 p-2 overflow-hidden z-30 transition-all duration-1000 ${isFlying ? 'blur-[0.5px]' : ''}`}>
-          <div className="flex items-center gap-1 mb-2 border-b border-white/10 pb-1">
-            <Users size={10} className="text-gray-500" />
-            <span className="text-[8px] text-gray-400 font-bold uppercase">All Bets</span>
-          </div>
-          <div className="space-y-1.5 overflow-y-auto h-full no-scrollbar pb-4">
-            <AnimatePresence>
-              {liveBets.map((bet, i) => (
-                <motion.div 
-                  key={bet.id} 
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.05, duration: 0.3 }}
-                  className={`flex flex-col gap-0.5 p-1 rounded transition-colors ${bet.cashedOut ? 'bg-green-500/10 border border-green-500/20' : 'border border-transparent'}`}
-                >
-                  <div className="flex justify-between items-center">
-                    <span className="text-[8px] text-gray-500">{bet.name}</span>
-                    <span className="text-[8px] text-white font-bold">৳{bet.amount}</span>
-                  </div>
-                  {bet.cashedOut && bet.cashOutMultiplier && (
-                    <motion.div 
-                      initial={{ opacity: 0, scale: 0.5 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className="text-[7px] text-green-400 font-bold"
-                    >
-                      {bet.cashOutMultiplier.toFixed(2)}x
-                    </motion.div>
-                  )}
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
-        </div>
-
-        {/* My Bets History (Right Sidebar) */}
-        <div className={`absolute right-2 top-20 bottom-32 w-24 bg-black/40 backdrop-blur-md rounded-xl border border-white/5 p-2 overflow-hidden z-30 transition-all duration-1000 ${isFlying ? 'blur-[0.5px]' : ''}`}>
-          <div className="flex items-center gap-1 mb-2 border-b border-white/10 pb-1">
-            <History size={10} className="text-gray-500" />
-            <span className="text-[8px] text-gray-400 font-bold uppercase">My Bets</span>
-          </div>
-          <div className="space-y-1.5 overflow-y-auto h-full no-scrollbar pb-4">
-            {betHistory.length === 0 ? (
-              <div className="text-[7px] text-gray-600 text-center mt-4 italic">No bets yet</div>
-            ) : (
-              betHistory.map((bet, i) => (
-                <div key={i} className="flex flex-col gap-0.5 border-b border-white/5 pb-1">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[7px] text-gray-500">৳{bet.amount}</span>
-                    <span className={`text-[8px] font-black ${bet.isWin ? 'text-green-400' : 'text-red-400'}`}>
-                      {bet.isWin ? `+৳${bet.win.toFixed(0)}` : `-${bet.amount}`}
-                    </span>
-                  </div>
-                  <div className={`text-[7px] font-bold ${bet.isWin ? 'text-green-500' : 'text-red-500'}`}>
-                    {bet.multiplier.toFixed(2)}x
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
       </div>
 
       {/* Betting Controls */}

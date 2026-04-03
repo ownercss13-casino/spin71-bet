@@ -193,6 +193,70 @@
           "description": "Total number of users registered"
         }
       }
+    },
+    "GameSession": {
+      "title": "GameSession",
+      "description": "Shared state for a live game session",
+      "type": "object",
+      "properties": {
+        "gameId": { "type": "string" },
+        "multiplier": { "type": "number" },
+        "status": { "type": "string", "enum": ["waiting", "running", "crashed"] },
+        "crashPoint": { "type": "number" },
+        "startTime": { "type": "string", "format": "date-time" },
+        "lastUpdate": { "type": "string", "format": "date-time" },
+        "history": { "type": "array", "items": { "type": "number" } }
+      },
+      "required": ["gameId", "multiplier", "status", "lastUpdate"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "In-app notification for the user",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Notification title"
+        },
+        "message": {
+          "type": "string",
+          "description": "Notification message body"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["bonus", "promotion", "account", "system"],
+          "description": "Type of notification"
+        },
+        "read": {
+          "type": "boolean",
+          "description": "Whether the notification has been read"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the notification was created"
+        },
+        "actionUrl": {
+          "type": "string",
+          "description": "Optional URL to navigate to when clicked"
+        }
+      },
+      "required": ["title", "message", "type", "read", "createdAt"]
+    },
+    "GlobalConfig": {
+      "title": "GlobalConfig",
+      "description": "Global system-wide configuration settings",
+      "type": "object",
+      "properties": {
+        "game_logos": {
+          "type": "object",
+          "description": "Map of game IDs to their global logo URLs"
+        },
+        "game_names": {
+          "type": "object",
+          "description": "Map of game IDs to their global names"
+        }
+      }
     }
   },
   "firestore": {
@@ -212,9 +276,21 @@
       "schema": "Referral",
       "description": "Collection of users referred by this agent"
     },
+    "/users/{userId}/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Collection of notifications for a specific user"
+    },
     "/metadata/users": {
       "schema": "Metadata",
       "description": "Document containing the user counter"
+    },
+    "/game_sessions/{gameId}": {
+      "schema": "GameSession",
+      "description": "Shared state for a specific game (e.g., aviator)"
+    },
+    "/global_config/{configId}": {
+      "schema": "GlobalConfig",
+      "description": "Global configuration settings accessible to all users"
     }
   }
 }

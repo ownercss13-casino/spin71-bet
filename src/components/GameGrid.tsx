@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Star, Plane as PlaneIcon, Info } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Star, Plane as PlaneIcon, Info, Camera, Edit2 } from 'lucide-react';
 import { GAME_IMAGES } from '../constants/gameAssets';
 
 export interface Game {
@@ -10,6 +10,7 @@ export interface Game {
   category: string;
   isHot?: boolean;
   isFavorite?: boolean;
+  isVIP?: boolean;
   bgColor?: string;
   providerColor?: string;
 }
@@ -22,6 +23,7 @@ export const games: Game[] = [
     image: GAME_IMAGES.CRASH_GAME,
     category: 'সেরা',
     isHot: true,
+    isVIP: true,
     bgColor: 'from-gray-800 to-red-900',
     providerColor: 'text-white'
   },
@@ -32,6 +34,7 @@ export const games: Game[] = [
     image: GAME_IMAGES.SUPER_ACE,
     category: 'সেরা',
     isHot: true,
+    isVIP: true,
     bgColor: 'from-yellow-600 to-green-600',
     providerColor: 'text-yellow-300'
   },
@@ -42,6 +45,7 @@ export const games: Game[] = [
     image: GAME_IMAGES.SUPER_ACE_2,
     category: 'সেরা',
     isHot: true,
+    isVIP: true,
     bgColor: 'from-orange-600 to-red-700',
     providerColor: 'text-yellow-300'
   },
@@ -52,6 +56,7 @@ export const games: Game[] = [
     image: GAME_IMAGES.WG_PLANE,
     category: 'সেরা',
     isHot: true,
+    isVIP: true,
     bgColor: 'from-gray-800 to-gray-900',
     providerColor: 'text-green-400'
   },
@@ -339,6 +344,138 @@ export const games: Game[] = [
     isHot: true,
     bgColor: 'from-green-600 to-teal-800',
     providerColor: 'text-green-200'
+  },
+  {
+    id: 'jili1',
+    name: 'গোল্ডেন এম্পায়ার',
+    provider: 'JILI',
+    image: 'https://picsum.photos/seed/goldenempire/400/600',
+    category: 'স্লট',
+    isHot: true,
+    bgColor: 'from-yellow-600 to-yellow-900',
+    providerColor: 'text-yellow-400'
+  },
+  {
+    id: 'jili2',
+    name: 'ফরচুন জেমস',
+    provider: 'JILI',
+    image: 'https://picsum.photos/seed/fortunegems/400/600',
+    category: 'স্লট',
+    isHot: true,
+    bgColor: 'from-purple-600 to-pink-900',
+    providerColor: 'text-pink-300'
+  },
+  {
+    id: 'jili3',
+    name: 'মানি কামিং',
+    provider: 'JILI',
+    image: 'https://picsum.photos/seed/moneycoming/400/600',
+    category: 'স্লট',
+    bgColor: 'from-green-600 to-green-900',
+    providerColor: 'text-green-300'
+  },
+  {
+    id: 'jili4',
+    name: 'আলী বাবা',
+    provider: 'JILI',
+    image: 'https://picsum.photos/seed/alibaba/400/600',
+    category: 'স্লট',
+    bgColor: 'from-orange-600 to-red-900',
+    providerColor: 'text-orange-300'
+  },
+  {
+    id: 'pg1',
+    name: 'মাজং ওয়েজ ২',
+    provider: 'PG',
+    image: 'https://picsum.photos/seed/mahjongways2/400/600',
+    category: 'স্লট',
+    isHot: true,
+    bgColor: 'from-red-600 to-red-900',
+    providerColor: 'text-red-300'
+  },
+  {
+    id: 'pg2',
+    name: 'ট্রেজার অফ অ্যাজটেক',
+    provider: 'PG',
+    image: 'https://picsum.photos/seed/treasuresofaztec/400/600',
+    category: 'স্লট',
+    isHot: true,
+    bgColor: 'from-yellow-600 to-green-900',
+    providerColor: 'text-yellow-300'
+  },
+  {
+    id: 'pg3',
+    name: 'লাকি নেকো',
+    provider: 'PG',
+    image: 'https://picsum.photos/seed/luckyneko/400/600',
+    category: 'স্লট',
+    bgColor: 'from-pink-600 to-purple-900',
+    providerColor: 'text-pink-300'
+  },
+  {
+    id: 'pg4',
+    name: 'ওয়েজ অফ দ্য কিলিন',
+    provider: 'PG',
+    image: 'https://picsum.photos/seed/waysoftheqilin/400/600',
+    category: 'স্লট',
+    bgColor: 'from-green-500 to-teal-900',
+    providerColor: 'text-green-300'
+  },
+  {
+    id: 'pg5',
+    name: 'ওয়াইল্ড ব্যান্ডিটো',
+    provider: 'PG',
+    image: 'https://picsum.photos/seed/wildbandito/400/600',
+    category: 'স্লট',
+    bgColor: 'from-orange-500 to-yellow-900',
+    providerColor: 'text-orange-300'
+  },
+  {
+    id: 'pg6',
+    name: 'ফরচুন টাইগার',
+    provider: 'PG',
+    image: 'https://picsum.photos/seed/fortunetiger/400/600',
+    category: 'স্লট',
+    isHot: true,
+    bgColor: 'from-red-600 to-orange-900',
+    providerColor: 'text-yellow-300'
+  },
+  {
+    id: 'pg7',
+    name: 'ফরচুন মাউস',
+    provider: 'PG',
+    image: 'https://picsum.photos/seed/fortunemouse/400/600',
+    category: 'স্লট',
+    bgColor: 'from-red-500 to-red-800',
+    providerColor: 'text-yellow-200'
+  },
+  {
+    id: 'pg8',
+    name: 'ফরচুন অক্স',
+    provider: 'PG',
+    image: 'https://picsum.photos/seed/fortuneox/400/600',
+    category: 'স্লট',
+    bgColor: 'from-yellow-500 to-red-700',
+    providerColor: 'text-yellow-400'
+  },
+  {
+    id: 'pg9',
+    name: 'ড্রাগন হ্যাচ',
+    provider: 'PG',
+    image: 'https://picsum.photos/seed/dragonhatch/400/600',
+    category: 'স্লট',
+    isHot: true,
+    bgColor: 'from-orange-600 to-red-900',
+    providerColor: 'text-orange-300'
+  },
+  {
+    id: 'pg10',
+    name: 'গণেশা গোল্ড',
+    provider: 'PG',
+    image: 'https://picsum.photos/seed/ganeshagold/400/600',
+    category: 'স্লট',
+    bgColor: 'from-yellow-400 to-yellow-700',
+    providerColor: 'text-yellow-100'
   }
 ];
 
@@ -361,19 +498,49 @@ interface GameCardProps {
   onSelect: (game: Game) => void;
   onToggleFavorite: (e: React.MouseEvent, gameId: string) => void;
   onShowDetails: (e: React.MouseEvent, game: Game) => void;
+  globalLogo?: string;
+  onLogoChange?: (gameId: string, newLogo: string) => void;
+  globalName?: string;
+  onNameChange?: (gameId: string, newName: string) => void;
 }
 
-const GameCard: React.FC<GameCardProps> = ({ game, isFavorite, onSelect, onToggleFavorite, onShowDetails }) => {
+const GameCard: React.FC<GameCardProps> = ({ game, isFavorite, onSelect, onToggleFavorite, onShowDetails, globalLogo, onLogoChange, globalName, onNameChange }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editNameValue, setEditNameValue] = useState(globalName || game.name);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const isAviator = game.provider === 'SPRIBE' && game.id === '1';
   
-  const displayImage = game.image || `https://picsum.photos/seed/${game.id}/400/600`;
+  const displayImage = globalLogo || game.image || `https://picsum.photos/seed/${game.id}/400/600`;
+
+  useEffect(() => {
+    setEditNameValue(globalName || game.name);
+  }, [globalName, game.name]);
+
+  const handleNameSubmit = () => {
+    setIsEditingName(false);
+    if (editNameValue.trim() !== (globalName || game.name) && onNameChange) {
+      onNameChange(game.id, editNameValue.trim());
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onLogoChange) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        onLogoChange(game.id, base64String);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   return (
     <div 
       onClick={() => onSelect(game)}
-      className={`rounded-xl overflow-hidden relative aspect-[3/4] bg-gradient-to-b ${game.bgColor || 'from-gray-800 to-gray-900'} shadow-md group cursor-pointer border border-white/10 transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_20px_30px_rgba(0,0,0,0.5),0_0_15px_rgba(255,255,255,0.1)] hover:border-white/30`}
+      className={`rounded-xl overflow-hidden relative aspect-square bg-gradient-to-b ${game.bgColor || 'from-gray-800 to-gray-900'} shadow-md group cursor-pointer border border-white/10 transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_20px_30px_rgba(0,0,0,0.5),0_0_15px_rgba(255,255,255,0.1)] hover:border-white/30`}
     >
       {/* Skeleton Loader */}
       {!imageLoaded && !imageError && (
@@ -407,7 +574,12 @@ const GameCard: React.FC<GameCardProps> = ({ game, isFavorite, onSelect, onToggl
           HOT
         </div>
       )}
-      {isAviator && (
+      {game.isVIP && (
+        <div className="absolute top-1.5 left-1.5 bg-gradient-to-r from-yellow-400 via-yellow-200 to-yellow-500 text-black text-[9px] font-black px-1.5 py-0.5 rounded italic shadow-[0_0_10px_rgba(234,179,8,0.5)] z-30 border border-yellow-600 animate-pulse">
+          VIP
+        </div>
+      )}
+      {isAviator && !game.isVIP && (
         <div className="absolute top-1.5 left-1.5 bg-gradient-to-r from-yellow-400 via-yellow-200 to-yellow-500 text-black text-[9px] font-black px-1.5 py-0.5 rounded italic shadow-[0_0_10px_rgba(234,179,8,0.5)] z-30 border border-yellow-600 animate-pulse">
           VIP
         </div>
@@ -426,6 +598,26 @@ const GameCard: React.FC<GameCardProps> = ({ game, isFavorite, onSelect, onToggl
       >
         <Info size={14} className="text-white" />
       </div>
+
+      {/* Change Logo Button */}
+      {onLogoChange && (
+        <div 
+          onClick={(e) => {
+            e.stopPropagation();
+            fileInputRef.current?.click();
+          }}
+          className="absolute bottom-10 left-1.5 bg-yellow-500/40 rounded-full p-1.5 backdrop-blur-sm z-30 group-hover:bg-yellow-500/80 transition-all hover:scale-110 active:scale-90"
+        >
+          <Camera size={14} className="text-white" />
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleFileChange} 
+            className="hidden" 
+            accept="image/*" 
+          />
+        </div>
+      )}
 
       {game.id === '5' && (
         <div className="absolute inset-0 flex items-center justify-center">
@@ -466,10 +658,36 @@ const GameCard: React.FC<GameCardProps> = ({ game, isFavorite, onSelect, onToggl
           </div>
         </div>
       )}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent pt-8 pb-2 px-1 text-center z-20">
-        <span className="text-xs font-bold text-white drop-shadow-md group-hover:text-yellow-400 transition-colors">
-          {game.name}
-        </span>
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent pt-8 pb-2 px-1 flex items-center justify-center gap-1 z-20">
+        {isEditingName ? (
+          <input
+            type="text"
+            value={editNameValue}
+            onChange={(e) => setEditNameValue(e.target.value)}
+            onBlur={handleNameSubmit}
+            onKeyDown={(e) => e.key === 'Enter' && handleNameSubmit()}
+            onClick={(e) => e.stopPropagation()}
+            autoFocus
+            className="text-xs font-bold text-black text-center w-3/4 rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-yellow-500"
+          />
+        ) : (
+          <>
+            <span className="text-xs font-bold text-white drop-shadow-md group-hover:text-yellow-400 transition-colors truncate max-w-[80%]">
+              {globalName || game.name}
+            </span>
+            {onNameChange && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsEditingName(true);
+                }}
+                className="text-gray-400 hover:text-white p-1 z-30 bg-black/40 rounded-full backdrop-blur-sm"
+              >
+                <Edit2 size={10} />
+              </button>
+            )}
+          </>
+        )}
       </div>
       {/* Hover Glow Effect */}
       <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/0 to-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
@@ -483,9 +701,13 @@ interface GameGridProps {
   onGameSelect: (game: Game) => void;
   favorites: string[];
   onToggleFavorite: (gameId: string) => void;
+  globalLogos?: Record<string, string>;
+  onGameLogoChange?: (gameId: string, newLogo: string) => void;
+  globalNames?: Record<string, string>;
+  onGameNameChange?: (gameId: string, newName: string) => void;
 }
 
-export const GameGrid: React.FC<GameGridProps> = ({ category, searchQuery = "", onGameSelect, favorites, onToggleFavorite }) => {
+export const GameGrid: React.FC<GameGridProps> = ({ category, searchQuery = "", onGameSelect, favorites, onToggleFavorite, globalLogos = {}, onGameLogoChange, globalNames = {}, onGameNameChange }) => {
   const [selectedProvider, setSelectedProvider] = useState<string>('ALL');
   const [selectedGameForDetails, setSelectedGameForDetails] = useState<Game | null>(null);
   const [loading, setLoading] = useState(false);
@@ -545,7 +767,7 @@ export const GameGrid: React.FC<GameGridProps> = ({ category, searchQuery = "", 
       <div className="grid grid-cols-3 gap-2">
         {loading ? (
           [...Array(9)].map((_, i) => (
-            <div key={i} className="aspect-[3/4] rounded-xl bg-gray-800 animate-pulse shadow-md"></div>
+            <div key={i} className="aspect-square rounded-xl bg-gray-800 animate-pulse shadow-md"></div>
           ))
         ) : filteredGames.length > 0 ? (
           filteredGames.map(game => (
@@ -556,6 +778,10 @@ export const GameGrid: React.FC<GameGridProps> = ({ category, searchQuery = "", 
               onSelect={onGameSelect} 
               onToggleFavorite={toggleFavorite}
               onShowDetails={handleShowDetails}
+              globalLogo={globalLogos[game.id]}
+              onLogoChange={onGameLogoChange}
+              globalName={globalNames[game.id]}
+              onNameChange={onGameNameChange}
             />
           ))
         ) : (

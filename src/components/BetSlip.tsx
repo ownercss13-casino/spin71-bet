@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Wallet, Ticket, Check, AlertCircle, Loader2 } from 'lucide-react';
-import { updateBalance } from '../services/firebaseService';
+import { updateBalance, updateTurnover } from '../services/firebaseService';
 import { db, auth } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
@@ -73,6 +73,9 @@ export default function BetSlip({
 
       // Update user balance in database
       await updateBalance(auth.currentUser.uid, newBalance);
+      
+      // Update turnover in database
+      await updateTurnover(auth.currentUser.uid, betAmount);
       
       setIsConfirmed(true);
       showToast("Bet placed successfully!", "success");

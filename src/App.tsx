@@ -13,10 +13,11 @@ import SupportChat from "./components/SupportChat";
 import SlotGame from "./components/SlotGame";
 import BetSlip from "./components/BetSlip";
 import PermissionManager from "./components/PermissionManager";
+import NotificationCenter from "./components/NotificationCenter";
 import { GameGrid, Game } from "./components/GameGrid";
 import { CasinoGallery } from "./components/CasinoGallery";
 import { GAME_IMAGES } from "./constants/gameAssets";
-import { saveItem, getSavedItems, removeItem, updateUserProfile, updateFavorites, updateBalance } from './services/firebaseService';
+import { saveItem, getSavedItems, removeItem, updateUserProfile, updateFavorites, updateBalance, updateGlobalGameLogo, updateGlobalGameName } from './services/firebaseService';
 import { ToastContainer, ToastType } from "./components/Toast";
 import {
   AlertCircle,
@@ -73,6 +74,8 @@ export default function App() {
   const [showDepositRequired, setShowDepositRequired] = useState(false);
 
   const [isTabLoading, setIsTabLoading] = useState(false);
+  const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
 
   const handleTabChange = (tab: any) => {
     if (tab === activeTab) return;
@@ -84,11 +87,6 @@ export default function App() {
   };
 
   const handleGameSelect = (game: Game | null) => {
-    if (game && !userData?.hasMadeDeposit) {
-      setShowDepositRequired(true);
-      showToast("গেম খেলতে ডিপোজিট আবশ্যক! (Deposit Required!)", "warning");
-      return;
-    }
     setSelectedGame(game);
   };
 
@@ -148,6 +146,31 @@ export default function App() {
       updateFavorites(userData.id, favorites);
     }
   }, [favorites, isLoggedIn, userData?.id]);
+
+  useEffect(() => {
+    if (!userData?.id || !isLoggedIn) return;
+
+    const path = `users/${userData.id}/notifications`;
+    const q = query(collection(db, path), where('read', '==', false));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setUnreadNotificationsCount(snapshot.size);
+      
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === "added") {
+          const data = change.doc.data();
+          const createdAt = data.createdAt?.toDate();
+          if (createdAt && (new Date().getTime() - createdAt.getTime() < 10000)) {
+            showToast(data.title, "info");
+          }
+        }
+      });
+    }, (error) => {
+      console.error("Notification listener error:", error);
+    });
+
+    return () => unsubscribe();
+  }, [userData?.id, isLoggedIn]);
   const [balance, setBalance] = useState(24590.50);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -156,6 +179,8 @@ export default function App() {
   const [showRegistrationSuccess, setShowRegistrationSuccess] = useState(false);
   const [showLogoPreview, setShowLogoPreview] = useState(false);
   const [aviatorLogo, setAviatorLogo] = useState<string | null>('https://storage.googleapis.com/genai-studio-user-uploads/projects/ais-dev-wxllhxlbpwpt7cv6zg665n/uploads/1743526563604-image.png');
+  const [globalLogos, setGlobalLogos] = useState<Record<string, string>>({});
+  const [globalNames, setGlobalNames] = useState<Record<string, string>>({});
   const [toasts, setToasts] = useState<{ id: string; message: string; type: ToastType }[]>([]);
 
   // Referral tracking
@@ -165,6 +190,34 @@ export default function App() {
     if (ref) {
       localStorage.setItem('referralCode', ref);
     }
+  }, []);
+
+  useEffect(() => {
+    const path = `global_config/game_logos`;
+    const unsubscribe = onSnapshot(doc(db, path), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setGlobalLogos(data as Record<string, string>);
+      }
+    }, (error) => {
+      console.error("Global logo listener error:", error);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const path = `global_config/game_names`;
+    const unsubscribe = onSnapshot(doc(db, path), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setGlobalNames(data as Record<string, string>);
+      }
+    }, (error) => {
+      console.error("Global name listener error:", error);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const showToast = (message: string, type: ToastType = 'info') => {
@@ -245,7 +298,8 @@ export default function App() {
                 isGmailLinked: false,
                 favorites: [],
                 vipLevel: 1,
-                vipProgress: 0
+                vipProgress: 0,
+                profilePictureUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`
               };
               
               if (referredBy) {
@@ -625,6 +679,19 @@ export default function App() {
             </button>
             <span className="absolute -bottom-1 -right-1 bg-red-600 text-white text-[7px] font-bold px-1 rounded-full border border-white animate-bounce">REAL</span>
           </div>
+          <div className="relative">
+            <button 
+              onClick={() => setIsNotificationCenterOpen(true)}
+              className="p-1 text-teal-50 hover:text-white transition-colors relative"
+            >
+              <Bell size={22} />
+              {unreadNotificationsCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 bg-red-600 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-[#16a374] animate-pulse">
+                  {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+                </span>
+              )}
+            </button>
+          </div>
           <Search size={22} className="text-teal-50" />
         </div>
       </header>
@@ -632,9 +699,13 @@ export default function App() {
       {/* User Info Bar */}
       <div className="bg-[#128a61]/50 px-4 py-2 flex items-center justify-between border-b border-teal-700/30 backdrop-blur-sm sticky top-[52px] z-30">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-400 to-yellow-600 p-0.5 shadow-lg">
-            <div className="w-full h-full bg-[#16a374] rounded-full flex items-center justify-center border-2 border-white">
-              <User size={14} className="text-white" />
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-400 to-yellow-600 p-0.5 shadow-lg overflow-hidden">
+            <div className="w-full h-full bg-[#16a374] rounded-full flex items-center justify-center border-2 border-white overflow-hidden">
+              {userData?.profilePictureUrl ? (
+                <img src={userData.profilePictureUrl} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <User size={14} className="text-white" />
+              )}
             </div>
           </div>
           <div className="flex flex-col">
@@ -864,18 +935,53 @@ export default function App() {
           onGameSelect={handleGameSelect} 
           favorites={favorites}
           onToggleFavorite={handleToggleFavorite}
+          globalLogos={globalLogos}
+          globalNames={globalNames}
+          onGameLogoChange={async (gameId, newLogo) => {
+            if (userData?.id) {
+              try {
+                await updateGlobalGameLogo(gameId, newLogo);
+                showToast("গেম কভার সফলভাবে আপডেট করা হয়েছে এবং সবার জন্য সেভ হয়েছে", "success");
+              } catch (err) {
+                console.error("Failed to update global logo:", err);
+                showToast("কভার আপডেট করতে সমস্যা হয়েছে", "error");
+              }
+            }
+          }}
+          onGameNameChange={async (gameId, newName) => {
+            if (userData?.id) {
+              try {
+                await updateGlobalGameName(gameId, newName);
+                showToast("গেমের নাম সফলভাবে আপডেট করা হয়েছে", "success");
+              } catch (err) {
+                console.error("Failed to update global name:", err);
+                showToast("নাম আপডেট করতে সমস্যা হয়েছে", "error");
+              }
+            }
+          }}
         />
       </div>
 
       {/* Game Play Modal */}
-      {selectedGame && selectedGame.id === '1' ? (
+      {selectedGame && (selectedGame.id === '1' || selectedGame.provider === 'CRASH') ? (
         <AviatorGame 
           onClose={() => handleGameSelect(null)} 
           userBalance={userData?.balance || 0}
           onBalanceUpdate={(newBalance) => {
             if (userData?.id) updateBalance(userData.id, newBalance);
           }}
-          logo={aviatorLogo}
+          logo={globalLogos.aviator || aviatorLogo}
+          onLogoChange={async (newLogo) => {
+            if (userData?.id) {
+              try {
+                await updateGlobalGameLogo('aviator', newLogo);
+                showToast("গেম লোগো সফলভাবে আপডেট করা হয়েছে এবং সবার জন্য সেভ হয়েছে", "success");
+              } catch (err) {
+                console.error("Failed to update global logo:", err);
+                showToast("লোগো আপডেট করতে সমস্যা হয়েছে", "error");
+              }
+            }
+          }}
         />
       ) : selectedGame && selectedGame.category === 'স্লট' ? (
         <SlotGame 
@@ -993,8 +1099,12 @@ export default function App() {
                 </button>
               </div>
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-teal-800 border-2 border-yellow-500 flex items-center justify-center">
-                  <User size={24} className="text-white" />
+                <div className="w-12 h-12 rounded-full bg-teal-800 border-2 border-yellow-500 flex items-center justify-center overflow-hidden">
+                  {userData?.profilePictureUrl ? (
+                    <img src={userData.profilePictureUrl} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <User size={24} className="text-white" />
+                  )}
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
@@ -1097,6 +1207,18 @@ export default function App() {
 
       {/* Support Chat */}
       <SupportChat isOpen={isSupportChatOpen} onClose={() => setIsSupportChatOpen(false)} userData={userData} />
+
+      {/* Notification Center */}
+      <NotificationCenter 
+        isOpen={isNotificationCenterOpen} 
+        onClose={() => setIsNotificationCenterOpen(false)} 
+        userData={userData}
+        onAction={(url) => {
+          if (url.startsWith('tab:')) {
+            handleTabChange(url.split(':')[1] as any);
+          }
+        }}
+      />
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} removeToast={removeToast} />

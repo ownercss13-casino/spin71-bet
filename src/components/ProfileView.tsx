@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import AdminPanel from './AdminPanel';
+import { motion } from 'motion/react';
 import AgentPanel from './AgentPanel';
 import SupportChat from "./SupportChat";
-import { updateUserProfile } from '../services/firebaseService';
+import { updateUserProfile, addNotification } from '../services/firebaseService';
 import { auth, googleProvider, db, handleFirestoreError, OperationType } from '../firebase';
 import { linkWithPopup, unlink, FacebookAuthProvider } from 'firebase/auth';
 import {
@@ -79,7 +79,7 @@ const fetcher = (url: string) => fetch(url).then(res => {
 import { ToastType } from "./Toast";
 
 export default function ProfileView({ onTabChange, balance, userData, onLogout, showToast }: { onTabChange: (tab: any) => void, balance: number, userData: any, onLogout: () => void, showToast: (msg: string, type?: ToastType) => void }) {
-  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'profile' | 'history' | 'settings' | 'withdraw' | 'links'>('overview');
+  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'profile' | 'history' | 'withdraw' | 'links'>('overview');
   const [isTabLoading, setIsTabLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [profilePic, setProfilePic] = useState<string | null>(userData?.profilePictureUrl || null);
@@ -89,10 +89,7 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
   const [editUsername, setEditUsername] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
-  const [showAdminLogin, setShowAdminLogin] = useState(false);
-  const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [showAgentPanel, setShowAgentPanel] = useState(false);
-  const [adminPassword, setAdminPassword] = useState("");
 
   const [totals, setTotals] = useState({
     deposit: 0,
@@ -134,7 +131,7 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
     return () => unsubscribe();
   }, []);
 
-  const handleSubTabChange = (tab: 'overview' | 'profile' | 'history' | 'settings' | 'withdraw' | 'links') => {
+  const handleSubTabChange = (tab: 'overview' | 'profile' | 'history' | 'withdraw' | 'links') => {
     if (tab === activeSubTab) return;
     setIsTabLoading(true);
     setTimeout(() => {
@@ -180,15 +177,59 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
   const handleProfilePicChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Check file size (limit to 5MB before processing)
+      if (file.size > 5 * 1024 * 1024) {
+        showToast("ছবিটি ৫ মেগাবাইটের কম হতে হবে", "error");
+        return;
+      }
+
       const reader = new FileReader();
       reader.onloadend = async () => {
-        const base64String = reader.result as string;
-        setProfilePic(base64String);
-        // Update Firestore
-        const userId = userData?.id;
-        if (userId) {
-          await updateUserProfile(userId, { profilePictureUrl: base64String });
-        }
+        const img = new Image();
+        img.src = reader.result as string;
+        img.onload = async () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 400;
+          const MAX_HEIGHT = 400;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+          setProfilePic(compressedBase64);
+          
+          const userId = userData?.id;
+          if (userId) {
+            try {
+              await updateUserProfile(userId, { profilePictureUrl: compressedBase64 });
+              await addNotification(userId, {
+                title: "প্রোফাইল ছবি আপডেট!",
+                message: "আপনার প্রোফাইল ছবি সফলভাবে পরিবর্তন করা হয়েছে।",
+                type: "account"
+              });
+              showToast("প্রোফাইল ছবি সফলভাবে আপডেট করা হয়েছে", "success");
+            } catch (error) {
+              console.error("Error updating profile picture:", error);
+              showToast("ছবি আপডেট করতে সমস্যা হয়েছে", "error");
+            }
+          }
+        };
       };
       reader.readAsDataURL(file);
     }
@@ -288,12 +329,6 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
         >
           আমার লিংক
         </button>
-        <button 
-          onClick={() => handleSubTabChange('settings')}
-          className={`flex-1 min-w-[80px] py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'settings' ? 'bg-yellow-500 text-black shadow-md' : 'bg-teal-800/50 text-teal-100 border border-teal-700'}`}
-        >
-          সেটিংস
-        </button>
       </div>
 
       {/* Tab Content */}
@@ -318,7 +353,6 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
             userData={userData} 
             onEditProfile={handleOpenEditProfile}
             totals={totals}
-            setShowAdminLogin={setShowAdminLogin}
             setShowAgentPanel={setShowAgentPanel}
           />
         )}
@@ -329,20 +363,14 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
             onEditProfile={handleOpenEditProfile} 
             onEditProfilePic={() => fileInputRef.current?.click()}
             profilePic={profilePic}
+            onLogout={onLogout}
+            showToast={showToast}
           />
         )}
         {activeSubTab === 'history' && <HistoryTab email={profileData?.email} />}
         {activeSubTab === 'links' && <LinksTab onTabChange={onTabChange} onSubTabChange={handleSubTabChange} showToast={showToast} />}
-        {activeSubTab === 'withdraw' && <WithdrawTab onBack={() => handleSubTabChange('overview')} balance={balance} showToast={showToast} />}
-        {activeSubTab === 'settings' && <SettingsTab profileData={profileData} onLogout={onLogout} onEditProfile={handleOpenEditProfile} showToast={showToast} />}
+        {activeSubTab === 'withdraw' && <WithdrawTab onBack={() => handleSubTabChange('overview')} balance={balance} showToast={showToast} userData={userData} />}
       </div>
-
-      {/* Admin Panel */}
-      {showAdminPanel && (
-        <div className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-6 overflow-y-auto">
-          <AdminPanel onBack={() => setShowAdminPanel(false)} showToast={showToast} />
-        </div>
-      )}
 
       {/* Agent Panel */}
       {showAgentPanel && (
@@ -351,43 +379,6 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
         </div>
       )}
 
-      {/* Admin Login Modal */}
-      {showAdminLogin && (
-        <div className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-6">
-          <div className="bg-teal-900 p-8 rounded-3xl w-full max-w-sm border border-teal-700 shadow-2xl">
-            <h3 className="text-xl font-bold text-white mb-6 text-center">এডমিন লগইন</h3>
-            <input 
-              type="password"
-              value={adminPassword}
-              onChange={(e) => setAdminPassword(e.target.value)}
-              className="w-full bg-teal-950 border border-teal-700 rounded-xl px-4 py-3 text-white mb-6 focus:outline-none focus:border-yellow-500"
-              placeholder="পাসওয়ার্ড লিখুন"
-            />
-            <div className="flex gap-3">
-              <button 
-                onClick={() => {
-                  if (adminPassword === 'css13') {
-                    setShowAdminPanel(true);
-                    setShowAdminLogin(false);
-                    setAdminPassword("");
-                  } else {
-                    showToast('ভুল পাসওয়ার্ড', 'error');
-                  }
-                }}
-                className="flex-1 bg-yellow-500 text-black font-bold py-3 rounded-xl hover:bg-yellow-400 transition-colors"
-              >
-                লগইন
-              </button>
-              <button 
-                onClick={() => setShowAdminLogin(false)}
-                className="flex-1 bg-teal-800 text-white font-bold py-3 rounded-xl hover:bg-teal-700 transition-colors"
-              >
-                বাতিল
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {/* Edit Profile Modal */}
       {isEditProfileModalOpen && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
@@ -462,21 +453,69 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
   );
 }
 
-function WithdrawTab({ onBack, balance, showToast }: { onBack: () => void, balance: number, showToast: (msg: string, type?: any) => void }) {
+function WithdrawTab({ onBack, balance, showToast, userData }: { onBack: () => void, balance: number, showToast: (msg: string, type?: any) => void, userData: any }) {
   const [step, setStep] = useState(1);
   const [selectedMethod, setSelectedMethod] = useState('');
   const [amount, setAmount] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [withdrawals, setWithdrawals] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+
+  useEffect(() => {
+    if (!auth.currentUser) return;
+
+    const path = `users/${auth.currentUser.uid}/transactions`;
+    const q = query(
+      collection(db, path),
+      where('type', '==', 'withdraw'),
+      orderBy('date', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const trxData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          date: data.date instanceof Timestamp ? 
+                data.date.toDate().toLocaleString('en-GB', { 
+                  year: 'numeric', 
+                  month: '2-digit', 
+                  day: '2-digit', 
+                  hour: '2-digit', 
+                  minute: '2-digit' 
+                }).replace(/\//g, '-') : data.date
+        };
+      });
+      setWithdrawals(trxData);
+      setIsLoadingHistory(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+      setIsLoadingHistory(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const turnover = userData?.turnover || 0;
+  const requiredTurnover = (userData?.totalDeposit || 1000) * 1; // Example: 1x turnover required
+  const turnoverProgress = Math.min(100, (turnover / requiredTurnover) * 100);
 
   const methods = [
-    { id: 'bkash', name: 'bKash', icon: Smartphone },
-    { id: 'nagad', name: 'Nagad', icon: Smartphone },
-    { id: 'rocket', name: 'Rocket', icon: Smartphone },
+    { id: 'bkash', name: 'bKash', icon: Smartphone, color: 'bg-[#d12053]' },
+    { id: 'nagad', name: 'Nagad', icon: Smartphone, color: 'bg-[#f7941d]' },
+    { id: 'rocket', name: 'Rocket', icon: Smartphone, color: 'bg-[#8c3494]' },
   ];
 
   const handleWithdraw = async () => {
     const withdrawAmount = parseFloat(amount);
+    
+    if (turnover < requiredTurnover) {
+      showToast(`উত্তোলনের জন্য আরও ৳ ${(requiredTurnover - turnover).toFixed(2)} টানউভার প্রয়োজন।`, 'error');
+      return;
+    }
+
     if (isNaN(withdrawAmount) || withdrawAmount < 200) {
       showToast('সর্বনিম্ন উত্তোলন ২০০ টাকা।', 'warning');
       return;
@@ -536,74 +575,181 @@ function WithdrawTab({ onBack, balance, showToast }: { onBack: () => void, balan
         >
           <ChevronLeft size={20} />
         </button>
-        <h3 className="text-white font-bold text-lg">উত্তোলন</h3>
+        <h3 className="text-white font-bold text-lg">উত্তোলন (Withdraw)</h3>
       </div>
 
-      <div className="bg-teal-900/40 p-4 rounded-xl border border-teal-700/50 mb-4">
-        <p className="text-teal-200 text-sm">বর্তমান ব্যালেন্স</p>
-        <p className="text-2xl font-bold text-white">৳ {balance.toLocaleString()}</p>
+      {/* Turnover Progress Card */}
+      <div className="bg-black/40 p-4 rounded-2xl border border-white/5 space-y-3">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <RefreshCw size={14} className="text-teal-400" />
+            <span className="text-xs text-teal-200 font-bold uppercase tracking-wider">টানউভার (Turnover)</span>
+          </div>
+          <span className="text-[10px] text-teal-400 font-black">{turnoverProgress.toFixed(1)}%</span>
+        </div>
+        <div className="h-2 bg-white/5 rounded-full overflow-hidden border border-white/5">
+          <motion.div 
+            initial={{ width: 0 }}
+            animate={{ width: `${turnoverProgress}%` }}
+            className="h-full bg-gradient-to-r from-teal-500 to-teal-300 shadow-[0_0_10px_rgba(20,184,166,0.5)]"
+          />
+        </div>
+        <div className="flex justify-between text-[10px] font-bold">
+          <span className="text-gray-500">৳ {turnover.toLocaleString()}</span>
+          <span className="text-teal-400">লক্ষ্য: ৳ {requiredTurnover.toLocaleString()}</span>
+        </div>
+        {turnover < requiredTurnover && (
+          <div className="flex items-center gap-2 bg-yellow-500/10 p-2 rounded-lg border border-yellow-500/20">
+            <AlertTriangle size={12} className="text-yellow-500" />
+            <p className="text-[9px] text-yellow-200 leading-tight">উত্তোলনের জন্য আরও ৳ {(requiredTurnover - turnover).toFixed(2)} টানউভার প্রয়োজন।</p>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-gradient-to-br from-teal-800 to-teal-950 p-5 rounded-2xl border border-teal-700/50 shadow-xl relative overflow-hidden">
+        <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/5 rounded-full blur-2xl"></div>
+        <p className="text-teal-200 text-xs font-bold uppercase tracking-widest mb-1">বর্তমান ব্যালেন্স</p>
+        <p className="text-3xl font-black text-white italic tracking-tight">৳ {balance.toLocaleString()}</p>
       </div>
 
       {step === 1 ? (
         <>
-          <h4 className="text-white font-bold mb-2">পদ্ধতি নির্বাচন করুন</h4>
+          <h4 className="text-white font-bold mb-3 flex items-center gap-2">
+            <CreditCard size={18} className="text-yellow-500" />
+            পদ্ধতি নির্বাচন করুন
+          </h4>
           <div className="grid grid-cols-1 gap-3">
             {methods.map((method) => (
               <button 
                 key={method.id} 
                 onClick={() => { setSelectedMethod(method.id); setStep(2); }}
-                className="bg-teal-800/40 p-4 rounded-xl border border-teal-700/50 flex items-center gap-4 hover:bg-teal-700/60 transition-all"
+                className="bg-teal-900/40 p-4 rounded-2xl border border-teal-800/50 flex items-center justify-between hover:bg-teal-800/60 transition-all group"
               >
-                <method.icon size={24} className="text-yellow-400" />
-                <span className="text-white font-bold">{method.name}</span>
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-xl ${method.color} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform`}>
+                    <Smartphone size={24} className="text-white" />
+                  </div>
+                  <span className="text-white font-black text-lg">{method.name}</span>
+                </div>
+                <ChevronRight size={20} className="text-teal-600 group-hover:text-teal-400 transition-colors" />
               </button>
             ))}
           </div>
         </>
       ) : (
-        <div className="space-y-4">
-          <div>
-            <label className="text-teal-200 text-sm block mb-1">উত্তোলনের পরিমাণ (৳)</label>
-            <input 
-              type="number" 
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="সর্বনিম্ন ২০০"
-              className="w-full bg-teal-950 border border-teal-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-yellow-400"
-            />
-            
-            {/* Quick Amount Buttons */}
-            <div className="grid grid-cols-5 gap-2 mt-3">
-              {[100, 200, 500, 1000, 25000].map((amt) => (
-                <button
-                  key={amt}
-                  onClick={() => setAmount(amt.toString())}
-                  className="bg-teal-800/50 hover:bg-teal-700/50 text-teal-100 text-[10px] font-bold py-2 rounded-lg border border-teal-700/30 transition-all active:scale-95"
-                >
-                  {amt.toLocaleString()}
-                </button>
-              ))}
+        <div className="space-y-5 animate-in slide-in-from-right-4 duration-300">
+          <div className="bg-teal-900/20 p-4 rounded-2xl border border-teal-800/30 flex items-center gap-4">
+             <div className={`w-10 h-10 rounded-lg ${methods.find(m => m.id === selectedMethod)?.color} flex items-center justify-center`}>
+                <Smartphone size={20} className="text-white" />
+             </div>
+             <div>
+                <p className="text-[10px] text-teal-400 font-bold uppercase tracking-widest">Selected Method</p>
+                <p className="text-white font-black">{methods.find(m => m.id === selectedMethod)?.name}</p>
+             </div>
+             <button onClick={() => setStep(1)} className="ml-auto text-[10px] text-yellow-500 font-bold underline">Change</button>
+          </div>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-teal-200 text-xs font-bold uppercase tracking-widest ml-1">উত্তোলনের পরিমাণ (৳)</label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-500 font-black">৳</span>
+                <input 
+                  type="number" 
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="সর্বনিম্ন ২০০"
+                  className="w-full bg-teal-950/50 border border-teal-700 rounded-2xl pl-8 pr-4 py-4 text-white font-black focus:outline-none focus:border-yellow-500 transition-all"
+                />
+              </div>
+              
+              {/* Quick Amount Buttons */}
+              <div className="grid grid-cols-5 gap-2">
+                {[100, 200, 500, 1000, 25000].map((amt) => (
+                  <button
+                    key={amt}
+                    onClick={() => setAmount(amt.toString())}
+                    className={`py-2 rounded-xl text-[10px] font-black border transition-all active:scale-95 ${
+                      amount === amt.toString() ? 'bg-yellow-500 border-yellow-500 text-black' : 'bg-teal-900/30 border-teal-800 text-teal-300 hover:border-teal-600'
+                    }`}
+                  >
+                    {amt >= 1000 ? `${amt/1000}k` : amt}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            <div className="space-y-2">
+              <label className="text-teal-200 text-xs font-bold uppercase tracking-widest ml-1">অ্যাকাউন্ট নাম্বার</label>
+              <input 
+                type="text" 
+                value={accountNumber}
+                onChange={(e) => setAccountNumber(e.target.value)}
+                placeholder="01XXXXXXXXX"
+                className="w-full bg-teal-950/50 border border-teal-700 rounded-2xl px-4 py-4 text-white font-black focus:outline-none focus:border-yellow-500 transition-all"
+              />
+            </div>
+
+            <button 
+              onClick={handleWithdraw}
+              disabled={isSubmitting || turnover < requiredTurnover}
+              className={`w-full py-4 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95 flex justify-center items-center gap-3 ${
+                turnover < requiredTurnover ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-black shadow-yellow-500/20'
+              }`}
+            >
+              {isSubmitting ? <Loader2 size={24} className="animate-spin" /> : (
+                <>
+                  <ArrowUpRight size={20} />
+                  উত্তোলন করুন
+                </>
+              )}
+            </button>
+            
+            {turnover < requiredTurnover && (
+               <p className="text-center text-[10px] text-red-400 font-bold animate-pulse">টানউভার লক্ষ্য পূরণ করুন</p>
+            )}
           </div>
-          <div>
-            <label className="text-teal-200 text-sm block mb-1">অ্যাকাউন্ট নাম্বার ({selectedMethod.toUpperCase()})</label>
-            <input 
-              type="text" 
-              value={accountNumber}
-              onChange={(e) => setAccountNumber(e.target.value)}
-              placeholder="01XXXXXXXXX"
-              className="w-full bg-teal-950 border border-teal-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-yellow-400"
-            />
-          </div>
-          <button 
-            onClick={handleWithdraw}
-            disabled={isSubmitting}
-            className="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-black font-bold py-3 rounded-xl shadow-lg transition-all disabled:opacity-70 flex justify-center items-center gap-2"
-          >
-            {isSubmitting ? <RefreshCw size={20} className="animate-spin" /> : 'উত্তোলন করুন'}
-          </button>
         </div>
       )}
+
+      {/* Withdrawal History Section */}
+      <div className="mt-8 space-y-4">
+        <h4 className="text-white font-bold flex items-center gap-2">
+          <History size={18} className="text-teal-400" />
+          উত্তোলনের ইতিহাস
+        </h4>
+        
+        {isLoadingHistory ? (
+          <div className="flex justify-center py-8">
+            <Loader2 size={24} className="animate-spin text-teal-500" />
+          </div>
+        ) : withdrawals.length > 0 ? (
+          <div className="space-y-3">
+            {withdrawals.map((trx) => (
+              <div key={trx.id} className="bg-teal-900/20 p-4 rounded-2xl border border-teal-800/30 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-orange-500/20 text-orange-400 flex items-center justify-center">
+                    <ArrowUpRight size={18} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-white uppercase">{trx.method}</p>
+                    <p className="text-[10px] text-teal-200">{trx.date}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-white">৳{Math.abs(trx.amount).toLocaleString()}</p>
+                  <p className={`text-[10px] mt-0.5 ${trx.statusColor || 'text-yellow-500'}`}>{trx.status}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-teal-900/20 p-8 rounded-2xl border border-teal-800/30 text-center">
+            <History size={32} className="text-teal-700 mx-auto mb-2" />
+            <p className="text-teal-400 text-sm">কোনো উত্তোলনের ইতিহাস নেই</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -617,11 +763,10 @@ interface OverviewTabProps {
   userData: any;
   onEditProfile: () => void;
   totals: any;
-  setShowAdminLogin: (show: boolean) => void;
   setShowAgentPanel: (show: boolean) => void;
 }
 
-function ProfileTab({ userData, onEditProfile, onEditProfilePic, profilePic }: { userData: any, onEditProfile: () => void, onEditProfilePic: () => void, profilePic: string | null }) {
+function ProfileTab({ userData, onEditProfile, onEditProfilePic, profilePic, onLogout, showToast }: { userData: any, onEditProfile: () => void, onEditProfilePic: () => void, profilePic: string | null, onLogout: () => void, showToast: (msg: string, type?: ToastType) => void }) {
   const [isSortedAZ, setIsSortedAZ] = useState(false);
 
   const userDetails = useMemo(() => {
@@ -719,6 +864,9 @@ function ProfileTab({ userData, onEditProfile, onEditProfilePic, profilePic }: {
           ))}
         </div>
       </div>
+
+      {/* Settings Tab Content (Security Center, Linked Accounts, 2FA) */}
+      <SettingsTab profileData={userData} onLogout={onLogout} onEditProfile={onEditProfile} showToast={showToast} hideAccountDetails={true} />
     </div>
   );
 }
@@ -733,17 +881,21 @@ function OverviewTab({
   userData, 
   onEditProfile, 
   totals, 
-  setShowAdminLogin, 
   setShowAgentPanel 
 }: OverviewTabProps) {
+  const turnover = userData?.turnover || 0;
+  const requiredTurnover = (userData?.totalDeposit || 1000) * 1;
+  const turnoverProgress = Math.min(100, (turnover / requiredTurnover) * 100);
+
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
       {/* Account Balance Card */}
-      <div className="bg-gradient-to-r from-teal-700 to-teal-900 rounded-2xl p-6 border border-teal-600 shadow-xl flex items-center justify-between">
-        <div>
+      <div className="bg-gradient-to-r from-teal-700 to-teal-900 rounded-2xl p-6 border border-teal-600 shadow-xl flex items-center justify-between relative overflow-hidden">
+        <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-white/5 rounded-full blur-3xl"></div>
+        <div className="relative z-10">
           <p className="text-teal-200 text-sm font-medium">বর্তমান ব্যালেন্স</p>
           <div className="flex items-center gap-3 mt-1">
-            <h2 className="text-3xl font-bold text-white">৳ {balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h2>
+            <h2 className="text-3xl font-black text-white italic tracking-tight">৳ {balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h2>
             <button 
               onClick={onRefresh}
               className="p-1.5 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
@@ -753,17 +905,27 @@ function OverviewTab({
           </div>
         </div>
         <div 
-          className="bg-white/10 p-3 rounded-full cursor-pointer"
-          onClick={() => {
-            const count = (window as any).adminClickCount || 0;
-            (window as any).adminClickCount = count + 1;
-            if ((window as any).adminClickCount === 5) {
-              (window as any).adminClickCount = 0;
-              setShowAdminLogin(true);
-            }
-          }}
+          className="bg-white/10 p-3 rounded-full cursor-pointer relative z-10"
         >
           <Wallet size={32} className="text-yellow-400" />
+        </div>
+      </div>
+
+      {/* Turnover Progress Card */}
+      <div className="bg-teal-800/40 p-4 rounded-2xl border border-teal-700/50 space-y-3">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <RefreshCw size={14} className="text-teal-400" />
+            <span className="text-xs text-teal-200 font-bold uppercase tracking-wider">টানউভার (Turnover)</span>
+          </div>
+          <span className="text-[10px] text-teal-400 font-black">{turnoverProgress.toFixed(1)}%</span>
+        </div>
+        <div className="h-2 bg-black/30 rounded-full overflow-hidden border border-white/5">
+          <div className="h-full bg-gradient-to-r from-teal-500 to-teal-300 shadow-[0_0_10px_rgba(20,184,166,0.5)]" style={{ width: `${turnoverProgress}%` }}></div>
+        </div>
+        <div className="flex justify-between text-[10px] font-bold">
+          <span className="text-gray-400">৳ {turnover.toLocaleString()}</span>
+          <span className="text-teal-400">লক্ষ্য: ৳ {requiredTurnover.toLocaleString()}</span>
         </div>
       </div>
 
@@ -938,7 +1100,7 @@ function LinksTab({ onTabChange, onSubTabChange, showToast }: { onTabChange: (ta
     { id: 'invite', title: 'আমন্ত্রণ (Invite)', url: 'https://spin71bet.com/invite', type: 'referral', clicks: 156, lastVisited: new Date(Date.now() - 259200000).toISOString(), action: () => onTabChange('invite') },
     { id: 'profile', title: 'প্রোফাইল (Profile)', url: 'https://spin71bet.com/profile', type: 'page', clicks: 567, lastVisited: new Date().toISOString(), action: () => onTabChange('profile') },
     { id: 'history', title: 'ইতিহাস (History)', url: 'https://spin71bet.com/profile/history', type: 'page', clicks: 345, lastVisited: new Date(Date.now() - 50000000).toISOString(), action: () => onSubTabChange('history') },
-    { id: 'settings', title: 'সেটিংস (Settings)', url: 'https://spin71bet.com/profile/settings', type: 'page', clicks: 120, lastVisited: new Date(Date.now() - 400000000).toISOString(), action: () => onSubTabChange('settings') },
+    { id: 'settings', title: 'সেটিংস (Settings)', url: 'https://spin71bet.com/profile/settings', type: 'page', clicks: 120, lastVisited: new Date(Date.now() - 400000000).toISOString(), action: () => onSubTabChange('profile') },
     { id: 'telegram', title: 'টেলিগ্রাম সাপোর্ট (Support)', url: 'https://t.me/spin71bet_support', type: 'support', clicks: 89, lastVisited: new Date(Date.now() - 345600000).toISOString(), action: () => window.open('https://t.me/spin71bet_support', '_blank') },
   ]);
 
@@ -1381,7 +1543,7 @@ function HistoryTab({ email }: { email?: string }) {
   );
 }
 
-function SettingsTab({ profileData, onLogout, onEditProfile, showToast }: { profileData: any, onLogout: () => void, onEditProfile: () => void, showToast: (msg: string, type?: ToastType) => void }) {
+function SettingsTab({ profileData, onLogout, onEditProfile, showToast, hideAccountDetails }: { profileData: any, onLogout: () => void, onEditProfile: () => void, showToast: (msg: string, type?: ToastType) => void, hideAccountDetails?: boolean }) {
   const [showPassword, setShowPassword] = useState(false);
   const [is2FAEnabled, setIs2FAEnabled] = useState(false);
   const [twoFAMethod, setTwoFAMethod] = useState<'app' | 'sms'>('app');
@@ -1735,7 +1897,8 @@ function SettingsTab({ profileData, onLogout, onEditProfile, showToast }: { prof
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
       {/* Account Details Card */}
-      <div className="bg-teal-800/40 rounded-2xl p-5 border border-teal-700/50 shadow-lg mb-4">
+      {!hideAccountDetails && (
+        <div className="bg-teal-800/40 rounded-2xl p-5 border border-teal-700/50 shadow-lg mb-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Shield size={16} className="text-yellow-400" /> অ্যাকাউন্ট তথ্য (Account Details)
@@ -1788,8 +1951,9 @@ function SettingsTab({ profileData, onLogout, onEditProfile, showToast }: { prof
               </div>
             </div>
           </div>
+      )}
 
-          {/* Security Center Section */}
+      {/* Security Center Section */}
           <div className="bg-teal-800/40 rounded-xl border border-teal-700/50 overflow-hidden">
         <div className="p-3 border-b border-teal-700/50">
           <h3 className="font-bold text-white text-sm flex items-center gap-2">
