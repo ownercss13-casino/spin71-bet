@@ -36,7 +36,7 @@ export default function LogoPreview({ onClose, onSelect }: LogoPreviewProps) {
     <div className="min-h-screen bg-[#0a0a0a] p-8 flex flex-col items-center relative overflow-y-auto">
       <button 
         onClick={onClose}
-        className="absolute top-6 right-6 text-gray-500 hover:text-white p-2 bg-white/5 rounded-full"
+        className="absolute top-6 left-6 text-gray-500 hover:text-white p-2 bg-white/5 rounded-full"
       >
         <X size={24} />
       </button>

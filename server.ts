@@ -2,8 +2,16 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "8657727956:AAGjuy8q4KCG00Is62-qsuD7W_XW5rIEjNw";
+let envToken = process.env.TELEGRAM_BOT_TOKEN;
+if (envToken === "YOUR_TELEGRAM_BOT_TOKEN" || !envToken) {
+  envToken = "8608514077:AAFHK4yjhkPn1McxvI2NvBhxzPPjUyhc7Z0";
+}
+const TELEGRAM_BOT_TOKEN = envToken;
+
 let adminChatId: string | null = process.env.TELEGRAM_ADMIN_CHAT_ID || "7354725295";
+if (adminChatId === "YOUR_TELEGRAM_ADMIN_CHAT_ID") {
+  adminChatId = "7354725295";
+}
 
 // Multi-user chat history: { [userId: string]: Message[] }
 const chatHistories: Record<string, any[]> = {};
@@ -24,6 +32,20 @@ async function pollTelegramUpdates() {
   while (true) {
     try {
       const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=${offset}&timeout=30`);
+      
+      if (!res.ok) {
+        if (res.status === 401) {
+          console.error("Telegram Bot Token is invalid (401). Polling stopped. Please provide a valid token in server.ts.");
+          return; // Stop polling completely to prevent infinite error loops
+        }
+        if (res.status === 409) {
+          console.warn("Telegram polling conflict (409). Another instance might be running. Waiting...");
+          await new Promise(resolve => setTimeout(resolve, 10000));
+          continue;
+        }
+        throw new Error(`Telegram API error! status: ${res.status}`);
+      }
+      
       const data = await res.json() as any;
       
       if (data.ok && data.result.length > 0) {

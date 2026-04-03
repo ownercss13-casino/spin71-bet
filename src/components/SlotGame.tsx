@@ -101,7 +101,7 @@ export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate }
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black flex flex-col max-w-md mx-auto font-sans overflow-hidden">
+    <div className="fixed inset-0 z-[100] bg-black flex flex-col max-w-md mx-auto font-sans overflow-hidden min-h-[100dvh] safe-top safe-bottom">
       {/* Header */}
       <div className="flex items-center justify-between p-4 bg-teal-900 border-b border-teal-800">
         <button onClick={onClose} className="text-white p-1 hover:bg-teal-800 rounded-full">

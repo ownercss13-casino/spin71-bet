@@ -21,6 +21,7 @@ export interface User {
   isGmailLinked?: boolean;
   gmail?: string | null;
   country?: string | null;
+  role?: 'user' | 'agent' | 'admin';
 }
 
 export interface SavedItem {

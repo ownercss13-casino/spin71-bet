@@ -23,6 +23,7 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
   const [autoCashOutValue, setAutoCashOutValue] = useState(2.00);
   const [cashOutMultiplier, setCashOutMultiplier] = useState(0);
   const [history, setHistory] = useState<number[]>([]);
+  const [showFullHistory, setShowFullHistory] = useState(false);
   // Removed multiplierIndex
   const [gamePhase, setGamePhase] = useState<'betting' | 'flying' | 'crashed'>('betting');
   const [bettingCountdown, setBettingCountdown] = useState(5);
@@ -79,7 +80,7 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
   }, [betAmount, userBalance]);
 
   // Start a new round
-  const startNewRound = () => {
+  const startNewRound = async () => {
     setMultiplier(1.00);
     setHasCrashed(false);
     setIsCashedOut(false);
@@ -159,7 +160,7 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
     setIsFlying(false);
     setHasCrashed(true);
     setGamePhase('crashed');
-    setHistory(prev => [Number(finalMultiplier.toFixed(2)), ...prev.slice(0, 9)]);
+    setHistory(prev => [Number(finalMultiplier.toFixed(2)), ...prev.slice(0, 19)]);
     
     // Add to my bet history if a bet was placed
     if (isBetPlaced) {
@@ -216,7 +217,7 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
 
   return (
     <div 
-      className="fixed inset-0 z-[100] bg-[#0b0b0b] flex flex-col max-w-md mx-auto font-sans overflow-hidden select-none"
+      className="fixed inset-0 z-[100] bg-[#0b0b0b] flex flex-col max-w-md mx-auto font-sans overflow-hidden select-none min-h-[100dvh] safe-top safe-bottom"
       onContextMenu={(e) => e.preventDefault()}
       onCopy={(e) => e.preventDefault()}
     >
@@ -265,23 +266,46 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
       </div>
 
       {/* Multiplier History Bar */}
-      <div className="flex gap-1.5 px-3 py-2 bg-[#141414] overflow-x-auto no-scrollbar border-b border-white/5">
-        {history.map((val, i) => {
-          const isWin = val >= 2.0; // Assuming 2.0x is a "win" threshold for visual distinction
-          return (
-            <div 
-              key={i} 
-              className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 flex items-center gap-1 ${
-                isWin 
-                  ? 'bg-green-900/30 text-green-400 border border-green-800/50 shadow-[0_0_5px_rgba(74,222,128,0.2)]' 
-                  : 'bg-red-900/30 text-red-400 border border-red-800/50'
-              }`}
+      <div className="px-3 py-2 bg-[#141414] border-b border-white/5">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">ইতিহাস (History)</span>
+            <button 
+              onClick={() => setShowFullHistory(true)}
+              className="p-1 bg-white/5 rounded hover:bg-white/10 transition-colors"
             >
-              {isWin ? <span className="text-[8px]">▲</span> : <span className="text-[8px]">▼</span>}
-              {val.toFixed(2)}x
-            </div>
-          );
-        })}
+              <History size={10} className="text-teal-500" />
+            </button>
+          </div>
+          <div className="flex gap-2 text-[8px] text-gray-600">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-600"></span> Low</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-600"></span> Med</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-600"></span> High</span>
+          </div>
+        </div>
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+          {history.length === 0 ? (
+            <div className="text-[10px] text-gray-600 italic py-1">No history yet...</div>
+          ) : (
+            history.map((val, i) => {
+              const tier = val < 1.5 ? 'low' : val < 3.0 ? 'medium' : 'high';
+              const colorClass = tier === 'low' ? 'text-gray-400 border-gray-800' : tier === 'medium' ? 'text-yellow-400 border-yellow-800' : 'text-green-400 border-green-800';
+              const bgClass = tier === 'low' ? 'bg-gray-900/30' : tier === 'medium' ? 'bg-yellow-900/30' : 'bg-green-900/30';
+              
+              return (
+                <div 
+                  key={i} 
+                  className={`px-2 py-1 rounded-md text-[10px] font-bold shrink-0 flex flex-col items-center gap-1 border ${colorClass} ${bgClass} animate-in slide-in-from-right-2 duration-300`}
+                >
+                  <span>{val.toFixed(2)}x</span>
+                  <div className="w-full h-0.5 bg-black/20 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${tier === 'low' ? 'bg-gray-600' : tier === 'medium' ? 'bg-yellow-600' : 'bg-green-600'}`} style={{ width: `${Math.min(100, (val / 5) * 100)}%` }}></div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
 
       {/* Main Game Area */}
@@ -386,9 +410,11 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
             </div>
           ) : (
             <div className={`flex flex-col items-center transition-all duration-500 ${hasCrashed ? 'scale-150' : 'scale-110'} ${isFlying ? 'animate-motion-blur' : ''}`}>
-              <h1 className={`text-6xl font-black italic tracking-tighter drop-shadow-[0_0_30px_rgba(255,255,255,0.3)] transition-colors duration-300 ${hasCrashed ? 'text-red-500 animate-glitch' : 'text-white'} ${isFlying ? 'animate-chromatic' : ''}`}>
-                {multiplier.toFixed(2)}x
-              </h1>
+              {!hasCrashed && (
+                <h1 className={`text-6xl font-black italic tracking-tighter drop-shadow-[0_0_30px_rgba(255,255,255,0.3)] transition-colors duration-300 ${isFlying ? 'animate-chromatic' : 'text-white'}`}>
+                  {multiplier.toFixed(2)}x
+                </h1>
+              )}
               {hasCrashed && (
                 <div className="flex flex-col items-center animate-in zoom-in fade-in duration-300">
                   <div className="relative">
@@ -784,6 +810,88 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
             </div>
           </div>
         )}
+
+        {/* Full History Modal */}
+        <AnimatePresence>
+          {showFullHistory && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-[110] bg-black/95 backdrop-blur-xl flex flex-col p-6"
+            >
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-teal-500/20 rounded-xl">
+                    <History size={24} className="text-teal-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-white tracking-tight italic uppercase">Round History</h2>
+                    <p className="text-[10px] text-teal-500 font-bold tracking-widest">LAST 20 ROUNDS</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowFullHistory(false)}
+                  className="p-2 bg-white/5 rounded-full text-gray-400 hover:text-white transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                <div className="grid grid-cols-2 gap-4">
+                  {history.map((val, i) => {
+                    const tier = val < 1.5 ? 'low' : val < 3.0 ? 'medium' : 'high';
+                    const colorClass = tier === 'low' ? 'text-gray-400' : tier === 'medium' ? 'text-yellow-400' : 'text-green-400';
+                    const bgClass = tier === 'low' ? 'bg-gray-900/50' : tier === 'medium' ? 'bg-yellow-900/20' : 'bg-green-900/20';
+                    const borderClass = tier === 'low' ? 'border-gray-800' : tier === 'medium' ? 'border-yellow-800/50' : 'border-green-800/50';
+
+                    return (
+                      <motion.div 
+                        key={i}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.03 }}
+                        className={`p-4 rounded-2xl border ${borderClass} ${bgClass} flex flex-col items-center gap-2 relative overflow-hidden group`}
+                      >
+                        <div className={`absolute -right-4 -top-4 w-12 h-12 rounded-full blur-2xl opacity-20 ${tier === 'low' ? 'bg-gray-500' : tier === 'medium' ? 'bg-yellow-500' : 'bg-green-500'}`}></div>
+                        
+                        <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Round #{history.length - i}</span>
+                        <div className="flex items-baseline gap-1">
+                          <span className={`text-2xl font-black italic tracking-tighter ${colorClass}`}>{val.toFixed(2)}</span>
+                          <span className={`text-xs font-bold ${colorClass}`}>x</span>
+                        </div>
+                        
+                        <div className="w-full h-1 bg-black/40 rounded-full overflow-hidden mt-2">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${Math.min(100, (val / 5) * 100)}%` }}
+                            transition={{ duration: 1, delay: i * 0.05 }}
+                            className={`h-full rounded-full ${tier === 'low' ? 'bg-gray-600' : tier === 'medium' ? 'bg-yellow-600' : 'bg-green-600'}`}
+                          ></motion.div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+                
+                {history.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-20 text-gray-600">
+                    <History size={48} className="mb-4 opacity-20" />
+                    <p className="font-bold italic">No round history available yet</p>
+                  </div>
+                )}
+              </div>
+
+              <button 
+                onClick={() => setShowFullHistory(false)}
+                className="mt-8 w-full py-4 bg-gradient-to-r from-teal-600 to-teal-800 text-white font-black rounded-2xl shadow-lg shadow-teal-900/20 active:scale-95 transition-transform"
+              >
+                BACK TO GAME
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <style>{`

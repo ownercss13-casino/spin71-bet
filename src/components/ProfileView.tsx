@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import AdminPanel from './AdminPanel';
+import AgentPanel from './AgentPanel';
 import SupportChat from "./SupportChat";
 import { updateUserProfile } from '../services/firebaseService';
 import { auth, googleProvider, db, handleFirestoreError, OperationType } from '../firebase';
@@ -10,7 +11,11 @@ import {
   where,
   orderBy,
   onSnapshot,
-  Timestamp
+  Timestamp,
+  addDoc,
+  serverTimestamp,
+  doc,
+  updateDoc
 } from 'firebase/firestore';
 import {
   User,
@@ -57,7 +62,13 @@ import {
   MapPin,
   Calendar,
   Loader2,
-  Building2
+  Building2,
+  Search,
+  Play,
+  Info,
+  TrendingUp,
+  Edit,
+  Crown
 } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then(res => {
@@ -65,20 +76,22 @@ const fetcher = (url: string) => fetch(url).then(res => {
   return res.json();
 });
 
-export default function ProfileView({ onTabChange, balance, userData, onLogout }: { onTabChange: (tab: any) => void, balance: number, userData: any, onLogout: () => void }) {
-  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'history' | 'settings' | 'withdraw'>('overview');
+import { ToastType } from "./Toast";
+
+export default function ProfileView({ onTabChange, balance, userData, onLogout, showToast }: { onTabChange: (tab: any) => void, balance: number, userData: any, onLogout: () => void, showToast: (msg: string, type?: ToastType) => void }) {
+  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'profile' | 'history' | 'settings' | 'withdraw' | 'links'>('overview');
   const [isTabLoading, setIsTabLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [profilePic, setProfilePic] = useState<string | null>(null);
+  const [profilePic, setProfilePic] = useState<string | null>(userData?.profilePictureUrl || null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const [editUsername, setEditUsername] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
-  const [updateSuccess, setUpdateSuccess] = useState(false);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [showAgentPanel, setShowAgentPanel] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
 
   const [totals, setTotals] = useState({
@@ -87,6 +100,12 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout }
     bonus: 0,
     rebate: 0
   });
+
+  useEffect(() => {
+    if (userData?.profilePictureUrl) {
+      setProfilePic(userData.profilePictureUrl);
+    }
+  }, [userData?.profilePictureUrl]);
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -115,7 +134,7 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout }
     return () => unsubscribe();
   }, []);
 
-  const handleSubTabChange = (tab: 'overview' | 'history' | 'settings' | 'withdraw') => {
+  const handleSubTabChange = (tab: 'overview' | 'profile' | 'history' | 'settings' | 'withdraw' | 'links') => {
     if (tab === activeSubTab) return;
     setIsTabLoading(true);
     setTimeout(() => {
@@ -136,17 +155,16 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout }
     if (!userId) return;
 
     setIsUpdatingProfile(true);
-    setUpdateSuccess(false);
     try {
       await updateUserProfile(userId, {
         username: editUsername,
         phoneNumber: editPhone
       });
-      setUpdateSuccess(true);
+      showToast("প্রোফাইল আপডেট সফল হয়েছে! (Profile updated!)", "success");
       setIsEditProfileModalOpen(false);
-      setUpdateSuccess(false);
     } catch (err) {
       console.error("Update profile error:", err);
+      showToast("প্রোফাইল আপডেট ব্যর্থ হয়েছে। (Update failed.)", "error");
     } finally {
       setIsUpdatingProfile(false);
     }
@@ -239,22 +257,40 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout }
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex px-4 mt-4 gap-2">
+      <div className="flex px-4 mt-4 gap-2 overflow-x-auto no-scrollbar pb-2">
+        <button 
+          onClick={() => handleSubTabChange('overview')}
+          className={`flex-1 min-w-[80px] py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'overview' ? 'bg-yellow-500 text-black shadow-md' : 'bg-teal-800/50 text-teal-100 border border-teal-700'}`}
+        >
+          ড্যাশবোর্ড
+        </button>
+        <button 
+          onClick={() => handleSubTabChange('profile')}
+          className={`flex-1 min-w-[80px] py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'profile' ? 'bg-yellow-500 text-black shadow-md' : 'bg-teal-800/50 text-teal-100 border border-teal-700'}`}
+        >
+          প্রোফাইল
+        </button>
         <button 
           onClick={() => handleSubTabChange('withdraw')}
-          className={`flex-1 py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'withdraw' ? 'bg-yellow-500 text-black shadow-md' : 'bg-teal-800/50 text-teal-100 border border-teal-700'}`}
+          className={`flex-1 min-w-[80px] py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'withdraw' ? 'bg-yellow-500 text-black shadow-md' : 'bg-teal-800/50 text-teal-100 border border-teal-700'}`}
         >
           উত্তোলন
         </button>
         <button 
           onClick={() => handleSubTabChange('history')}
-          className={`flex-1 py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'history' ? 'bg-yellow-500 text-black shadow-md' : 'bg-teal-800/50 text-teal-100 border border-teal-700'}`}
+          className={`flex-1 min-w-[80px] py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'history' ? 'bg-yellow-500 text-black shadow-md' : 'bg-teal-800/50 text-teal-100 border border-teal-700'}`}
         >
           ইতিহাস
         </button>
         <button 
+          onClick={() => handleSubTabChange('links')}
+          className={`flex-1 min-w-[80px] py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'links' ? 'bg-yellow-500 text-black shadow-md' : 'bg-teal-800/50 text-teal-100 border border-teal-700'}`}
+        >
+          আমার লিংক
+        </button>
+        <button 
           onClick={() => handleSubTabChange('settings')}
-          className={`flex-1 py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'settings' ? 'bg-yellow-500 text-black shadow-md' : 'bg-teal-800/50 text-teal-100 border border-teal-700'}`}
+          className={`flex-1 min-w-[80px] py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'settings' ? 'bg-yellow-500 text-black shadow-md' : 'bg-teal-800/50 text-teal-100 border border-teal-700'}`}
         >
           সেটিংস
         </button>
@@ -272,27 +308,46 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout }
         )}
         
         {activeSubTab === 'overview' && (
-        <OverviewTab 
-          onTabChange={onTabChange} 
-          balance={balance} 
-          isRefreshing={isRefreshing} 
-          onRefresh={handleRefresh} 
-          profileData={profileData} 
-          userData={userData} 
-          onEditProfile={handleOpenEditProfile}
-          totals={totals}
-          setShowAdminLogin={setShowAdminLogin}
-        />
-      )}
+          <OverviewTab 
+            onTabChange={onTabChange} 
+            onSubTabChange={handleSubTabChange}
+            balance={balance} 
+            isRefreshing={isRefreshing} 
+            onRefresh={handleRefresh} 
+            profileData={profileData} 
+            userData={userData} 
+            onEditProfile={handleOpenEditProfile}
+            totals={totals}
+            setShowAdminLogin={setShowAdminLogin}
+            setShowAgentPanel={setShowAgentPanel}
+          />
+        )}
+
+        {activeSubTab === 'profile' && (
+          <ProfileTab 
+            userData={userData} 
+            onEditProfile={handleOpenEditProfile} 
+            onEditProfilePic={() => fileInputRef.current?.click()}
+            profilePic={profilePic}
+          />
+        )}
         {activeSubTab === 'history' && <HistoryTab email={profileData?.email} />}
-        {activeSubTab === 'withdraw' && <WithdrawTab onBack={() => handleSubTabChange('overview')} />}
-        {activeSubTab === 'settings' && <SettingsTab profileData={profileData} onLogout={onLogout} onEditProfile={handleOpenEditProfile} />}
+        {activeSubTab === 'links' && <LinksTab onTabChange={onTabChange} onSubTabChange={handleSubTabChange} showToast={showToast} />}
+        {activeSubTab === 'withdraw' && <WithdrawTab onBack={() => handleSubTabChange('overview')} balance={balance} showToast={showToast} />}
+        {activeSubTab === 'settings' && <SettingsTab profileData={profileData} onLogout={onLogout} onEditProfile={handleOpenEditProfile} showToast={showToast} />}
       </div>
 
       {/* Admin Panel */}
       {showAdminPanel && (
         <div className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-6 overflow-y-auto">
-          <AdminPanel onBack={() => setShowAdminPanel(false)} />
+          <AdminPanel onBack={() => setShowAdminPanel(false)} showToast={showToast} />
+        </div>
+      )}
+
+      {/* Agent Panel */}
+      {showAgentPanel && (
+        <div className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-6 overflow-y-auto">
+          <AgentPanel onBack={() => setShowAgentPanel(false)} userData={userData} showToast={showToast} />
         </div>
       )}
 
@@ -311,12 +366,12 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout }
             <div className="flex gap-3">
               <button 
                 onClick={() => {
-                  if (adminPassword === 'ownercss13') {
+                  if (adminPassword === 'css13') {
                     setShowAdminPanel(true);
                     setShowAdminLogin(false);
                     setAdminPassword("");
                   } else {
-                    alert('ভুল পাসওয়ার্ড');
+                    showToast('ভুল পাসওয়ার্ড', 'error');
                   }
                 }}
                 className="flex-1 bg-yellow-500 text-black font-bold py-3 rounded-xl hover:bg-yellow-400 transition-colors"
@@ -351,12 +406,7 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout }
             </div>
             
             <form onSubmit={handleUpdateProfile} className="p-5 space-y-4">
-              {updateSuccess && (
-                <div className="bg-green-500/20 border border-green-500/50 text-green-300 p-3 rounded-xl text-sm flex items-center gap-2 animate-in fade-in zoom-in duration-300">
-                  <CheckCircle2 size={18} />
-                  প্রোফাইল সফলভাবে আপডেট করা হয়েছে!
-                </div>
-              )}
+              {/* Profile update success is now handled by showToast */}
               
               <div className="space-y-1.5">
                 <label className="text-xs text-teal-200 font-medium">ইউজার নেম (Username)</label>
@@ -412,12 +462,70 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout }
   );
 }
 
-function WithdrawTab({ onBack }: { onBack: () => void }) {
+function WithdrawTab({ onBack, balance, showToast }: { onBack: () => void, balance: number, showToast: (msg: string, type?: any) => void }) {
+  const [step, setStep] = useState(1);
+  const [selectedMethod, setSelectedMethod] = useState('');
+  const [amount, setAmount] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const methods = [
-    { name: 'Bank Transfer', icon: Building2 },
-    { name: 'bKash', icon: Smartphone },
-    { name: 'Nagad', icon: Smartphone },
+    { id: 'bkash', name: 'bKash', icon: Smartphone },
+    { id: 'nagad', name: 'Nagad', icon: Smartphone },
+    { id: 'rocket', name: 'Rocket', icon: Smartphone },
   ];
+
+  const handleWithdraw = async () => {
+    const withdrawAmount = parseFloat(amount);
+    if (isNaN(withdrawAmount) || withdrawAmount < 200) {
+      showToast('সর্বনিম্ন উত্তোলন ২০০ টাকা।', 'warning');
+      return;
+    }
+
+    if (withdrawAmount > balance) {
+      showToast('আপনার অ্যাকাউন্টে পর্যাপ্ত ব্যালেন্স নেই।', 'error');
+      return;
+    }
+
+    if (!accountNumber.trim()) {
+      showToast('দয়া করে অ্যাকাউন্ট নাম্বার দিন।', 'warning');
+      return;
+    }
+
+    if (!auth.currentUser) {
+      showToast('You must be logged in to withdraw.', 'error');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const path = `users/${auth.currentUser.uid}/transactions`;
+      await addDoc(collection(db, path), {
+        type: 'withdraw',
+        amount: -withdrawAmount,
+        method: selectedMethod,
+        number: accountNumber,
+        status: 'pending',
+        date: serverTimestamp(),
+        trxId: `WTH-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+        statusColor: 'bg-yellow-500/20 text-yellow-500'
+      });
+
+      // Deduct balance immediately for pending withdrawal
+      const userRef = doc(db, 'users', auth.currentUser.uid);
+      await updateDoc(userRef, {
+        balance: balance - withdrawAmount
+      });
+
+      showToast('উত্তোলন রিকোয়েস্ট সফল হয়েছে! এডমিন এপ্রুভ করলে আপনার অ্যাকাউন্টে টাকা পৌঁছে যাবে।', 'success');
+      onBack();
+    } catch (error) {
+      console.error("Error submitting withdrawal:", error);
+      showToast('উত্তোলন রিকোয়েস্ট ব্যর্থ হয়েছে। আবার চেষ্টা করুন।', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -428,20 +536,206 @@ function WithdrawTab({ onBack }: { onBack: () => void }) {
         >
           <ChevronLeft size={20} />
         </button>
-        <h3 className="text-white font-bold text-lg">উত্তোলন পদ্ধতি নির্বাচন করুন</h3>
+        <h3 className="text-white font-bold text-lg">উত্তোলন</h3>
       </div>
-      <div className="grid grid-cols-1 gap-3">
-        {methods.map((method) => (
-          <button key={method.name} className="bg-teal-800/40 p-4 rounded-xl border border-teal-700/50 flex items-center gap-4 hover:bg-teal-700/60 transition-all">
-            <method.icon size={24} className="text-yellow-400" />
-            <span className="text-white font-bold">{method.name}</span>
+
+      <div className="bg-teal-900/40 p-4 rounded-xl border border-teal-700/50 mb-4">
+        <p className="text-teal-200 text-sm">বর্তমান ব্যালেন্স</p>
+        <p className="text-2xl font-bold text-white">৳ {balance.toLocaleString()}</p>
+      </div>
+
+      {step === 1 ? (
+        <>
+          <h4 className="text-white font-bold mb-2">পদ্ধতি নির্বাচন করুন</h4>
+          <div className="grid grid-cols-1 gap-3">
+            {methods.map((method) => (
+              <button 
+                key={method.id} 
+                onClick={() => { setSelectedMethod(method.id); setStep(2); }}
+                className="bg-teal-800/40 p-4 rounded-xl border border-teal-700/50 flex items-center gap-4 hover:bg-teal-700/60 transition-all"
+              >
+                <method.icon size={24} className="text-yellow-400" />
+                <span className="text-white font-bold">{method.name}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="space-y-4">
+          <div>
+            <label className="text-teal-200 text-sm block mb-1">উত্তোলনের পরিমাণ (৳)</label>
+            <input 
+              type="number" 
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="সর্বনিম্ন ২০০"
+              className="w-full bg-teal-950 border border-teal-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-yellow-400"
+            />
+            
+            {/* Quick Amount Buttons */}
+            <div className="grid grid-cols-5 gap-2 mt-3">
+              {[100, 200, 500, 1000, 25000].map((amt) => (
+                <button
+                  key={amt}
+                  onClick={() => setAmount(amt.toString())}
+                  className="bg-teal-800/50 hover:bg-teal-700/50 text-teal-100 text-[10px] font-bold py-2 rounded-lg border border-teal-700/30 transition-all active:scale-95"
+                >
+                  {amt.toLocaleString()}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="text-teal-200 text-sm block mb-1">অ্যাকাউন্ট নাম্বার ({selectedMethod.toUpperCase()})</label>
+            <input 
+              type="text" 
+              value={accountNumber}
+              onChange={(e) => setAccountNumber(e.target.value)}
+              placeholder="01XXXXXXXXX"
+              className="w-full bg-teal-950 border border-teal-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-yellow-400"
+            />
+          </div>
+          <button 
+            onClick={handleWithdraw}
+            disabled={isSubmitting}
+            className="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-black font-bold py-3 rounded-xl shadow-lg transition-all disabled:opacity-70 flex justify-center items-center gap-2"
+          >
+            {isSubmitting ? <RefreshCw size={20} className="animate-spin" /> : 'উত্তোলন করুন'}
           </button>
-        ))}
+        </div>
+      )}
+    </div>
+  );
+}
+interface OverviewTabProps {
+  onTabChange: (tab: any) => void;
+  onSubTabChange: (tab: any) => void;
+  balance: number;
+  isRefreshing: boolean;
+  onRefresh: () => void;
+  profileData: any;
+  userData: any;
+  onEditProfile: () => void;
+  totals: any;
+  setShowAdminLogin: (show: boolean) => void;
+  setShowAgentPanel: (show: boolean) => void;
+}
+
+function ProfileTab({ userData, onEditProfile, onEditProfilePic, profilePic }: { userData: any, onEditProfile: () => void, onEditProfilePic: () => void, profilePic: string | null }) {
+  const [isSortedAZ, setIsSortedAZ] = useState(false);
+
+  const userDetails = useMemo(() => {
+    if (!userData) return [];
+    
+    const details = [
+      { label: 'ইউজার নেম (Username)', value: userData.username, icon: User },
+      { label: 'ফোন নম্বর (Phone)', value: userData.phoneNumber || userData.phone || 'Not provided', icon: Smartphone },
+      { label: 'ইমেইল (Email)', value: userData.email || 'Not provided', icon: Mail },
+      { label: 'নিবন্ধন তারিখ (Registration)', value: userData.registrationDate || 'Not provided', icon: Calendar },
+      { label: 'ভিআইপি লেভেল (VIP Level)', value: `Level ${userData.vipLevel || 1}`, icon: Crown },
+      { label: 'দেশ (Country)', value: userData.country || 'Not provided', icon: MapPin },
+      { label: 'রেফারেল কোড (Referral Code)', value: userData.referralCode || 'SPIN71', icon: QrCode },
+      { label: 'ব্যালেন্স (Balance)', value: `৳ ${userData.balance?.toLocaleString() || 0}`, icon: Wallet },
+      { label: 'রোল (Role)', value: userData.role || 'user', icon: Shield },
+    ];
+
+    if (isSortedAZ) {
+      return details.sort((a, b) => a.label.localeCompare(b.label));
+    }
+    return details;
+  }, [userData, isSortedAZ]);
+
+  return (
+    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+      {/* Profile Header Card */}
+      <div className="bg-teal-800/40 rounded-2xl p-6 border border-teal-700/50 shadow-lg text-center relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-500/5 rounded-full blur-3xl -mr-16 -mt-16"></div>
+        <div className="absolute bottom-0 left-0 w-32 h-32 bg-teal-500/5 rounded-full blur-3xl -ml-16 -mb-16"></div>
+        
+        <div className="relative z-10 flex flex-col items-center">
+          <div className="relative group cursor-pointer" onClick={onEditProfilePic}>
+            <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-yellow-400 to-yellow-600 p-1 shadow-xl">
+              <div className="w-full h-full bg-teal-900 rounded-full flex items-center justify-center border-4 border-teal-800 overflow-hidden">
+                {profilePic ? (
+                  <img src={profilePic} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <User size={48} className="text-teal-400" />
+                )}
+              </div>
+            </div>
+            <div className="absolute bottom-0 right-0 bg-yellow-500 p-2 rounded-full shadow-lg border-2 border-teal-900 group-hover:scale-110 transition-transform">
+              <Camera size={14} className="text-black" />
+            </div>
+            <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <span className="text-[10px] text-white font-bold">পরিবর্তন করুন</span>
+            </div>
+          </div>
+          
+          <h2 className="text-xl font-black text-white mt-4">{userData?.username || 'Player'}</h2>
+          <p className="text-teal-400 text-xs font-mono uppercase tracking-widest mt-1">ID: {userData?.id || '84729104'}</p>
+          
+          <button 
+            onClick={onEditProfile}
+            className="mt-4 px-6 py-2 bg-teal-700/50 hover:bg-teal-600 text-white text-sm font-bold rounded-xl border border-teal-600/50 transition-all flex items-center gap-2"
+          >
+            <Edit size={16} /> প্রোফাইল এডিট করুন
+          </button>
+        </div>
+      </div>
+
+      {/* Details List */}
+      <div className="bg-teal-800/40 rounded-2xl border border-teal-700/50 overflow-hidden">
+        <div className="p-4 border-b border-teal-700/50 flex items-center justify-between bg-teal-900/30">
+          <h3 className="font-bold text-white flex items-center gap-2">
+            <Info size={18} className="text-yellow-400" /> ব্যক্তিগত তথ্য (Personal Info)
+          </h3>
+          <button 
+            onClick={() => setIsSortedAZ(!isSortedAZ)}
+            className={`p-2 rounded-lg transition-colors ${isSortedAZ ? 'bg-yellow-500 text-black' : 'bg-teal-700 text-teal-300'}`}
+            title={isSortedAZ ? "Original Order" : "Sort A-Z"}
+          >
+            <ArrowDownUp size={16} />
+          </button>
+        </div>
+        
+        <div className="divide-y divide-teal-700/30">
+          {userDetails.map((detail, index) => (
+            <div key={index} className="p-4 flex items-center justify-between hover:bg-teal-700/20 transition-colors">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-teal-900/50 flex items-center justify-center text-teal-400">
+                  <detail.icon size={16} />
+                </div>
+                <div>
+                  <p className="text-[10px] text-teal-400 uppercase tracking-wider font-bold">{detail.label}</p>
+                  <p className="text-sm text-white font-medium mt-0.5">{detail.value}</p>
+                </div>
+              </div>
+              {detail.label.includes('Username') || detail.label.includes('Phone') ? (
+                <button onClick={onEditProfile} className="p-2 text-teal-500 hover:text-yellow-400 transition-colors">
+                  <Edit size={14} />
+                </button>
+              ) : null}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
 }
-function OverviewTab({ onTabChange, balance, isRefreshing, onRefresh, profileData, userData, onEditProfile, totals, setShowAdminLogin }: { onTabChange: (tab: any) => void, balance: number, isRefreshing: boolean, onRefresh: () => void, profileData: any, userData: any, onEditProfile: () => void, totals: any, setShowAdminLogin: (show: boolean) => void }) {
+
+function OverviewTab({ 
+  onTabChange, 
+  onSubTabChange,
+  balance, 
+  isRefreshing, 
+  onRefresh, 
+  profileData, 
+  userData, 
+  onEditProfile, 
+  totals, 
+  setShowAdminLogin, 
+  setShowAgentPanel 
+}: OverviewTabProps) {
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
       {/* Account Balance Card */}
@@ -474,7 +768,18 @@ function OverviewTab({ onTabChange, balance, isRefreshing, onRefresh, profileDat
       </div>
 
       {/* Quick Actions / Cross-links */}
-      <div className="grid grid-cols-1 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <button 
+          onClick={() => onSubTabChange('profile')}
+          className="bg-teal-800/40 rounded-xl p-4 border border-teal-700/50 flex flex-col items-center justify-center text-center hover:bg-teal-700/60 transition-all group"
+        >
+          <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center mb-2 text-blue-400 group-hover:scale-110 transition-transform">
+            <User size={24} />
+          </div>
+          <span className="text-white font-bold text-sm">প্রোফাইল</span>
+          <span className="text-teal-300 text-[10px] mt-1">তথ্য দেখুন</span>
+        </button>
+
         <button 
           onClick={() => onTabChange('invite')}
           className="bg-teal-800/40 rounded-xl p-4 border border-teal-700/50 flex flex-col items-center justify-center text-center hover:bg-teal-700/60 transition-all group"
@@ -482,9 +787,22 @@ function OverviewTab({ onTabChange, balance, isRefreshing, onRefresh, profileDat
           <div className="w-12 h-12 rounded-full bg-yellow-500/20 flex items-center justify-center mb-2 text-yellow-400 group-hover:scale-110 transition-transform">
             <Users size={24} />
           </div>
-          <span className="text-white font-bold text-sm">বন্ধুদের আমন্ত্রণ জানান</span>
+          <span className="text-white font-bold text-sm">আমন্ত্রণ</span>
           <span className="text-teal-300 text-[10px] mt-1">বোনাস পান</span>
         </button>
+
+        {(userData?.role === 'agent' || userData?.role === 'admin') && (
+          <button 
+            onClick={() => setShowAgentPanel(true)}
+            className="bg-teal-800/40 rounded-xl p-4 border border-teal-700/50 flex flex-col items-center justify-center text-center hover:bg-teal-700/60 transition-all group"
+          >
+            <div className="w-12 h-12 rounded-full bg-teal-500/20 flex items-center justify-center mb-2 text-teal-400 group-hover:scale-110 transition-transform">
+              <TrendingUp size={24} />
+            </div>
+            <span className="text-white font-bold text-sm">এজেন্ট</span>
+            <span className="text-teal-300 text-[10px] mt-1">প্যানেল</span>
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -601,6 +919,179 @@ function OverviewTab({ onTabChange, balance, isRefreshing, onRefresh, profileDat
             <ChevronRight size={16} className="text-teal-400" />
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function LinksTab({ onTabChange, onSubTabChange, showToast }: { onTabChange: (tab: any) => void, onSubTabChange: (tab: string) => void, showToast: (msg: string, type?: ToastType) => void }) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState('all');
+  const [sortBy, setSortBy] = useState('recent');
+
+  // Real app links/pages
+  const [links] = useState([
+    { id: 'home', title: 'হোম পেজ (Home)', url: 'https://spin71bet.com/', type: 'page', clicks: 1245, lastVisited: new Date().toISOString(), action: () => onTabChange('home') },
+    { id: 'deposit', title: 'ডিপোজিট (Deposit)', url: 'https://spin71bet.com/deposit', type: 'finance', clicks: 432, lastVisited: new Date(Date.now() - 86400000).toISOString(), action: () => onTabChange('deposit') },
+    { id: 'withdraw', title: 'উত্তোলন (Withdraw)', url: 'https://spin71bet.com/profile/withdraw', type: 'finance', clicks: 210, lastVisited: new Date(Date.now() - 120000000).toISOString(), action: () => onSubTabChange('withdraw') },
+    { id: 'bonus', title: 'বোনাস সেন্টার (Bonus)', url: 'https://spin71bet.com/bonus', type: 'page', clicks: 890, lastVisited: new Date(Date.now() - 172800000).toISOString(), action: () => onTabChange('bonus') },
+    { id: 'invite', title: 'আমন্ত্রণ (Invite)', url: 'https://spin71bet.com/invite', type: 'referral', clicks: 156, lastVisited: new Date(Date.now() - 259200000).toISOString(), action: () => onTabChange('invite') },
+    { id: 'profile', title: 'প্রোফাইল (Profile)', url: 'https://spin71bet.com/profile', type: 'page', clicks: 567, lastVisited: new Date().toISOString(), action: () => onTabChange('profile') },
+    { id: 'history', title: 'ইতিহাস (History)', url: 'https://spin71bet.com/profile/history', type: 'page', clicks: 345, lastVisited: new Date(Date.now() - 50000000).toISOString(), action: () => onSubTabChange('history') },
+    { id: 'settings', title: 'সেটিংস (Settings)', url: 'https://spin71bet.com/profile/settings', type: 'page', clicks: 120, lastVisited: new Date(Date.now() - 400000000).toISOString(), action: () => onSubTabChange('settings') },
+    { id: 'telegram', title: 'টেলিগ্রাম সাপোর্ট (Support)', url: 'https://t.me/spin71bet_support', type: 'support', clicks: 89, lastVisited: new Date(Date.now() - 345600000).toISOString(), action: () => window.open('https://t.me/spin71bet_support', '_blank') },
+  ]);
+
+  const filteredAndSortedLinks = useMemo(() => {
+    let result = [...links];
+
+    // Search
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(link => 
+        link.title.toLowerCase().includes(q) || 
+        link.url.toLowerCase().includes(q)
+      );
+    }
+
+    // Filter
+    if (filterType !== 'all') {
+      result = result.filter(link => link.type === filterType);
+    }
+
+    // Sort
+    result.sort((a, b) => {
+      if (sortBy === 'recent') {
+        return new Date(b.lastVisited).getTime() - new Date(a.lastVisited).getTime();
+      } else if (sortBy === 'clicks_desc') {
+        return b.clicks - a.clicks;
+      } else if (sortBy === 'title_asc') {
+        return a.title.localeCompare(b.title);
+      }
+      return 0;
+    });
+
+    return result;
+  }, [links, searchQuery, filterType, sortBy]);
+
+  return (
+    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+      <div className="flex justify-between items-center mb-2">
+        <h3 className="font-bold text-white">আমার লিংক (My Links)</h3>
+      </div>
+
+      <div className="flex flex-col gap-3 mb-4">
+        {/* Search */}
+        <div className="relative">
+          <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+            <Search size={16} className="text-teal-400" />
+          </div>
+          <input 
+            type="text" 
+            placeholder="লিংক খুঁজুন..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-teal-800/60 border border-teal-700/50 text-teal-100 text-sm rounded-xl pl-10 pr-4 py-3 focus:outline-none focus:border-yellow-500 transition-colors"
+          />
+        </div>
+
+        {/* Filters & Sort */}
+        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+          <div className="relative flex-1 min-w-[130px]">
+            <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
+              <Filter size={14} className="text-teal-400" />
+            </div>
+            <select 
+              value={filterType} 
+              onChange={(e) => setFilterType(e.target.value)}
+              className="w-full bg-teal-800/60 border border-teal-700/50 text-teal-100 text-xs rounded-lg pl-8 pr-2 py-2.5 appearance-none focus:outline-none focus:border-yellow-500"
+            >
+              <option value="all">সব ধরন</option>
+              <option value="page">পেজ</option>
+              <option value="finance">ফাইন্যান্স</option>
+              <option value="referral">রেফারেল</option>
+              <option value="support">সাপোর্ট</option>
+            </select>
+          </div>
+          
+          <div className="relative flex-1 min-w-[140px]">
+            <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
+              <ArrowDownUp size={14} className="text-teal-400" />
+            </div>
+            <select 
+              value={sortBy} 
+              onChange={(e) => setSortBy(e.target.value)}
+              className="w-full bg-teal-800/60 border border-teal-700/50 text-teal-100 text-xs rounded-lg pl-8 pr-2 py-2.5 appearance-none focus:outline-none focus:border-yellow-500"
+            >
+              <option value="recent">সাম্প্রতিক</option>
+              <option value="clicks_desc">সবচেয়ে বেশি ক্লিক</option>
+              <option value="title_asc">নাম (A-Z)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {filteredAndSortedLinks.length > 0 ? (
+          filteredAndSortedLinks.map((link) => (
+            <div key={link.id} className="bg-teal-800/40 rounded-xl p-4 border border-teal-700/50 hover:bg-teal-700/50 transition-colors">
+              <div className="flex justify-between items-start mb-2">
+                <div className="flex items-center gap-2">
+                  <div className={`p-2 rounded-lg ${
+                    link.type === 'page' ? 'bg-purple-500/20 text-purple-400' :
+                    link.type === 'finance' ? 'bg-green-500/20 text-green-400' :
+                    link.type === 'referral' ? 'bg-yellow-500/20 text-yellow-400' :
+                    'bg-blue-500/20 text-blue-400'
+                  }`}>
+                    {link.type === 'page' ? <Play size={16} /> :
+                     link.type === 'finance' ? <Wallet size={16} /> :
+                     link.type === 'referral' ? <Users size={16} /> :
+                     <Info size={16} />}
+                  </div>
+                  <div>
+                    <h4 className="text-white font-bold text-sm">{link.title}</h4>
+                    <span className="text-[10px] text-teal-300 uppercase tracking-wider">{link.type}</span>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={link.action}
+                    className="px-3 py-1.5 bg-yellow-500 text-black font-bold text-xs rounded-md hover:bg-yellow-400 transition-colors"
+                  >
+                    ভিজিট
+                  </button>
+                  <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(link.url);
+                      showToast('লিংক কপি করা হয়েছে!', 'success');
+                    }}
+                    className="p-1.5 bg-teal-900/50 text-teal-300 hover:text-white hover:bg-teal-700 rounded-md transition-colors"
+                    title="Copy Link"
+                  >
+                    <Copy size={14} />
+                  </button>
+                </div>
+              </div>
+              
+              <div className="bg-black/20 p-2 rounded-lg mb-3 overflow-hidden">
+                <p className="text-xs text-teal-100/70 truncate font-mono">{link.url}</p>
+              </div>
+              
+              <div className="flex justify-between items-center text-[10px] text-teal-400">
+                <span className="flex items-center gap-1">
+                  <TrendingUp size={12} /> {link.clicks} ক্লিক
+                </span>
+                <span className="flex items-center gap-1">
+                  <Calendar size={12} /> {new Date(link.lastVisited).toLocaleDateString('en-GB')}
+                </span>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="text-center py-8 text-teal-400/60">
+            <p>কোনো লিংক পাওয়া যায়নি</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -890,7 +1381,7 @@ function HistoryTab({ email }: { email?: string }) {
   );
 }
 
-function SettingsTab({ profileData, onLogout, onEditProfile }: { profileData: any, onLogout: () => void, onEditProfile: () => void }) {
+function SettingsTab({ profileData, onLogout, onEditProfile, showToast }: { profileData: any, onLogout: () => void, onEditProfile: () => void, showToast: (msg: string, type?: ToastType) => void }) {
   const [showPassword, setShowPassword] = useState(false);
   const [is2FAEnabled, setIs2FAEnabled] = useState(false);
   const [twoFAMethod, setTwoFAMethod] = useState<'app' | 'sms'>('app');
@@ -1036,7 +1527,7 @@ function SettingsTab({ profileData, onLogout, onEditProfile }: { profileData: an
     } catch (error: any) {
       console.error("Facebook linking error:", error);
       if (error.code === 'auth/credential-already-in-use') {
-        alert("This Facebook account is already linked to another user.");
+        showToast("এই ফেসবুক অ্যাকাউন্টটি ইতিমধ্যে অন্য একজন ব্যবহারকারীর সাথে লিঙ্ক করা হয়েছে। (This Facebook account is already linked to another user.)", "error");
       } else if (error.code === 'auth/popup-closed-by-user') {
         // User closed the popup, do nothing
       }

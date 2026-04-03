@@ -65,6 +65,19 @@
           "type": "boolean",
           "description": "Whether the user has made at least one deposit"
         },
+        "role": {
+          "type": "string",
+          "enum": ["user", "agent", "admin"],
+          "description": "User's role in the system"
+        },
+        "agentBalance": {
+          "type": "number",
+          "description": "Balance available for the agent to distribute to their players"
+        },
+        "referredBy": {
+          "type": "string",
+          "description": "UID of the agent who referred this user"
+        },
         "referralCount": {
           "type": "number",
           "description": "Total number of successful referrals"
@@ -74,7 +87,37 @@
           "description": "Total earnings from referrals"
         }
       },
-      "required": ["username", "phoneNumber", "password", "balance"]
+      "required": ["username", "phoneNumber", "password", "balance", "role"]
+    },
+    "Referral": {
+      "title": "Referral",
+      "description": "Information about a user referral",
+      "type": "object",
+      "properties": {
+        "referredUserId": {
+          "type": "string",
+          "description": "UID of the user who was referred"
+        },
+        "referredUsername": {
+          "type": "string",
+          "description": "Username of the referred user"
+        },
+        "joinedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the user joined via the referral"
+        },
+        "earningsGenerated": {
+          "type": "number",
+          "description": "Total earnings generated for the agent by this user"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "inactive"],
+          "description": "Current status of the referred user"
+        }
+      },
+      "required": ["referredUserId", "referredUsername", "joinedAt", "earningsGenerated", "status"]
     },
     "Transaction": {
       "title": "Transaction",
@@ -164,6 +207,10 @@
     "/users/{userId}/transactions/{transactionId}": {
       "schema": "Transaction",
       "description": "Financial history for a specific user"
+    },
+    "/users/{userId}/referrals/{referralId}": {
+      "schema": "Referral",
+      "description": "Collection of users referred by this agent"
     },
     "/metadata/users": {
       "schema": "Metadata",

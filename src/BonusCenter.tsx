@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Gift, X, Calendar, Star, AlertCircle, RefreshCw } from 'lucide-react';
 import { claimDailyBonus, claimWelcomeBonus } from './services/firebaseService';
 
-export default function BonusCenter({ userData, balance, onBalanceUpdate, onTabChange }: { userData: any, balance: number, onBalanceUpdate: (newBalance: number) => void, onTabChange: (tab: any) => void }) {
+import { ToastType } from './components/Toast';
+
+export default function BonusCenter({ userData, balance, onBalanceUpdate, onTabChange, showToast }: { userData: any, balance: number, onBalanceUpdate: (newBalance: number) => void, onTabChange: (tab: any) => void, showToast: (msg: string, type?: ToastType) => void }) {
   const [showPopup, setShowPopup] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
   const [popupMessage, setPopupMessage] = useState("");

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp, runTransaction } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp, runTransaction, increment, collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { signInWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
 import { db, auth, googleProvider, handleFirestoreError, OperationType } from './firebase';
 import LoginPage from './LoginPage';
@@ -11,11 +11,13 @@ import DepositView from "./components/DepositView";
 import AviatorGame from "./components/AviatorGame";
 import SupportChat from "./components/SupportChat";
 import SlotGame from "./components/SlotGame";
+import BetSlip from "./components/BetSlip";
 import PermissionManager from "./components/PermissionManager";
 import { GameGrid, Game } from "./components/GameGrid";
 import { CasinoGallery } from "./components/CasinoGallery";
 import { GAME_IMAGES } from "./constants/gameAssets";
 import { saveItem, getSavedItems, removeItem, updateUserProfile, updateFavorites, updateBalance } from './services/firebaseService';
+import { ToastContainer, ToastType } from "./components/Toast";
 import {
   AlertCircle,
   X,
@@ -49,7 +51,8 @@ import {
   Copy,
   Check,
   Download,
-  Trophy
+  Trophy,
+  Bell
 } from "lucide-react";
 
 export default function App() {
@@ -62,7 +65,11 @@ export default function App() {
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [showGallery, setShowGallery] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showBetSlip, setShowBetSlip] = useState(false);
+  const [selectedOdds, setSelectedOdds] = useState(2.0);
+  const [betGameName, setBetGameName] = useState("Casino Game");
 
+  const [justLoggedIn, setJustLoggedIn] = useState(false);
   const [showDepositRequired, setShowDepositRequired] = useState(false);
 
   const [isTabLoading, setIsTabLoading] = useState(false);
@@ -79,6 +86,7 @@ export default function App() {
   const handleGameSelect = (game: Game | null) => {
     if (game && !userData?.hasMadeDeposit) {
       setShowDepositRequired(true);
+      showToast("গেম খেলতে ডিপোজিট আবশ্যক! (Deposit Required!)", "warning");
       return;
     }
     setSelectedGame(game);
@@ -148,6 +156,25 @@ export default function App() {
   const [showRegistrationSuccess, setShowRegistrationSuccess] = useState(false);
   const [showLogoPreview, setShowLogoPreview] = useState(false);
   const [aviatorLogo, setAviatorLogo] = useState<string | null>('https://storage.googleapis.com/genai-studio-user-uploads/projects/ais-dev-wxllhxlbpwpt7cv6zg665n/uploads/1743526563604-image.png');
+  const [toasts, setToasts] = useState<{ id: string; message: string; type: ToastType }[]>([]);
+
+  // Referral tracking
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref');
+    if (ref) {
+      localStorage.setItem('referralCode', ref);
+    }
+  }, []);
+
+  const showToast = (message: string, type: ToastType = 'info') => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts(prev => [...prev, { id, message, type }]);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
 
   const handleLogoSelect = (logo: string) => {
     setAviatorLogo(logo);
@@ -160,7 +187,10 @@ export default function App() {
 
   const handleRefresh = () => {
     setIsRefreshing(true);
-    setTimeout(() => setIsRefreshing(false), 100);
+    setTimeout(() => {
+      setIsRefreshing(false);
+      showToast("ব্যালেন্স আপডেট করা হয়েছে", "success");
+    }, 800);
   };
 
   useEffect(() => {
@@ -188,17 +218,54 @@ export default function App() {
               // Formatting the ID as K71 + number (e.g., K71101, K71102)
               const username = `K71${nextId}`;
               
+              // Check for referral
+              const savedReferralCode = localStorage.getItem('referralCode');
+              let referredBy = null;
+              
+              if (savedReferralCode) {
+                // Try to find the agent with this referral code
+                // For now, we assume the code is the first 6 chars of the UID
+                // In a real app, we'd query the users collection for this code
+                const usersRef = collection(db, 'users');
+                const q = query(usersRef, where('id', '>=', savedReferralCode), where('id', '<=', savedReferralCode + '\uf8ff'));
+                const agentSnapshot = await getDocs(q);
+                
+                if (!agentSnapshot.empty) {
+                  referredBy = agentSnapshot.docs[0].id;
+                }
+              }
+              
               const newUser: any = {
                 username: username,
                 phoneNumber: 'Not Provided',
                 password: user.isAnonymous ? 'anonymous-auth' : 'email-auth',
                 balance: 0,
                 createdAt: serverTimestamp(),
+                role: 'user',
                 isGmailLinked: false,
                 favorites: [],
                 vipLevel: 1,
                 vipProgress: 0
               };
+              
+              if (referredBy) {
+                newUser.referredBy = referredBy;
+                // Also create a referral record for the agent
+                const referralRef = doc(collection(db, 'users', referredBy, 'referrals'));
+                transaction.set(referralRef, {
+                  referredUserId: firebaseUid,
+                  referredUsername: username,
+                  joinedAt: serverTimestamp(),
+                  earningsGenerated: 0,
+                  status: 'active'
+                });
+                
+                // Update agent's referral count
+                const agentRef = doc(db, 'users', referredBy);
+                transaction.update(agentRef, {
+                  referralCount: increment(1)
+                });
+              }
               
               if (user.email) {
                 newUser.gmail = user.email;
@@ -221,13 +288,19 @@ export default function App() {
               setBalance(data.balance || 0);
               setFavorites(data.favorites || []);
               setAviatorLogo(data.aviatorLogo || null);
+              if (justLoggedIn) {
+                showToast("লগইন সফল হয়েছে! (Login successful!)", "success");
+                setJustLoggedIn(false);
+              }
               setIsLoggedIn(true);
             }
           }, (error) => {
             handleFirestoreError(error, OperationType.GET, `users/${firebaseUid}`);
+            showToast("ডেটা লোড করতে ব্যর্থ হয়েছে। (Failed to load data.)", "error");
           });
         } catch (e) {
           console.error("Failed to fetch/create user data", e);
+          showToast("অ্যাকাউন্ট তৈরি বা লোড করতে সমস্যা হয়েছে। (Error loading account.)", "error");
         }
       } else {
         if (unsubscribeDoc) unsubscribeDoc();
@@ -262,6 +335,7 @@ export default function App() {
     signOut(auth);
     setIsLoggedIn(false);
     setUserData(null);
+    showToast("লগ আউট সফল হয়েছে। (Logged out.)", "info");
   };
 
   const handleBalanceUpdate = (newBalance: number) => {
@@ -279,15 +353,27 @@ export default function App() {
     setFavorites(newFavorites);
     const userId = auth.currentUser?.uid;
     if (isLoggedIn && userId) {
-      updateFavorites(userId, newFavorites).catch(err => {
+      updateFavorites(userId, newFavorites).then(() => {
+        showToast(favorites.includes(gameId) ? "পছন্দ থেকে সরানো হয়েছে" : "পছন্দে যোগ করা হয়েছে", "info");
+      }).catch(err => {
         console.error("Failed to update favorites in Firestore:", err);
+        showToast("পছন্দ আপডেট করতে ব্যর্থ হয়েছে", "error");
       });
     }
   };
 
+  useEffect(() => {
+    if (showDepositRequired) {
+      const timer = setTimeout(() => {
+        setShowDepositRequired(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showDepositRequired]);
+
   if (showSplash) {
     return (
-      <div className="max-w-md mx-auto bg-gradient-to-b from-[#1a5b3d] via-[#228b22] to-[#1a5b3d] min-h-screen relative overflow-hidden flex flex-col items-center justify-center font-sans">
+      <div className="max-w-md mx-auto bg-gradient-to-b from-[#1a5b3d] via-[#228b22] to-[#1a5b3d] min-h-[100dvh] relative overflow-hidden flex flex-col items-center justify-center font-sans safe-top safe-bottom">
         {/* Background Curtains/Lines Effect */}
         <div className="absolute inset-0 opacity-20" style={{
           backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 20px)'
@@ -451,14 +537,19 @@ export default function App() {
   if (!isLoggedIn || showRegistrationSuccess) {
     return (
       <LoginPage 
-        onRegisterSuccess={() => setShowRegistrationSuccess(true)} 
+        onRegisterSuccess={() => {
+          setShowRegistrationSuccess(true);
+          showToast("অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে!", "success");
+        }} 
         onContinue={() => setShowRegistrationSuccess(false)} 
+        onLoginSuccess={() => setJustLoggedIn(true)}
+        showToast={showToast}
       />
     );
   }
 
   return (
-    <div className="max-w-md mx-auto bg-[#16a374] min-h-screen relative overflow-x-hidden font-sans text-white pb-16 flex flex-col">
+    <div className="max-w-md mx-auto bg-[#16a374] min-h-[100dvh] relative overflow-x-hidden font-sans text-white pb-16 flex flex-col safe-top">
       {/* Main Content Area */}
       <div className="relative min-h-[calc(100vh-120px)]">
         {isTabLoading && (
@@ -796,7 +887,7 @@ export default function App() {
           }}
         />
       ) : selectedGame && (
-        <div className="fixed inset-0 z-[100] bg-black flex flex-col max-w-md mx-auto">
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col max-w-md mx-auto min-h-[100dvh] safe-top safe-bottom">
           {/* Game Header */}
           <div className="flex items-center justify-between p-4 bg-teal-900 border-b border-teal-800">
             <button 
@@ -911,6 +1002,7 @@ export default function App() {
                     <button 
                       onClick={() => {
                         navigator.clipboard.writeText(userData?.username || 'Player_SPIN71');
+                        showToast("ইউজারনেম কপি করা হয়েছে", "success");
                       }}
                       className="p-1 bg-white/10 hover:bg-white/20 rounded transition-colors text-teal-200"
                       title="Copy Username"
@@ -981,10 +1073,10 @@ export default function App() {
         </div>
       )}
 
-      {activeTab === 'profile' && <ProfileView onTabChange={handleTabChange} balance={balance} userData={userData} onLogout={handleLogout} />}
-      {activeTab === 'bonus' && <BonusCenter userData={userData} balance={balance} onBalanceUpdate={setBalance} onTabChange={handleTabChange} />}
-      {activeTab === 'invite' && <InviteView onTabChange={handleTabChange} userData={userData} />}
-      {activeTab === 'deposit' && <DepositView onTabChange={handleTabChange} balance={balance} onBalanceUpdate={handleBalanceUpdate} userData={userData} />}
+      {activeTab === 'profile' && <ProfileView onTabChange={handleTabChange} balance={balance} userData={userData} onLogout={handleLogout} showToast={showToast} />}
+      {activeTab === 'bonus' && <BonusCenter userData={userData} balance={balance} onBalanceUpdate={setBalance} onTabChange={handleTabChange} showToast={showToast} />}
+      {activeTab === 'invite' && <InviteView onTabChange={handleTabChange} userData={userData} showToast={showToast} />}
+      {activeTab === 'deposit' && <DepositView onTabChange={handleTabChange} balance={balance} onBalanceUpdate={handleBalanceUpdate} userData={userData} showToast={showToast} />}
       </div>
 
       {/* Leaderboard Modal */}
@@ -1006,12 +1098,59 @@ export default function App() {
       {/* Support Chat */}
       <SupportChat isOpen={isSupportChatOpen} onClose={() => setIsSupportChatOpen(false)} userData={userData} />
 
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
+
       {/* Logo Preview Modal */}
       {showLogoPreview && (
         <div className="fixed inset-0 z-[150] bg-black flex flex-col max-w-md mx-auto">
           <LogoPreview onClose={() => setShowLogoPreview(false)} onSelect={handleLogoSelect} />
         </div>
       )}
+
+      {/* Floating Telegram Support */}
+      <div className="fixed bottom-20 right-4 md:right-[calc(50%-13rem)] z-40 flex flex-col gap-3">
+        {/* Bet Slip Trigger */}
+        <button 
+          onClick={() => setShowBetSlip(true)}
+          className="w-12 h-12 bg-yellow-500 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(234,179,8,0.5)] hover:scale-110 transition-transform border-2 border-white/20 group relative"
+        >
+          <Ticket size={24} className="text-black" />
+          <span className="absolute right-full mr-3 bg-black/80 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none font-bold">
+            Bet Slip
+          </span>
+          <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 rounded-full border border-white flex items-center justify-center">
+            <span className="text-[8px] font-bold text-white">1</span>
+          </div>
+        </button>
+
+        <a 
+          href="https://t.me/spin71_bet" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="w-12 h-12 bg-[#0088cc] rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(0,136,204,0.5)] hover:scale-110 transition-transform border-2 border-white/20 group relative"
+        >
+          <svg viewBox="0 0 24 24" className="w-6 h-6 fill-white" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.18-.357.223-.548.223l.188-2.85 5.18-4.686c.223-.195-.054-.285-.346-.096l-6.405 4.03-2.76-.863c-.6-.188-.61-.6.125-.89l10.78-4.154c.498-.188.938.118.786.914z"/>
+          </svg>
+          <span className="absolute right-full mr-3 bg-black/80 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+            Channel
+          </span>
+        </a>
+        <a 
+          href="https://t.me/spin71_bot" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="w-12 h-12 bg-[#0088cc] rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(0,136,204,0.5)] hover:scale-110 transition-transform border-2 border-white/20 group relative"
+        >
+          <svg viewBox="0 0 24 24" className="w-6 h-6 fill-white" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.18-.357.223-.548.223l.188-2.85 5.18-4.686c.223-.195-.054-.285-.346-.096l-6.405 4.03-2.76-.863c-.6-.188-.61-.6.125-.89l10.78-4.154c.498-.188.938.118.786.914z"/>
+          </svg>
+          <span className="absolute right-full mr-3 bg-black/80 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+            Support Bot
+          </span>
+        </a>
+      </div>
 
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-[#16a374] border-t border-teal-600/50 flex justify-between px-6 py-2 text-[11px] text-teal-200 z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
@@ -1059,7 +1198,7 @@ export default function App() {
       {showDepositRequired && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[200] p-6 animate-in fade-in duration-300">
           <div className="bg-teal-900 p-8 rounded-3xl text-center relative shadow-2xl border-2 border-yellow-500 max-w-sm w-full animate-in zoom-in duration-300">
-            <button onClick={() => setShowDepositRequired(false)} className="absolute top-4 right-4 text-teal-300 hover:text-white">
+            <button onClick={() => setShowDepositRequired(false)} className="absolute top-4 left-4 text-teal-300 hover:text-white">
               <X size={24} />
             </button>
             <div className="w-20 h-20 bg-yellow-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(234,179,8,0.4)]">
@@ -1089,6 +1228,16 @@ export default function App() {
       )}
 
       {isLoggedIn && <PermissionManager />}
+
+      <BetSlip 
+        isOpen={showBetSlip}
+        onClose={() => setShowBetSlip(false)}
+        userBalance={balance}
+        onBalanceUpdate={handleBalanceUpdate}
+        selectedOdds={selectedOdds}
+        gameName={betGameName}
+        showToast={showToast}
+      />
 
       <style>{`
         @keyframes fly-around {

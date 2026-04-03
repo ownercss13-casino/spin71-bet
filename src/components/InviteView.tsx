@@ -24,7 +24,9 @@ const shopItems = {
   ]
 };
 
-export default function InviteView({ onTabChange, userData, initialSubTab = 'overview' }: { onTabChange: (tab: any) => void, userData?: any, initialSubTab?: string }) {
+import { ToastType } from './Toast';
+
+export default function InviteView({ onTabChange, userData, showToast, initialSubTab = 'overview' }: { onTabChange: (tab: any) => void, userData?: any, showToast: (msg: string, type?: ToastType) => void, initialSubTab?: string }) {
   const [activeTab, setActiveTab] = useState(initialSubTab);
   const [activeShopCategory, setActiveShopCategory] = useState('vip');
   const [totalShares, setTotalShares] = useState(12);
@@ -68,7 +70,7 @@ export default function InviteView({ onTabChange, userData, initialSubTab = 'ove
         incrementShares();
       } else {
         navigator.clipboard.writeText(referralLink);
-        alert('লিঙ্কটি কপি করা হয়েছে!');
+        showToast('লিঙ্কটি কপি করা হয়েছে!', 'success');
         incrementShares();
       }
     } catch (err: any) {
@@ -82,12 +84,12 @@ export default function InviteView({ onTabChange, userData, initialSubTab = 'ove
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(referralLink);
-    alert("লিঙ্কটি কপি করা হয়েছে!");
+    showToast("লিঙ্কটি কপি করা হয়েছে!", "success");
     incrementShares();
   };
 
   const handleBuyItem = (item: any) => {
-    alert(`${item.name} কেনার জন্য পর্যাপ্ত ব্যালেন্স নেই!`);
+    showToast(`${item.name} কেনার জন্য পর্যাপ্ত ব্যালেন্স নেই!`, "warning");
   };
 
   return (
@@ -233,7 +235,7 @@ export default function InviteView({ onTabChange, userData, initialSubTab = 'ove
               <button 
                 onClick={() => { 
                   navigator.clipboard.writeText(referralCode); 
-                  alert('কোড কপি করা হয়েছে!'); 
+                  showToast('কোড কপি করা হয়েছে!', 'success'); 
                   incrementShares(); 
                 }} 
                 className="p-2 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"

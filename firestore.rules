@@ -31,7 +31,17 @@ service cloud.firestore {
     }
     
     function isAdmin() {
-      return isAuthenticated() && (request.auth.token.email == "owner.css13@gmail.com" && request.auth.token.email_verified == true);
+      return isAuthenticated() && 
+             ((request.auth.token.email == "owner.css13@gmail.com" && request.auth.token.email_verified == true) ||
+              (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+    }
+
+    function isAgent() {
+      return isAuthenticated() && 
+             (isAdmin() || 
+              (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'agent'));
     }
 
     function isValidEmail(email) {
@@ -39,12 +49,15 @@ service cloud.firestore {
     }
 
     function isValidUser(data) {
-      return data.keys().hasAll(['username', 'phoneNumber', 'password', 'balance', 'createdAt']) &&
+      return data.keys().hasAll(['username', 'phoneNumber']) &&
              data.username is string && data.username.size() >= 3 && data.username.size() <= 50 &&
              data.phoneNumber is string && data.phoneNumber.size() >= 10 && data.phoneNumber.size() <= 25 &&
-             data.password is string &&
-             data.balance is number && data.balance >= 0 &&
-             data.createdAt is timestamp &&
+             (!('password' in data) || data.password is string) &&
+             (!('balance' in data) || (data.balance is number && data.balance >= 0)) &&
+             (!('createdAt' in data) || data.createdAt is timestamp) &&
+             (!('role' in data) || data.role in ['user', 'agent', 'admin']) &&
+             (!('agentBalance' in data) || (data.agentBalance is number && data.agentBalance >= 0)) &&
+             (!('referredBy' in data) || (data.referredBy is string)) &&
              (!('gmail' in data) || (data.gmail is string && isValidEmail(data.gmail))) &&
              (!('isGmailLinked' in data) || data.isGmailLinked is bool) &&
              (!('favorites' in data) || (data.favorites is list && data.favorites.size() <= 100)) &&
@@ -56,6 +69,8 @@ service cloud.firestore {
              (!('totalReferralEarnings' in data) || (data.totalReferralEarnings is number)) &&
              (!('vipLevel' in data) || (data.vipLevel is number)) &&
              (!('vipProgress' in data) || (data.vipProgress is number)) &&
+             (!('aviatorLogo' in data) || (data.aviatorLogo is string)) &&
+             (!('country' in data) || (data.country is string || data.country == null)) &&
              (!('profilePictureUrl' in data) || (data.profilePictureUrl is string && data.profilePictureUrl.size() < 100000));
     }
 
@@ -68,33 +83,63 @@ service cloud.firestore {
     }
 
     function isValidTransaction(data) {
-      return data.keys().hasAll(['trxId', 'method', 'type', 'amount', 'date', 'status', 'statusColor']) &&
-             data.trxId is string && data.trxId.size() > 0 && data.trxId.size() < 100 &&
+      return data.keys().hasAll(['method', 'type', 'amount', 'date', 'status']) &&
+             (!('trxId' in data) || (data.trxId is string && data.trxId.size() < 100)) &&
              data.method is string && data.method.size() > 0 && data.method.size() < 50 &&
              data.type in ['deposit', 'withdraw', 'bonus', 'bet'] &&
-             data.amount is number &&
+             (data.amount is number || data.amount is string) &&
              data.date is timestamp &&
-             data.status in ['সম্পন্ন', 'প্রক্রিয়াধীন', 'ব্যর্থ'] &&
-             data.statusColor is string && data.statusColor.size() > 0 && data.statusColor.size() < 50;
+             data.status in ['সম্পন্ন', 'প্রক্রিয়াধীন', 'ব্যর্থ', 'pending', 'approved', 'rejected'] &&
+             (!('statusColor' in data) || (data.statusColor is string && data.statusColor.size() < 100));
+    }
+
+    function isValidReferral(data) {
+      return data.keys().hasAll(['referredUserId', 'referredUsername', 'joinedAt', 'earningsGenerated', 'status']) &&
+             data.referredUserId is string &&
+             data.referredUsername is string &&
+             data.joinedAt is timestamp &&
+             data.earningsGenerated is number &&
+             data.status in ['active', 'inactive'];
+    }
+
+    function isValidChatMessage(data) {
+      return data.keys().hasAll(['text', 'sender', 'timestamp']) &&
+             data.text is string && data.text.size() > 0 && data.text.size() < 1000 &&
+             data.sender in ['user', 'agent'] &&
+             (data.timestamp is timestamp || data.timestamp == null); // Allow null if not yet set by serverTimestamp
     }
 
     // ===============================================================
     // Rules
     // ===============================================================
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && isValidUser(request.resource.data);
-      allow update: if (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data) &&
-                    request.resource.data.createdAt == resource.data.createdAt;
+      allow read: if isOwner(userId) || isAdmin() || (isAgent() && resource.data.referredBy == request.auth.uid);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == 'user';
+      allow update: if (isOwner(userId) || isAdmin() || (isAgent() && resource.data.referredBy == request.auth.uid)) && 
+                    isValidUser(request.resource.data) &&
+                    request.resource.data.createdAt == resource.data.createdAt &&
+                    (isAdmin() || request.resource.data.role == resource.data.role) &&
+                    (isOwner(userId) || isAdmin() || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['balance']));
 
       match /savedItems/{savedItemId} {
         allow read, write: if isOwner(userId) && isValidSavedItem(request.resource.data);
       }
 
       match /transactions/{transactionId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow create: if isOwner(userId) && isValidTransaction(request.resource.data);
+        allow read: if isOwner(userId) || isAdmin() || (isAgent() && get(/databases/$(database)/documents/users/$(userId)).data.referredBy == request.auth.uid);
+        allow create: if (isOwner(userId) || (isAgent() && get(/databases/$(database)/documents/users/$(userId)).data.referredBy == request.auth.uid)) && isValidTransaction(request.resource.data);
         allow update: if isAdmin() && isValidTransaction(request.resource.data);
+      }
+
+      match /referrals/{referralId} {
+        allow read: if isOwner(userId) || isAdmin() || isAgent();
+        allow create, update: if (isAdmin() || isAgent()) && isValidReferral(request.resource.data);
+      }
+
+      match /chat/{messageId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if (isOwner(userId) || isAdmin()) && isValidChatMessage(request.resource.data);
+        allow delete: if isOwner(userId) || isAdmin();
       }
     }
 
@@ -103,11 +148,16 @@ service cloud.firestore {
       allow create: if isAuthenticated() && 
                     request.resource.data.keys().hasOnly(['userCount']) &&
                     request.resource.data.userCount is int &&
-                    request.resource.data.userCount == 1;
+                    request.resource.data.userCount >= 1;
       allow update: if isAuthenticated() && 
                     request.resource.data.keys().hasOnly(['userCount']) &&
                     request.resource.data.userCount is int &&
                     request.resource.data.userCount == resource.data.userCount + 1;
+    }
+
+    match /metadata/settings {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
   }
 }

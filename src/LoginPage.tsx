@@ -47,12 +47,16 @@ const registerSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>;
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
+import { ToastType } from './components/Toast';
+
 interface LoginPageProps {
   onRegisterSuccess: () => void;
   onContinue: () => void;
+  onLoginSuccess: () => void;
+  showToast: (msg: string, type?: ToastType) => void;
 }
 
-export default function LoginPage({ onRegisterSuccess, onContinue }: LoginPageProps) {
+export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSuccess, showToast }: LoginPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
@@ -79,27 +83,25 @@ export default function LoginPage({ onRegisterSuccess, onContinue }: LoginPagePr
     console.error("Auth Error:", err);
     setIsLoading(false);
     
+    let msg = "কিছু ভুল হয়েছে। আবার চেষ্টা করুন। (Something went wrong. Please try again.)";
+
     if (err.code === 'auth/admin-restricted-operation') {
       setError("ADMIN_RESTRICTED");
       return;
     }
 
     if (err.code === 'auth/popup-closed-by-user') {
-      // For popup closed, we don't necessarily need a big red error, 
-      // but a helpful hint is good in case it was blocked.
-      setError("পপআপ উইন্ডোটি বন্ধ করা হয়েছে। আবার চেষ্টা করুন এবং নিশ্চিত করুন যে পপআপ ব্লক করা নেই। (Popup closed. Please try again.)");
-      return;
-    }
-
-    if (err.code === 'auth/email-already-in-use') {
-      setError("এই ইমেইলটি ইতিমধ্যে ব্যবহার করা হয়েছে। অনুগ্রহ করে লগইন করুন। (Email already in use. Please login instead.)");
+      msg = "পপআপ উইন্ডোটি বন্ধ করা হয়েছে। আবার চেষ্টা করুন। (Popup closed. Please try again.)";
+    } else if (err.code === 'auth/email-already-in-use') {
+      msg = "এই ইমেইলটি ইতিমধ্যে ব্যবহার করা হয়েছে। (Email already in use.)";
     } else if (err.code === 'auth/invalid-credential') {
-      setError("ইমেইল বা পাসওয়ার্ড ভুল। (Invalid email or password)");
+      msg = "ইমেইল বা পাসওয়ার্ড ভুল। (Invalid email or password)";
     } else if (err.code === 'auth/operation-not-allowed') {
-      setError("এই লগইন পদ্ধতিটি বর্তমানে বন্ধ আছে। (Auth method not allowed)");
-    } else {
-      setError("একটি সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন। (Something went wrong)");
+      msg = "এই লগইন পদ্ধতিটি বর্তমানে বন্ধ আছে। (Auth method not allowed)";
     }
+    
+    setError(msg);
+    showToast(msg, "error");
   };
 
   const onOneClick = async () => {
@@ -108,7 +110,8 @@ export default function LoginPage({ onRegisterSuccess, onContinue }: LoginPagePr
     setError(null);
     try {
       await signInAnonymously(auth);
-      setShowSuccessPopup(true);
+      showToast("সফলভাবে লগইন করা হয়েছে (Guest)", "success");
+      onLoginSuccess();
       onRegisterSuccess();
     } catch (err) {
       handleAuthError(err);
@@ -121,7 +124,8 @@ export default function LoginPage({ onRegisterSuccess, onContinue }: LoginPagePr
     setError(null);
     try {
       await signInWithPopup(auth, googleProvider);
-      setShowSuccessPopup(true);
+      showToast("গুগল লগইন সফল হয়েছে", "success");
+      onLoginSuccess();
       onRegisterSuccess();
     } catch (err) {
       handleAuthError(err);
@@ -133,7 +137,8 @@ export default function LoginPage({ onRegisterSuccess, onContinue }: LoginPagePr
     setError(null);
     try {
       await signInWithEmailAndPassword(auth, data.email, data.password);
-      setShowSuccessPopup(true);
+      showToast("লগইন সফল হয়েছে", "success");
+      onLoginSuccess();
       onRegisterSuccess();
     } catch (err) {
       handleAuthError(err);
@@ -146,7 +151,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue }: LoginPagePr
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
       await updateProfile(userCredential.user, { displayName: data.username });
-      setShowSuccessPopup(true);
+      showToast("অ্যাকাউন্ট তৈরি সফল হয়েছে", "success");
       onRegisterSuccess();
     } catch (err) {
       handleAuthError(err);
@@ -154,7 +159,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue }: LoginPagePr
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center p-6 relative overflow-hidden font-sans">
+    <div className="min-h-[100dvh] bg-[#0a0a0a] flex flex-col items-center justify-center p-6 relative overflow-hidden font-sans safe-top safe-bottom">
       {/* Background Effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-teal-500/20 rounded-full blur-[120px] animate-pulse"></div>

@@ -367,6 +367,8 @@ const GameCard: React.FC<GameCardProps> = ({ game, isFavorite, onSelect, onToggl
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const isAviator = game.provider === 'SPRIBE' && game.id === '1';
+  
+  const displayImage = game.image || `https://picsum.photos/seed/${game.id}/400/600`;
 
   return (
     <div 
@@ -381,7 +383,7 @@ const GameCard: React.FC<GameCardProps> = ({ game, isFavorite, onSelect, onToggl
       )}
       
       <img
-        src={game.image}
+        src={displayImage}
         loading="lazy"
         onLoad={() => setImageLoaded(true)}
         onError={() => setImageError(true)}
@@ -392,8 +394,11 @@ const GameCard: React.FC<GameCardProps> = ({ game, isFavorite, onSelect, onToggl
       
       {/* Fallback for error */}
       {imageError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-900 text-gray-500 text-xs p-2 text-center">
-          Image Unavailable
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 to-teal-950 text-teal-500 p-4 text-center">
+          <div className="w-12 h-12 rounded-full bg-teal-900/50 flex items-center justify-center mb-2">
+            <Info size={24} />
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-widest">Preview Unavailable</span>
         </div>
       )}
 

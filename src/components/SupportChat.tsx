@@ -98,19 +98,13 @@ export default function SupportChat({ isOpen, onClose, userData }: { isOpen: boo
         >
           {/* Header */}
           <div className="bg-teal-900 p-4 flex items-center justify-between border-b border-teal-800">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-teal-800 flex items-center justify-center border border-teal-700">
-                <MessageCircle className="text-teal-400" size={20} />
-              </div>
-              <div>
-                <h3 className="text-white font-bold">সাপোর্ট চ্যাট (Support)</h3>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                  <span className="text-teal-300 text-[10px] uppercase tracking-widest">অনলাইন</span>
-                </div>
-              </div>
-            </div>
             <div className="flex items-center gap-2">
+              <button 
+                onClick={onClose}
+                className="p-2 text-white hover:bg-teal-800 rounded-full transition-colors"
+              >
+                <X size={24} />
+              </button>
               <button 
                 onClick={clearChat}
                 className="p-2 text-teal-400 hover:bg-teal-800 rounded-full transition-colors"
@@ -118,12 +112,18 @@ export default function SupportChat({ isOpen, onClose, userData }: { isOpen: boo
               >
                 <Trash2 size={20} />
               </button>
-              <button 
-                onClick={onClose}
-                className="p-2 text-white hover:bg-teal-800 rounded-full transition-colors"
-              >
-                <X size={24} />
-              </button>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <h3 className="text-white font-bold text-sm">সাপোর্ট চ্যাট (Support)</h3>
+                <div className="flex items-center justify-end gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                  <span className="text-teal-300 text-[10px] uppercase tracking-widest">অনলাইন</span>
+                </div>
+              </div>
+              <div className="w-10 h-10 rounded-full bg-teal-800 flex items-center justify-center border border-teal-700">
+                <MessageCircle className="text-teal-400" size={20} />
+              </div>
             </div>
           </div>
 

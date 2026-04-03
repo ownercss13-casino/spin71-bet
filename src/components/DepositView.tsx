@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { ChevronLeft, Wallet, CreditCard, Building2, Smartphone, ShieldCheck, History, ArrowRight, Copy, Check, AlertCircle, X, RefreshCw } from 'lucide-react';
 
 import { updateUserProfile } from '../services/firebaseService';
+import { db, auth } from '../firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const paymentMethods = [
   { id: 'bkash', name: 'বিকাশ', icon: Smartphone, color: 'bg-[#e2136e]', bonus: '+5%' },
@@ -11,7 +13,9 @@ const paymentMethods = [
 
 const quickAmounts = [100, 200, 300, 500, 1200, 10000, 25000];
 
-export default function DepositView({ onTabChange, balance, onBalanceUpdate, userData }: { onTabChange: (tab: any) => void, balance: number, onBalanceUpdate: (amount: number) => void, userData: any }) {
+import { ToastType } from './Toast';
+
+export default function DepositView({ onTabChange, balance, onBalanceUpdate, userData, showToast }: { onTabChange: (tab: any) => void, balance: number, onBalanceUpdate: (amount: number) => void, userData: any, showToast: (msg: string, type?: ToastType) => void }) {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState('nagad');
@@ -29,7 +33,7 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
 
     const depositAmount = parseFloat(amount);
     if (isNaN(depositAmount) || depositAmount < 100 || depositAmount > 25000) {
-      alert('সর্বনিম্ন ডিপোজিট ১০০ টাকা এবং সর্বোচ্চ ২৫,০০০ টাকা।');
+      showToast('সর্বনিম্ন ডিপোজিট ১০০ টাকা এবং সর্বোচ্চ ২৫,০০০ টাকা।', 'warning');
       return;
     }
 
@@ -39,35 +43,51 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
   const handleDeposit = async () => {
     const depositAmount = parseFloat(amount);
     if (isNaN(depositAmount) || depositAmount < 100 || depositAmount > 25000) {
-      alert('সর্বনিম্ন ডিপোজিট ১০০ টাকা এবং সর্বোচ্চ ২৫,০০০ টাকা।');
+      showToast('সর্বনিম্ন ডিপোজিট ১০০ টাকা এবং সর্বোচ্চ ২৫,০০০ টাকা।', 'warning');
       return;
     }
 
     if (!trxId.trim()) {
-      alert('দয়া করে ট্রানজেকশন আইডি (TrxID) দিন।');
+      showToast('দয়া করে ট্রানজেকশন আইডি (TrxID) দিন।', 'warning');
       return;
     }
 
     if (!senderNumber.trim()) {
-      alert('দয়া করে সেন্ডার নাম্বার দিন (যে নাম্বার থেকে টাকা পাঠিয়েছেন)।');
+      showToast('দয়া করে সেন্ডার নাম্বার দিন (যে নাম্বার থেকে টাকা পাঠিয়েছেন)।', 'warning');
+      return;
+    }
+
+    if (!auth.currentUser) {
+      showToast('You must be logged in to deposit.', 'error');
       return;
     }
 
     setIsSubmitting(true);
-    setTimeout(async () => {
-      try {
-        if (userData?.id) {
-          await updateUserProfile(userData.id, { hasMadeDeposit: true });
-        }
-        onBalanceUpdate(balance + depositAmount);
-        alert('ডিপোজিট রিকোয়েস্ট সফল হয়েছে! আপনার ব্যালেন্স আপডেট হয়েছে।');
-        onTabChange('home');
-      } catch (error) {
-        console.error("Error updating deposit status:", error);
-      } finally {
-        setIsSubmitting(false);
+    try {
+      if (userData?.id) {
+        await updateUserProfile(userData.id, { hasMadeDeposit: true });
       }
-    }, 500);
+      
+      const path = `users/${auth.currentUser.uid}/transactions`;
+      await addDoc(collection(db, path), {
+        type: 'deposit',
+        amount: depositAmount,
+        method: selectedMethod,
+        trxId: trxId,
+        number: senderNumber,
+        status: 'pending',
+        date: serverTimestamp(),
+        statusColor: 'bg-yellow-500/20 text-yellow-500'
+      });
+
+      showToast('ডিপোজিট রিকোয়েস্ট সফল হয়েছে! এডমিন এপ্রুভ করলে আপনার ব্যালেন্স আপডেট হবে।', 'success');
+      onTabChange('home');
+    } catch (error) {
+      console.error("Error updating deposit status:", error);
+      showToast('ডিপোজিট রিকোয়েস্ট ব্যর্থ হয়েছে। আবার চেষ্টা করুন।', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
