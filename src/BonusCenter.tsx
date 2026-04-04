@@ -10,6 +10,7 @@ export default function BonusCenter({ userData, balance, onBalanceUpdate, onTabC
   const [popupMessage, setPopupMessage] = useState("");
   const [showErrorPopup, setShowErrorPopup] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [tooltip, setTooltip] = useState<string | null>(null);
 
   const lastClaimed = userData?.lastDailyBonusClaimedAt?.toDate();
   const canClaimDaily = !lastClaimed || (new Date().getTime() - lastClaimed.getTime() > 24 * 60 * 60 * 1000);
@@ -118,12 +119,34 @@ export default function BonusCenter({ userData, balance, onBalanceUpdate, onTabC
                 <span className="text-teal-300 text-xs">বোনাস পরিমাণ:</span>
                 <span className="text-yellow-400 font-bold">৫৭.০০ টাকা</span>
               </div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-teal-300 text-xs">ওয়েজারিং (Wagering):</span>
+              <div className="flex justify-between items-center mb-2 relative">
+                <span 
+                  className="text-teal-300 text-xs cursor-help border-b border-dotted border-teal-500"
+                  onMouseEnter={() => setTooltip('wagering')}
+                  onMouseLeave={() => setTooltip(null)}
+                >
+                  ওয়েজারিং (Wagering):
+                </span>
+                {tooltip === 'wagering' && (
+                  <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-black/90 text-white text-[10px] rounded shadow-lg z-50">
+                    বোনাস ব্যালেন্স উইথড্র করার আগে অন্তত ১ গুণ গেম খেলতে হবে।
+                  </div>
+                )}
                 <span className="text-white text-xs font-medium">১x (১ গুণ)</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-teal-300 text-xs">মেয়াদ (Validity):</span>
+              <div className="flex justify-between items-center relative">
+                <span 
+                  className="text-teal-300 text-xs cursor-help border-b border-dotted border-teal-500"
+                  onMouseEnter={() => setTooltip('validity')}
+                  onMouseLeave={() => setTooltip(null)}
+                >
+                  মেয়াদ (Validity):
+                </span>
+                {tooltip === 'validity' && (
+                  <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-black/90 text-white text-[10px] rounded shadow-lg z-50">
+                    বোনাসটি ক্লেইম করার পর ৭ দিনের মধ্যে ব্যবহার করতে হবে।
+                  </div>
+                )}
                 <span className="text-white text-xs font-medium">৭ দিন</span>
               </div>
             </div>

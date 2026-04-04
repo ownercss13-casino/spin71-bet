@@ -12,9 +12,10 @@ interface AviatorGameProps {
   onBalanceUpdate: (newBalance: number) => void;
   logo?: string | null;
   onLogoChange?: (newLogo: string) => void;
+  showToast: (msg: string, type?: any) => void;
 }
 
-export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, logo, onLogoChange }: AviatorGameProps) {
+export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, logo, onLogoChange, showToast }: AviatorGameProps) {
   const { session } = useLiveAviator();
   const [multiplier, setMultiplier] = useState(1.00);
   const [isFlying, setIsFlying] = useState(false);
@@ -131,7 +132,23 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
   }, [gamePhase, isFlying]);
 
   const placeBet = React.useCallback(() => {
-    if (gamePhase !== 'betting' || userBalance < betAmount || isBetPlaced || betAmount <= 0) return;
+    if (gamePhase !== 'betting') {
+      showToast('বেটিং সময় শেষ!', 'error');
+      return;
+    }
+    if (betAmount <= 0) {
+      showToast('সঠিক বেট অ্যামাউন্ট দিন!', 'error');
+      return;
+    }
+    if (userBalance < betAmount) {
+      showToast('পর্যাপ্ত ব্যালেন্স নেই!', 'error');
+      return;
+    }
+    if (isBetPlaced) {
+      showToast('বেট ইতিমধ্যেই প্লেস করা হয়েছে!', 'info');
+      return;
+    }
+
     onBalanceUpdate(userBalance - betAmount);
     setIsBetPlaced(true);
     setJustPlacedBet(true);
@@ -141,7 +158,8 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
     if (auth.currentUser) {
       updateTurnover(auth.currentUser.uid, betAmount);
     }
-  }, [gamePhase, userBalance, betAmount, isBetPlaced, onBalanceUpdate]);
+    showToast('বেট সফলভাবে প্লেস করা হয়েছে!', 'success');
+  }, [gamePhase, userBalance, betAmount, isBetPlaced, onBalanceUpdate, showToast]);
 
   const cashOut = React.useCallback(() => {
     if (!isBetPlaced || isCashedOut || hasCrashed || gamePhase !== 'flying') return;

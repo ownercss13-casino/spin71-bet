@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, Info, Wallet, Play, RotateCcw, Star, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
+import Reel from './Reel';
 import { updateBalance, updateTurnover } from '../services/firebaseService';
 import { auth } from '../firebase';
 
@@ -138,18 +139,7 @@ export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate }
           {/* Reels Container */}
           <div className="bg-black rounded-xl p-2 grid grid-cols-3 gap-2 border-2 border-gray-700 overflow-hidden">
             {reels.map((reel, i) => (
-              <div key={i} className="flex flex-col gap-2">
-                {reel.map((symbol, j) => (
-                  <motion.div 
-                    key={j}
-                    animate={isSpinning ? { y: [0, 100], opacity: [1, 0.5, 1] } : { y: 0, opacity: 1 }}
-                    transition={isSpinning ? { duration: 0.1, repeat: Infinity, ease: "linear" } : { duration: 0.5 }}
-                    className="h-20 bg-gradient-to-b from-gray-700 to-gray-800 rounded-lg flex items-center justify-center text-4xl shadow-inner border border-white/5"
-                  >
-                    {symbol}
-                  </motion.div>
-                ))}
-              </div>
+              <Reel key={i} symbols={reel} isSpinning={isSpinning} />
             ))}
           </div>
 

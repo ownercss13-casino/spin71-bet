@@ -982,6 +982,7 @@ export default function App() {
               }
             }
           }}
+          showToast={showToast}
         />
       ) : selectedGame && selectedGame.category === 'স্লট' ? (
         <SlotGame 

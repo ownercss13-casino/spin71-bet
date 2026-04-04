@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Wallet, Ticket, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { updateBalance, updateTurnover } from '../services/firebaseService';
-import { db, auth } from '../firebase';
+import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 interface BetSlipProps {
@@ -51,13 +51,13 @@ export default function BetSlip({
 
     setIsPlacingBet(true);
     const newBalance = userBalance - betAmount;
+    const path = `users/${auth.currentUser.uid}/transactions`;
     
     // Immediate visual feedback: deduct balance in UI
     onBalanceUpdate(newBalance);
 
     try {
       // Record the bet in Firestore
-      const path = `users/${auth.currentUser.uid}/transactions`;
       await addDoc(collection(db, path), {
         type: 'bet',
         amount: -betAmount,
@@ -93,6 +93,7 @@ export default function BetSlip({
       onBalanceUpdate(userBalance);
       showToast("Failed to place bet. Please try again.", "error");
       setIsPlacingBet(false);
+      handleFirestoreError(err, OperationType.WRITE, path);
     }
   };
 

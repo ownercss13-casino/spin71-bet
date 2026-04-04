@@ -2,9 +2,14 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { motion } from 'motion/react';
 import AgentPanel from './AgentPanel';
 import SupportChat from "./SupportChat";
-import { updateUserProfile, addNotification } from '../services/firebaseService';
-import { auth, googleProvider, db, handleFirestoreError, OperationType } from '../firebase';
-import { linkWithPopup, unlink, FacebookAuthProvider } from 'firebase/auth';
+import ProfileHeader from './ProfileHeader';
+import ProfileNavigation from './ProfileNavigation';
+import OverviewTab from './OverviewTab';
+import { Timestamp, collection, query, where, orderBy, onSnapshot, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db, handleFirestoreError, OperationType } from '../firebase';
+import { Smartphone, ChevronLeft, CreditCard, ChevronRight, AlertTriangle, RefreshCw, AlertCircle, CheckCircle2, X } from 'lucide-react';
+import { motion } from 'motion/react';
+import React, { useState, useEffect } from 'react';
 import {
   collection,
   query,
@@ -240,103 +245,18 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
 
   return (
     <div className="flex-1 overflow-y-auto pb-20">
-      {/* Profile Header */}
-      <div className="bg-gradient-to-b from-[#128a61] to-[#16a374] p-4 pt-6 rounded-b-3xl shadow-md">
-        <div className="flex items-center gap-4 mb-6">
-          <button 
-            onClick={() => onTabChange('home')}
-            className="p-2 bg-black/20 hover:bg-black/30 rounded-full transition-colors text-white"
-          >
-            <ChevronLeft size={24} />
-          </button>
-          <h1 className="text-xl font-bold text-white">আমার প্রোফাইল</h1>
-        </div>
-        <div className="flex items-center gap-6">
-          <div className="relative">
-            <div className="relative w-24 h-24 rounded-full bg-gradient-to-tr from-yellow-400 to-yellow-600 p-1.5 shadow-xl cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-              <div className="w-full h-full bg-[#16a374] rounded-full flex items-center justify-center border-4 border-white overflow-hidden">
-                {profilePic ? (
-                  <img src={profilePic} alt="Profile" className="w-full h-full object-cover" />
-                ) : (
-                  <User size={48} className="text-white" />
-                )}
-              </div>
-              <div className="absolute bottom-1 right-1 bg-white p-1.5 rounded-full shadow-lg">
-                <Camera size={16} className="text-teal-600" />
-              </div>
-            </div>
-            <input type="file" ref={fileInputRef} onChange={handleProfilePicChange} accept="image/*" className="hidden" />
-            <div className="absolute -bottom-2 -right-2 bg-gradient-to-r from-yellow-500 to-yellow-700 text-black text-xs font-black px-3 py-1 rounded-full border-2 border-yellow-300 shadow-lg">
-              VIP {profileData?.vipLevel || 1}
-            </div>
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <h2 className="text-2xl font-black text-white drop-shadow-md tracking-tight">{userData?.username || profileData?.username || "Player_SPIN71BET"}</h2>
-              <button 
-                onClick={() => {
-                  navigator.clipboard.writeText(userData?.username || profileData?.username || "Player_SPIN71BET");
-                  // Optional: Add a toast or temporary state for feedback
-                }}
-                className="p-1 bg-white/10 hover:bg-white/20 rounded-md transition-colors text-white/70 hover:text-white"
-                title="Copy Username"
-              >
-                <Copy size={14} />
-              </button>
-            </div>
-            <p className="text-teal-50 text-sm font-medium opacity-90">ID: {userData?.id || profileData?.id || "84729104"}</p>
-            <div className="mt-2 flex flex-col gap-1.5">
-              <div className="flex justify-between items-center">
-                <span className="text-[10px] text-yellow-300 font-black uppercase tracking-widest">VIP Progress</span>
-                <span className="text-[10px] text-yellow-300 font-bold">{profileData?.vipProgress || 0}% to VIP {(profileData?.vipLevel || 1) + 1}</span>
-              </div>
-              <div className="bg-black/30 rounded-full h-2.5 w-full overflow-hidden border border-white/10">
-                <div className="bg-gradient-to-r from-yellow-400 to-yellow-200 h-full rounded-full shadow-[0_0_10px_rgba(250,204,21,0.5)]" style={{ width: `${profileData?.vipProgress || 0}%` }}></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <ProfileHeader 
+        userData={userData}
+        profilePic={profilePic}
+        fileInputRef={fileInputRef}
+        handleProfilePicChange={handleProfilePicChange}
+        onBack={() => onTabChange('home')}
+      />
 
-      {/* Navigation Tabs */}
-      <div className="flex px-4 mt-4 gap-2 overflow-x-auto no-scrollbar pb-2">
-        <button 
-          onClick={() => handleSubTabChange('overview')}
-          className={`flex-1 min-w-[80px] py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'overview' ? 'bg-yellow-500 text-black shadow-md' : 'bg-teal-800/50 text-teal-100 border border-teal-700'}`}
-        >
-          ড্যাশবোর্ড
-        </button>
-        <button 
-          onClick={() => handleSubTabChange('profile')}
-          className={`flex-1 min-w-[80px] py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'profile' ? 'bg-yellow-500 text-black shadow-md' : 'bg-teal-800/50 text-teal-100 border border-teal-700'}`}
-        >
-          প্রোফাইল
-        </button>
-        <button 
-          onClick={() => handleSubTabChange('withdraw')}
-          className={`flex-1 min-w-[80px] py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'withdraw' ? 'bg-yellow-500 text-black shadow-md' : 'bg-teal-800/50 text-teal-100 border border-teal-700'}`}
-        >
-          উত্তোলন
-        </button>
-        <button 
-          onClick={() => handleSubTabChange('history')}
-          className={`flex-1 min-w-[80px] py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'history' ? 'bg-yellow-500 text-black shadow-md' : 'bg-teal-800/50 text-teal-100 border border-teal-700'}`}
-        >
-          লেনদেন ইতিহাস
-        </button>
-        <button 
-          onClick={() => handleSubTabChange('withdrawHistory')}
-          className={`flex-1 min-w-[80px] py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'withdrawHistory' ? 'bg-yellow-500 text-black shadow-md' : 'bg-teal-800/50 text-teal-100 border border-teal-700'}`}
-        >
-          উত্তোলন ইতিহাস
-        </button>
-        <button 
-          onClick={() => handleSubTabChange('links')}
-          className={`flex-1 min-w-[80px] py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'links' ? 'bg-yellow-500 text-black shadow-md' : 'bg-teal-800/50 text-teal-100 border border-teal-700'}`}
-        >
-          আমার লিংক
-        </button>
-      </div>
+      <ProfileNavigation 
+        activeSubTab={activeSubTab}
+        handleSubTabChange={handleSubTabChange}
+      />
 
       {/* Tab Content */}
       <div className="p-4 relative min-h-[300px]">
@@ -508,7 +428,7 @@ function WithdrawTab({ onBack, balance, showToast, userData }: { onBack: () => v
   }, []);
 
   const turnover = userData?.turnover || 0;
-  const requiredTurnover = (userData?.totalDeposit || 1000) * 1; // Example: 1x turnover required
+  const requiredTurnover = (userData?.totalDeposit || 1000) * 1;
   const turnoverProgress = Math.min(100, (turnover / requiredTurnover) * 100);
 
   const methods = [
@@ -548,6 +468,12 @@ function WithdrawTab({ onBack, balance, showToast, userData }: { onBack: () => v
     setIsSubmitting(true);
     const path = `users/${auth.currentUser.uid}/transactions`;
     try {
+      // Deduct balance first
+      const userRef = doc(db, 'users', auth.currentUser.uid);
+      await updateDoc(userRef, {
+        balance: balance - withdrawAmount
+      });
+
       await addDoc(collection(db, path), {
         type: 'withdraw',
         amount: -withdrawAmount,
@@ -559,17 +485,20 @@ function WithdrawTab({ onBack, balance, showToast, userData }: { onBack: () => v
         statusColor: 'bg-yellow-500/20 text-yellow-500'
       });
 
-      // Deduct balance immediately for pending withdrawal
-      const userRef = doc(db, 'users', auth.currentUser.uid);
-      await updateDoc(userRef, {
-        balance: balance - withdrawAmount
-      });
-
       showToast('উত্তোলন রিকোয়েস্ট সফল হয়েছে! এডমিন এপ্রুভ করলে আপনার অ্যাকাউন্টে টাকা পৌঁছে যাবে।', 'success');
       onBack();
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, path);
+      // If addDoc fails, try to revert balance deduction
+      try {
+        const userRef = doc(db, 'users', auth.currentUser.uid);
+        await updateDoc(userRef, {
+          balance: balance
+        });
+      } catch (revertError) {
+        console.error("Failed to revert balance:", revertError);
+      }
       showToast('উত্তোলন রিকোয়েস্ট ব্যর্থ হয়েছে। আবার চেষ্টা করুন।', 'error');
+      handleFirestoreError(error, OperationType.WRITE, path);
     } finally {
       setIsSubmitting(false);
     }

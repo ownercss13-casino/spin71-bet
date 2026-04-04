@@ -7,8 +7,8 @@ import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot,
 
 const paymentMethods = [
   { id: 'bkash', name: 'বিকাশ', icon: Smartphone, color: 'bg-[#e2136e]', bonus: '+5%' },
-  { id: 'nagad', name: 'নগদ', icon: Smartphone, color: 'bg-[#f7931e]', bonus: '+5%' },
-  { id: 'rocket', name: 'রকেট', icon: Smartphone, color: 'bg-[#8c1515]', bonus: '+2%' },
+  { id: 'nagad', name: 'নগদ', icon: CreditCard, color: 'bg-[#f7931e]', bonus: '+5%' },
+  { id: 'rocket', name: 'রকেট', icon: Building2, color: 'bg-[#8c1515]', bonus: '+2%' },
 ];
 
 const quickAmounts = [100, 200, 300, 500, 1200, 10000, 25000];
@@ -129,8 +129,8 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
       showToast('ডিপোজিট রিকোয়েস্ট সফল হয়েছে! এডমিন এপ্রুভ করলে আপনার ব্যালেন্স আপডেট হবে।', 'success');
       onTabChange('home');
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, path);
       showToast('ডিপোজিট রিকোয়েস্ট ব্যর্থ হয়েছে। আবার চেষ্টা করুন।', 'error');
+      handleFirestoreError(error, OperationType.WRITE, path);
     } finally {
       setIsSubmitting(false);
     }

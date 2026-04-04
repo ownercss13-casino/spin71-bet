@@ -1,0 +1,58 @@
+import React, { Component, ErrorInfo, ReactNode } from 'react';
+
+interface Props {
+  children: ReactNode;
+}
+
+interface State {
+  hasError: boolean;
+  errorMessage: string;
+}
+
+export default class ErrorBoundary extends Component<Props, State> {
+  props!: Props;
+  state: State = {
+    hasError: false,
+    errorMessage: ''
+  };
+
+  static getDerivedStateFromError(error: Error): State {
+    let message = 'দুঃখিত, একটি অপ্রত্যাশিত ত্রুটি ঘটেছে। অনুগ্রহ করে আবার চেষ্টা করুন।';
+    try {
+      const errInfo = JSON.parse(error.message);
+      if (errInfo.error && errInfo.error.includes('permission-denied')) {
+        message = 'আপনার এই কাজটি করার অনুমতি নেই।';
+      } else if (errInfo.error && errInfo.error.includes('quota-exceeded')) {
+        message = 'সার্ভারের কোটা পূর্ণ হয়ে গেছে। অনুগ্রহ করে পরে চেষ্টা করুন।';
+      }
+    } catch (e) {
+      // Not a JSON error
+    }
+    return { hasError: true, errorMessage: message };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("Uncaught error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="fixed inset-0 z-[1000] bg-black/80 flex items-center justify-center p-6">
+          <div className="bg-teal-900 p-8 rounded-3xl text-center border-2 border-red-500 max-w-sm w-full">
+            <h2 className="text-2xl font-black text-white mb-4">ত্রুটি!</h2>
+            <p className="text-teal-100 mb-6">{this.state.errorMessage}</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="w-full bg-red-500 text-white font-black py-3 rounded-xl hover:bg-red-400 transition-colors"
+            >
+              পুনরায় চেষ্টা করুন
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
