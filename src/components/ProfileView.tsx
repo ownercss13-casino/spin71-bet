@@ -5,23 +5,10 @@ import SupportChat from "./SupportChat";
 import ProfileHeader from './ProfileHeader';
 import ProfileNavigation from './ProfileNavigation';
 import OverviewTab from './OverviewTab';
+import Skeleton from './Skeleton';
 import { Timestamp, collection, query, where, orderBy, onSnapshot, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
-import { Smartphone, ChevronLeft, CreditCard, ChevronRight, AlertTriangle, RefreshCw, AlertCircle, CheckCircle2, X } from 'lucide-react';
-import { motion } from 'motion/react';
-import React, { useState, useEffect } from 'react';
-import {
-  collection,
-  query,
-  where,
-  orderBy,
-  onSnapshot,
-  Timestamp,
-  addDoc,
-  serverTimestamp,
-  doc,
-  updateDoc
-} from 'firebase/firestore';
+import { Smartphone, ChevronLeft, CreditCard, ChevronRight, AlertTriangle, RefreshCw, AlertCircle, CheckCircle2, X, User, Settings, Wallet, Shield, Bell, LogOut, Gift, Award, Users, ArrowUpRight, ArrowDownLeft, Clock, Gamepad2, KeyRound, UserCog, Headset, HelpCircle, BadgeCheck, FileText, Camera, Send, Facebook, Mail, Link, Filter, ArrowDownUp, QrCode, Copy, Check, Download, Eye, EyeOff, MapPin, Calendar, Loader2, Building2, Search, Play, Info, TrendingUp, Edit, Crown, History as HistoryIcon } from 'lucide-react';
 import {
   User,
   Settings,
@@ -73,9 +60,9 @@ import {
   Info,
   TrendingUp,
   Edit,
-  Crown
+  Crown,
+  History as HistoryIcon
 } from "lucide-react";
-
 const fetcher = (url: string) => fetch(url).then(res => {
   if (!res.ok) throw new Error('Network response was not ok');
   return res.json();
@@ -653,7 +640,7 @@ function WithdrawTab({ onBack, balance, showToast, userData }: { onBack: () => v
       {/* Withdrawal History Section */}
       <div className="mt-8 space-y-4">
         <h4 className="text-white font-bold flex items-center gap-2">
-          <History size={18} className="text-teal-400" />
+          <HistoryIcon size={18} className="text-teal-400" />
           উত্তোলনের ইতিহাস
         </h4>
         
@@ -683,7 +670,7 @@ function WithdrawTab({ onBack, balance, showToast, userData }: { onBack: () => v
           </div>
         ) : (
           <div className="bg-teal-900/20 p-8 rounded-2xl border border-teal-800/30 text-center">
-            <History size={32} className="text-teal-700 mx-auto mb-2" />
+            <HistoryIcon size={32} className="text-teal-700 mx-auto mb-2" />
             <p className="text-teal-400 text-sm">কোনো উত্তোলনের ইতিহাস নেই</p>
           </div>
         )}
@@ -1390,9 +1377,10 @@ function HistoryTab({ email }: { email?: string }) {
       </div>
       
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-12 text-teal-400">
-          <Loader2 size={32} className="animate-spin mb-2" />
-          <p className="text-xs">লোড হচ্ছে...</p>
+        <div className="space-y-3">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
         </div>
       ) : filteredAndSortedTransactions.length > 0 ? (
         filteredAndSortedTransactions.map((trx: any) => (
@@ -1580,7 +1568,11 @@ function WithdrawalHistoryTab({ email }: { email?: string }) {
       </div>
 
       {isLoading ? (
-        <div className="text-center text-teal-400 text-sm py-10">লোড হচ্ছে...</div>
+        <div className="space-y-3">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
+        </div>
       ) : filteredAndSortedTransactions.length === 0 ? (
         <div className="text-center text-teal-400 text-sm py-10">কোনো উত্তোলন ইতিহাস নেই।</div>
       ) : (

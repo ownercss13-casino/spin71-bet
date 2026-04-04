@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp, runTransaction, increment, collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp, runTransaction, increment, collection, query, where, getDocs, Timestamp, documentId } from 'firebase/firestore';
 import { signInWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
 import { db, auth, googleProvider, handleFirestoreError, OperationType } from './firebase';
 import LoginPage from './LoginPage';
@@ -280,7 +280,7 @@ export default function App() {
                 // For now, we assume the code is the first 6 chars of the UID
                 // In a real app, we'd query the users collection for this code
                 const usersRef = collection(db, 'users');
-                const q = query(usersRef, where('id', '>=', savedReferralCode), where('id', '<=', savedReferralCode + '\uf8ff'));
+                const q = query(usersRef, where(documentId(), '>=', savedReferralCode), where(documentId(), '<=', savedReferralCode + '\uf8ff'));
                 const agentSnapshot = await getDocs(q);
                 
                 if (!agentSnapshot.empty) {

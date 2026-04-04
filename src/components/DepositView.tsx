@@ -13,6 +13,7 @@ const paymentMethods = [
 
 const quickAmounts = [100, 200, 300, 500, 1200, 10000, 25000];
 
+import Skeleton from './Skeleton';
 import { ToastType } from './Toast';
 
 export default function DepositView({ onTabChange, balance, onBalanceUpdate, userData, showToast }: { onTabChange: (tab: any) => void, balance: number, onBalanceUpdate: (amount: number) => void, userData: any, showToast: (msg: string, type?: ToastType) => void }) {
@@ -189,8 +190,10 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
             </h4>
             
             {isLoadingHistory ? (
-              <div className="flex justify-center py-8">
-                <Loader2 size={24} className="animate-spin text-teal-500" />
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-20 w-full" />
+                ))}
               </div>
             ) : deposits.length > 0 ? (
               <div className="space-y-3">
