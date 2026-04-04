@@ -102,6 +102,7 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
     }
 
     setIsSubmitting(true);
+    const path = `users/${auth.currentUser.uid}/transactions`;
     try {
       if (userData?.id) {
         await updateUserProfile(userData.id, { hasMadeDeposit: true });
@@ -128,7 +129,7 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
       showToast('ডিপোজিট রিকোয়েস্ট সফল হয়েছে! এডমিন এপ্রুভ করলে আপনার ব্যালেন্স আপডেট হবে।', 'success');
       onTabChange('home');
     } catch (error) {
-      console.error("Error updating deposit status:", error);
+      handleFirestoreError(error, OperationType.WRITE, path);
       showToast('ডিপোজিট রিকোয়েস্ট ব্যর্থ হয়েছে। আবার চেষ্টা করুন।', 'error');
     } finally {
       setIsSubmitting(false);

@@ -79,13 +79,14 @@ const fetcher = (url: string) => fetch(url).then(res => {
 import { ToastType } from "./Toast";
 
 export default function ProfileView({ onTabChange, balance, userData, onLogout, showToast }: { onTabChange: (tab: any) => void, balance: number, userData: any, onLogout: () => void, showToast: (msg: string, type?: ToastType) => void }) {
-  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'profile' | 'history' | 'withdraw' | 'links'>('overview');
+  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory'>('overview');
   const [isTabLoading, setIsTabLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [profilePic, setProfilePic] = useState<string | null>(userData?.profilePictureUrl || null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [editUsername, setEditUsername] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
@@ -131,7 +132,7 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
     return () => unsubscribe();
   }, []);
 
-  const handleSubTabChange = (tab: 'overview' | 'profile' | 'history' | 'withdraw' | 'links') => {
+  const handleSubTabChange = (tab: 'overview' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory') => {
     if (tab === activeSubTab) return;
     setIsTabLoading(true);
     setTimeout(() => {
@@ -321,7 +322,13 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
           onClick={() => handleSubTabChange('history')}
           className={`flex-1 min-w-[80px] py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'history' ? 'bg-yellow-500 text-black shadow-md' : 'bg-teal-800/50 text-teal-100 border border-teal-700'}`}
         >
-          ইতিহাস
+          লেনদেন ইতিহাস
+        </button>
+        <button 
+          onClick={() => handleSubTabChange('withdrawHistory')}
+          className={`flex-1 min-w-[80px] py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === 'withdrawHistory' ? 'bg-yellow-500 text-black shadow-md' : 'bg-teal-800/50 text-teal-100 border border-teal-700'}`}
+        >
+          উত্তোলন ইতিহাস
         </button>
         <button 
           onClick={() => handleSubTabChange('links')}
@@ -354,6 +361,7 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
             onEditProfile={handleOpenEditProfile}
             totals={totals}
             setShowAgentPanel={setShowAgentPanel}
+            setIsChatOpen={setIsChatOpen}
           />
         )}
 
@@ -368,6 +376,7 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
           />
         )}
         {activeSubTab === 'history' && <HistoryTab email={profileData?.email} />}
+        {activeSubTab === 'withdrawHistory' && <WithdrawalHistoryTab email={profileData?.email} />}
         {activeSubTab === 'links' && <LinksTab onTabChange={onTabChange} onSubTabChange={handleSubTabChange} showToast={showToast} />}
         {activeSubTab === 'withdraw' && <WithdrawTab onBack={() => handleSubTabChange('overview')} balance={balance} showToast={showToast} userData={userData} />}
       </div>
@@ -537,8 +546,8 @@ function WithdrawTab({ onBack, balance, showToast, userData }: { onBack: () => v
     }
 
     setIsSubmitting(true);
+    const path = `users/${auth.currentUser.uid}/transactions`;
     try {
-      const path = `users/${auth.currentUser.uid}/transactions`;
       await addDoc(collection(db, path), {
         type: 'withdraw',
         amount: -withdrawAmount,
@@ -559,7 +568,7 @@ function WithdrawTab({ onBack, balance, showToast, userData }: { onBack: () => v
       showToast('উত্তোলন রিকোয়েস্ট সফল হয়েছে! এডমিন এপ্রুভ করলে আপনার অ্যাকাউন্টে টাকা পৌঁছে যাবে।', 'success');
       onBack();
     } catch (error) {
-      console.error("Error submitting withdrawal:", error);
+      handleFirestoreError(error, OperationType.WRITE, path);
       showToast('উত্তোলন রিকোয়েস্ট ব্যর্থ হয়েছে। আবার চেষ্টা করুন।', 'error');
     } finally {
       setIsSubmitting(false);
@@ -764,6 +773,7 @@ interface OverviewTabProps {
   onEditProfile: () => void;
   totals: any;
   setShowAgentPanel: (show: boolean) => void;
+  setIsChatOpen: (show: boolean) => void;
 }
 
 function ProfileTab({ userData, onEditProfile, onEditProfilePic, profilePic, onLogout, showToast }: { userData: any, onEditProfile: () => void, onEditProfilePic: () => void, profilePic: string | null, onLogout: () => void, showToast: (msg: string, type?: ToastType) => void }) {
@@ -881,7 +891,8 @@ function OverviewTab({
   userData, 
   onEditProfile, 
   totals, 
-  setShowAgentPanel 
+  setShowAgentPanel,
+  setIsChatOpen
 }: OverviewTabProps) {
   const turnover = userData?.turnover || 0;
   const requiredTurnover = (userData?.totalDeposit || 1000) * 1;
@@ -951,6 +962,17 @@ function OverviewTab({
           </div>
           <span className="text-white font-bold text-sm">আমন্ত্রণ</span>
           <span className="text-teal-300 text-[10px] mt-1">বোনাস পান</span>
+        </button>
+
+        <button 
+          onClick={() => setIsChatOpen(true)}
+          className="bg-teal-800/40 rounded-xl p-4 border border-teal-700/50 flex flex-col items-center justify-center text-center hover:bg-teal-700/60 transition-all group"
+        >
+          <div className="w-12 h-12 rounded-full bg-yellow-500/20 flex items-center justify-center mb-2 text-yellow-400 group-hover:scale-110 transition-transform">
+            <Headset size={24} />
+          </div>
+          <span className="text-white font-bold text-sm">সাপোর্ট চ্যাট</span>
+          <span className="text-teal-300 text-[10px] mt-1">সাহায্য নিন</span>
         </button>
 
         {(userData?.role === 'agent' || userData?.role === 'admin') && (
@@ -1093,14 +1115,14 @@ function LinksTab({ onTabChange, onSubTabChange, showToast }: { onTabChange: (ta
 
   // Real app links/pages
   const [links] = useState([
-    { id: 'home', title: 'হোম পেজ (Home)', url: 'https://spin71bet.com/', type: 'page', clicks: 1245, lastVisited: new Date().toISOString(), action: () => onTabChange('home') },
-    { id: 'deposit', title: 'ডিপোজিট (Deposit)', url: 'https://spin71bet.com/deposit', type: 'finance', clicks: 432, lastVisited: new Date(Date.now() - 86400000).toISOString(), action: () => onTabChange('deposit') },
-    { id: 'withdraw', title: 'উত্তোলন (Withdraw)', url: 'https://spin71bet.com/profile/withdraw', type: 'finance', clicks: 210, lastVisited: new Date(Date.now() - 120000000).toISOString(), action: () => onSubTabChange('withdraw') },
-    { id: 'bonus', title: 'বোনাস সেন্টার (Bonus)', url: 'https://spin71bet.com/bonus', type: 'page', clicks: 890, lastVisited: new Date(Date.now() - 172800000).toISOString(), action: () => onTabChange('bonus') },
-    { id: 'invite', title: 'আমন্ত্রণ (Invite)', url: 'https://spin71bet.com/invite', type: 'referral', clicks: 156, lastVisited: new Date(Date.now() - 259200000).toISOString(), action: () => onTabChange('invite') },
-    { id: 'profile', title: 'প্রোফাইল (Profile)', url: 'https://spin71bet.com/profile', type: 'page', clicks: 567, lastVisited: new Date().toISOString(), action: () => onTabChange('profile') },
-    { id: 'history', title: 'ইতিহাস (History)', url: 'https://spin71bet.com/profile/history', type: 'page', clicks: 345, lastVisited: new Date(Date.now() - 50000000).toISOString(), action: () => onSubTabChange('history') },
-    { id: 'settings', title: 'সেটিংস (Settings)', url: 'https://spin71bet.com/profile/settings', type: 'page', clicks: 120, lastVisited: new Date(Date.now() - 400000000).toISOString(), action: () => onSubTabChange('profile') },
+    { id: 'home', title: 'হোম পেজ (Home)', url: 'https://spin71-bet-e0m5.onrender.com/', type: 'page', clicks: 1245, lastVisited: new Date().toISOString(), action: () => onTabChange('home') },
+    { id: 'deposit', title: 'ডিপোজিট (Deposit)', url: 'https://spin71-bet-e0m5.onrender.com/deposit', type: 'finance', clicks: 432, lastVisited: new Date(Date.now() - 86400000).toISOString(), action: () => onTabChange('deposit') },
+    { id: 'withdraw', title: 'উত্তোলন (Withdraw)', url: 'https://spin71-bet-e0m5.onrender.com/profile/withdraw', type: 'finance', clicks: 210, lastVisited: new Date(Date.now() - 120000000).toISOString(), action: () => onSubTabChange('withdraw') },
+    { id: 'bonus', title: 'বোনাস সেন্টার (Bonus)', url: 'https://spin71-bet-e0m5.onrender.com/bonus', type: 'page', clicks: 890, lastVisited: new Date(Date.now() - 172800000).toISOString(), action: () => onTabChange('bonus') },
+    { id: 'invite', title: 'আমন্ত্রণ (Invite)', url: 'https://spin71-bet-e0m5.onrender.com/invite', type: 'referral', clicks: 156, lastVisited: new Date(Date.now() - 259200000).toISOString(), action: () => onTabChange('invite') },
+    { id: 'profile', title: 'প্রোফাইল (Profile)', url: 'https://spin71-bet-e0m5.onrender.com/profile', type: 'page', clicks: 567, lastVisited: new Date().toISOString(), action: () => onTabChange('profile') },
+    { id: 'history', title: 'ইতিহাস (History)', url: 'https://spin71-bet-e0m5.onrender.com/profile/history', type: 'page', clicks: 345, lastVisited: new Date(Date.now() - 50000000).toISOString(), action: () => onSubTabChange('history') },
+    { id: 'settings', title: 'সেটিংস (Settings)', url: 'https://spin71-bet-e0m5.onrender.com/profile/settings', type: 'page', clicks: 120, lastVisited: new Date(Date.now() - 400000000).toISOString(), action: () => onSubTabChange('profile') },
     { id: 'telegram', title: 'টেলিগ্রাম সাপোর্ট (Support)', url: 'https://t.me/spin71bet_support', type: 'support', clicks: 89, lastVisited: new Date(Date.now() - 345600000).toISOString(), action: () => window.open('https://t.me/spin71bet_support', '_blank') },
   ]);
 
@@ -1537,6 +1559,117 @@ function HistoryTab({ email }: { email?: string }) {
               বন্ধ করুন
             </button>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WithdrawalHistoryTab({ email }: { email?: string }) {
+  const [sortBy, setSortBy] = useState('date_desc');
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!auth.currentUser) return;
+
+    const path = `users/${auth.currentUser.uid}/transactions`;
+    const q = query(
+      collection(db, path),
+      where('type', '==', 'withdraw'),
+      orderBy('date', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const trxData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          date: data.date instanceof Timestamp ? 
+                data.date.toDate().toLocaleString('en-GB', { 
+                  year: 'numeric', 
+                  month: '2-digit', 
+                  day: '2-digit', 
+                  hour: '2-digit', 
+                  minute: '2-digit' 
+                }).replace(/\//g, '-') : data.date
+        };
+      });
+      setTransactions(trxData);
+      setIsLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const filteredAndSortedTransactions = useMemo(() => {
+    if (!transactions) return [];
+    
+    let result = [...transactions];
+    
+    result.sort((a, b) => {
+      if (sortBy === 'date_desc') {
+        return new Date(b.date).getTime() - new Date(a.date).getTime();
+      } else if (sortBy === 'date_asc') {
+        return new Date(a.date).getTime() - new Date(b.date).getTime();
+      } else if (sortBy === 'amount_desc') {
+        const amountA = parseFloat(a.amount.replace(/[^0-9.-]+/g,""));
+        const amountB = parseFloat(b.amount.replace(/[^0-9.-]+/g,""));
+        return amountB - amountA;
+      } else if (sortBy === 'amount_asc') {
+        const amountA = parseFloat(a.amount.replace(/[^0-9.-]+/g,""));
+        const amountB = parseFloat(b.amount.replace(/[^0-9.-]+/g,""));
+        return amountA - amountB;
+      }
+      return 0;
+    });
+    
+    return result;
+  }, [transactions, sortBy]);
+
+  return (
+    <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
+      <div className="flex justify-between items-center mb-2">
+        <h3 className="font-bold text-white">উত্তোলন ইতিহাস</h3>
+      </div>
+
+      <div className="flex gap-2 mb-4">
+        <select 
+          value={sortBy} 
+          onChange={(e) => setSortBy(e.target.value)}
+          className="w-full bg-teal-800/60 border border-teal-700/50 text-teal-100 text-xs rounded-lg px-2 py-2 appearance-none focus:outline-none focus:border-teal-500"
+        >
+          <option value="date_desc">নতুন থেকে পুরানো</option>
+          <option value="date_asc">পুরানো থেকে নতুন</option>
+          <option value="amount_desc">অ্যামাউন্ট (বেশি থেকে কম)</option>
+          <option value="amount_asc">অ্যামাউন্ট (কম থেকে বেশি)</option>
+        </select>
+      </div>
+
+      {isLoading ? (
+        <div className="text-center text-teal-400 text-sm py-10">লোড হচ্ছে...</div>
+      ) : filteredAndSortedTransactions.length === 0 ? (
+        <div className="text-center text-teal-400 text-sm py-10">কোনো উত্তোলন ইতিহাস নেই।</div>
+      ) : (
+        <div className="space-y-2">
+          {filteredAndSortedTransactions.map((trx) => (
+            <div key={trx.id} className="bg-teal-900/40 p-3 rounded-xl border border-teal-700/30 flex justify-between items-center">
+              <div>
+                <p className="text-white font-bold text-sm">{trx.amount}</p>
+                <p className="text-teal-400 text-[10px]">{trx.date}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-teal-100 text-xs">{trx.method}</p>
+                <p className={`text-[10px] font-bold ${trx.status === 'completed' ? 'text-green-400' : 'text-yellow-400'}`}>
+                  {trx.status === 'completed' ? 'সম্পন্ন' : 'প্রক্রিয়াধীন'}
+                </p>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

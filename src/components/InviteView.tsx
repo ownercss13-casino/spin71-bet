@@ -34,7 +34,7 @@ export default function InviteView({ onTabChange, userData, showToast, initialSu
   const currentReferrals = userData?.referralCount || 0;
   const totalEarned = userData?.totalReferralEarnings || 0;
   const referralCode = userData?.referralCode || (userData?.id ? userData.id.substring(0, 6).toUpperCase() : 'SPIN71');
-  const referralLink = `https://spin71bet.com/?ref=${referralCode}`;
+  const referralLink = `https://spin71-bet-e0m5.onrender.com/?ref=${referralCode}`;
 
   const tiers = [
     { count: 1, reward: 50 },
