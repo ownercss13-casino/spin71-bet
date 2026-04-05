@@ -94,10 +94,22 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       msg = "পপআপ উইন্ডোটি বন্ধ করা হয়েছে। আবার চেষ্টা করুন। (Popup closed. Please try again.)";
     } else if (err.code === 'auth/email-already-in-use') {
       msg = "এই ইমেইলটি ইতিমধ্যে ব্যবহার করা হয়েছে। (Email already in use.)";
-    } else if (err.code === 'auth/invalid-credential') {
-      msg = "ইমেইল বা পাসওয়ার্ড ভুল। (Invalid email or password)";
+    } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
+      msg = "পাসওয়ার্ড ভুল। অনুগ্রহ করে সঠিক পাসওয়ার্ড দিন। (Invalid password. Please enter correct password.)";
+    } else if (err.code === 'auth/user-not-found') {
+      msg = "এই ইমেইল দিয়ে কোনো অ্যাকাউন্ট পাওয়া যায়নি। (User not found. Please register first.)";
+    } else if (err.code === 'auth/invalid-email') {
+      msg = "ইমেইলটি সঠিক নয়। (Invalid email format.)";
+    } else if (err.code === 'auth/too-many-requests') {
+      msg = "অনেকবার ভুল চেষ্টা করা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন। (Too many failed attempts. Try again later.)";
+    } else if (err.code === 'auth/network-request-failed') {
+      msg = "ইন্টারনেট সংযোগে সমস্যা হচ্ছে। (Network error. Please check your connection.)";
+    } else if (err.code === 'auth/user-disabled') {
+      msg = "এই অ্যাকাউন্টটি বন্ধ করে দেওয়া হয়েছে। (User account disabled.)";
     } else if (err.code === 'auth/operation-not-allowed') {
       msg = "এই লগইন পদ্ধতিটি বর্তমানে বন্ধ আছে। (Auth method not allowed)";
+    } else if (err.code === 'auth/network-request-failed') {
+      msg = "ইন্টারনেট সংযোগে সমস্যা। দয়া করে আপনার কানেকশন চেক করুন। (Network error. Check your connection.)";
     }
     
     setError(msg);

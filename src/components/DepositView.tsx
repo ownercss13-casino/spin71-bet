@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, Wallet, CreditCard, Building2, Smartphone, ShieldCheck, History, ArrowRight, Copy, Check, AlertCircle, X, RefreshCw, ArrowDownLeft, Loader2 } from 'lucide-react';
+import { ChevronLeft, Wallet, CreditCard, Building2, Smartphone, ShieldCheck, History, ArrowRight, Copy, Check, AlertCircle, X, RefreshCw, ArrowDownLeft, Loader2, Headset } from 'lucide-react';
 
 import { updateUserProfile, addNotification } from '../services/firebaseService';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
@@ -192,7 +192,9 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
             {isLoadingHistory ? (
               <div className="space-y-3">
                 {[1, 2, 3].map((i) => (
-                  <Skeleton key={i} className="h-20 w-full" />
+                  <div key={i}>
+                    <Skeleton className="h-20 w-full" />
+                  </div>
                 ))}
               </div>
             ) : deposits.length > 0 ? (
@@ -301,6 +303,16 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
             >
               কনফার্ম করুন <ArrowRight size={20} />
             </button>
+
+            {/* Support Button */}
+            <div className="mt-4">
+              <button 
+                onClick={() => window.open('https://t.me/spin71_bot', '_blank')}
+                className="w-full bg-blue-600/20 border border-blue-500/30 text-blue-400 font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-600/30 transition-all"
+              >
+                <Headset size={18} /> পেমেন্ট করতে সমস্যা হলে এখানে ক্লিক করুন
+              </button>
+            </div>
           </>
         ) : (
           <>
@@ -414,6 +426,16 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
             >
               জমা করুন <ArrowRight size={20} />
             </button>
+
+            {/* Support Button */}
+            <div className="mt-4">
+              <button 
+                onClick={() => window.open('https://t.me/spin71_bot', '_blank')}
+                className="w-full bg-blue-600/20 border border-blue-500/30 text-blue-400 font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-600/30 transition-all"
+              >
+                <Headset size={18} /> পেমেন্ট করতে সমস্যা হলে এখানে ক্লিক করুন
+              </button>
+            </div>
           </>
         )}
       </div>

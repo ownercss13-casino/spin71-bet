@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { User, Phone, Lock, Eye, EyeOff, ChevronLeft, ShieldCheck, ArrowRight, UserPlus, Facebook } from 'lucide-react';
 import { motion } from 'motion/react';
 import { GoogleAuthProvider, FacebookAuthProvider, signInWithPopup, RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
@@ -23,15 +23,32 @@ export default function RegisterView({ onRegister, onBackToLogin }: RegisterView
   const [isOtpSent, setIsOtpSent] = useState(false);
   const recaptchaRef = useRef<HTMLDivElement>(null);
 
+  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
+
+  useEffect(() => {
+    if (!recaptchaVerifierRef.current && recaptchaRef.current) {
+      recaptchaVerifierRef.current = new RecaptchaVerifier(auth, recaptchaRef.current, {
+        'size': 'invisible',
+      });
+    }
+    return () => {
+      if (recaptchaVerifierRef.current) {
+        recaptchaVerifierRef.current.clear();
+        recaptchaVerifierRef.current = null;
+      }
+    };
+  }, []);
+
   const sendOtp = async () => {
+    if (!recaptchaVerifierRef.current) {
+        setError("reCAPTCHA লোড হতে সমস্যা হয়েছে। আবার চেষ্টা করুন।");
+        return;
+    }
     setIsLoading(true);
     setError(null);
     try {
-      const recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaRef.current!, {
-        'size': 'invisible',
-      });
       const formattedPhone = `+880${phone.replace(/^0+/, '')}`;
-      const confirmation = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifier);
+      const confirmation = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifierRef.current);
       setConfirmationResult(confirmation);
       setIsOtpSent(true);
     } catch (err: any) {

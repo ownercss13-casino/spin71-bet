@@ -16,6 +16,7 @@ interface AviatorGameProps {
 }
 
 export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, logo, onLogoChange, showToast }: AviatorGameProps) {
+  const IS_BETTING_DISABLED = true;
   const { session } = useLiveAviator();
   const [multiplier, setMultiplier] = useState(1.00);
   const [isFlying, setIsFlying] = useState(false);
@@ -41,6 +42,7 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
   }[]>([]);
   const [liveBets, setLiveBets] = useState<{ id: number; name: string; amount: number; cashedOut: boolean; cashOutMultiplier?: number }[]>([]);
   const [justPlacedBet, setJustPlacedBet] = useState(false);
+  const [showSecondBet, setShowSecondBet] = useState(false);
   
   const multiplierRef = useRef(1.00);
 
@@ -132,6 +134,10 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
   }, [gamePhase, isFlying]);
 
   const placeBet = React.useCallback(() => {
+    if (IS_BETTING_DISABLED) {
+      showToast('বেটিং সাময়িকভাবে বন্ধ আছে!', 'info');
+      return;
+    }
     if (gamePhase !== 'betting') {
       showToast('বেটিং সময় শেষ!', 'error');
       return;
@@ -591,9 +597,19 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
       </div>
 
       {/* Betting Controls */}
-      <div className="p-3 bg-[#1b1b1b] border-t border-white/5 space-y-3">
-        {/* Auto Controls */}
-        <div className="flex gap-2">
+      <div className="p-3 bg-[#1b1b1b] border-t border-white/5 space-y-3 relative">
+        {/* Multi-bet Toggle Button */}
+        <button 
+          onClick={() => setShowSecondBet(!showSecondBet)}
+          className="absolute -top-4 right-4 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center shadow-lg border-2 border-[#1b1b1b] z-50 active:scale-90 transition-transform"
+        >
+          {showSecondBet ? <X size={16} className="text-black" /> : <span className="text-black font-black text-xl">+</span>}
+        </button>
+
+        {/* First Bet Panel */}
+        <div className="space-y-3">
+          {/* Auto Controls */}
+          <div className="flex gap-2">
           <button 
             onClick={() => setIsAutoBet(!isAutoBet)}
             className={`flex-1 py-1.5 rounded-lg border text-[9px] font-bold transition-all ${
@@ -736,6 +752,57 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
             )}
           </div>
         </div>
+      </div>
+
+      {/* Second Bet Panel (Multi) - Disabled as per request */}
+        {showSecondBet && (
+          <div className="relative pt-3 border-t border-white/5 opacity-50 grayscale pointer-events-none">
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[1px] rounded-xl">
+              <div className="bg-red-600/80 px-3 py-1 rounded-full border border-red-400 shadow-lg transform -rotate-12">
+                <span className="text-white font-black text-[10px] uppercase tracking-widest">Closed / বন্ধ</span>
+              </div>
+            </div>
+            
+            <div className="flex gap-2 mb-3">
+              <button className="flex-1 py-1.5 rounded-lg border border-white/10 bg-black/40 text-gray-500 text-[9px] font-bold">
+                AUTO BET
+              </button>
+              <div className="flex-[1.5] flex items-center gap-2 px-2 py-1 rounded-lg border border-white/10 bg-black/40">
+                <button className="text-[9px] font-bold text-gray-500">AUTO CASHOUT</button>
+                <div className="flex-1 flex items-center justify-end gap-1">
+                  <span className="text-white text-[10px] font-bold">2.00</span>
+                  <span className="text-gray-500 text-[9px]">x</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <div className="flex-1 bg-black/40 rounded-xl border border-white/10 p-2 flex flex-col items-center">
+                <div className="flex items-center justify-between w-full mb-2">
+                  <button className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-white">-</button>
+                  <div className="flex flex-col items-center">
+                    <span className="text-[8px] text-gray-500 font-bold uppercase tracking-widest">Amount</span>
+                    <span className="text-sm font-black text-white">৳ 100</span>
+                  </div>
+                  <button className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-white">+</button>
+                </div>
+                <div className="grid grid-cols-3 gap-1 w-full opacity-30">
+                  {[1, 10, 100, 500, 1000, 10000].map(val => (
+                    <button key={val} className="text-[9px] font-bold py-1.5 rounded bg-gray-800/50 border border-white/5 text-gray-400">
+                      {val >= 1000 ? `${val/1000}k` : val}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex-1 flex gap-2">
+                <button className="flex-1 h-full rounded-xl bg-gray-800 text-gray-500 flex flex-col items-center justify-center p-2">
+                  <span className="font-black text-lg leading-none italic">BET</span>
+                  <span className="font-bold text-sm mt-1">৳ 100</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Cashed Out Message Overlay */}
         {isCashedOut && (

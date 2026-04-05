@@ -4,65 +4,12 @@ import AgentPanel from './AgentPanel';
 import SupportChat from "./SupportChat";
 import ProfileHeader from './ProfileHeader';
 import ProfileNavigation from './ProfileNavigation';
-import OverviewTab from './OverviewTab';
 import Skeleton from './Skeleton';
 import { Timestamp, collection, query, where, orderBy, onSnapshot, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
+import { unlink, linkWithPopup, GoogleAuthProvider, FacebookAuthProvider } from 'firebase/auth';
 import { Smartphone, ChevronLeft, CreditCard, ChevronRight, AlertTriangle, RefreshCw, AlertCircle, CheckCircle2, X, User, Settings, Wallet, Shield, Bell, LogOut, Gift, Award, Users, ArrowUpRight, ArrowDownLeft, Clock, Gamepad2, KeyRound, UserCog, Headset, HelpCircle, BadgeCheck, FileText, Camera, Send, Facebook, Mail, Link, Filter, ArrowDownUp, QrCode, Copy, Check, Download, Eye, EyeOff, MapPin, Calendar, Loader2, Building2, Search, Play, Info, TrendingUp, Edit, Crown, History as HistoryIcon } from 'lucide-react';
-import {
-  User,
-  Settings,
-  Wallet,
-  ChevronRight,
-  ChevronLeft,
-  Shield,
-  Bell,
-  LogOut,
-  CreditCard,
-  Gift,
-  Award,
-  Users,
-  ArrowUpRight,
-  ArrowDownLeft,
-  Clock,
-  RefreshCw,
-  Gamepad2,
-  Smartphone,
-  KeyRound,
-  UserCog,
-  Headset,
-  HelpCircle,
-  BadgeCheck,
-  FileText,
-  Camera,
-  AlertCircle,
-  X,
-  Send,
-  Facebook,
-  Mail,
-  Link,
-  CheckCircle2,
-  Filter,
-  ArrowDownUp,
-  QrCode,
-  Copy,
-  Check,
-  Download,
-  AlertTriangle,
-  Eye,
-  EyeOff,
-  MapPin,
-  Calendar,
-  Loader2,
-  Building2,
-  Search,
-  Play,
-  Info,
-  TrendingUp,
-  Edit,
-  Crown,
-  History as HistoryIcon
-} from "lucide-react";
+import { updateUserProfile, addNotification } from '../services/firebaseService';
 const fetcher = (url: string) => fetch(url).then(res => {
   if (!res.ok) throw new Error('Network response was not ok');
   return res.json();
@@ -936,6 +883,52 @@ function OverviewTab({
         </div>
       </div>
 
+      {/* Support & Community */}
+      <div className="grid grid-cols-1 gap-3">
+        <h3 className="text-white font-bold text-sm px-1 flex items-center gap-2">
+          <Headset size={18} className="text-yellow-500" /> সাপোর্ট ও কমিউনিটি (Support & Community)
+        </h3>
+        <div className="grid grid-cols-2 gap-3">
+          <a 
+            href="https://t.me/spin71_bet" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="bg-[#0088cc]/10 border border-[#0088cc]/30 p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-[#0088cc]/20 transition-all group"
+          >
+            <div className="w-10 h-10 rounded-full bg-[#0088cc] flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform">
+              <Send size={20} />
+            </div>
+            <span className="text-white font-bold text-[10px] uppercase tracking-tighter">টেলিগ্রাম চ্যানেল</span>
+          </a>
+          <a 
+            href="https://t.me/spin71_bot" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="bg-[#0088cc]/10 border border-[#0088cc]/30 p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-[#0088cc]/20 transition-all group"
+          >
+            <div className="w-10 h-10 rounded-full bg-[#0088cc] flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform">
+              <Headset size={20} />
+            </div>
+            <span className="text-white font-bold text-[10px] uppercase tracking-tighter">সাপোর্ট বট</span>
+          </a>
+        </div>
+        <button 
+          onClick={() => setIsChatOpen(true)}
+          className="w-full bg-teal-800/40 border border-teal-700/50 p-4 rounded-2xl flex items-center justify-between hover:bg-teal-700/50 transition-all group"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full bg-teal-500 flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform">
+              <Headset size={20} />
+            </div>
+            <div className="text-left">
+              <p className="text-white font-bold text-sm">লাইভ চ্যাট সাপোর্ট</p>
+              <p className="text-teal-400 text-[10px] uppercase font-bold">২৪/৭ অনলাইন সাপোর্ট</p>
+            </div>
+          </div>
+          <ChevronRight size={20} className="text-teal-600 group-hover:text-teal-400 transition-colors" />
+        </button>
+      </div>
+
       {/* Personal Information */}
       <div className="bg-teal-800/40 rounded-xl border border-teal-700/50 overflow-hidden">
         <div className="p-3 border-b border-teal-700/50 flex items-center justify-between">
@@ -1165,10 +1158,11 @@ function LinksTab({ onTabChange, onSubTabChange, showToast }: { onTabChange: (ta
                       navigator.clipboard.writeText(link.url);
                       showToast('লিংক কপি করা হয়েছে!', 'success');
                     }}
-                    className="p-1.5 bg-teal-900/50 text-teal-300 hover:text-white hover:bg-teal-700 rounded-md transition-colors"
+                    className="flex items-center gap-1 px-3 py-1.5 bg-teal-900/50 text-teal-300 hover:text-white hover:bg-teal-700 rounded-md transition-colors border border-teal-700/30"
                     title="Copy Link"
                   >
                     <Copy size={14} />
+                    <span className="text-[10px] font-bold">কপি</span>
                   </button>
                 </div>
               </div>
@@ -1379,7 +1373,9 @@ function HistoryTab({ email }: { email?: string }) {
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-16 w-full" />
+            <div key={i}>
+              <Skeleton className="h-16 w-full" />
+            </div>
           ))}
         </div>
       ) : filteredAndSortedTransactions.length > 0 ? (
@@ -1570,7 +1566,9 @@ function WithdrawalHistoryTab({ email }: { email?: string }) {
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-16 w-full" />
+            <div key={i}>
+              <Skeleton className="h-16 w-full" />
+            </div>
           ))}
         </div>
       ) : filteredAndSortedTransactions.length === 0 ? (
@@ -1699,7 +1697,7 @@ function SettingsTab({ profileData, onLogout, onEditProfile, showToast, hideAcco
           gmail: null
         } as any);
       } else {
-        const result = await linkWithPopup(auth.currentUser, googleProvider);
+        const result = await linkWithPopup(auth.currentUser, new GoogleAuthProvider());
         setIsGoogleLinked(true);
         await updateUserProfile(auth.currentUser.uid, {
           isGmailLinked: true,

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Star, Plane as PlaneIcon, Info, Camera, Edit2 } from 'lucide-react';
+import Skeleton from './Skeleton';
 import { GAME_IMAGES } from '../constants/gameAssets';
 
 export interface Game {
@@ -544,8 +545,8 @@ const GameCard: React.FC<GameCardProps> = ({ game, isFavorite, onSelect, onToggl
     >
       {/* Skeleton Loader */}
       {!imageLoaded && !imageError && (
-        <div className="absolute inset-0 z-10 animate-pulse bg-gray-800">
-          <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-800"></div>
+        <div className="absolute inset-0 z-10">
+          <Skeleton className="w-full h-full" />
         </div>
       )}
       
@@ -705,17 +706,31 @@ interface GameGridProps {
   onGameLogoChange?: (gameId: string, newLogo: string) => void;
   globalNames?: Record<string, string>;
   onGameNameChange?: (gameId: string, newName: string) => void;
+  loading?: boolean;
 }
 
-export const GameGrid: React.FC<GameGridProps> = ({ category, searchQuery = "", onGameSelect, favorites, onToggleFavorite, globalLogos = {}, onGameLogoChange, globalNames = {}, onGameNameChange }) => {
+export const GameGrid: React.FC<GameGridProps> = ({ 
+  category, 
+  searchQuery = "", 
+  onGameSelect, 
+  favorites, 
+  onToggleFavorite, 
+  globalLogos = {}, 
+  onGameLogoChange, 
+  globalNames = {}, 
+  onGameNameChange,
+  loading: externalLoading
+}) => {
   const [selectedProvider, setSelectedProvider] = useState<string>('ALL');
   const [selectedGameForDetails, setSelectedGameForDetails] = useState<Game | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [internalLoading, setInternalLoading] = useState(false);
+
+  const isLoading = externalLoading !== undefined ? externalLoading : internalLoading;
 
   useEffect(() => {
-    setLoading(true);
+    setInternalLoading(true);
     const timer = setTimeout(() => {
-      setLoading(false);
+      setInternalLoading(false);
     }, 600);
     return () => clearTimeout(timer);
   }, [category, selectedProvider]);
@@ -765,9 +780,14 @@ export const GameGrid: React.FC<GameGridProps> = ({ category, searchQuery = "", 
       </div>
 
       <div className="grid grid-cols-3 gap-2">
-        {loading ? (
+        {isLoading ? (
           [...Array(9)].map((_, i) => (
-            <div key={i} className="aspect-square rounded-xl bg-gray-800 animate-pulse shadow-md"></div>
+            <div key={i} className="aspect-square rounded-xl bg-gray-800/50 overflow-hidden relative border border-white/5">
+              <Skeleton className="w-full h-full" />
+              <div className="absolute bottom-0 left-0 right-0 p-2 bg-black/40">
+                <Skeleton className="h-3 w-3/4 mx-auto" />
+              </div>
+            </div>
           ))
         ) : filteredGames.length > 0 ? (
           filteredGames.map(game => (
