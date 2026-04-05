@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import AgentPanel from './AgentPanel';
 import SupportChat from "./SupportChat";
 import ProfileHeader from './ProfileHeader';
@@ -17,7 +17,43 @@ const fetcher = (url: string) => fetch(url).then(res => {
 
 import { ToastType } from "./Toast";
 
-export default function ProfileView({ onTabChange, balance, userData, onLogout, showToast }: { onTabChange: (tab: any) => void, balance: number, userData: any, onLogout: () => void, showToast: (msg: string, type?: ToastType) => void }) {
+export default function ProfileView({ 
+  onTabChange, 
+  balance, 
+  userData, 
+  onLogout, 
+  showToast, 
+  casinoName, 
+  onEditCasinoName,
+  globalLogos = {},
+  globalNames = {},
+  globalUrls = {},
+  globalOptions = {},
+  updateGlobalGameLogo,
+  updateGlobalGameName,
+  updateGlobalGameUrl,
+  updateGlobalGameOption,
+  allButtonName,
+  updateAllButtonName
+}: { 
+  onTabChange: (tab: any) => void, 
+  balance: number, 
+  userData: any, 
+  onLogout: () => void, 
+  showToast: (msg: string, type?: ToastType) => void, 
+  casinoName?: string, 
+  onEditCasinoName?: (newName: string) => void,
+  globalLogos?: Record<string, string>,
+  globalNames?: Record<string, string>,
+  globalUrls?: Record<string, string>,
+  globalOptions?: Record<string, string>,
+  updateGlobalGameLogo?: (gameId: string, logo: string) => Promise<void>,
+  updateGlobalGameName?: (gameId: string, name: string) => Promise<void>,
+  updateGlobalGameUrl?: (gameId: string, url: string) => Promise<void>,
+  updateGlobalGameOption?: (gameId: string, option: string) => Promise<void>,
+  allButtonName?: string,
+  updateAllButtonName?: (newName: string) => Promise<void>
+}) {
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory'>('overview');
   const [isTabLoading, setIsTabLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -25,11 +61,15 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
+  const [isTurnoverInfoModalOpen, setIsTurnoverInfoModalOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [editUsername, setEditUsername] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [showAgentPanel, setShowAgentPanel] = useState(false);
+  const [isEditingCasinoName, setIsEditingCasinoName] = useState(false);
+  const [newCasinoName, setNewCasinoName] = useState(casinoName || "");
+  const [isUpdatingCasinoName, setIsUpdatingCasinoName] = useState(false);
 
   const [totals, setTotals] = useState({
     deposit: 0,
@@ -107,6 +147,23 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
     }
   };
 
+  const handleUpdateCasinoName = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCasinoName.trim()) return;
+    setIsUpdatingCasinoName(true);
+    try {
+      const { updateCasinoName } = await import('../services/firebaseService');
+      await updateCasinoName(newCasinoName);
+      showToast("কেসিনো নাম আপডেট করা হয়েছে", "success");
+      setIsEditingCasinoName(false);
+    } catch (err) {
+      console.error("Error updating casino name:", err);
+      showToast("কেসিনো নাম আপডেট করতে সমস্যা হয়েছে", "error");
+    } finally {
+      setIsUpdatingCasinoName(false);
+    }
+  };
+
   const handleRefresh = () => {
     setIsRefreshing(true);
     setTimeout(() => {
@@ -124,6 +181,9 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
       }
 
       const reader = new FileReader();
+      reader.onerror = () => {
+        showToast("ছবিটি পড়তে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।", "error");
+      };
       reader.onloadend = async () => {
         const img = new Image();
         img.src = reader.result as string;
@@ -216,6 +276,9 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
             totals={totals}
             setShowAgentPanel={setShowAgentPanel}
             setIsChatOpen={setIsChatOpen}
+            setIsTurnoverInfoModalOpen={setIsTurnoverInfoModalOpen}
+            casinoName={casinoName}
+            onEditCasinoName={() => setIsEditingCasinoName(true)}
           />
         )}
 
@@ -232,13 +295,118 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
         {activeSubTab === 'history' && <HistoryTab email={profileData?.email} />}
         {activeSubTab === 'withdrawHistory' && <WithdrawalHistoryTab email={profileData?.email} />}
         {activeSubTab === 'links' && <LinksTab onTabChange={onTabChange} onSubTabChange={handleSubTabChange} showToast={showToast} />}
-        {activeSubTab === 'withdraw' && <WithdrawTab onBack={() => handleSubTabChange('overview')} balance={balance} showToast={showToast} userData={userData} />}
+        {activeSubTab === 'withdraw' && <WithdrawTab onBack={() => handleSubTabChange('overview')} balance={balance} showToast={showToast} userData={userData} setIsTurnoverInfoModalOpen={setIsTurnoverInfoModalOpen} />}
       </div>
 
       {/* Agent Panel */}
       {showAgentPanel && (
         <div className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-6 overflow-y-auto">
-          <AgentPanel onBack={() => setShowAgentPanel(false)} userData={userData} showToast={showToast} />
+          <AgentPanel 
+            onBack={() => setShowAgentPanel(false)} 
+            userData={userData} 
+            showToast={showToast}
+            globalLogos={globalLogos}
+            globalNames={globalNames}
+            globalUrls={globalUrls}
+            globalOptions={globalOptions}
+            updateGlobalGameLogo={updateGlobalGameLogo}
+            updateGlobalGameName={updateGlobalGameName}
+            updateGlobalGameUrl={updateGlobalGameUrl}
+            updateGlobalGameOption={updateGlobalGameOption}
+            allButtonName={allButtonName}
+            updateAllButtonName={updateAllButtonName}
+            casinoName={casinoName}
+            updateCasinoName={onEditCasinoName}
+          />
+        </div>
+      )}
+
+      {/* Turnover Info Modal */}
+      {isTurnoverInfoModalOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-[#0b0b0b] border border-teal-500/30 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 max-h-[80vh] flex flex-col">
+            <div className="p-5 border-b border-teal-800/50 flex items-center justify-between bg-teal-900/20">
+              <h3 className="font-black text-white italic uppercase tracking-tighter flex items-center gap-2">
+                <Info size={20} className="text-yellow-400" /> 
+                টানউভার (Turnover) কী?
+              </h3>
+              <button 
+                onClick={() => setIsTurnoverInfoModalOpen(false)}
+                className="text-teal-400 hover:text-white p-1 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto space-y-6 text-sm leading-relaxed">
+              <section className="space-y-2">
+                <h4 className="text-yellow-400 font-black uppercase italic tracking-tight">১. টার্নওভার কী?</h4>
+                <p className="text-teal-100">
+                  আপনি গেমে জিতলেন নাকি হারলেন, সেটা এখানে বড় কথা নয়। আপনি প্রতিবার যত টাকা দিয়ে বাজি ধরছেন, সেই সবগুলোর যোগফলই হলো টার্নওভার।
+                </p>
+                <div className="bg-teal-900/20 p-4 rounded-xl border border-teal-800/30 space-y-2">
+                  <p className="text-xs font-bold text-teal-400 uppercase">উদাহরণ:</p>
+                  <ul className="text-xs text-teal-200 space-y-1">
+                    <li>• আপনি ১০০ টাকা দিয়ে খেলা শুরু করলেন।</li>
+                    <li>• প্রথম বাজিতে ১০ টাকা ধরলেন (টার্নওভার ১০)।</li>
+                    <li>• দ্বিতীয় বাজিতে ২০ টাকা ধরলেন (টার্নওভার ১০ + ২০ = ৩০)।</li>
+                    <li>• তৃতীয় বাজিতে আরও ৫০ টাকা ধরলেন (টার্নওভার ৩০ + ৫০ = ৮০)।</li>
+                  </ul>
+                  <p className="text-xs text-white font-bold mt-2">এখানে আপনার মোট টার্নওভার হলো ৮০ টাকা। আপনার একাউন্টে দিনশেষে কত টাকা ব্যালেন্স থাকল, তার ওপর টার্নওভার নির্ভর করে না।</p>
+                </div>
+              </section>
+
+              <section className="space-y-2">
+                <h4 className="text-yellow-400 font-black uppercase italic tracking-tight">২. কেন এটি গুরুত্বপূর্ণ?</h4>
+                <p className="text-teal-100">সাধারণত দুইটা কারণে টার্নওভারের হিসাব রাখা হয়:</p>
+                <ul className="space-y-3">
+                  <li className="flex gap-3">
+                    <div className="w-5 h-5 rounded-full bg-teal-500/20 flex items-center justify-center shrink-0 text-teal-400 text-[10px] font-bold">১</div>
+                    <div>
+                      <p className="font-bold text-white text-xs">বোনাস উইথড্র (Bonus Wagering)</p>
+                      <p className="text-teal-300 text-[11px]">আপনি যদি কোনো ডিপোজিট বোনাস নেন, তবে ক্যাসিনো কোম্পানিগুলো একটি শর্ত দেয়। যেমন— "৫ গুন টার্নওভার হতে হবে"। এর মানে হলো, ১০০০ টাকা বোনাস পেলে আপনাকে মোট ৫০০০ টাকার বাজি ধরতে হবে, তারপরই আপনি সেই টাকা তুলতে পারবেন।</p>
+                    </div>
+                  </li>
+                  <li className="flex gap-3">
+                    <div className="w-5 h-5 rounded-full bg-teal-500/20 flex items-center justify-center shrink-0 text-teal-400 text-[10px] font-bold">২</div>
+                    <div>
+                      <p className="font-bold text-white text-xs">গেমের জনপ্রিয়তা মাপতে</p>
+                      <p className="text-teal-300 text-[11px]">কোনো গেম কত বেশি খেলা হচ্ছে, তা বোঝার জন্য কোম্পানিগুলো মোট টার্নওভার চেক করে।</p>
+                    </div>
+                  </li>
+                </ul>
+              </section>
+
+              <section className="space-y-2">
+                <h4 className="text-yellow-400 font-black uppercase italic tracking-tight">৩. গেমভেদে টার্নওভারের ধরন</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-teal-900/20 p-3 rounded-xl border border-teal-800/30">
+                    <p className="text-white font-bold text-xs mb-1">স্লট বা এভিয়েটর</p>
+                    <p className="text-[10px] text-teal-300">এখানে টার্নওভার খুব দ্রুত বাড়ে কারণ গেমগুলো খুব অল্প সময়ের হয়।</p>
+                  </div>
+                  <div className="bg-teal-900/20 p-3 rounded-xl border border-teal-800/30">
+                    <p className="text-white font-bold text-xs mb-1">লাইভ টেবিল গেম</p>
+                    <p className="text-[10px] text-teal-300">এখানে সাধারণত বড় অংকের বাজি ধরা হয় বলে টার্নওভার দ্রুত বাড়ে কিন্তু সময় বেশি লাগে।</p>
+                  </div>
+                </div>
+              </section>
+
+              <div className="bg-yellow-500/10 p-4 rounded-xl border border-yellow-500/20">
+                <p className="text-xs text-yellow-200 font-bold italic">
+                  * টানউভার এর সিস্টেম এরকম এড উজার যতক্ষণ টাকা ডিপোজিট করবে তার টানুভার হবে তত + এমনি বোনাস এর টানুবার ৭×
+                </p>
+              </div>
+            </div>
+            
+            <div className="p-5 bg-teal-900/10 border-t border-teal-800/50">
+              <button 
+                onClick={() => setIsTurnoverInfoModalOpen(false)}
+                className="w-full bg-teal-700 hover:bg-teal-600 text-white font-black py-3 rounded-xl transition-all active:scale-95 uppercase tracking-widest text-xs"
+              >
+                ঠিক আছে
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -312,11 +480,60 @@ export default function ProfileView({ onTabChange, balance, userData, onLogout, 
           </div>
         </div>
       )}
+
+      {/* Casino Name Edit Modal */}
+      <AnimatePresence>
+        {isEditingCasinoName && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsEditingCasinoName(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-teal-900 border border-teal-700 rounded-3xl p-6 w-full max-w-sm shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-black text-white italic">কেসিনো নাম পরিবর্তন</h3>
+                <button onClick={() => setIsEditingCasinoName(false)} className="text-teal-400 hover:text-white">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateCasinoName} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-teal-300 uppercase">নতুন নাম (New Name)</label>
+                  <input 
+                    type="text"
+                    value={newCasinoName}
+                    onChange={(e) => setNewCasinoName(e.target.value)}
+                    className="w-full bg-black/30 border border-teal-700 rounded-xl py-3 px-4 text-white focus:border-yellow-500 outline-none transition-all"
+                    placeholder="কেসিনো নাম লিখুন"
+                  />
+                </div>
+
+                <button 
+                  type="submit"
+                  disabled={isUpdatingCasinoName}
+                  className="w-full bg-yellow-500 text-black font-black py-4 rounded-xl hover:bg-yellow-400 transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  {isUpdatingCasinoName ? <Loader2 className="animate-spin" /> : "আপডেট করুন (Update)"}
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-function WithdrawTab({ onBack, balance, showToast, userData }: { onBack: () => void, balance: number, showToast: (msg: string, type?: any) => void, userData: any }) {
+function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoModalOpen }: { onBack: () => void, balance: number, showToast: (msg: string, type?: any) => void, userData: any, setIsTurnoverInfoModalOpen: (show: boolean) => void }) {
   const [step, setStep] = useState(1);
   const [selectedMethod, setSelectedMethod] = useState('');
   const [amount, setAmount] = useState('');
@@ -362,8 +579,8 @@ function WithdrawTab({ onBack, balance, showToast, userData }: { onBack: () => v
   }, []);
 
   const turnover = userData?.turnover || 0;
-  const requiredTurnover = (userData?.totalDeposit || 1000) * 1;
-  const turnoverProgress = Math.min(100, (turnover / requiredTurnover) * 100);
+  const requiredTurnover = userData?.requiredTurnover || 0;
+  const turnoverProgress = requiredTurnover > 0 ? Math.min(100, (turnover / requiredTurnover) * 100) : 100;
 
   const methods = [
     { id: 'bkash', name: 'bKash', icon: Smartphone, color: 'bg-[#d12053]' },
@@ -456,6 +673,12 @@ function WithdrawTab({ onBack, balance, showToast, userData }: { onBack: () => v
           <div className="flex items-center gap-2">
             <RefreshCw size={14} className="text-teal-400" />
             <span className="text-xs text-teal-200 font-bold uppercase tracking-wider">টানউভার (Turnover)</span>
+            <button 
+              onClick={() => setIsTurnoverInfoModalOpen(true)}
+              className="text-teal-500 hover:text-teal-300 transition-colors"
+            >
+              <Info size={14} />
+            </button>
           </div>
           <span className="text-[10px] text-teal-400 font-black">{turnoverProgress.toFixed(1)}%</span>
         </div>
@@ -637,6 +860,9 @@ interface OverviewTabProps {
   totals: any;
   setShowAgentPanel: (show: boolean) => void;
   setIsChatOpen: (show: boolean) => void;
+  setIsTurnoverInfoModalOpen: (show: boolean) => void;
+  casinoName?: string;
+  onEditCasinoName?: (newName: string) => void;
 }
 
 function ProfileTab({ userData, onEditProfile, onEditProfilePic, profilePic, onLogout, showToast }: { userData: any, onEditProfile: () => void, onEditProfilePic: () => void, profilePic: string | null, onLogout: () => void, showToast: (msg: string, type?: ToastType) => void }) {
@@ -755,11 +981,14 @@ function OverviewTab({
   onEditProfile, 
   totals, 
   setShowAgentPanel,
-  setIsChatOpen
+  setIsChatOpen,
+  setIsTurnoverInfoModalOpen,
+  casinoName,
+  onEditCasinoName
 }: OverviewTabProps) {
   const turnover = userData?.turnover || 0;
-  const requiredTurnover = (userData?.totalDeposit || 1000) * 1;
-  const turnoverProgress = Math.min(100, (turnover / requiredTurnover) * 100);
+  const requiredTurnover = userData?.requiredTurnover || 0;
+  const turnoverProgress = requiredTurnover > 0 ? Math.min(100, (turnover / requiredTurnover) * 100) : 100;
 
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -767,7 +996,17 @@ function OverviewTab({
       <div className="bg-gradient-to-r from-teal-700 to-teal-900 rounded-2xl p-6 border border-teal-600 shadow-xl flex items-center justify-between relative overflow-hidden">
         <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-white/5 rounded-full blur-3xl"></div>
         <div className="relative z-10">
-          <p className="text-teal-200 text-sm font-medium">বর্তমান ব্যালেন্স</p>
+          <div className="flex items-center gap-2 mb-1">
+            <p className="text-teal-200 text-sm font-medium">বর্তমান ব্যালেন্স</p>
+            {userData?.role === 'admin' && (
+              <button 
+                onClick={onEditCasinoName}
+                className="p-1 bg-white/10 hover:bg-white/20 rounded text-[8px] text-teal-100 flex items-center gap-1 border border-white/5"
+              >
+                <Edit size={10} /> {casinoName}
+              </button>
+            )}
+          </div>
           <div className="flex items-center gap-3 mt-1">
             <h2 className="text-3xl font-black text-white italic tracking-tight">৳ {balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h2>
             <button 
@@ -791,6 +1030,12 @@ function OverviewTab({
           <div className="flex items-center gap-2">
             <RefreshCw size={14} className="text-teal-400" />
             <span className="text-xs text-teal-200 font-bold uppercase tracking-wider">টানউভার (Turnover)</span>
+            <button 
+              onClick={() => setIsTurnoverInfoModalOpen(true)}
+              className="text-teal-500 hover:text-teal-300 transition-colors"
+            >
+              <Info size={14} />
+            </button>
           </div>
           <span className="text-[10px] text-teal-400 font-black">{turnoverProgress.toFixed(1)}%</span>
         </div>
@@ -2715,9 +2960,6 @@ function SettingsTab({ profileData, onLogout, onEditProfile, showToast, hideAcco
           </div>
         </div>
       )}
-
-      {/* Support Chat */}
-      <SupportChat isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} userData={profileData} />
     </div>
   );
 }

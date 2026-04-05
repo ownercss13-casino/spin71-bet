@@ -54,13 +54,14 @@ interface LoginPageProps {
   onContinue: () => void;
   onLoginSuccess: () => void;
   showToast: (msg: string, type?: ToastType) => void;
+  casinoName?: string;
 }
 
-export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSuccess, showToast }: LoginPageProps) {
+export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSuccess, showToast, casinoName = "SPIN71BET" }: LoginPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
-  const [authMode, setAuthMode] = useState<'one-click' | 'login' | 'register'>('one-click');
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [showPassword, setShowPassword] = useState(false);
 
   const { 
@@ -163,8 +164,11 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
       await updateProfile(userCredential.user, { displayName: data.username });
+      
+      // Immediately trigger success UI
+      setIsLoading(false);
+      setShowSuccessPopup(true);
       showToast("অ্যাকাউন্ট তৈরি সফল হয়েছে", "success");
-      onRegisterSuccess();
     } catch (err) {
       handleAuthError(err);
     }
@@ -193,7 +197,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
             <Plane size={60} className="text-yellow-400 drop-shadow-[0_0_15px_rgba(250,204,21,0.5)] mx-auto" />
           </motion.div>
           <h1 className="text-4xl font-black text-white mt-4 italic tracking-tighter">
-            SPIN<span className="text-yellow-400">71</span>BET
+            {casinoName}
           </h1>
           <p className="text-teal-500 font-bold uppercase tracking-widest text-[10px] mt-1">Premium Gaming Platform</p>
         </div>
@@ -201,22 +205,16 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         {/* Auth Mode Toggle */}
         <div className="flex bg-white/5 p-1 rounded-2xl mb-8 border border-white/10">
           <button 
-            onClick={() => setAuthMode('one-click')}
-            className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${authMode === 'one-click' ? 'bg-yellow-500 text-black' : 'text-gray-400 hover:text-white'}`}
-          >
-            ওয়ান ক্লিক
-          </button>
-          <button 
             onClick={() => setAuthMode('login')}
-            className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${authMode === 'login' ? 'bg-yellow-500 text-black' : 'text-gray-400 hover:text-white'}`}
+            className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${authMode === 'login' ? 'bg-yellow-500 text-black shadow-md' : 'text-gray-400 hover:text-white'}`}
           >
-            লগইন
+            লগইন (Login)
           </button>
           <button 
             onClick={() => setAuthMode('register')}
-            className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${authMode === 'register' ? 'bg-yellow-500 text-black' : 'text-gray-400 hover:text-white'}`}
+            className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${authMode === 'register' ? 'bg-yellow-500 text-black shadow-md' : 'text-gray-400 hover:text-white'}`}
           >
-            নিবন্ধন
+            নিবন্ধন (Register)
           </button>
         </div>
 
@@ -271,46 +269,6 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
 
         {/* Auth Forms */}
         <AnimatePresence mode="wait">
-          {authMode === 'one-click' && (
-            <motion.div
-              key="one-click"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              className="space-y-4"
-            >
-              <button 
-                onClick={onOneClick}
-                disabled={isLoading}
-                className="w-full bg-gradient-to-r from-yellow-400 to-yellow-600 py-4 rounded-2xl flex items-center justify-center gap-3 group transition-all active:scale-95 shadow-lg"
-              >
-                {isLoading ? (
-                  <div className="w-6 h-6 border-3 border-black border-t-transparent rounded-full animate-spin"></div>
-                ) : (
-                  <>
-                    <Play size={20} className="fill-black text-black" />
-                    <span className="text-black font-black uppercase tracking-tight">ওয়ান ক্লিক এ নিবন্ধন</span>
-                  </>
-                )}
-              </button>
-
-              <div className="flex items-center gap-4 my-6">
-                <div className="flex-1 h-[1px] bg-white/10"></div>
-                <span className="text-[10px] text-gray-500 font-bold uppercase">অথবা</span>
-                <div className="flex-1 h-[1px] bg-white/10"></div>
-              </div>
-
-              <button 
-                onClick={onGoogleLogin}
-                disabled={isLoading}
-                className="w-full bg-white/5 border border-white/10 py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-white/10 transition-all active:scale-95"
-              >
-                <Chrome size={20} className="text-white" />
-                <span className="text-white font-bold text-sm">গুগল দিয়ে লগইন</span>
-              </button>
-            </motion.div>
-          )}
-
           {authMode === 'login' && (
             <motion.form
               key="login"
@@ -434,6 +392,39 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
             </motion.form>
           )}
         </AnimatePresence>
+
+        {/* Alternative Login Methods */}
+        <div className="mt-6 space-y-4">
+          <div className="flex items-center gap-4 my-4">
+            <div className="flex-1 h-[1px] bg-white/10"></div>
+            <span className="text-[10px] text-gray-500 font-bold uppercase">অথবা (Or)</span>
+            <div className="flex-1 h-[1px] bg-white/10"></div>
+          </div>
+
+          <button 
+            onClick={onOneClick}
+            disabled={isLoading}
+            className="w-full bg-gradient-to-r from-teal-500 to-teal-700 py-3.5 rounded-2xl flex items-center justify-center gap-3 hover:opacity-90 transition-all active:scale-95 shadow-lg"
+          >
+            {isLoading ? (
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              <>
+                <Play size={18} className="fill-white text-white" />
+                <span className="text-white font-bold text-sm">ওয়ান ক্লিক এ প্রবেশ করুন</span>
+              </>
+            )}
+          </button>
+
+          <button 
+            onClick={onGoogleLogin}
+            disabled={isLoading}
+            className="w-full bg-white/5 border border-white/10 py-3.5 rounded-2xl flex items-center justify-center gap-3 hover:bg-white/10 transition-all active:scale-95"
+          >
+            <Chrome size={18} className="text-white" />
+            <span className="text-white font-bold text-sm">গুগল দিয়ে চালিয়ে যান</span>
+          </button>
+        </div>
 
         <p className="mt-8 text-gray-600 text-[9px] font-bold uppercase tracking-widest leading-relaxed">
           নিবন্ধন করার মাধ্যমে আপনি আমাদের <span className="text-teal-500">শর্তাবলী</span> মেনে নিচ্ছেন

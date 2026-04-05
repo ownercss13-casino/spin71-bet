@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { updateTurnover } from '../services/firebaseService';
 import { auth } from '../firebase';
 import { useLiveAviator } from '../hooks/useLiveAviator';
-import { ArrowLeft, Info, Wallet, Play, X, History, Users, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Wallet, Play, X, History, Users, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GAME_IMAGES } from '../constants/gameAssets';
 
@@ -13,10 +13,12 @@ interface AviatorGameProps {
   logo?: string | null;
   onLogoChange?: (newLogo: string) => void;
   showToast: (msg: string, type?: any) => void;
+  referredBy?: string | null;
+  globalName?: string;
 }
 
-export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, logo, onLogoChange, showToast }: AviatorGameProps) {
-  const IS_BETTING_DISABLED = true;
+export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, logo, onLogoChange, showToast, referredBy, globalName }: AviatorGameProps) {
+  const IS_BETTING_DISABLED = false;
   const { session } = useLiveAviator();
   const [multiplier, setMultiplier] = useState(1.00);
   const [isFlying, setIsFlying] = useState(false);
@@ -162,7 +164,7 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
 
     // Update turnover in database
     if (auth.currentUser) {
-      updateTurnover(auth.currentUser.uid, betAmount);
+      updateTurnover(auth.currentUser.uid, betAmount, referredBy);
     }
     showToast('বেট সফলভাবে প্লেস করা হয়েছে!', 'success');
   }, [gamePhase, userBalance, betAmount, isBetPlaced, onBalanceUpdate, showToast]);
@@ -255,7 +257,7 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
             <div className="absolute -top-1 -right-1 bg-red-600 text-white text-[6px] font-bold px-1 rounded-sm border border-yellow-400">VIP</div>
           </div>
           <div className="flex flex-col">
-            <span className="bg-gradient-to-r from-yellow-200 via-yellow-400 to-yellow-600 text-transparent bg-clip-text font-black italic text-sm tracking-tighter">CRASH GAME</span>
+            <span className="bg-gradient-to-r from-yellow-200 via-yellow-400 to-yellow-600 text-transparent bg-clip-text font-black italic text-sm tracking-tighter">{globalName || 'CRASH GAME'}</span>
             <span className="text-[9px] text-gray-500 uppercase tracking-widest leading-none">GOLDEN VIP</span>
           </div>
         </div>
@@ -264,9 +266,6 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
             <Wallet size={14} className="text-yellow-500" />
             <span className="text-white font-bold text-xs">৳ {userBalance.toLocaleString()}</span>
           </div>
-          <button className="text-gray-400">
-            <Info size={18} />
-          </button>
         </div>
       </div>
 
@@ -396,43 +395,84 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
         )}
 
         {/* Multiplier Display */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 text-center">
-          {gamePhase === 'betting' ? (
-            <div className="flex flex-col items-center">
-              <span className="text-gray-400 text-xs uppercase font-bold tracking-widest mb-2">WAITING FOR NEXT ROUND</span>
-              <div className="relative w-24 h-24 flex items-center justify-center">
-                <svg className="absolute inset-0 w-full h-full -rotate-90">
-                  <circle cx="48" cy="48" r="44" fill="transparent" stroke="#333" strokeWidth="4" />
-                  <circle 
-                    cx="48" cy="48" r="44" fill="transparent" stroke="#ef4444" strokeWidth="4" 
-                    strokeDasharray={276}
-                    strokeDashoffset={276 - (276 * bettingCountdown / 5)}
-                    className="transition-all duration-1000 ease-linear"
-                  />
-                </svg>
-                <span className="text-3xl font-black text-white">{bettingCountdown}s</span>
-              </div>
-            </div>
-          ) : (
-            <div className={`flex flex-col items-center transition-all duration-500 ${hasCrashed ? 'scale-150' : 'scale-110'} ${isFlying ? 'animate-motion-blur' : ''}`}>
-              {!hasCrashed && (
-                <h1 className={`text-6xl font-black italic tracking-tighter drop-shadow-[0_0_30px_rgba(255,255,255,0.3)] transition-colors duration-300 ${isFlying ? 'animate-chromatic' : 'text-white'}`}>
-                  {multiplier.toFixed(2)}x
-                </h1>
-              )}
-              {hasCrashed && (
-                <div className="flex flex-col items-center animate-in zoom-in fade-in duration-300">
-                  <div className="relative">
-                    <span className="text-red-500 font-black text-4xl uppercase tracking-tighter italic drop-shadow-[0_0_20px_rgba(239,68,68,0.8)] animate-pulse">FLEW AWAY!</span>
-                    <div className="absolute -inset-2 bg-red-600/20 blur-xl -z-10 animate-pulse"></div>
-                  </div>
-                  <div className="mt-4 px-4 py-1.5 bg-red-600/30 border border-red-500/50 rounded-full backdrop-blur-sm">
-                    <span className="text-red-300 text-[10px] font-black uppercase tracking-[0.2em]">Next round starting...</span>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 text-center w-full px-4">
+          <AnimatePresence mode="wait">
+            {gamePhase === 'betting' ? (
+              <motion.div 
+                key="betting"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.1 }}
+                className="flex flex-col items-center"
+              >
+                <span className="text-gray-400 text-[10px] uppercase font-black tracking-[0.3em] mb-4 drop-shadow-lg">WAITING FOR NEXT ROUND</span>
+                <div className="relative w-28 h-28 flex items-center justify-center">
+                  <svg className="absolute inset-0 w-full h-full -rotate-90 drop-shadow-[0_0_15px_rgba(239,68,68,0.3)]">
+                    <circle cx="56" cy="56" r="52" fill="transparent" stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
+                    <motion.circle 
+                      cx="56" cy="56" r="52" fill="transparent" stroke="#ef4444" strokeWidth="6" 
+                      strokeDasharray={326}
+                      initial={{ strokeDashoffset: 326 }}
+                      animate={{ strokeDashoffset: 326 - (326 * bettingCountdown / 5) }}
+                      transition={{ duration: 1, ease: "linear" }}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <div className="flex flex-col items-center justify-center">
+                    <span className="text-4xl font-black text-white drop-shadow-lg">{bettingCountdown}</span>
+                    <span className="text-[8px] font-bold text-red-500 uppercase tracking-widest">SECONDS</span>
                   </div>
                 </div>
-              )}
-            </div>
-          )}
+              </motion.div>
+            ) : (
+              <motion.div 
+                key="flying"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className={`flex flex-col items-center transition-all duration-500 ${hasCrashed ? 'scale-125' : 'scale-100'}`}
+              >
+                {!hasCrashed ? (
+                  <div className="relative">
+                    <motion.h1 
+                      key={multiplier.toFixed(2)}
+                      initial={{ scale: 1.05 }}
+                      animate={{ scale: 1 }}
+                      className={`text-7xl md:text-8xl font-black italic tracking-tighter drop-shadow-[0_0_40px_rgba(255,255,255,0.4)] transition-colors duration-300 ${isFlying ? 'text-white' : 'text-gray-400'}`}
+                    >
+                      {multiplier.toFixed(2)}x
+                    </motion.h1>
+                    {isFlying && (
+                      <div className="absolute -inset-4 bg-white/5 blur-3xl -z-10 animate-pulse"></div>
+                    )}
+                  </div>
+                ) : (
+                  <motion.div 
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    className="flex flex-col items-center"
+                  >
+                    <div className="relative group">
+                      <span className="text-red-500 font-black text-5xl md:text-6xl uppercase tracking-tighter italic drop-shadow-[0_0_30px_rgba(239,68,68,0.9)] animate-bounce">FLEW AWAY!</span>
+                      <div className="absolute -inset-4 bg-red-600/30 blur-2xl -z-10 animate-pulse"></div>
+                    </div>
+                    <motion.div 
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.5 }}
+                      className="mt-6 flex flex-col items-center gap-2"
+                    >
+                      <div className="text-white/60 font-black text-2xl italic tracking-tight">
+                        at {multiplier.toFixed(2)}x
+                      </div>
+                      <div className="px-6 py-2 bg-red-600/20 border border-red-500/30 rounded-full backdrop-blur-md shadow-lg">
+                        <span className="text-red-400 text-[10px] font-black uppercase tracking-[0.3em] animate-pulse">Preparing next flight...</span>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Plane and Graph Animation */}
@@ -597,159 +637,161 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
       </div>
 
       {/* Betting Controls */}
-      <div className="p-3 bg-[#1b1b1b] border-t border-white/5 space-y-3 relative">
+      <div className="p-4 bg-[#1b1b1b] border-t border-white/10 space-y-4 relative shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
         {/* Multi-bet Toggle Button */}
-        <button 
+        <motion.button 
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
           onClick={() => setShowSecondBet(!showSecondBet)}
-          className="absolute -top-4 right-4 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center shadow-lg border-2 border-[#1b1b1b] z-50 active:scale-90 transition-transform"
+          className="absolute -top-5 right-6 w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center shadow-[0_4px_15px_rgba(34,197,94,0.4)] border-2 border-[#1b1b1b] z-50 transition-all"
         >
-          {showSecondBet ? <X size={16} className="text-black" /> : <span className="text-black font-black text-xl">+</span>}
-        </button>
+          {showSecondBet ? <X size={20} className="text-black" /> : <span className="text-black font-black text-2xl">+</span>}
+        </motion.button>
 
         {/* First Bet Panel */}
-        <div className="space-y-3">
-          {/* Auto Controls */}
-          <div className="flex gap-2">
-          <button 
-            onClick={() => setIsAutoBet(!isAutoBet)}
-            className={`flex-1 py-1.5 rounded-lg border text-[9px] font-bold transition-all ${
-              isAutoBet ? 'bg-blue-500/20 border-blue-500 text-blue-500' : 'bg-black/40 border-white/10 text-gray-500'
-            }`}
-          >
-            AUTO BET
-          </button>
-          <div className={`flex-[1.5] flex items-center gap-2 px-2 py-1 rounded-lg border transition-all ${
-            isAutoCashOut ? 'bg-orange-500/20 border-orange-500' : 'bg-black/40 border-white/10'
-          }`}>
+        <div className="space-y-4">
+          {/* Auto Controls Row */}
+          <div className="flex gap-3">
             <button 
-              onClick={() => setIsAutoCashOut(!isAutoCashOut)}
-              className={`text-[9px] font-bold ${isAutoCashOut ? 'text-orange-500' : 'text-gray-500'}`}
+              onClick={() => setIsAutoBet(!isAutoBet)}
+              className={`flex-1 py-2 rounded-xl border text-[10px] font-black tracking-widest transition-all duration-300 ${
+                isAutoBet 
+                  ? 'bg-blue-500/20 border-blue-500 text-blue-400 shadow-[inset_0_0_10px_rgba(59,130,246,0.2)]' 
+                  : 'bg-black/40 border-white/5 text-gray-500 hover:border-white/10'
+              }`}
             >
-              AUTO CASHOUT
+              AUTO BET
             </button>
-            <div className="flex-1 flex items-center justify-end gap-1">
-              <input 
-                type="number" 
-                step="0.1"
-                min="1.1"
-                value={autoCashOutValue}
-                onChange={(e) => setAutoCashOutValue(parseFloat(e.target.value) || 1.1)}
-                className="bg-transparent text-white text-[10px] font-bold w-10 text-right outline-none"
-              />
-              <span className="text-gray-500 text-[9px]">x</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex gap-2">
-          {/* Bet Amount Selector */}
-          <div className="flex-1 bg-black/40 rounded-xl border border-white/10 p-2 flex flex-col items-center">
-            <div className="flex items-center justify-between w-full mb-2">
-               <button 
-                 onClick={() => setBetAmount(prev => Math.max(1, prev - 10))} 
-                 disabled={isBetPlaced || gamePhase !== 'betting'}
-                 className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-white active:scale-90 transition-transform disabled:opacity-50"
-               >
-                 -
-               </button>
-               <div className="flex flex-col items-center">
-                 <span className="text-[8px] text-gray-500 font-bold uppercase tracking-widest">Amount</span>
-                 <div className="flex items-center gap-1">
-                   <span className="text-sm font-black text-white">৳</span>
-                   <motion.input 
-                     whileFocus={{ scale: 1.05 }}
-                     type="number"
-                     value={betAmount === 0 ? '' : betAmount}
-                     onChange={(e) => {
-                       const val = parseInt(e.target.value) || 0;
-                       setBetAmount(val);
-                     }}
-                     disabled={isBetPlaced || gamePhase !== 'betting'}
-                     className="bg-transparent text-sm font-black text-white w-16 outline-none border-b border-transparent focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/20 transition-all text-center rounded"
-                   />
-                 </div>
-               </div>
-               <button 
-                 onClick={() => setBetAmount(prev => prev + 10)} 
-                 disabled={isBetPlaced || gamePhase !== 'betting'}
-                 className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-white active:scale-90 transition-transform disabled:opacity-50"
-               >
-                 +
-               </button>
-            </div>
-            {betError && gamePhase === 'betting' && !isBetPlaced && (
-              <div className="text-[8px] text-red-500 font-bold mb-1 animate-pulse">
-                {betError}
-              </div>
-            )}
-            <div className="grid grid-cols-3 gap-1 w-full">
-              {[1, 10, 100, 500, 1000, 10000].map(val => (
-                <button 
-                  key={val} 
-                  disabled={isBetPlaced || gamePhase !== 'betting'}
-                  onClick={() => setBetAmount(val)}
-                  className={`text-[9px] font-bold py-1.5 rounded bg-gray-800/50 border transition-all active:scale-95 ${
-                    betAmount === val ? 'border-yellow-500 text-yellow-500 bg-yellow-500/10' : 'border-white/5 text-gray-400 hover:text-white'
-                  } disabled:opacity-30`}
-                >
-                  {val >= 1000 ? `${val/1000}k` : val}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Main Action Button */}
-          <div className="flex-1 flex gap-2">
-            {isBetPlaced && !isCashedOut && !hasCrashed && gamePhase === 'flying' ? (
-              <motion.button 
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={cashOut}
-                className="flex-1 h-full bg-gradient-to-b from-orange-400 to-orange-600 rounded-xl shadow-[0_4px_15px_rgba(249,115,22,0.4)] flex flex-col items-center justify-center p-2 transition-transform"
+            <div className={`flex-[1.5] flex items-center gap-3 px-3 py-2 rounded-xl border transition-all duration-300 ${
+              isAutoCashOut 
+                ? 'bg-orange-500/20 border-orange-500 shadow-[inset_0_0_10px_rgba(249,115,22,0.2)]' 
+                : 'bg-black/40 border-white/5'
+            }`}>
+              <button 
+                onClick={() => setIsAutoCashOut(!isAutoCashOut)}
+                className={`text-[10px] font-black tracking-widest transition-colors ${isAutoCashOut ? 'text-orange-400' : 'text-gray-500'}`}
               >
-                <span className="text-black font-black text-sm leading-none">CASH OUT</span>
-                <span className="text-black font-bold text-xs mt-1">৳ {(betAmount * multiplier).toFixed(2)}</span>
-              </motion.button>
-            ) : (
-              <div className="flex-1 flex gap-2">
-                <motion.button 
-                  animate={justPlacedBet ? { scale: [1, 1.1, 1], rotate: [0, 2, -2, 0] } : {}}
-                  transition={{ duration: 0.3 }}
-                  disabled={isBetPlaced || gamePhase !== 'betting' || !!betError}
-                  onClick={placeBet}
-                  className={`flex-[1.5] h-full rounded-xl flex flex-col items-center justify-center p-2 transition-all ${
-                    isBetPlaced ? 'bg-blue-900/40 border border-blue-500/30 text-blue-400' : 
-                    gamePhase === 'betting' ? (!!betError ? 'bg-red-900/40 border border-red-500/30 cursor-not-allowed' : 'bg-gradient-to-b from-green-400 to-green-600 shadow-[0_4px_15px_rgba(34,197,94,0.4)] active:scale-95') :
-                    'bg-gray-800 text-gray-500'
-                  }`}
-                >
-                  <span className={`font-black text-lg leading-none ${
-                    isBetPlaced ? 'text-blue-400' : 
-                    (!!betError && gamePhase === 'betting' ? 'text-red-400' : 'text-black')
-                  }`}>
-                    {isBetPlaced ? 'WAITING' : 
-                     (!!betError && gamePhase === 'betting' && !isBetPlaced ? 'INVALID' : 
-                      (gamePhase === 'betting' ? 'BET' : 'FLYING'))}
-                  </span>
-                  <span className={`font-bold text-sm mt-1 ${
-                    isBetPlaced ? 'text-blue-400/70' : 
-                    (!!betError && gamePhase === 'betting' ? 'text-red-400/70' : 'text-black/70')
-                  }`}>৳ {betAmount}</span>
-                </motion.button>
-                
-                <motion.button 
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setIsAutoBet(!isAutoBet)}
-                  className={`flex-1 h-full rounded-xl flex flex-col items-center justify-center p-2 transition-all border ${
-                    isAutoBet ? 'bg-blue-500 border-blue-400 text-white shadow-[0_4px_15px_rgba(59,130,246,0.4)]' : 'bg-black/40 border-white/10 text-gray-400'
-                  }`}
-                >
-                  <span className="font-black text-lg leading-none">BUY</span>
-                  <span className="font-bold text-[8px] mt-1 uppercase tracking-tighter">Auto Bet</span>
-                </motion.button>
+                AUTO CASHOUT
+              </button>
+              <div className="flex-1 flex items-center justify-end gap-1.5">
+                <input 
+                  type="number" 
+                  step="0.1"
+                  min="1.1"
+                  value={autoCashOutValue}
+                  onChange={(e) => setAutoCashOutValue(parseFloat(e.target.value) || 1.1)}
+                  className="bg-transparent text-white text-xs font-black w-12 text-right outline-none focus:text-orange-400 transition-colors"
+                />
+                <span className="text-gray-500 text-[10px] font-bold">x</span>
               </div>
-            )}
+            </div>
+          </div>
+
+          <div className="flex gap-3 h-32">
+            {/* Bet Amount Selector */}
+            <div className="flex-1 bg-black/60 rounded-2xl border border-white/5 p-3 flex flex-col justify-between shadow-inner">
+              <div className="flex items-center justify-between w-full">
+                 <motion.button 
+                   whileTap={{ scale: 0.8 }}
+                   onClick={() => setBetAmount(prev => Math.max(1, prev - 10))} 
+                   disabled={isBetPlaced || gamePhase !== 'betting'}
+                   className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-white hover:bg-white/10 disabled:opacity-20 transition-colors"
+                 >
+                   -
+                 </motion.button>
+                 <div className="flex flex-col items-center">
+                   <span className="text-[8px] text-gray-500 font-black uppercase tracking-[0.2em] mb-1">Amount</span>
+                   <div className="flex items-center gap-1">
+                     <span className="text-xs font-black text-white/40">৳</span>
+                     <input 
+                       type="number"
+                       value={betAmount === 0 ? '' : betAmount}
+                       onChange={(e) => {
+                         const val = parseInt(e.target.value) || 0;
+                         setBetAmount(val);
+                       }}
+                       disabled={isBetPlaced || gamePhase !== 'betting'}
+                       className="bg-transparent text-lg font-black text-white w-20 outline-none text-center disabled:text-white/50"
+                     />
+                   </div>
+                 </div>
+                 <motion.button 
+                   whileTap={{ scale: 0.8 }}
+                   onClick={() => setBetAmount(prev => prev + 10)} 
+                   disabled={isBetPlaced || gamePhase !== 'betting'}
+                   className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-white hover:bg-white/10 disabled:opacity-20 transition-colors"
+                 >
+                   +
+                 </motion.button>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-1.5 w-full">
+                {[10, 50, 100, 200, 500, 1000].map(val => (
+                  <button 
+                    key={val} 
+                    disabled={isBetPlaced || gamePhase !== 'betting'}
+                    onClick={() => setBetAmount(val)}
+                    className={`text-[10px] font-black py-2 rounded-lg transition-all ${
+                      betAmount === val 
+                        ? 'bg-white/20 text-white border border-white/20' 
+                        : 'bg-white/5 text-gray-500 hover:text-gray-300'
+                    } disabled:opacity-10`}
+                  >
+                    {val >= 1000 ? `${val/1000}k` : val}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Main Action Button */}
+            <div className="flex-1">
+              <AnimatePresence mode="wait">
+                {isBetPlaced && !isCashedOut && !hasCrashed && gamePhase === 'flying' ? (
+                  <motion.button 
+                    key="cashout"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={cashOut}
+                    className="w-full h-full bg-gradient-to-b from-orange-400 to-orange-600 rounded-2xl shadow-[0_8px_25px_rgba(249,115,22,0.4)] flex flex-col items-center justify-center p-4 border-t border-white/20"
+                  >
+                    <span className="text-black font-black text-sm tracking-widest mb-1">CASH OUT</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-black/60 text-[10px] font-bold">৳</span>
+                      <span className="text-black font-black text-xl">{(betAmount * multiplier).toFixed(2)}</span>
+                    </div>
+                  </motion.button>
+                ) : (
+                  <motion.button 
+                    key="bet"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    disabled={isBetPlaced || gamePhase !== 'betting' || !!betError}
+                    onClick={placeBet}
+                    className={`w-full h-full rounded-2xl flex flex-col items-center justify-center p-4 transition-all duration-300 border-t ${
+                      isBetPlaced 
+                        ? 'bg-blue-900/40 border-blue-500/30 text-blue-400' 
+                        : gamePhase === 'betting' 
+                          ? (!!betError 
+                              ? 'bg-red-900/40 border-red-500/30 cursor-not-allowed' 
+                              : 'bg-gradient-to-b from-green-400 to-green-600 border-white/20 shadow-[0_8px_25px_rgba(34,197,94,0.4)] active:scale-95') 
+                          : 'bg-gray-800 border-white/5 text-gray-500'
+                    }`}
+                  >
+                    <span className={`font-black text-xl tracking-tighter mb-1 ${
+                      isBetPlaced ? 'text-blue-400' : (!!betError && gamePhase === 'betting' ? 'text-red-400' : 'text-black')
+                    }`}>
+                      {isBetPlaced ? 'WAITING' : (gamePhase === 'betting' ? 'BET' : 'FLYING')}
+                    </span>
+                    <div className="flex items-center gap-1 opacity-70">
+                      <span className="text-[10px] font-bold">৳</span>
+                      <span className="font-black text-sm">{betAmount}</span>
+                    </div>
+                  </motion.button>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
       </div>
@@ -896,7 +938,6 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
 
       <style>{`
         @keyframes fly-aviator {

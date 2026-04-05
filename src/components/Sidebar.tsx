@@ -12,6 +12,7 @@ interface SidebarProps {
   setShowLogoPreview: (show: boolean) => void;
   handleLogout: () => void;
   showToast: (msg: string, type?: any) => void;
+  casinoName?: string;
 }
 
 export default function Sidebar({
@@ -23,7 +24,8 @@ export default function Sidebar({
   setIsSupportChatOpen,
   setShowLogoPreview,
   handleLogout,
-  showToast
+  showToast,
+  casinoName = "SPIN71BET"
 }: SidebarProps) {
   if (!isOpen) return null;
 
@@ -43,7 +45,7 @@ export default function Sidebar({
         <div className="p-6 bg-gradient-to-b from-[#0f766e] to-[#128a61] border-b border-teal-600/50">
           <div className="flex items-center justify-between mb-6">
             <div className="text-2xl font-black italic tracking-tighter bg-gradient-to-b from-yellow-200 via-yellow-400 to-yellow-600 text-transparent bg-clip-text">
-              SPIN71<span className="text-green-300">BET</span>
+              {casinoName}
             </div>
             <button onClick={onClose} className="text-teal-200 hover:text-white">
               <X size={24} />
@@ -80,6 +82,7 @@ export default function Sidebar({
         <nav className="flex-1 p-4 space-y-2">
           {[
             { id: 'home', icon: Home, label: 'বাড়ি (Home)' },
+            ...(userData?.role === 'admin' ? [{ id: 'admin', icon: Users, label: 'অ্যাডমিন প্যানেল (Admin)' }] : []),
             { id: 'profile', icon: User, label: 'প্রোফাইল (Profile)' },
             { id: 'invite', icon: Users, label: 'আমন্ত্রণ (Invite)' },
             { id: 'telegram', icon: Send, label: 'টেলিগ্রাম (Telegram)' },

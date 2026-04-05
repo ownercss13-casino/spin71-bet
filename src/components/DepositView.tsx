@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, Wallet, CreditCard, Building2, Smartphone, ShieldCheck, History, ArrowRight, Copy, Check, AlertCircle, X, RefreshCw, ArrowDownLeft, Loader2, Headset } from 'lucide-react';
 
-import { updateUserProfile, addNotification } from '../services/firebaseService';
+import { updateUserProfile, addNotification, updateRequiredTurnoverOnDeposit } from '../services/firebaseService';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
 
@@ -105,7 +105,9 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
     setIsSubmitting(true);
     const path = `users/${auth.currentUser.uid}/transactions`;
     try {
-      if (userData?.id) {
+      let isFirstDeposit = false;
+      if (userData?.id && !userData.hasMadeDeposit) {
+        isFirstDeposit = true;
         await updateUserProfile(userData.id, { hasMadeDeposit: true });
       }
       
@@ -126,6 +128,34 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
         message: `আপনার ৳ ${depositAmount} ডিপোজিট রিকোয়েস্টটি সফলভাবে জমা হয়েছে। এডমিন এপ্রুভ করলে ব্যালেন্স যোগ হবে।`,
         type: "account"
       });
+
+      // Update required turnover and total deposit
+      await updateRequiredTurnoverOnDeposit(auth.currentUser.uid, depositAmount);
+
+      // Handle referral bonus for first deposit
+      if (isFirstDeposit && depositAmount >= 100 && userData?.referredBy) {
+        const referrerPath = `users/${userData.referredBy}`;
+        const bonusAmount = 50;
+        
+        // We use updateDoc directly here for simplicity, but in a real app this might be a transaction
+        // or handled by a cloud function when the deposit is actually approved.
+        // For this prototype, we'll award it upon request.
+        try {
+          const { updateDoc, increment, doc } = await import('firebase/firestore');
+          await updateDoc(doc(db, referrerPath), {
+            balance: increment(bonusAmount),
+            totalReferralEarnings: increment(bonusAmount)
+          });
+          
+          await addNotification(userData.referredBy, {
+            title: "রেফারেল বোনাস!",
+            message: `আপনার রেফার করা ইউজার প্রথম ডিপোজিট করায় আপনি ৳ ${bonusAmount} বোনাস পেয়েছেন।`,
+            type: "bonus"
+          });
+        } catch (e) {
+          console.error("Failed to award referral bonus", e);
+        }
+      }
 
       showToast('ডিপোজিট রিকোয়েস্ট সফল হয়েছে! এডমিন এপ্রুভ করলে আপনার ব্যালেন্স আপডেট হবে।', 'success');
       onTabChange('home');

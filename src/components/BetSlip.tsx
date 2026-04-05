@@ -13,6 +13,7 @@ interface BetSlipProps {
   selectedOdds?: number;
   gameName?: string;
   showToast: (msg: string, type?: any) => void;
+  referredBy?: string | null;
 }
 
 export default function BetSlip({ 
@@ -22,7 +23,8 @@ export default function BetSlip({
   onBalanceUpdate, 
   selectedOdds = 2.0, 
   gameName = "Casino Game",
-  showToast
+  showToast,
+  referredBy
 }: BetSlipProps) {
   const [betAmount, setBetAmount] = useState<number>(100);
   const [odds, setOdds] = useState<number>(selectedOdds);
@@ -75,7 +77,7 @@ export default function BetSlip({
       await updateBalance(auth.currentUser.uid, newBalance);
       
       // Update turnover in database
-      await updateTurnover(auth.currentUser.uid, betAmount);
+      await updateTurnover(auth.currentUser.uid, betAmount, referredBy);
       
       setIsConfirmed(true);
       showToast("Bet placed successfully!", "success");

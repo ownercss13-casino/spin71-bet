@@ -20,13 +20,25 @@ export default class ErrorBoundary extends Component<Props, State> {
     let message = 'দুঃখিত, একটি অপ্রত্যাশিত ত্রুটি ঘটেছে। অনুগ্রহ করে আবার চেষ্টা করুন।';
     try {
       const errInfo = JSON.parse(error.message);
-      if (errInfo.error && errInfo.error.includes('permission-denied')) {
-        message = 'আপনার এই কাজটি করার অনুমতি নেই।';
-      } else if (errInfo.error && errInfo.error.includes('quota-exceeded')) {
-        message = 'সার্ভারের কোটা পূর্ণ হয়ে গেছে। অনুগ্রহ করে পরে চেষ্টা করুন।';
+      if (errInfo.error) {
+        const errLower = errInfo.error.toLowerCase();
+        if (errLower.includes('permission-denied')) {
+          message = 'আপনার এই কাজটি করার অনুমতি নেই। অনুগ্রহ করে লগইন চেক করুন।';
+        } else if (errLower.includes('quota-exceeded')) {
+          message = 'সার্ভারের কোটা পূর্ণ হয়ে গেছে। অনুগ্রহ করে কিছুক্ষণ পর চেষ্টা করুন।';
+        } else if (errLower.includes('unavailable') || errLower.includes('offline')) {
+          message = 'ইন্টারনেট সংযোগ বিচ্ছিন্ন অথবা সার্ভার ডাউন। অনুগ্রহ করে আপনার কানেকশন চেক করুন।';
+        } else if (errLower.includes('not-found')) {
+          message = 'অনুরোধ করা তথ্যটি খুঁজে পাওয়া যায়নি।';
+        } else if (errLower.includes('unauthenticated')) {
+          message = 'অনুগ্রহ করে পুনরায় লগইন করুন।';
+        }
       }
     } catch (e) {
       // Not a JSON error
+      if (error.message.includes('User not authenticated')) {
+        message = 'অনুগ্রহ করে লগইন করুন।';
+      }
     }
     return { hasError: true, errorMessage: message };
   }

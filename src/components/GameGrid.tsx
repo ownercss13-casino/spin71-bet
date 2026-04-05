@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Star, Plane as PlaneIcon, Info, Camera, Edit2 } from 'lucide-react';
+import { Star, Plane as PlaneIcon, Info, Camera, Edit2, X } from 'lucide-react';
 import Skeleton from './Skeleton';
 import { GAME_IMAGES } from '../constants/gameAssets';
 
@@ -17,480 +17,64 @@ export interface Game {
 }
 
 export const games: Game[] = [
-  {
-    id: '1',
-    name: 'ক্র্যাশ গেম',
-    provider: 'CRASH',
-    image: GAME_IMAGES.CRASH_GAME,
-    category: 'সেরা',
-    isHot: true,
-    isVIP: true,
-    bgColor: 'from-gray-800 to-red-900',
-    providerColor: 'text-white'
-  },
-  {
-    id: '2',
-    name: 'ম্যাজিক কার্ড',
-    provider: 'SLOT',
-    image: GAME_IMAGES.SUPER_ACE,
-    category: 'সেরা',
-    isHot: true,
-    isVIP: true,
-    bgColor: 'from-yellow-600 to-green-600',
-    providerColor: 'text-yellow-300'
-  },
-  {
-    id: '3',
-    name: 'ম্যাজিক কার্ড ২',
-    provider: 'SLOT',
-    image: GAME_IMAGES.SUPER_ACE_2,
-    category: 'সেরা',
-    isHot: true,
-    isVIP: true,
-    bgColor: 'from-orange-600 to-red-700',
-    providerColor: 'text-yellow-300'
-  },
-  {
-    id: '5',
-    name: 'রকেট ফ্লাই',
-    provider: 'CRASH',
-    image: GAME_IMAGES.WG_PLANE,
-    category: 'সেরা',
-    isHot: true,
-    isVIP: true,
-    bgColor: 'from-gray-800 to-gray-900',
-    providerColor: 'text-green-400'
-  },
-  {
-    id: '6',
-    name: 'অ্যানিমেল রান',
-    provider: 'ARCADE',
-    image: GAME_IMAGES.CHICKEN_ROAD,
-    category: 'সেরা',
-    isHot: true,
-    bgColor: 'from-orange-400 to-yellow-600',
-    providerColor: 'text-white'
-  },
-  {
-    id: '11',
-    name: 'স্পিন হুইল',
-    provider: 'LIVE',
-    image: GAME_IMAGES.CRAZY_TIME,
-    category: 'সেরা',
-    isHot: true,
-    bgColor: 'from-red-600 to-purple-900',
-    providerColor: 'text-white'
-  },
-  {
-    id: '14',
-    name: 'ফ্রুট স্লট',
-    provider: 'SPIN',
-    image: GAME_IMAGES.CRASH_GAME,
-    category: 'সেরা',
-    isHot: true,
-    bgColor: 'from-orange-500 to-red-600',
-    providerColor: 'text-yellow-200'
-  },
-  {
-    id: '4',
-    name: 'লাকি কার্ড',
-    provider: 'SLOT',
-    image: GAME_IMAGES.MAGIC_ACE,
-    category: 'স্লট',
-    bgColor: 'from-purple-900 to-blue-900',
-    providerColor: 'text-white'
-  },
-  {
-    id: '7',
-    name: 'লাইভ রুলেট',
-    provider: 'LIVE',
-    image: GAME_IMAGES.ROULETTE,
-    category: 'লাইভ',
-    bgColor: 'from-green-800 to-black',
-    providerColor: 'text-red-500'
-  },
-  {
-    id: '8',
-    name: 'ড্রাগন টাইগার',
-    provider: 'KING',
-    image: GAME_IMAGES.DRAGON_TIGER,
-    category: 'তাস',
-    bgColor: 'from-red-800 to-yellow-900',
-    providerColor: 'text-yellow-400'
-  },
-  {
-    id: '9',
-    name: 'ফিশিং হান্টার',
-    provider: 'JILI',
-    image: GAME_IMAGES.FISH_HUNTER,
-    category: 'ফিশিং',
-    bgColor: 'from-blue-600 to-teal-900',
-    providerColor: 'text-blue-200'
-  },
-  {
-    id: '10',
-    name: 'বুক অফ গোল্ড',
-    provider: 'PLSY',
-    image: GAME_IMAGES.BOOK_OF_GOLD,
-    category: 'স্লট',
-    bgColor: 'from-yellow-700 to-yellow-900',
-    providerColor: 'text-yellow-400'
-  },
-  {
-    id: '12',
-    name: 'মেগা বল',
-    provider: 'EVO',
-    image: GAME_IMAGES.MEGA_BALL,
-    category: 'লটারি',
-    bgColor: 'from-blue-500 to-blue-800',
-    providerColor: 'text-white'
-  },
-  {
-    id: '13',
-    name: 'সিক বো',
-    provider: 'KING',
-    image: GAME_IMAGES.SIC_BO,
-    category: 'তাস',
-    bgColor: 'from-red-900 to-black',
-    providerColor: 'text-white'
-  },
-  {
-    id: '3a6096455a8aad592c23da2ad11452d8',
-    name: 'Kong Invasion',
-    provider: 'Ace (AgGaming)',
-    image: GAME_IMAGES.KONG_INVASION,
-    category: 'সেরা',
-    isHot: true,
-    bgColor: 'from-green-900 to-black',
-    providerColor: 'text-yellow-400'
-  },
-  {
-    id: '8404a0b2d74ae068a04e47a0614910d8',
-    name: '9game Game Lobby',
-    provider: '9game',
-    image: GAME_IMAGES.CRASH_GAME,
-    category: 'সেরা',
-    bgColor: 'from-blue-900 to-black',
-    providerColor: 'text-blue-400'
-  },
-  {
-    id: '128647a7b008f2a60e2399410ded27f1',
-    name: 'Lobby Marble Rush Lobby',
-    provider: '9game',
-    image: GAME_IMAGES.CRASH_GAME,
-    category: 'সেরা',
-    bgColor: 'from-green-900 to-black',
-    providerColor: 'text-green-400'
-  },
-  {
-    id: '253130d684c063f74401e4ef77151f92',
-    name: 'Lobby Marble - Legendary Circuit',
-    provider: '9game',
-    image: GAME_IMAGES.CRASH_GAME,
-    category: 'সেরা',
-    bgColor: 'from-yellow-900 to-black',
-    providerColor: 'text-yellow-400'
-  },
-  {
-    id: '52191bf0fbb916f6e9f897b6a53a0bf0',
-    name: 'Marble - Extreme',
-    provider: '9game',
-    image: GAME_IMAGES.CRASH_GAME,
-    category: 'সেরা',
-    bgColor: 'from-red-900 to-black',
-    providerColor: 'text-red-400'
-  },
-  {
-    id: '6f182636dc75754c60983390ebf2efd9',
-    name: 'Crazy Ball Lobby',
-    provider: '9game',
-    image: GAME_IMAGES.CRASH_GAME,
-    category: 'সেরা',
-    bgColor: 'from-purple-900 to-black',
-    providerColor: 'text-purple-400'
-  },
-  {
-    id: 'fa606a46442f4b263bb309e6791728ab',
-    name: 'Lobby Crazy Ball - Legendray',
-    provider: '9game',
-    image: GAME_IMAGES.CRASH_GAME,
-    category: 'সেরা',
-    bgColor: 'from-pink-900 to-black',
-    providerColor: 'text-pink-400'
-  },
-  {
-    id: '9921be5d4dd5becee73b106cb285901a',
-    name: 'Crazy Ball - Turbo',
-    provider: '9game',
-    image: GAME_IMAGES.CRASH_GAME,
-    category: 'সেরা',
-    bgColor: 'from-orange-900 to-black',
-    providerColor: 'text-orange-400'
-  },
-  {
-    id: '3eacf3adbff9a5e4f5fbf40fd40ffcb3',
-    name: 'Crazy Ball - Lightning',
-    provider: '9game',
-    image: GAME_IMAGES.CRASH_GAME,
-    category: 'সেরা',
-    bgColor: 'from-yellow-600 to-black',
-    providerColor: 'text-yellow-300'
-  },
-  {
-    id: '7a8a6226e76eeee09909a39f91f299d9',
-    name: 'Plinko Lobby',
-    provider: '9game',
-    image: GAME_IMAGES.CRASH_GAME,
-    category: 'সেরা',
-    bgColor: 'from-teal-900 to-black',
-    providerColor: 'text-teal-400'
-  },
-  {
-    id: 'ef88c31bd1673be60a6bf2d89c5c910c',
-    name: 'Lobby Plinko Go',
-    provider: '9game',
-    image: GAME_IMAGES.CRASH_GAME,
-    category: 'সেরা',
-    bgColor: 'from-indigo-900 to-black',
-    providerColor: 'text-indigo-400'
-  },
-  {
-    id: '1f581eadeeb24826ca35f0b0d26bb87c',
-    name: 'Plinko PLUS',
-    provider: '9game',
-    image: GAME_IMAGES.CRASH_GAME,
-    category: 'সেরা',
-    bgColor: 'from-blue-700 to-black',
-    providerColor: 'text-blue-300'
-  },
-  {
-    id: 'b697605ec7dd691f307555f5cdba2919',
-    name: 'Super Plinko',
-    provider: '9game',
-    image: GAME_IMAGES.CRASH_GAME,
-    category: 'সেরা',
-    bgColor: 'from-green-700 to-black',
-    providerColor: 'text-green-300'
-  },
-  {
-    id: 'd23a5345630fb01ff86a6c13a1d1dbeb',
-    name: 'Play Girl Lobby',
-    provider: '9game',
-    image: GAME_IMAGES.CRASH_GAME,
-    category: 'সেরা',
-    bgColor: 'from-pink-700 to-black',
-    providerColor: 'text-pink-300'
-  },
-  {
-    id: 'dc5ed247d813915c1f2305c64c0306b7',
-    name: 'Lobby Play Girl',
-    provider: '9game',
-    image: GAME_IMAGES.CRASH_GAME,
-    category: 'সেরা',
-    bgColor: 'from-red-700 to-black',
-    providerColor: 'text-red-300'
-  },
-  {
-    id: '2d4a275e35692af9e9fa86340484d966',
-    name: 'Marble - Lightning',
-    provider: '9game',
-    image: GAME_IMAGES.CRASH_GAME,
-    category: 'সেরা',
-    bgColor: 'from-yellow-700 to-black',
-    providerColor: 'text-yellow-300'
-  },
-  {
-    id: 'pp1',
-    name: 'সুইট বোনানজা',
-    provider: 'PP',
-    image: GAME_IMAGES.CRASH_GAME,
-    category: 'স্লট',
-    isHot: true,
-    bgColor: 'from-pink-500 to-purple-600',
-    providerColor: 'text-pink-200'
-  },
-  {
-    id: 'png1',
-    name: 'বুক অফ ডেড',
-    provider: 'PNG',
-    image: GAME_IMAGES.CRASH_GAME,
-    category: 'স্লট',
-    bgColor: 'from-yellow-700 to-red-800',
-    providerColor: 'text-yellow-400'
-  },
-  {
-    id: 'net1',
-    name: 'স্টারবার্স্ট',
-    provider: 'NET',
-    image: GAME_IMAGES.CRASH_GAME,
-    category: 'স্লট',
-    bgColor: 'from-purple-800 to-blue-900',
-    providerColor: 'text-purple-300'
-  },
-  {
-    id: 'mg1',
-    name: 'মেগা মুলাহ',
-    provider: 'MG',
-    image: GAME_IMAGES.CRASH_GAME,
-    category: 'স্লট',
-    bgColor: 'from-orange-600 to-yellow-600',
-    providerColor: 'text-orange-200'
-  },
-  {
-    id: 'evo2',
-    name: 'মনোপলি লাইভ',
-    provider: 'EVO',
-    image: GAME_IMAGES.CRASH_GAME,
-    category: 'লাইভ',
-    isHot: true,
-    bgColor: 'from-green-600 to-teal-800',
-    providerColor: 'text-green-200'
-  },
-  {
-    id: 'jili1',
-    name: 'গোল্ডেন এম্পায়ার',
-    provider: 'JILI',
-    image: 'https://picsum.photos/seed/goldenempire/400/600',
-    category: 'স্লট',
-    isHot: true,
-    bgColor: 'from-yellow-600 to-yellow-900',
-    providerColor: 'text-yellow-400'
-  },
-  {
-    id: 'jili2',
-    name: 'ফরচুন জেমস',
-    provider: 'JILI',
-    image: 'https://picsum.photos/seed/fortunegems/400/600',
-    category: 'স্লট',
-    isHot: true,
-    bgColor: 'from-purple-600 to-pink-900',
-    providerColor: 'text-pink-300'
-  },
-  {
-    id: 'jili3',
-    name: 'মানি কামিং',
-    provider: 'JILI',
-    image: 'https://picsum.photos/seed/moneycoming/400/600',
-    category: 'স্লট',
-    bgColor: 'from-green-600 to-green-900',
-    providerColor: 'text-green-300'
-  },
-  {
-    id: 'jili4',
-    name: 'আলী বাবা',
-    provider: 'JILI',
-    image: 'https://picsum.photos/seed/alibaba/400/600',
-    category: 'স্লট',
-    bgColor: 'from-orange-600 to-red-900',
-    providerColor: 'text-orange-300'
-  },
-  {
-    id: 'pg1',
-    name: 'মাজং ওয়েজ ২',
-    provider: 'PG',
-    image: 'https://picsum.photos/seed/mahjongways2/400/600',
-    category: 'স্লট',
-    isHot: true,
-    bgColor: 'from-red-600 to-red-900',
-    providerColor: 'text-red-300'
-  },
-  {
-    id: 'pg2',
-    name: 'ট্রেজার অফ অ্যাজটেক',
-    provider: 'PG',
-    image: 'https://picsum.photos/seed/treasuresofaztec/400/600',
-    category: 'স্লট',
-    isHot: true,
-    bgColor: 'from-yellow-600 to-green-900',
-    providerColor: 'text-yellow-300'
-  },
-  {
-    id: 'pg3',
-    name: 'লাকি নেকো',
-    provider: 'PG',
-    image: 'https://picsum.photos/seed/luckyneko/400/600',
-    category: 'স্লট',
-    bgColor: 'from-pink-600 to-purple-900',
-    providerColor: 'text-pink-300'
-  },
-  {
-    id: 'pg4',
-    name: 'ওয়েজ অফ দ্য কিলিন',
-    provider: 'PG',
-    image: 'https://picsum.photos/seed/waysoftheqilin/400/600',
-    category: 'স্লট',
-    bgColor: 'from-green-500 to-teal-900',
-    providerColor: 'text-green-300'
-  },
-  {
-    id: 'pg5',
-    name: 'ওয়াইল্ড ব্যান্ডিটো',
-    provider: 'PG',
-    image: 'https://picsum.photos/seed/wildbandito/400/600',
-    category: 'স্লট',
-    bgColor: 'from-orange-500 to-yellow-900',
-    providerColor: 'text-orange-300'
-  },
-  {
-    id: 'pg6',
-    name: 'ফরচুন টাইগার',
-    provider: 'PG',
-    image: 'https://picsum.photos/seed/fortunetiger/400/600',
-    category: 'স্লট',
-    isHot: true,
-    bgColor: 'from-red-600 to-orange-900',
-    providerColor: 'text-yellow-300'
-  },
-  {
-    id: 'pg7',
-    name: 'ফরচুন মাউস',
-    provider: 'PG',
-    image: 'https://picsum.photos/seed/fortunemouse/400/600',
-    category: 'স্লট',
-    bgColor: 'from-red-500 to-red-800',
-    providerColor: 'text-yellow-200'
-  },
-  {
-    id: 'pg8',
-    name: 'ফরচুন অক্স',
-    provider: 'PG',
-    image: 'https://picsum.photos/seed/fortuneox/400/600',
-    category: 'স্লট',
-    bgColor: 'from-yellow-500 to-red-700',
-    providerColor: 'text-yellow-400'
-  },
-  {
-    id: 'pg9',
-    name: 'ড্রাগন হ্যাচ',
-    provider: 'PG',
-    image: 'https://picsum.photos/seed/dragonhatch/400/600',
-    category: 'স্লট',
-    isHot: true,
-    bgColor: 'from-orange-600 to-red-900',
-    providerColor: 'text-orange-300'
-  },
-  {
-    id: 'pg10',
-    name: 'গণেশা গোল্ড',
-    provider: 'PG',
-    image: 'https://picsum.photos/seed/ganeshagold/400/600',
-    category: 'স্লট',
-    bgColor: 'from-yellow-400 to-yellow-700',
-    providerColor: 'text-yellow-100'
-  }
+  // JILI (8)
+  { id: 'jili_1', name: 'Super Ace', provider: 'JILI', image: 'https://picsum.photos/seed/jili1/400/600', category: 'স্লট', isHot: true, bgColor: 'from-yellow-600 to-green-600' },
+  { id: 'jili_2', name: 'Golden Empire', provider: 'JILI', image: 'https://picsum.photos/seed/jili2/400/600', category: 'স্লট', isHot: true, bgColor: 'from-yellow-500 to-yellow-700' },
+  { id: 'jili_3', name: 'Fortune Gems', provider: 'JILI', image: 'https://picsum.photos/seed/jili3/400/600', category: 'স্লট', bgColor: 'from-red-500 to-red-800' },
+  { id: 'jili_4', name: 'Boxing King', provider: 'JILI', image: 'https://picsum.photos/seed/jili4/400/600', category: 'স্লট', isHot: true, bgColor: 'from-orange-500 to-red-600' },
+  { id: 'jili_5', name: 'Money Coming', provider: 'JILI', image: 'https://picsum.photos/seed/jili5/400/600', category: 'স্লট', bgColor: 'from-green-500 to-green-800' },
+  { id: 'jili_6', name: 'Charge Buffalo', provider: 'JILI', image: 'https://picsum.photos/seed/jili6/400/600', category: 'স্লট', bgColor: 'from-yellow-600 to-orange-800' },
+  { id: 'jili_7', name: 'Magic Lamp', provider: 'JILI', image: 'https://picsum.photos/seed/jili7/400/600', category: 'স্লট', bgColor: 'from-purple-500 to-purple-800' },
+  { id: 'jili_8', name: 'Ali Baba', provider: 'JILI', image: 'https://picsum.photos/seed/jili8/400/600', category: 'স্লট', bgColor: 'from-blue-500 to-blue-800' },
+
+  // PG (8)
+  { id: 'pg_1', name: 'Mahjong Ways', provider: 'PG', image: 'https://picsum.photos/seed/pg1/400/600', category: 'স্লট', isHot: true, bgColor: 'from-red-600 to-red-900' },
+  { id: 'pg_2', name: 'Mahjong Ways 2', provider: 'PG', image: 'https://picsum.photos/seed/pg2/400/600', category: 'স্লট', isHot: true, bgColor: 'from-red-500 to-red-800' },
+  { id: 'pg_3', name: 'Treasure of Aztec', provider: 'PG', image: 'https://picsum.photos/seed/pg3/400/600', category: 'স্লট', bgColor: 'from-yellow-500 to-orange-700' },
+  { id: 'pg_4', name: 'Lucky Neko', provider: 'PG', image: 'https://picsum.photos/seed/pg4/400/600', category: 'স্লট', bgColor: 'from-pink-500 to-purple-700' },
+  { id: 'pg_5', name: 'Wild Bandito', provider: 'PG', image: 'https://picsum.photos/seed/pg5/400/600', category: 'স্লট', bgColor: 'from-purple-600 to-purple-900' },
+  { id: 'pg_6', name: 'Dreams of Macau', provider: 'PG', image: 'https://picsum.photos/seed/pg6/400/600', category: 'স্লট', bgColor: 'from-blue-500 to-blue-800' },
+  { id: 'pg_7', name: 'Caishen Wins', provider: 'PG', image: 'https://picsum.photos/seed/pg7/400/600', category: 'স্লট', bgColor: 'from-red-400 to-red-700' },
+  { id: 'pg_8', name: 'Egypts Book', provider: 'PG', image: 'https://picsum.photos/seed/pg8/400/600', category: 'স্লট', bgColor: 'from-yellow-600 to-yellow-900' },
+
+  // JBD (8)
+  { id: 'jbd_1', name: 'Open Sesame', provider: 'JBD', image: 'https://picsum.photos/seed/jbd1/400/600', category: 'স্লট', bgColor: 'from-purple-500 to-purple-800' },
+  { id: 'jbd_2', name: 'Super Niubi', provider: 'JBD', image: 'https://picsum.photos/seed/jbd2/400/600', category: 'স্লট', bgColor: 'from-red-500 to-red-800' },
+  { id: 'jbd_3', name: 'Fortune Treasure', provider: 'JBD', image: 'https://picsum.photos/seed/jbd3/400/600', category: 'স্লট', bgColor: 'from-yellow-500 to-yellow-800' },
+  { id: 'jbd_4', name: 'Golden Toad', provider: 'JBD', image: 'https://picsum.photos/seed/jbd4/400/600', category: 'স্লট', bgColor: 'from-green-500 to-green-800' },
+  { id: 'jbd_5', name: 'Lucky Lion', provider: 'JBD', image: 'https://picsum.photos/seed/jbd5/400/600', category: 'স্লট', bgColor: 'from-red-600 to-red-900' },
+  { id: 'jbd_6', name: 'Dragon Ball', provider: 'JBD', image: 'https://picsum.photos/seed/jbd6/400/600', category: 'স্লট', bgColor: 'from-orange-500 to-orange-800' },
+  { id: 'jbd_7', name: 'Wealth God', provider: 'JBD', image: 'https://picsum.photos/seed/jbd7/400/600', category: 'স্লট', bgColor: 'from-yellow-600 to-yellow-900' },
+  { id: 'jbd_8', name: 'Prosperity', provider: 'JBD', image: 'https://picsum.photos/seed/jbd8/400/600', category: 'স্লট', bgColor: 'from-blue-500 to-blue-800' },
+
+  // SPRIBE (8)
+  { id: '5', name: 'Aviator', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe1/400/600', category: 'ক্র্যাশ', isHot: true, isVIP: true, bgColor: 'from-gray-800 to-red-900' },
+  { id: 'spribe_2', name: 'Mines', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe2/400/600', category: 'মিনি গেম', bgColor: 'from-blue-600 to-blue-900' },
+  { id: 'spribe_3', name: 'Dice', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe3/400/600', category: 'মিনি গেম', bgColor: 'from-purple-500 to-purple-800' },
+  { id: 'spribe_4', name: 'Mini Roulette', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe4/400/600', category: 'মিনি গেম', bgColor: 'from-green-600 to-green-900' },
+  { id: 'spribe_5', name: 'HiLo', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe5/400/600', category: 'মিনি গেম', bgColor: 'from-red-500 to-red-800' },
+  { id: 'spribe_6', name: 'Plinko', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe6/400/600', category: 'মিনি গেম', bgColor: 'from-pink-500 to-pink-800' },
+  { id: 'spribe_7', name: 'Goal', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe7/400/600', category: 'মিনি গেম', bgColor: 'from-green-500 to-green-800' },
+  { id: 'spribe_8', name: 'Keno', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe8/400/600', category: 'মিনি গেম', bgColor: 'from-yellow-600 to-yellow-900' },
+
+  // BT GAME (8)
+  { id: 'bt_1', name: 'BT Slot 1', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt1/400/600', category: 'স্লট', bgColor: 'from-gray-700 to-gray-900' },
+  { id: 'bt_2', name: 'BT Slot 2', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt2/400/600', category: 'স্লট', bgColor: 'from-blue-700 to-blue-900' },
+  { id: 'bt_3', name: 'BT Slot 3', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt3/400/600', category: 'স্লট', bgColor: 'from-red-700 to-red-900' },
+  { id: 'bt_4', name: 'BT Slot 4', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt4/400/600', category: 'স্লট', bgColor: 'from-green-700 to-green-900' },
+  { id: 'bt_5', name: 'BT Slot 5', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt5/400/600', category: 'স্লট', bgColor: 'from-purple-700 to-purple-900' },
+  { id: 'bt_6', name: 'BT Slot 6', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt6/400/600', category: 'স্লট', bgColor: 'from-yellow-700 to-yellow-900' },
+  { id: 'bt_7', name: 'BT Slot 7', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt7/400/600', category: 'স্লট', bgColor: 'from-pink-700 to-pink-900' },
+  { id: 'bt_8', name: 'BT Slot 8', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt8/400/600', category: 'স্লট', bgColor: 'from-indigo-700 to-indigo-900' },
 ];
 
 const PROVIDERS = [
-  { id: 'ALL', name: 'সব', logo: 'https://placehold.co/100x40/111827/ffffff?text=ALL' },
-  { id: 'SPRIBE', name: 'Spribe', logo: 'https://placehold.co/100x40/b91c1c/ffffff?text=SPRIBE' },
+  { id: 'ALL', name: 'ALL', logo: 'https://placehold.co/100x40/111827/ffffff?text=ALL' },
   { id: 'JILI', name: 'JILI', logo: 'https://placehold.co/100x40/1e3a8a/ffffff?text=JILI' },
-  { id: 'EVO', name: 'Evolution', logo: 'https://placehold.co/100x40/831843/ffffff?text=EVO' },
-  { id: 'PG', name: 'PG Soft', logo: 'https://placehold.co/100x40/ea580c/ffffff?text=PG' },
-  { id: 'PP', name: 'Pragmatic', logo: 'https://placehold.co/100x40/0f766e/ffffff?text=PP' },
-  { id: 'PNG', name: "Play'n GO", logo: 'https://placehold.co/100x40/4338ca/ffffff?text=PNG' },
-  { id: 'NET', name: 'NetEnt', logo: 'https://placehold.co/100x40/047857/ffffff?text=NET' },
-  { id: 'MG', name: 'Microgaming', logo: 'https://placehold.co/100x40/b45309/ffffff?text=MG' },
-  { id: '9game', name: '9game', logo: 'https://placehold.co/100x40/be185d/ffffff?text=9game' },
+  { id: 'PG', name: 'PG', logo: 'https://placehold.co/100x40/ea580c/ffffff?text=PG' },
+  { id: 'JBD', name: 'JBD', logo: 'https://placehold.co/100x40/047857/ffffff?text=JBD' },
+  { id: 'SPRIBE', name: 'SPRIBE', logo: 'https://placehold.co/100x40/b91c1c/ffffff?text=SPRIBE' },
+  { id: 'BT GAME', name: 'BT GAME', logo: 'https://placehold.co/100x40/4338ca/ffffff?text=BT+GAME' },
 ];
 
 interface GameCardProps {
@@ -498,50 +82,65 @@ interface GameCardProps {
   isFavorite: boolean;
   onSelect: (game: Game) => void;
   onToggleFavorite: (e: React.MouseEvent, gameId: string) => void;
-  onShowDetails: (e: React.MouseEvent, game: Game) => void;
   globalLogo?: string;
   onLogoChange?: (gameId: string, newLogo: string) => void;
   globalName?: string;
   onNameChange?: (gameId: string, newName: string) => void;
+  globalUrl?: string;
+  onUrlChange?: (gameId: string, newUrl: string) => void;
+  globalOption?: string;
+  onOptionChange?: (gameId: string, newOption: string) => void;
+  setEditingGame: (game: any) => void;
+  showToast?: (message: string, type: 'success' | 'error') => void;
+  isAdmin?: boolean;
 }
 
-const GameCard: React.FC<GameCardProps> = ({ game, isFavorite, onSelect, onToggleFavorite, onShowDetails, globalLogo, onLogoChange, globalName, onNameChange }) => {
+const GameCard: React.FC<GameCardProps> = ({ 
+  game, 
+  isFavorite, 
+  onSelect, 
+  onToggleFavorite, 
+  globalLogo, 
+  onLogoChange, 
+  globalName, 
+  onNameChange,
+  globalUrl,
+  onUrlChange,
+  globalOption,
+  onOptionChange,
+  setEditingGame,
+  showToast,
+  isAdmin = false
+}) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [editNameValue, setEditNameValue] = useState(globalName || game.name);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const isAviator = game.provider === 'SPRIBE' && game.id === '1';
   
   const displayImage = globalLogo || game.image || `https://picsum.photos/seed/${game.id}/400/600`;
-
-  useEffect(() => {
-    setEditNameValue(globalName || game.name);
-  }, [globalName, game.name]);
-
-  const handleNameSubmit = () => {
-    setIsEditingName(false);
-    if (editNameValue.trim() !== (globalName || game.name) && onNameChange) {
-      onNameChange(game.id, editNameValue.trim());
-    }
-  };
+  const displayName = globalName || game.name;
+  const displayOption = globalOption || game.provider;
+  const displayUrl = globalUrl || '#';
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && onLogoChange) {
       const reader = new FileReader();
+      reader.onerror = () => {
+        if (showToast) showToast("ছবিটি পড়তে সমস্যা হয়েছে।", "error");
+      };
       reader.onloadend = () => {
-        const base64String = reader.result as string;
-        onLogoChange(game.id, base64String);
+        onLogoChange(game.id, reader.result as string);
       };
       reader.readAsDataURL(file);
     }
   };
 
+  const isAviator = game.provider === 'CRASH' && game.id === '5';
+
   return (
     <div 
       onClick={() => onSelect(game)}
-      className={`rounded-xl overflow-hidden relative aspect-square bg-gradient-to-b ${game.bgColor || 'from-gray-800 to-gray-900'} shadow-md group cursor-pointer border border-white/10 transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_20px_30px_rgba(0,0,0,0.5),0_0_15px_rgba(255,255,255,0.1)] hover:border-white/30`}
+      className={`rounded-xl overflow-hidden relative aspect-square bg-gradient-to-b ${game.bgColor || 'from-gray-800 to-gray-900'} shadow-md group cursor-pointer border border-white/10 transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_20px_30px_rgba(0,0,0,0.5),0_0_15px_rgba(255,255,255,0.1)] hover:border-white/30 active:scale-95`}
     >
       {/* Skeleton Loader */}
       {!imageLoaded && !imageError && (
@@ -592,24 +191,17 @@ const GameCard: React.FC<GameCardProps> = ({ game, isFavorite, onSelect, onToggl
         <Star size={14} className={isFavorite ? "text-yellow-400 fill-yellow-400" : "text-gray-300"} />
       </div>
       
-      {/* Info Button */}
-      <div 
-        onClick={(e) => onShowDetails(e, game)}
-        className="absolute bottom-10 right-1.5 bg-black/40 rounded-full p-1.5 backdrop-blur-sm z-30 group-hover:bg-black/60 transition-all hover:scale-110 active:scale-90"
-      >
-        <Info size={14} className="text-white" />
-      </div>
-
       {/* Change Logo Button */}
-      {onLogoChange && (
+      {isAdmin && onLogoChange && (
         <div 
           onClick={(e) => {
             e.stopPropagation();
             fileInputRef.current?.click();
           }}
-          className="absolute bottom-10 left-1.5 bg-yellow-500/40 rounded-full p-1.5 backdrop-blur-sm z-30 group-hover:bg-yellow-500/80 transition-all hover:scale-110 active:scale-90"
+          className="absolute bottom-12 left-1.5 bg-yellow-500 rounded-full p-2 shadow-lg z-30 hover:scale-110 active:scale-90 transition-all border border-yellow-300"
+          title="গেম লোগো পরিবর্তন করুন"
         >
-          <Camera size={14} className="text-white" />
+          <Camera size={16} className="text-black" />
           <input 
             type="file" 
             ref={fileInputRef} 
@@ -620,11 +212,6 @@ const GameCard: React.FC<GameCardProps> = ({ game, isFavorite, onSelect, onToggl
         </div>
       )}
 
-      {game.id === '5' && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <PlaneIcon className="text-pink-600 w-16 h-16 drop-shadow-lg transform -rotate-12 group-hover:scale-125 transition-transform" />
-        </div>
-      )}
       {isAviator && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
           <div className="relative group-hover:scale-125 transition-transform duration-500">
@@ -659,37 +246,36 @@ const GameCard: React.FC<GameCardProps> = ({ game, isFavorite, onSelect, onToggl
           </div>
         </div>
       )}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent pt-8 pb-2 px-1 flex items-center justify-center gap-1 z-20">
-        {isEditingName ? (
-          <input
-            type="text"
-            value={editNameValue}
-            onChange={(e) => setEditNameValue(e.target.value)}
-            onBlur={handleNameSubmit}
-            onKeyDown={(e) => e.key === 'Enter' && handleNameSubmit()}
-            onClick={(e) => e.stopPropagation()}
-            autoFocus
-            className="text-xs font-bold text-black text-center w-3/4 rounded px-1 py-0.5 outline-none focus:ring-2 focus:ring-yellow-500"
-          />
-        ) : (
-          <>
-            <span className="text-xs font-bold text-white drop-shadow-md group-hover:text-yellow-400 transition-colors truncate max-w-[80%]">
-              {globalName || game.name}
-            </span>
-            {onNameChange && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsEditingName(true);
-                }}
-                className="text-gray-400 hover:text-white p-1 z-30 bg-black/40 rounded-full backdrop-blur-sm"
-              >
-                <Edit2 size={10} />
-              </button>
-            )}
-          </>
-        )}
-      </div>
+      {/* Change Name/Details Button */}
+      {isAdmin && (
+        <div 
+          onClick={(e) => {
+            e.stopPropagation();
+            setEditingGame({
+              gameId: game.id,
+              name: displayName,
+              logo: displayImage,
+              url: displayUrl,
+              option: displayOption
+            });
+          }}
+          className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/80 to-transparent pt-8 pb-2 px-1 flex items-center justify-center gap-1 z-20 group/name cursor-pointer"
+        >
+          <span className="text-[10px] font-bold text-white drop-shadow-md group-hover:text-yellow-400 transition-colors truncate max-w-[80%] uppercase tracking-tighter">
+            {displayName}
+          </span>
+          <div className="bg-yellow-500/20 p-1 rounded transition-all hover:bg-yellow-500/40">
+            <Edit2 size={10} className="text-yellow-400" />
+          </div>
+        </div>
+      )}
+      {!isAdmin && (
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/80 to-transparent pt-8 pb-2 px-1 flex items-center justify-center z-20">
+          <span className="text-[10px] font-bold text-white drop-shadow-md truncate max-w-[90%] uppercase tracking-tighter">
+            {displayName}
+          </span>
+        </div>
+      )}
       {/* Hover Glow Effect */}
       <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/0 to-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
     </div>
@@ -706,7 +292,15 @@ interface GameGridProps {
   onGameLogoChange?: (gameId: string, newLogo: string) => void;
   globalNames?: Record<string, string>;
   onGameNameChange?: (gameId: string, newName: string) => void;
+  globalUrls: Record<string, string>;
+  globalOptions: Record<string, string>;
+  onGameUrlChange?: (gameId: string, newUrl: string) => void;
+  onGameOptionChange?: (gameId: string, newOption: string) => void;
   loading?: boolean;
+  allButtonName?: string;
+  onAllButtonNameChange?: (newName: string) => void;
+  showToast?: (message: string, type: 'success' | 'error') => void;
+  isAdmin?: boolean;
 }
 
 export const GameGrid: React.FC<GameGridProps> = ({ 
@@ -719,10 +313,27 @@ export const GameGrid: React.FC<GameGridProps> = ({
   onGameLogoChange, 
   globalNames = {}, 
   onGameNameChange,
-  loading: externalLoading
+  globalUrls,
+  globalOptions,
+  onGameUrlChange,
+  onGameOptionChange,
+  loading: externalLoading,
+  allButtonName,
+  onAllButtonNameChange,
+  showToast,
+  isAdmin = false
 }) => {
   const [selectedProvider, setSelectedProvider] = useState<string>('ALL');
-  const [selectedGameForDetails, setSelectedGameForDetails] = useState<Game | null>(null);
+  const [editingAllButton, setEditingAllButton] = useState(false);
+  const [tempAllButtonName, setTempAllButtonName] = useState("");
+  const [editingGame, setEditingGame] = useState<{
+    gameId: string;
+    name: string;
+    logo: string;
+    url: string;
+    option: string;
+  } | null>(null);
+
   const [internalLoading, setInternalLoading] = useState(false);
 
   const isLoading = externalLoading !== undefined ? externalLoading : internalLoading;
@@ -740,20 +351,16 @@ export const GameGrid: React.FC<GameGridProps> = ({
     onToggleFavorite(gameId);
   };
 
-  const handleShowDetails = (e: React.MouseEvent, game: Game) => {
-    e.stopPropagation();
-    setSelectedGameForDetails(game);
-  };
-
   const filteredGames = games.filter(game => {
     const isFav = favorites.includes(game.id);
+    const matchesProvider = selectedProvider === 'ALL' || game.provider === selectedProvider;
+    
     const matchesCategory = 
+      selectedProvider !== 'ALL' || // Ignore category filter if a specific provider is selected
       category === 'সব' || 
       game.category === category || 
       (category === 'সেরা' && game.isHot) ||
       (category === 'পছন্দ' && isFav);
-    
-    const matchesProvider = selectedProvider === 'ALL' || game.provider === selectedProvider;
     
     const matchesSearch = game.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           game.provider.toLowerCase().includes(searchQuery.toLowerCase());
@@ -764,28 +371,55 @@ export const GameGrid: React.FC<GameGridProps> = ({
     <div className="flex flex-col gap-4">
       {/* Provider Filter */}
       <div className="flex overflow-x-auto gap-3 pb-2 no-scrollbar">
-        {PROVIDERS.map(provider => (
-          <button
-            key={provider.id}
-            onClick={() => setSelectedProvider(provider.id)}
-            className={`shrink-0 rounded-lg overflow-hidden border-2 transition-all ${
-              selectedProvider === provider.id 
-                ? 'border-yellow-400 scale-105 shadow-[0_0_10px_rgba(250,204,21,0.5)]' 
-                : 'border-transparent opacity-70 hover:opacity-100'
-            }`}
-          >
-            <img src={provider.logo} alt={provider.name} className="h-8 object-cover" />
-          </button>
-        ))}
+        {PROVIDERS.map(provider => {
+          const isAll = provider.id === 'ALL';
+          const displayName = isAll ? (allButtonName || 'ALL') : provider.name;
+          const displayLogo = isAll ? `https://placehold.co/100x40/111827/ffffff?text=${encodeURIComponent(displayName)}` : provider.logo;
+
+          return (
+            <div key={provider.id} className="relative group shrink-0">
+              <button
+                onClick={() => setSelectedProvider(selectedProvider === provider.id ? 'ALL' : provider.id)}
+                className={`rounded-lg overflow-hidden border-2 transition-all block h-full ${
+                  selectedProvider === provider.id 
+                    ? 'border-yellow-400 scale-105 shadow-[0_0_10px_rgba(250,204,21,0.5)]' 
+                    : 'border-transparent opacity-70 hover:opacity-100'
+                }`}
+              >
+                <img src={displayLogo} alt={displayName} className="h-8 object-cover" />
+              </button>
+              {isAll && isAdmin && onAllButtonNameChange && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setTempAllButtonName(displayName);
+                    setEditingAllButton(true);
+                  }}
+                  className="absolute -top-2 -right-2 bg-yellow-500 text-black p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                >
+                  <Edit2 size={12} />
+                </button>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <div className="grid grid-cols-3 gap-2">
         {isLoading ? (
           [...Array(9)].map((_, i) => (
-            <div key={i} className="aspect-square rounded-xl bg-gray-800/50 overflow-hidden relative border border-white/5">
-              <Skeleton className="w-full h-full" />
-              <div className="absolute bottom-0 left-0 right-0 p-2 bg-black/40">
-                <Skeleton className="h-3 w-3/4 mx-auto" />
+            <div key={i} className="aspect-square rounded-xl bg-gradient-to-b from-teal-900/40 to-teal-950/60 overflow-hidden relative border border-white/5 shadow-sm">
+              <Skeleton className="w-full h-full rounded-none opacity-50" />
+              
+              {/* Top Right Star Skeleton */}
+              <div className="absolute top-1.5 right-1.5 bg-black/20 rounded-full p-1.5 w-6 h-6">
+                <Skeleton className="w-full h-full rounded-full" shimmer={false} />
+              </div>
+
+              {/* Bottom Gradient Overlay */}
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent pt-8 pb-2 px-2 flex flex-col justify-end items-center gap-1">
+                <Skeleton className="h-2.5 w-3/4" />
+                <Skeleton className="h-2 w-1/2 opacity-60" />
               </div>
             </div>
           ))
@@ -797,11 +431,17 @@ export const GameGrid: React.FC<GameGridProps> = ({
               isFavorite={favorites.includes(game.id)}
               onSelect={onGameSelect} 
               onToggleFavorite={toggleFavorite}
-              onShowDetails={handleShowDetails}
               globalLogo={globalLogos[game.id]}
               onLogoChange={onGameLogoChange}
               globalName={globalNames[game.id]}
               onNameChange={onGameNameChange}
+              globalUrl={globalUrls[game.id]}
+              onUrlChange={onGameUrlChange}
+              globalOption={globalOptions[game.id]}
+              onOptionChange={onGameOptionChange}
+              setEditingGame={setEditingGame}
+              showToast={showToast}
+              isAdmin={isAdmin}
             />
           ))
         ) : (
@@ -811,19 +451,108 @@ export const GameGrid: React.FC<GameGridProps> = ({
         )}
       </div>
 
-      {/* Game Details Modal */}
-      {selectedGameForDetails && (
-        <div className="fixed inset-0 z-[110] bg-black/80 flex items-center justify-center p-4" onClick={() => setSelectedGameForDetails(null)}>
-          <div className="bg-teal-900 rounded-2xl p-6 max-w-sm w-full border border-teal-700 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h2 className="text-2xl font-bold text-white mb-2">{selectedGameForDetails.name}</h2>
-            <p className="text-teal-300 text-sm mb-4">প্রোভাইডার: {selectedGameForDetails.provider}</p>
-            <p className="text-white text-sm mb-6">এটি একটি চমৎকার গেম! এই গেমে আপনি অনেক মজা পাবেন এবং বড় জয়ের সুযোগ রয়েছে।</p>
+      {/* Global Edit Modal */}
+      {editingGame && (
+        <div className="fixed inset-0 z-[120] bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-[#1b1b1b] rounded-3xl p-6 max-w-sm w-full border border-yellow-500/30 shadow-[0_0_50px_rgba(234,179,8,0.2)] animate-in zoom-in duration-300">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-black text-white italic tracking-tighter">গেম এডিট করুন</h2>
+              <button onClick={() => setEditingGame(null)} className="p-2 bg-white/5 rounded-full text-gray-400 hover:text-white">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Name */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-yellow-500 uppercase tracking-widest ml-1">গেমের নাম</label>
+                <input 
+                  type="text"
+                  value={editingGame.name}
+                  onChange={(e) => setEditingGame({ ...editingGame, name: e.target.value })}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-yellow-500 transition-all font-bold"
+                />
+              </div>
+
+              {/* Option (Provider) */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-yellow-500 uppercase tracking-widest ml-1">অপশন (প্রোভাইডার)</label>
+                <input 
+                  type="text"
+                  value={editingGame.option}
+                  onChange={(e) => setEditingGame({ ...editingGame, option: e.target.value })}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-yellow-500 transition-all font-bold"
+                />
+              </div>
+
+              {/* Logo URL */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-yellow-500 uppercase tracking-widest ml-1">লোগো/ছবি URL</label>
+                <input 
+                  type="text"
+                  value={editingGame.logo}
+                  onChange={(e) => setEditingGame({ ...editingGame, logo: e.target.value })}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-yellow-500 transition-all font-mono text-xs"
+                />
+              </div>
+
+              {/* Game URL */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-yellow-500 uppercase tracking-widest ml-1">গেম URL</label>
+                <input 
+                  type="text"
+                  value={editingGame.url}
+                  onChange={(e) => setEditingGame({ ...editingGame, url: e.target.value })}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-yellow-500 transition-all font-mono text-xs"
+                />
+              </div>
+            </div>
+
             <button 
-              onClick={() => setSelectedGameForDetails(null)}
-              className="w-full bg-yellow-500 text-black font-bold py-2 rounded-lg hover:bg-yellow-400 transition-colors"
+              onClick={() => {
+                if (onGameNameChange) onGameNameChange(editingGame.gameId, editingGame.name);
+                if (onGameLogoChange) onGameLogoChange(editingGame.gameId, editingGame.logo);
+                if (onGameUrlChange) onGameUrlChange(editingGame.gameId, editingGame.url);
+                if (onGameOptionChange) onGameOptionChange(editingGame.gameId, editingGame.option);
+                setEditingGame(null);
+              }}
+              className="w-full bg-gradient-to-r from-yellow-400 to-yellow-600 text-black font-black py-4 rounded-2xl mt-8 shadow-lg shadow-yellow-500/20 active:scale-95 transition-all"
             >
-              বন্ধ করুন
+              সেভ করুন (সবার জন্য)
             </button>
+          </div>
+        </div>
+      )}
+      {editingAllButton && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-gray-900 border border-white/10 p-6 rounded-2xl w-full max-w-sm">
+            <h3 className="text-lg font-bold text-white mb-4">ALL বাটনের নাম পরিবর্তন করুন</h3>
+            <input
+              type="text"
+              value={tempAllButtonName}
+              onChange={(e) => setTempAllButtonName(e.target.value)}
+              className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white mb-4"
+              placeholder="নতুন নাম দিন"
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => setEditingAllButton(false)}
+                className="flex-1 py-3 rounded-xl bg-gray-800 text-white font-bold"
+              >
+                বাতিল
+              </button>
+              <button
+                onClick={() => {
+                  if (onAllButtonNameChange) {
+                    onAllButtonNameChange(tempAllButtonName);
+                  }
+                  setEditingAllButton(false);
+                }}
+                className="flex-1 py-3 rounded-xl bg-yellow-500 text-black font-bold"
+              >
+                সেভ করুন
+              </button>
+            </div>
           </div>
         </div>
       )}

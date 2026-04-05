@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, Trophy, Download, X, RefreshCw, ChevronRight, Play, Wallet, Users, Info, Star, TrendingUp, History, User, Menu, Bell, Search, Volume2, Flame, Gamepad2, Hexagon, Tv, Club, Fish, Ticket, ChevronLeft, Mail } from 'lucide-react';
+import { Clock, Trophy, Download, X, RefreshCw, ChevronRight, Play, Wallet, Users, Star, TrendingUp, History, User, Menu, Bell, Search, Volume2, Flame, Gamepad2, Hexagon, Tv, Club, Fish, Ticket, ChevronLeft, Mail } from 'lucide-react';
 import { motion } from 'motion/react';
 import { GAME_IMAGES } from '../constants/gameAssets';
 import { GameGrid } from "./GameGrid";
@@ -12,6 +12,8 @@ interface HomeViewProps {
   setShowLeaderboard: (show: boolean) => void;
   globalLogos: Record<string, string>;
   globalNames: Record<string, string>;
+  globalUrls: Record<string, string>;
+  globalOptions: Record<string, string>;
   balance: number;
   isRefreshing: boolean;
   handleRefresh: () => void;
@@ -26,6 +28,12 @@ interface HomeViewProps {
   handleToggleFavorite: (gameId: string) => void;
   updateGlobalGameLogo: (gameId: string, logo: string) => Promise<void>;
   updateGlobalGameName: (gameId: string, name: string) => Promise<void>;
+  updateGlobalGameUrl: (gameId: string, url: string) => Promise<void>;
+  updateGlobalGameOption: (gameId: string, option: string) => Promise<void>;
+  allButtonName?: string;
+  updateAllButtonName?: (newName: string) => void;
+  casinoName?: string;
+  updateCasinoName?: (newName: string) => void;
   showToast: (msg: string, type?: any) => void;
   loading?: boolean;
 }
@@ -38,6 +46,8 @@ export default function HomeView({
   setShowLeaderboard,
   globalLogos,
   globalNames,
+  globalUrls,
+  globalOptions,
   balance,
   isRefreshing,
   handleRefresh,
@@ -52,9 +62,18 @@ export default function HomeView({
   handleToggleFavorite,
   updateGlobalGameLogo,
   updateGlobalGameName,
+  updateGlobalGameUrl,
+  updateGlobalGameOption,
+  allButtonName,
+  updateAllButtonName,
+  casinoName = "SPIN71BET",
+  updateCasinoName,
   showToast,
   loading
 }: HomeViewProps) {
+  const [editingCasinoName, setEditingCasinoName] = React.useState(false);
+  const [tempCasinoName, setTempCasinoName] = React.useState(casinoName || "SPIN71BET");
+
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Top App Download Banner */}
@@ -65,7 +84,7 @@ export default function HomeView({
           </button>
           <div className="flex items-center gap-1">
             <span className="bg-gradient-to-b from-yellow-400 to-yellow-600 text-black px-1 rounded text-[10px] font-bold border border-yellow-300">
-              SPIN71BET.com
+              {casinoName}.com
             </span>
             <span className="text-teal-50">দৈনিক বিনামূল্যের অ্যাপ বোনাস</span>
           </div>
@@ -85,8 +104,15 @@ export default function HomeView({
           <button onClick={() => setIsSidebarOpen(true)} className="text-teal-50 hover:text-white transition-colors">
             <Menu size={24} />
           </button>
-          <div className="text-2xl font-black italic tracking-tighter bg-gradient-to-b from-yellow-200 via-yellow-400 to-yellow-600 text-transparent bg-clip-text drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">
-            SPIN71<span className="text-green-300">BET</span>
+          <div 
+            onClick={() => {
+              setTempCasinoName(casinoName || "SPIN71BET");
+              setEditingCasinoName(true);
+            }}
+            className="text-2xl font-black italic tracking-tighter bg-gradient-to-b from-yellow-200 via-yellow-400 to-yellow-600 text-transparent bg-clip-text drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] cursor-pointer"
+            title="নাম পরিবর্তন করতে ক্লিক করুন"
+          >
+            {casinoName}
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -333,11 +359,6 @@ export default function HomeView({
           { id: 'সেরা', icon: Flame, label: 'সেরা' },
           { id: 'পছন্দ', icon: Star, label: 'পছন্দ' },
           { id: 'স্লট', icon: Gamepad2, label: 'স্লট' },
-          { id: 'ব্লকচেইন', icon: Hexagon, label: 'ব্লকচেইন' },
-          { id: 'লাইভ', icon: Tv, label: 'লাইভ' },
-          { id: 'তাস', icon: Club, label: 'তাস' },
-          { id: 'ফিশিং', icon: Fish, label: 'ফিশিং' },
-          { id: 'লটারি', icon: Ticket, label: 'লটারি' },
         ].map((cat) => (
           <div 
             key={cat.id}
@@ -386,7 +407,23 @@ export default function HomeView({
           onToggleFavorite={handleToggleFavorite}
           globalLogos={globalLogos}
           globalNames={globalNames}
+          globalUrls={globalUrls}
+          globalOptions={globalOptions}
           loading={loading}
+          allButtonName={allButtonName}
+          showToast={showToast}
+          isAdmin={userData?.role === 'admin'}
+          onAllButtonNameChange={async (newName) => {
+            if (updateAllButtonName) {
+              try {
+                await updateAllButtonName(newName);
+                showToast("ALL বাটনের নাম সফলভাবে আপডেট করা হয়েছে", "success");
+              } catch (err) {
+                console.error("Failed to update all button name:", err);
+                showToast("নাম আপডেট করতে সমস্যা হয়েছে", "error");
+              }
+            }
+          }}
           onGameLogoChange={async (gameId, newLogo) => {
             if (userData?.id) {
               try {
@@ -409,8 +446,70 @@ export default function HomeView({
               }
             }
           }}
+          onGameUrlChange={async (gameId, newUrl) => {
+            if (userData?.id) {
+              try {
+                await updateGlobalGameUrl(gameId, newUrl);
+                showToast("গেম URL সফলভাবে আপডেট করা হয়েছে এবং সবার জন্য সেভ হয়েছে", "success");
+              } catch (err) {
+                console.error("Failed to update global url:", err);
+                showToast("URL আপডেট করতে সমস্যা হয়েছে", "error");
+              }
+            }
+          }}
+          onGameOptionChange={async (gameId, newOption) => {
+            if (userData?.id) {
+              try {
+                await updateGlobalGameOption(gameId, newOption);
+                showToast("গেম অপশন সফলভাবে আপডেট করা হয়েছে এবং সবার জন্য সেভ হয়েছে", "success");
+              } catch (err) {
+                console.error("Failed to update global option:", err);
+                showToast("অপশন আপডেট করতে সমস্যা হয়েছে", "error");
+              }
+            }
+          }}
         />
       </div>
+
+      {/* Edit Casino Name Modal */}
+      {editingCasinoName && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[200] p-4">
+          <div className="bg-teal-900 p-6 rounded-2xl w-full max-w-sm border border-teal-700 shadow-2xl">
+            <h3 className="text-xl font-bold mb-4 text-white">ক্যাসিনোর নাম পরিবর্তন করুন</h3>
+            <input
+              type="text"
+              value={tempCasinoName}
+              onChange={(e) => setTempCasinoName(e.target.value)}
+              className="w-full bg-black/50 border border-teal-700 rounded-lg p-3 text-white mb-6 focus:outline-none focus:border-yellow-500"
+              placeholder="নতুন নাম লিখুন"
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => setEditingCasinoName(false)}
+                className="flex-1 py-3 rounded-lg font-bold bg-gray-700 text-white hover:bg-gray-600 transition-colors"
+              >
+                বাতিল
+              </button>
+              <button
+                onClick={async () => {
+                  if (updateCasinoName) {
+                    try {
+                      await updateCasinoName(tempCasinoName);
+                      showToast("ক্যাসিনোর নাম সফলভাবে আপডেট করা হয়েছে", "success");
+                    } catch (error) {
+                      showToast("নাম আপডেট করতে সমস্যা হয়েছে", "error");
+                    }
+                  }
+                  setEditingCasinoName(false);
+                }}
+                className="flex-1 py-3 rounded-lg font-bold bg-gradient-to-r from-yellow-400 to-yellow-600 text-black hover:from-yellow-300 hover:to-yellow-500 transition-colors"
+              >
+                সেভ করুন
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

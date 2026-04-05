@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Info, Wallet, Play, RotateCcw, Star, Trophy } from 'lucide-react';
+import { ArrowLeft, Wallet, Play, RotateCcw, Star, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 import Reel from './Reel';
@@ -17,11 +17,14 @@ interface SlotGameProps {
   onClose: () => void;
   userBalance: number;
   onBalanceUpdate: (newBalance: number) => void;
+  referredBy?: string | null;
+  globalLogo?: string;
+  globalName?: string;
 }
 
 const SYMBOLS = ['🍒', '🍋', '🍇', '🔔', '💎', '7️⃣', '⭐', '🍀'];
 
-export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate }: SlotGameProps) {
+export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate, referredBy, globalLogo, globalName }: SlotGameProps) {
   const [reels, setReels] = useState([
     [SYMBOLS[0], SYMBOLS[1], SYMBOLS[2]],
     [SYMBOLS[3], SYMBOLS[4], SYMBOLS[5]],
@@ -44,7 +47,7 @@ export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate }
 
     // Update turnover in database
     if (auth.currentUser) {
-      updateTurnover(auth.currentUser.uid, betAmount);
+      updateTurnover(auth.currentUser.uid, betAmount, referredBy);
     }
 
     // Simulate spinning
@@ -117,7 +120,7 @@ export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate }
           <ArrowLeft size={24} />
         </button>
         <div className="text-center">
-          <h3 className="text-white font-bold text-sm">{game.name}</h3>
+          <h3 className="text-white font-bold text-sm">{globalName || game.name}</h3>
           <span className="text-teal-300 text-[10px] uppercase tracking-widest">{game.provider}</span>
         </div>
         <div className="flex items-center gap-2 bg-black/40 px-3 py-1 rounded-full border border-white/10">

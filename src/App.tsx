@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp, runTransaction, increment, collection, query, where, getDocs, Timestamp, documentId } from 'firebase/firestore';
 import { signInWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
+import { motion } from 'motion/react';
 import { db, auth, googleProvider, handleFirestoreError, OperationType } from './firebase';
 import LoginPage from './LoginPage';
 import LogoPreview from './components/LogoPreview';
@@ -15,12 +16,13 @@ import SlotGame from "./components/SlotGame";
 import BetSlip from "./components/BetSlip";
 import PermissionManager from "./components/PermissionManager";
 import NotificationCenter from "./components/NotificationCenter";
+import AdminPanel from "./components/AdminPanel";
 import Sidebar from "./components/Sidebar";
 import LeaderboardView from "./components/LeaderboardView";
 import { GameGrid, Game } from "./components/GameGrid";
 import { CasinoGallery } from "./components/CasinoGallery";
 import { GAME_IMAGES } from "./constants/gameAssets";
-import { saveItem, getSavedItems, removeItem, updateUserProfile, updateFavorites, updateBalance, updateGlobalGameLogo, updateGlobalGameName } from './services/firebaseService';
+import { saveItem, getSavedItems, removeItem, updateUserProfile, updateFavorites, updateBalance, updateGlobalGameLogo, updateGlobalGameName, updateGlobalGameUrl, updateGlobalGameOption, updateAllButtonName, updateCasinoName } from './services/firebaseService';
 import { ToastContainer, ToastType } from "./components/Toast";
 import {
   AlertCircle,
@@ -91,8 +93,13 @@ export default function App() {
 
   const [recentlyPlayed, setRecentlyPlayed] = useState<Game[]>([]);
 
+  const [isGameLoading, setIsGameLoading] = useState(false);
+
   const handleGameSelect = async (game: Game | null) => {
     setSelectedGame(game);
+    if (game) {
+      setIsGameLoading(true);
+    }
     if (game && userData?.id) {
       // Update recently played list
       const updatedList = [game, ...recentlyPlayed.filter(g => g.id !== game.id)].slice(0, 10);
@@ -135,7 +142,7 @@ export default function App() {
         }
       });
     }, (error) => {
-      console.error("Notification listener error:", error);
+      handleFirestoreError(error, OperationType.LIST, path);
     });
 
     return () => unsubscribe();
@@ -150,6 +157,10 @@ export default function App() {
   const [aviatorLogo, setAviatorLogo] = useState<string | null>('https://storage.googleapis.com/genai-studio-user-uploads/projects/ais-dev-wxllhxlbpwpt7cv6zg665n/uploads/1743526563604-image.png');
   const [globalLogos, setGlobalLogos] = useState<Record<string, string>>({});
   const [globalNames, setGlobalNames] = useState<Record<string, string>>({});
+  const [globalUrls, setGlobalUrls] = useState<Record<string, string>>({});
+  const [globalOptions, setGlobalOptions] = useState<Record<string, string>>({});
+  const [allButtonName, setAllButtonName] = useState<string>("ALL");
+  const [casinoName, setCasinoName] = useState<string>("SPIN71BET");
   const [toasts, setToasts] = useState<{ id: string; message: string; type: ToastType }[]>([]);
 
   // Referral tracking
@@ -159,9 +170,36 @@ export default function App() {
     if (ref) {
       localStorage.setItem('referralCode', ref);
     }
+    
+    // Admin tab switch
+    const tab = params.get('tab');
+    if (tab === 'admin') {
+      setActiveTab('admin');
+    }
   }, []);
 
   useEffect(() => {
+    if (!isLoggedIn) return;
+    const path = `global_config/ui_settings`;
+    const unsubscribe = onSnapshot(doc(db, path), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.allButtonName) {
+          setAllButtonName(data.allButtonName);
+        }
+        if (data.casinoName) {
+          setCasinoName(data.casinoName);
+        }
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+    });
+
+    return () => unsubscribe();
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
     const path = `global_config/game_logos`;
     const unsubscribe = onSnapshot(doc(db, path), (docSnap) => {
       if (docSnap.exists()) {
@@ -169,13 +207,14 @@ export default function App() {
         setGlobalLogos(data as Record<string, string>);
       }
     }, (error) => {
-      console.error("Global logo listener error:", error);
+      handleFirestoreError(error, OperationType.GET, path);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [isLoggedIn]);
 
   useEffect(() => {
+    if (!isLoggedIn) return;
     const path = `global_config/game_names`;
     const unsubscribe = onSnapshot(doc(db, path), (docSnap) => {
       if (docSnap.exists()) {
@@ -183,11 +222,41 @@ export default function App() {
         setGlobalNames(data as Record<string, string>);
       }
     }, (error) => {
-      console.error("Global name listener error:", error);
+      handleFirestoreError(error, OperationType.GET, path);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const path = `global_config/game_urls`;
+    const unsubscribe = onSnapshot(doc(db, path), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setGlobalUrls(data as Record<string, string>);
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+    });
+
+    return () => unsubscribe();
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const path = `global_config/game_options`;
+    const unsubscribe = onSnapshot(doc(db, path), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setGlobalOptions(data as Record<string, string>);
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+    });
+
+    return () => unsubscribe();
+  }, [isLoggedIn]);
 
   const showToast = (message: string, type: ToastType = 'info') => {
     const id = Math.random().toString(36).substring(2, 9);
@@ -233,12 +302,37 @@ export default function App() {
             // 1. Handle referral code query OUTSIDE transaction
             const savedReferralCode = localStorage.getItem('referralCode');
             let referredBy = null;
+            
+            // Security Checks: Device ID and IP
+            let deviceId = localStorage.getItem('deviceId');
+            if (!deviceId) {
+              deviceId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+              localStorage.setItem('deviceId', deviceId);
+            }
+            
+            let userIp = 'unknown';
+            try {
+              const response = await fetch('https://api.ipify.org?format=json');
+              const data = await response.json();
+              userIp = data.ip;
+            } catch (e) {
+              console.error('Failed to fetch IP', e);
+            }
+
             if (savedReferralCode) {
               const usersRef = collection(db, 'users');
-              const q = query(usersRef, where(documentId(), '>=', savedReferralCode), where(documentId(), '<=', savedReferralCode + '\uf8ff'));
+              const q = query(usersRef, where('referralCode', '==', savedReferralCode));
               const agentSnapshot = await getDocs(q);
               if (!agentSnapshot.empty) {
-                referredBy = agentSnapshot.docs[0].id;
+                const agentDoc = agentSnapshot.docs[0];
+                const agentData = agentDoc.data();
+                
+                // Prevent self-referral abuse
+                if (agentData.deviceId !== deviceId && agentData.ip !== userIp) {
+                  referredBy = agentDoc.id;
+                } else {
+                  console.warn('Self-referral detected and blocked.');
+                }
               }
             }
 
@@ -256,16 +350,21 @@ export default function App() {
               
               const newUser: any = {
                 username: username,
+                referralCode: username,
                 phoneNumber: 'Not Provided',
                 password: user.isAnonymous ? 'anonymous-auth' : 'email-auth',
                 balance: 0,
+                turnover: 0,
+                requiredTurnover: 1100,
                 createdAt: serverTimestamp(),
                 role: 'user',
                 isGmailLinked: false,
                 favorites: [],
                 vipLevel: 1,
                 vipProgress: 0,
-                profilePictureUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`
+                profilePictureUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
+                deviceId: deviceId,
+                ip: userIp
               };
               
               if (referredBy) {
@@ -344,6 +443,21 @@ export default function App() {
       localStorage.setItem('spin71_user', JSON.stringify(updatedUser));
     }
   }, [balance, isLoggedIn, userData]);
+
+  const handleEditCasinoName = async (newName: string) => {
+    if (!userData || (userData.role !== 'admin' && userData.role !== 'agent')) {
+      showToast("আপনার এই পরিবর্তনের অনুমতি নেই (Permission Denied)", "error");
+      return;
+    }
+    try {
+      await updateCasinoName(newName);
+      setCasinoName(newName);
+      showToast("ক্যাসিনো নাম সফলভাবে পরিবর্তন করা হয়েছে", "success");
+    } catch (error) {
+      console.error("Failed to update casino name:", error);
+      showToast("পরিবর্তন করতে ব্যর্থ হয়েছে", "error");
+    }
+  };
 
   const handleLogout = () => {
     signOut(auth);
@@ -558,6 +672,7 @@ export default function App() {
         onContinue={() => setShowRegistrationSuccess(false)} 
         onLoginSuccess={() => setJustLoggedIn(true)}
         showToast={showToast}
+        casinoName={casinoName}
       />
     );
   }
@@ -566,6 +681,9 @@ export default function App() {
     <div className="max-w-md mx-auto bg-[#16a374] min-h-[100dvh] relative overflow-x-hidden font-sans text-white pb-16 flex flex-col safe-top">
       {/* Main Content Area */}
       <div className="relative min-h-[calc(100vh-120px)]">
+        {activeTab === 'admin' && userData?.role === 'admin' && (
+          <AdminPanel showToast={showToast} />
+        )}
         {activeTab === 'home' && (
           <HomeView 
             userData={userData}
@@ -575,6 +693,8 @@ export default function App() {
             setShowLeaderboard={setShowLeaderboard}
             globalLogos={globalLogos}
             globalNames={globalNames}
+            globalUrls={globalUrls}
+            globalOptions={globalOptions}
             balance={balance}
             isRefreshing={isRefreshing}
             handleRefresh={handleRefresh}
@@ -589,24 +709,108 @@ export default function App() {
             handleToggleFavorite={handleToggleFavorite}
             updateGlobalGameLogo={updateGlobalGameLogo}
             updateGlobalGameName={updateGlobalGameName}
+            updateGlobalGameUrl={updateGlobalGameUrl}
+            updateGlobalGameOption={updateGlobalGameOption}
+            allButtonName={allButtonName}
+            updateAllButtonName={updateAllButtonName}
+            casinoName={casinoName}
+            updateCasinoName={updateCasinoName}
             showToast={showToast}
             loading={isTabLoading}
           />
         )}
 
       {/* Game Play Modal */}
-      {selectedGame && (selectedGame.id === '1' || selectedGame.provider === 'CRASH') ? (
+      {selectedGame && globalUrls[selectedGame.id] ? (
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col max-w-md mx-auto min-h-[100dvh] safe-top safe-bottom">
+          {/* Game Header */}
+          <div className="flex items-center justify-between p-4 bg-teal-900 border-b border-teal-800">
+            <button 
+              onClick={() => handleGameSelect(null)}
+              className="text-white p-1 hover:bg-teal-800 rounded-full transition-colors"
+            >
+              <ArrowLeft size={24} />
+            </button>
+            <div className="flex flex-col items-center">
+              <h3 className="text-white font-bold text-sm">{globalNames[selectedGame.id] || selectedGame.name}</h3>
+              <span className="text-teal-300 text-[10px] uppercase tracking-widest">{globalOptions[selectedGame.id] || selectedGame.provider}</span>
+            </div>
+            <div className="w-8"></div>
+          </div>
+
+          {/* Game Viewport */}
+          <div className="flex-1 relative bg-black flex flex-col items-center justify-center overflow-hidden">
+            {selectedGame.provider === 'JILI' && (
+              <div className="absolute inset-0 z-[110] bg-black flex flex-col items-center justify-center animate-in fade-in duration-500">
+                {/* Close Button at Top Left like in the image */}
+                <button 
+                  onClick={() => handleGameSelect(null)}
+                  className="absolute top-6 left-6 w-10 h-10 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center text-white border border-white/10 hover:bg-black/60 transition-all active:scale-90 z-[120]"
+                >
+                  <X size={24} />
+                </button>
+
+                <div className="relative flex flex-col items-center">
+                  {/* Golden JILI Logo from Image */}
+                  <div className="relative mb-8 group">
+                    <h1 className="text-7xl font-black tracking-tighter italic bg-gradient-to-b from-yellow-200 via-yellow-400 to-yellow-600 text-transparent bg-clip-text drop-shadow-[0_5px_15px_rgba(234,179,8,0.6)]" style={{ fontFamily: 'serif' }}>
+                      JILI
+                    </h1>
+                    <div className="absolute -inset-4 bg-yellow-500/20 blur-2xl rounded-full -z-10 animate-pulse"></div>
+                  </div>
+
+                  {/* Progress Bar from Image */}
+                  <div className="w-64 h-1.5 bg-gray-900/80 rounded-full overflow-hidden border border-white/5 shadow-inner">
+                    <motion.div 
+                      initial={{ width: "0%" }}
+                      animate={{ width: "100%" }}
+                      transition={{ 
+                        duration: 15, 
+                        ease: "linear",
+                        repeat: Infinity,
+                        repeatType: "loop"
+                      }}
+                      className="h-full bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-200 shadow-[0_0_10px_rgba(234,179,8,0.5)]"
+                    ></motion.div>
+                  </div>
+                  
+                  <div className="mt-4 text-yellow-500/60 text-[10px] font-bold uppercase tracking-[0.3em] animate-pulse">
+                    Loading Game Assets...
+                  </div>
+                </div>
+                
+                {/* User requested: "শুধু লোডিং হতে থাকবে কোন কিছু আসবে না" (Just keep loading, nothing will come) */}
+                {/* So we don't hide this loader even if the iframe loads for JILI */}
+              </div>
+            )}
+
+            {isGameLoading && selectedGame.provider !== 'JILI' && (
+              <div className="absolute inset-0 z-10 bg-gray-900 flex items-center justify-center">
+                <div className="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            )}
+            
+            <iframe 
+              src={globalUrls[selectedGame.id]} 
+              className={`w-full h-full border-none transition-opacity duration-500 ${isGameLoading || selectedGame.provider === 'JILI' ? 'opacity-0' : 'opacity-100'}`}
+              title={selectedGame.name}
+              allowFullScreen
+              onLoad={() => setIsGameLoading(false)}
+            />
+          </div>
+        </div>
+      ) : selectedGame && (selectedGame.id === '5' || selectedGame.provider === 'CRASH') ? (
         <AviatorGame 
           onClose={() => handleGameSelect(null)} 
           userBalance={userData?.balance || 0}
           onBalanceUpdate={(newBalance) => {
             if (userData?.id) updateBalance(userData.id, newBalance);
           }}
-          logo={globalLogos.aviator || aviatorLogo}
+          logo={globalLogos['5'] || globalLogos.aviator || aviatorLogo}
           onLogoChange={async (newLogo) => {
             if (userData?.id) {
               try {
-                await updateGlobalGameLogo('aviator', newLogo);
+                await updateGlobalGameLogo('5', newLogo);
                 showToast("গেম লোগো সফলভাবে আপডেট করা হয়েছে এবং সবার জন্য সেভ হয়েছে", "success");
               } catch (err) {
                 console.error("Failed to update global logo:", err);
@@ -615,15 +819,20 @@ export default function App() {
             }
           }}
           showToast={showToast}
+          referredBy={userData?.referredBy}
+          globalName={globalNames[selectedGame.id]}
         />
       ) : selectedGame && selectedGame.category === 'স্লট' ? (
         <SlotGame 
           game={selectedGame}
+          globalLogo={globalLogos[selectedGame.id]}
+          globalName={globalNames[selectedGame.id]}
           onClose={() => handleGameSelect(null)} 
           userBalance={userData?.balance || 0}
           onBalanceUpdate={(newBalance) => {
             if (userData?.id) updateBalance(userData.id, newBalance);
           }}
+          referredBy={userData?.referredBy}
         />
       ) : selectedGame && (
         <div className="fixed inset-0 z-[100] bg-black flex flex-col max-w-md mx-auto min-h-[100dvh] safe-top safe-bottom">
@@ -636,51 +845,51 @@ export default function App() {
               <ArrowLeft size={24} />
             </button>
             <div className="flex flex-col items-center">
-              <h3 className="text-white font-bold text-sm">{selectedGame.name}</h3>
-              <span className="text-teal-300 text-[10px] uppercase tracking-widest">{selectedGame.provider}</span>
+              <h3 className="text-white font-bold text-sm">{globalNames[selectedGame.id] || selectedGame.name}</h3>
+              <span className="text-teal-300 text-[10px] uppercase tracking-widest">{globalOptions[selectedGame.id] || selectedGame.provider}</span>
             </div>
-            <button className="text-white p-1 hover:bg-teal-800 rounded-full transition-colors">
-              <Info size={20} />
-            </button>
+            <div className="w-8"></div>
           </div>
 
-          {/* Game Viewport (Simulated) */}
+          {/* Game Viewport */}
           <div className="flex-1 relative bg-gray-900 flex flex-col items-center justify-center overflow-hidden">
-            <img 
-              src={selectedGame.image} 
-              className="absolute inset-0 w-full h-full object-cover opacity-20 blur-xl"
-              alt="Background"
-            />
-            
-            <div className="relative z-10 flex flex-col items-center text-center p-6">
-              <div className={`w-48 h-64 rounded-2xl bg-gradient-to-b ${selectedGame.bgColor} shadow-2xl border-2 border-white/20 mb-8 overflow-hidden transform hover:scale-105 transition-transform duration-500 relative`}>
-                <img src={selectedGame.image} className="w-full h-full object-cover opacity-80 mix-blend-overlay" alt={selectedGame.name} />
-                <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse shadow-lg">REAL</div>
-                <div className="absolute inset-0 flex items-center justify-center">
-                   <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30">
-                      <Play size={32} className="text-white fill-white ml-1" />
-                   </div>
+            <>
+              <img 
+                src={globalLogos[selectedGame.id] || selectedGame.image} 
+                className="absolute inset-0 w-full h-full object-cover opacity-20 blur-xl"
+                alt="Background"
+              />
+              
+              <div className="relative z-10 flex flex-col items-center text-center p-6">
+                <div className={`w-48 h-64 rounded-2xl bg-gradient-to-b ${selectedGame.bgColor} shadow-2xl border-2 border-white/20 mb-8 overflow-hidden transform hover:scale-105 transition-transform duration-500 relative`}>
+                  <img src={globalLogos[selectedGame.id] || selectedGame.image} className="w-full h-full object-cover opacity-80 mix-blend-overlay" alt={globalNames[selectedGame.id] || selectedGame.name} />
+                  <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse shadow-lg">REAL</div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                     <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30">
+                        <Play size={32} className="text-white fill-white ml-1" />
+                     </div>
+                  </div>
                 </div>
-              </div>
-              
-              <h2 className="text-3xl font-black text-white mb-2 drop-shadow-lg">{selectedGame.name}</h2>
-              <p className="text-teal-200 mb-8 max-w-[250px]">গেমটি লোড হচ্ছে... দয়া করে অপেক্ষা করুন এবং বড় জয়ের জন্য প্রস্তুত হন!</p>
-              
-              <div className="w-64 h-2 bg-teal-900 rounded-full overflow-hidden mb-12">
-                <div className="h-full bg-yellow-500 animate-[loading_3s_ease-in-out_infinite]" style={{ width: '60%' }}></div>
+                
+                <h2 className="text-3xl font-black text-white mb-2 drop-shadow-lg">{globalNames[selectedGame.id] || selectedGame.name}</h2>
+                <p className="text-teal-200 mb-8 max-w-[250px]">গেমটি লোড হচ্ছে... দয়া করে অপেক্ষা করুন এবং বড় জয়ের জন্য প্রস্তুত হন!</p>
+                
+                <div className="w-64 h-2 bg-teal-900 rounded-full overflow-hidden mb-12">
+                  <div className="h-full bg-yellow-500 animate-[loading_3s_ease-in-out_infinite]" style={{ width: '60%' }}></div>
+                </div>
+
+                <button 
+                  className="bg-gradient-to-b from-yellow-400 to-yellow-600 text-black font-black px-12 py-3 rounded-full text-lg shadow-[0_4px_15px_rgba(234,179,8,0.4)] hover:scale-105 transition-transform active:scale-95"
+                >
+                  খেলুন
+                </button>
               </div>
 
-              <button 
-                className="bg-gradient-to-b from-yellow-400 to-yellow-600 text-black font-black px-12 py-3 rounded-full text-lg shadow-[0_4px_15px_rgba(234,179,8,0.4)] hover:scale-105 transition-transform active:scale-95"
-              >
-                খেলুন
-              </button>
-            </div>
-
-            {/* Floating Particles/Effects */}
-            <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-yellow-400 rounded-full animate-ping"></div>
-            <div className="absolute bottom-1/3 right-1/4 w-3 h-3 bg-teal-400 rounded-full animate-pulse"></div>
-            <div className="absolute top-1/2 right-10 w-1 h-1 bg-white rounded-full animate-bounce"></div>
+              {/* Floating Particles/Effects */}
+              <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-yellow-400 rounded-full animate-ping"></div>
+              <div className="absolute bottom-1/3 right-1/4 w-3 h-3 bg-teal-400 rounded-full animate-pulse"></div>
+              <div className="absolute top-1/2 right-10 w-1 h-1 bg-white rounded-full animate-bounce"></div>
+            </>
           </div>
 
           {/* Game Footer */}
@@ -720,9 +929,30 @@ export default function App() {
         setShowLogoPreview={setShowLogoPreview}
         handleLogout={handleLogout}
         showToast={showToast}
+        casinoName={casinoName}
       />
 
-      {activeTab === 'profile' && <ProfileView onTabChange={handleTabChange} balance={balance} userData={userData} onLogout={handleLogout} showToast={showToast} />}
+      {activeTab === 'profile' && (
+        <ProfileView 
+          onTabChange={handleTabChange} 
+          balance={balance} 
+          userData={userData} 
+          onLogout={handleLogout} 
+          showToast={showToast} 
+          casinoName={casinoName} 
+          onEditCasinoName={handleEditCasinoName}
+          globalLogos={globalLogos}
+          globalNames={globalNames}
+          globalUrls={globalUrls}
+          globalOptions={globalOptions}
+          updateGlobalGameLogo={updateGlobalGameLogo}
+          updateGlobalGameName={updateGlobalGameName}
+          updateGlobalGameUrl={updateGlobalGameUrl}
+          updateGlobalGameOption={updateGlobalGameOption}
+          allButtonName={allButtonName}
+          updateAllButtonName={updateAllButtonName}
+        />
+      )}
       {activeTab === 'bonus' && <BonusCenter userData={userData} balance={balance} onBalanceUpdate={setBalance} onTabChange={handleTabChange} showToast={showToast} />}
       {activeTab === 'invite' && <InviteView onTabChange={handleTabChange} userData={userData} showToast={showToast} />}
       {activeTab === 'deposit' && <DepositView onTabChange={handleTabChange} balance={balance} onBalanceUpdate={handleBalanceUpdate} userData={userData} showToast={showToast} />}
@@ -898,6 +1128,7 @@ export default function App() {
         selectedOdds={selectedOdds}
         gameName={betGameName}
         showToast={showToast}
+        referredBy={userData?.referredBy}
       />
 
       <style>{`

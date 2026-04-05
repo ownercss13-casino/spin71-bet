@@ -192,7 +192,7 @@ service cloud.firestore {
 
     match /global_config/{configId} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow write: if isAdmin();
     }
 
     match /game_sessions/{gameId} {

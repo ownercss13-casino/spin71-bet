@@ -9,6 +9,8 @@ export interface User {
   registrationDate: string;
   balance: number;
   turnover: number;
+  requiredTurnover: number;
+  totalDeposit?: number;
   vipLevel: number;
   vipProgress: number;
   favorites: string[];
@@ -112,12 +114,30 @@ export const updateBalance = async (userId: string, balance: number) => {
   }
 };
 
-export const updateTurnover = async (userId: string, amount: number) => {
+export const updateTurnover = async (userId: string, amount: number, referredBy?: string | null) => {
   const path = `users/${userId}`;
   try {
+    // Update user's own turnover
     await updateDoc(doc(db, path), { 
       turnover: increment(amount)
     });
+
+    // If user was referred, give commission to referrer
+    if (referredBy) {
+      const referrerPath = `users/${referredBy}`;
+      const commission = amount * 0.01; // 1% commission
+      await updateDoc(doc(db, referrerPath), {
+        balance: increment(commission),
+        totalReferralEarnings: increment(commission)
+      });
+      
+      // Notify referrer
+      await addNotification(referredBy, {
+        title: "রেফারেল কমিশন!",
+        message: `আপনার রেফার করা ইউজারের গেমপ্লে থেকে আপনি ৳ ${commission.toFixed(2)} কমিশন পেয়েছেন।`,
+        type: "bonus"
+      });
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
@@ -128,6 +148,7 @@ export const claimDailyBonus = async (userId: string, currentBalance: number) =>
   try {
     await updateDoc(doc(db, path), {
       balance: currentBalance + 6.77,
+      requiredTurnover: increment(6.77 * 7),
       lastDailyBonusClaimedAt: serverTimestamp()
     });
     await addNotification(userId, {
@@ -145,12 +166,77 @@ export const claimWelcomeBonus = async (userId: string, currentBalance: number) 
   try {
     await updateDoc(doc(db, path), {
       balance: currentBalance + 57,
+      requiredTurnover: increment(57 * 7),
       hasClaimedWelcomeBonus: true
     });
     await addNotification(userId, {
       title: "স্বাগতম বোনাস প্রাপ্ত!",
       message: "আপনি সফলভাবে ৳ ৫৭ স্বাগতম বোনাস পেয়েছেন।",
       type: "bonus"
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+};
+
+export const updateAllButtonName = async (newName: string) => {
+  const path = `global_config/ui_settings`;
+  try {
+    await setDoc(doc(db, path), { allButtonName: newName }, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+};
+
+export const updateCasinoName = async (newName: string) => {
+  const path = `global_config/ui_settings`;
+  try {
+    await setDoc(doc(db, path), { casinoName: newName }, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+};
+
+export const updateGlobalGameUrl = async (gameId: string, url: string) => {
+  const path = `global_config/game_urls`;
+  try {
+    await updateDoc(doc(db, path), {
+      [gameId]: url
+    });
+  } catch (error) {
+    try {
+      await setDoc(doc(db, path), {
+        [gameId]: url
+      });
+    } catch (innerError) {
+      handleFirestoreError(innerError, OperationType.WRITE, path);
+    }
+  }
+};
+
+export const updateGlobalGameOption = async (gameId: string, option: string) => {
+  const path = `global_config/game_options`;
+  try {
+    await updateDoc(doc(db, path), {
+      [gameId]: option
+    });
+  } catch (error) {
+    try {
+      await setDoc(doc(db, path), {
+        [gameId]: option
+      });
+    } catch (innerError) {
+      handleFirestoreError(innerError, OperationType.WRITE, path);
+    }
+  }
+};
+
+export const updateRequiredTurnoverOnDeposit = async (userId: string, amount: number) => {
+  const path = `users/${userId}`;
+  try {
+    await updateDoc(doc(db, path), {
+      requiredTurnover: increment(amount),
+      totalDeposit: increment(amount)
     });
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);

@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, Users, DollarSign, Activity, CreditCard, 
   Search, TrendingUp, ChevronRight, UserPlus, 
-  Wallet, History, BarChart3, RefreshCw, Send
+  Wallet, History, BarChart3, RefreshCw, Send,
+  Settings, Gamepad2, X
 } from 'lucide-react';
-import { db, auth } from '../firebase';
+import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { 
   collection, 
   getDocs, 
@@ -37,9 +38,37 @@ interface AgentPanelProps {
   onBack: () => void;
   userData: any;
   showToast: (msg: string, type?: any) => void;
+  globalLogos: Record<string, string>;
+  globalNames: Record<string, string>;
+  globalUrls: Record<string, string>;
+  globalOptions: Record<string, string>;
+  updateGlobalGameLogo: (gameId: string, url: string) => void;
+  updateGlobalGameName: (gameId: string, name: string) => void;
+  updateGlobalGameUrl: (gameId: string, url: string) => void;
+  updateGlobalGameOption: (gameId: string, option: string) => void;
+  allButtonName: string;
+  updateAllButtonName: (name: string) => void;
+  casinoName: string;
+  updateCasinoName: (name: string) => void;
 }
 
-export default function AgentPanel({ onBack, userData, showToast }: AgentPanelProps) {
+export default function AgentPanel({ 
+  onBack, 
+  userData, 
+  showToast,
+  globalLogos,
+  globalNames,
+  globalUrls,
+  globalOptions,
+  updateGlobalGameLogo,
+  updateGlobalGameName,
+  updateGlobalGameUrl,
+  updateGlobalGameOption,
+  allButtonName,
+  updateAllButtonName,
+  casinoName,
+  updateCasinoName
+}: AgentPanelProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'players' | 'transfer' | 'earnings' | 'stats'>('dashboard');
 
   const tabs = [
@@ -48,6 +77,7 @@ export default function AgentPanel({ onBack, userData, showToast }: AgentPanelPr
     { id: 'transfer', label: 'ব্যালেন্স ট্রান্সফার', icon: Send },
     { id: 'earnings', label: 'উপার্জন ইতিহাস', icon: History },
     { id: 'stats', label: 'পারফরম্যান্স', icon: BarChart3 },
+    ...(userData?.role === 'admin' ? [{ id: 'admin', label: 'অ্যাডমিন প্যানেল', icon: Settings }] : []),
   ];
 
   return (
@@ -59,8 +89,10 @@ export default function AgentPanel({ onBack, userData, showToast }: AgentPanelPr
             <ArrowLeft size={20} className="text-teal-400" />
           </button>
           <div>
-            <h2 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-teal-600 uppercase tracking-wider">Agent Panel</h2>
-            <p className="text-[10px] text-teal-500 font-mono">PARTNER ACCESS</p>
+            <h2 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-teal-600 uppercase tracking-wider">
+              {userData?.role === 'admin' ? 'Admin Panel' : 'Agent Panel'}
+            </h2>
+            <p className="text-[10px] text-teal-500 font-mono uppercase">{userData?.role === 'admin' ? 'Full Access' : 'Partner Access'}</p>
           </div>
         </div>
 
@@ -94,6 +126,7 @@ export default function AgentPanel({ onBack, userData, showToast }: AgentPanelPr
           {activeTab === 'transfer' && <TransferTab userData={userData} showToast={showToast} />}
           {activeTab === 'earnings' && <EarningsTab userData={userData} />}
           {activeTab === 'stats' && <StatsTab userData={userData} />}
+          {activeTab === 'admin' && userData?.role === 'admin' && <AdminTab showToast={showToast} />}
         </div>
       </div>
     </div>
@@ -101,6 +134,175 @@ export default function AgentPanel({ onBack, userData, showToast }: AgentPanelPr
 }
 
 // --- TABS ---
+
+function AdminTab({ showToast }: { showToast: (msg: string, type?: any) => void }) {
+  const [gameLogos, setGameLogos] = useState<Record<string, string>>({});
+  const [gameNames, setGameNames] = useState<Record<string, string>>({});
+  const [gameUrls, setGameUrls] = useState<Record<string, string>>({});
+  const [gameOptions, setGameOptions] = useState<Record<string, string>>({});
+  const [uiSettings, setUiSettings] = useState<any>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubLogos = onSnapshot(doc(db, 'global_config', 'game_logos'), (d) => d.exists() && setGameLogos(d.data()));
+    const unsubNames = onSnapshot(doc(db, 'global_config', 'game_names'), (d) => d.exists() && setGameNames(d.data()));
+    const unsubUrls = onSnapshot(doc(db, 'global_config', 'game_urls'), (d) => d.exists() && setGameUrls(d.data()));
+    const unsubOptions = onSnapshot(doc(db, 'global_config', 'game_options'), (d) => d.exists() && setGameOptions(d.data()));
+    const unsubUi = onSnapshot(doc(db, 'global_config', 'ui_settings'), (d) => d.exists() && setUiSettings(d.data()));
+
+    setLoading(false);
+    return () => {
+      unsubLogos();
+      unsubNames();
+      unsubUrls();
+      unsubOptions();
+      unsubUi();
+    };
+  }, []);
+
+  const handleUpdate = async (type: 'logo' | 'name' | 'url' | 'option' | 'ui', id: string, value: string) => {
+    try {
+      const { 
+        updateGlobalGameLogo, 
+        updateGlobalGameName, 
+        updateGlobalGameUrl, 
+        updateGlobalGameOption,
+        updateCasinoName,
+        updateAllButtonName
+      } = await import('../services/firebaseService');
+
+      if (type === 'logo') await updateGlobalGameLogo(id, value);
+      else if (type === 'name') await updateGlobalGameName(id, value);
+      else if (type === 'url') await updateGlobalGameUrl(id, value);
+      else if (type === 'option') await updateGlobalGameOption(id, value);
+      else if (type === 'ui') {
+        if (id === 'casinoName') await updateCasinoName(value);
+        if (id === 'allButtonName') await updateAllButtonName(value);
+      }
+      
+      showToast("আপডেট সফল হয়েছে", "success");
+    } catch (err) {
+      console.error(err);
+      showToast("আপডেট ব্যর্থ হয়েছে", "error");
+    }
+  };
+
+  const games = [
+    { id: 'aviator', label: 'Aviator' },
+    { id: 'slot_1', label: 'Slot 1' },
+    { id: 'slot_2', label: 'Slot 2' },
+    { id: 'slot_3', label: 'Slot 3' },
+    { id: 'slot_4', label: 'Slot 4' },
+    { id: 'slot_5', label: 'Slot 5' },
+    { id: 'slot_6', label: 'Slot 6' },
+    { id: 'slot_7', label: 'Slot 7' },
+    { id: 'slot_8', label: 'Slot 8' },
+    { id: 'slot_9', label: 'Slot 9' },
+    { id: 'slot_10', label: 'Slot 10' },
+    { id: 'slot_11', label: 'Slot 11' },
+    { id: 'slot_12', label: 'Slot 12' },
+  ];
+
+  if (loading) return <div className="flex justify-center py-20"><RefreshCw className="animate-spin text-teal-500" /></div>;
+
+  return (
+    <div className="space-y-8 pb-10">
+      <div className="flex items-center justify-between">
+        <h3 className="text-2xl font-bold text-white">গ্লোবাল গেম কাস্টমাইজেশন</h3>
+        <div className="text-[10px] text-yellow-500 font-mono bg-yellow-950/30 px-3 py-1 rounded-full border border-yellow-800/50">
+          ADMIN ONLY ACCESS
+        </div>
+      </div>
+
+      {/* UI Settings */}
+      <div className="bg-[#111827] p-6 rounded-2xl border border-teal-900/30 space-y-6">
+        <h4 className="text-lg font-bold flex items-center gap-2 text-teal-400">
+          <Settings size={20} /> সাধারণ সেটিংস
+        </h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-gray-500 uppercase">কেসিনো নাম (Casino Name)</label>
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                defaultValue={uiSettings.casinoName || ''} 
+                onBlur={(e) => handleUpdate('ui', 'casinoName', e.target.value)}
+                className="flex-1 bg-[#0d1525] border border-teal-900/30 rounded-xl py-2.5 px-4 text-sm focus:border-teal-500 outline-none"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-gray-500 uppercase">'All' বাটন নাম</label>
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                defaultValue={uiSettings.allButtonName || ''} 
+                onBlur={(e) => handleUpdate('ui', 'allButtonName', e.target.value)}
+                className="flex-1 bg-[#0d1525] border border-teal-900/30 rounded-xl py-2.5 px-4 text-sm focus:border-teal-500 outline-none"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Game Specific Settings */}
+      <div className="space-y-4">
+        {games.map((game) => (
+          <div key={game.id} className="bg-[#111827] p-6 rounded-2xl border border-teal-900/30 space-y-6">
+            <div className="flex items-center justify-between border-b border-teal-900/20 pb-4">
+              <h4 className="text-lg font-bold text-white flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-teal-500/20 flex items-center justify-center">
+                  <Gamepad2 size={18} className="text-teal-400" />
+                </div>
+                {game.label}
+              </h4>
+              <span className="text-[10px] font-mono text-teal-600 uppercase">ID: {game.id}</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-500 uppercase">গেমের নাম (Display Name)</label>
+                <input 
+                  type="text" 
+                  defaultValue={gameNames[game.id] || ''} 
+                  onBlur={(e) => handleUpdate('name', game.id, e.target.value)}
+                  className="w-full bg-[#0d1525] border border-teal-900/30 rounded-xl py-2.5 px-4 text-sm focus:border-teal-500 outline-none"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-500 uppercase">লোগো URL (Logo URL)</label>
+                <input 
+                  type="text" 
+                  defaultValue={gameLogos[game.id] || ''} 
+                  onBlur={(e) => handleUpdate('logo', game.id, e.target.value)}
+                  className="w-full bg-[#0d1525] border border-teal-900/30 rounded-xl py-2.5 px-4 text-sm focus:border-teal-500 outline-none"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-500 uppercase">গেম URL (External Link)</label>
+                <input 
+                  type="text" 
+                  defaultValue={gameUrls[game.id] || ''} 
+                  onBlur={(e) => handleUpdate('url', game.id, e.target.value)}
+                  className="w-full bg-[#0d1525] border border-teal-900/30 rounded-xl py-2.5 px-4 text-sm focus:border-teal-500 outline-none"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-500 uppercase">অপশন (Options/Provider)</label>
+                <input 
+                  type="text" 
+                  defaultValue={gameOptions[game.id] || ''} 
+                  onBlur={(e) => handleUpdate('option', game.id, e.target.value)}
+                  className="w-full bg-[#0d1525] border border-teal-900/30 rounded-xl py-2.5 px-4 text-sm focus:border-teal-500 outline-none"
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function DashboardTab({ userData }: { userData: any }) {
   const [stats, setStats] = useState({
@@ -114,6 +316,7 @@ function DashboardTab({ userData }: { userData: any }) {
     if (!userData?.id) return;
 
     const userRef = doc(db, 'users', userData.id);
+    const path = `users/${userData.id}`;
     const unsubscribe = onSnapshot(userRef, (doc) => {
       if (doc.exists()) {
         const data = doc.data();
@@ -124,13 +327,18 @@ function DashboardTab({ userData }: { userData: any }) {
           agentBalance: data.agentBalance || 0
         }));
       }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
     });
 
     // Count active players (referred users)
     const referralsRef = collection(db, 'users', userData.id, 'referrals');
+    const referralsPath = `users/${userData.id}/referrals`;
     const q = query(referralsRef, where('status', '==', 'active'));
     const unsubscribePlayers = onSnapshot(q, (snapshot) => {
       setStats(prev => ({ ...prev, activePlayers: snapshot.size }));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, referralsPath);
     });
 
     return () => {
@@ -353,9 +561,12 @@ function TransferTab({ userData, showToast }: { userData: any, showToast: (msg: 
 
   useEffect(() => {
     if (!userData?.id) return;
+    const path = `users/${userData.id}/referrals`;
     const referralsRef = collection(db, 'users', userData.id, 'referrals');
     getDocs(referralsRef).then(snapshot => {
       setPlayers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }).catch(error => {
+      handleFirestoreError(error, OperationType.LIST, path);
     });
   }, [userData]);
 
