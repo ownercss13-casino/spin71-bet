@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, Wallet, CreditCard, Building2, Smartphone, ShieldCheck, History, ArrowRight, Copy, Check, AlertCircle, X, RefreshCw, ArrowDownLeft, Loader2, Headset } from 'lucide-react';
 
-import { updateUserProfile, addNotification, updateRequiredTurnoverOnDeposit } from '../services/firebaseService';
+import { updateUserProfile, addNotification, updateRequiredTurnoverOnDeposit, processDepositCommission } from '../services/firebaseService';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
 
@@ -155,6 +155,11 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
         } catch (e) {
           console.error("Failed to award referral bonus", e);
         }
+      }
+
+      // Process 3.2% commission for every deposit
+      if (userData?.referredBy) {
+        await processDepositCommission(auth.currentUser.uid, depositAmount);
       }
 
       showToast('ডিপোজিট রিকোয়েস্ট সফল হয়েছে! এডমিন এপ্রুভ করলে আপনার ব্যালেন্স আপডেট হবে।', 'success');

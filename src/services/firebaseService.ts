@@ -1,5 +1,5 @@
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
-import { collection, addDoc, getDocs, deleteDoc, doc, query, where, serverTimestamp, updateDoc, increment, setDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, deleteDoc, doc, query, where, serverTimestamp, updateDoc, increment, setDoc, getDoc, runTransaction } from 'firebase/firestore';
 
 export interface User {
   id: string;
@@ -332,5 +332,51 @@ export const clearChatHistory = async (userId: string) => {
     await Promise.all(deletePromises);
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
+  }
+};
+
+export const processDepositCommission = async (refereeId: string, depositAmount: number) => {
+  try {
+    const refereeDoc = await getDoc(doc(db, 'users', refereeId));
+    if (!refereeDoc.exists()) return;
+
+    const refereeData = refereeDoc.data();
+    const referrerId = refereeData.referredBy;
+
+    if (referrerId) {
+      const referrerRef = doc(db, 'users', referrerId);
+      const commission = depositAmount * 0.032; // 3.2% commission
+
+      await runTransaction(db, async (transaction) => {
+        const referrerDoc = await transaction.get(referrerRef);
+        if (!referrerDoc.exists()) return;
+
+        transaction.update(referrerRef, {
+          balance: increment(commission),
+          totalReferralEarnings: increment(commission)
+        });
+
+        // Add transaction log for referrer
+        const referrerTxRef = doc(collection(db, 'users', referrerId, 'transactions'));
+        transaction.set(referrerTxRef, {
+          trxId: `COM-${Date.now()}`,
+          method: 'Referral Commission',
+          type: 'bonus',
+          amount: commission,
+          date: serverTimestamp(),
+          status: 'সম্পন্ন',
+          statusColor: 'text-green-500'
+        });
+      });
+
+      // Notify referrer
+      await addNotification(referrerId, {
+        title: "রেফারেল কমিশন!",
+        message: `আপনার রেফার করা ইউজারের ডিপোজিট থেকে আপনি ৳ ${commission.toFixed(2)} কমিশন পেয়েছেন।`,
+        type: "bonus"
+      });
+    }
+  } catch (error) {
+    console.error("Failed to process commission", error);
   }
 };
