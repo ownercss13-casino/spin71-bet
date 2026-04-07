@@ -234,11 +234,21 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
           <button onClick={onClose} className="text-gray-400 hover:text-white p-1">
             <ArrowLeft size={20} />
           </button>
-          <div className="relative">
+          <div 
+            className="relative cursor-pointer group" 
+            onClick={() => {
+              if (onLogoChange) {
+                const newUrl = window.prompt("নতুন লোগোর URL দিন (Enter new logo URL):", logo || "");
+                if (newUrl && newUrl.trim() !== "") {
+                  onLogoChange(newUrl.trim());
+                }
+              }
+            }}
+          >
             {logo ? (
-              <img src={logo} className="w-8 h-8 rounded-full border border-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)]" alt="Aviator Logo" />
+              <img src={logo} className="w-8 h-8 rounded-full border border-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)] group-hover:opacity-80 transition-opacity" alt="Aviator Logo" />
             ) : (
-              <svg width="32" height="32" viewBox="0 0 24 24" className="drop-shadow-[0_0_8px_rgba(250,204,21,0.6)]">
+              <svg width="32" height="32" viewBox="0 0 24 24" className="drop-shadow-[0_0_8px_rgba(250,204,21,0.6)] group-hover:opacity-80 transition-opacity">
                 <defs>
                   <linearGradient id="goldLogo" x1="0%" y1="0%" x2="100%" y2="100%">
                     <stop offset="0%" stopColor="#fef08a" />

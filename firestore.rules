@@ -178,7 +178,7 @@ service cloud.firestore {
       allow create: if isAuthenticated() && 
                     request.resource.data.keys().hasOnly(['userCount']) &&
                     request.resource.data.userCount is int &&
-                    request.resource.data.userCount >= 1;
+                    (request.resource.data.userCount >= 1 || request.resource.data.userCount == 100);
       allow update: if isAuthenticated() && 
                     request.resource.data.keys().hasOnly(['userCount']) &&
                     request.resource.data.userCount is int &&

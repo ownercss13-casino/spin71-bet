@@ -123,9 +123,18 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     setError(null);
     try {
       await signInAnonymously(auth);
+      // Don't immediately call onLoginSuccess/onRegisterSuccess here.
+      // Let the onAuthStateChanged listener in App.tsx handle the user creation
+      // and state update. We just need to wait a moment for it to process.
       showToast("সফলভাবে লগইন করা হয়েছে (Guest)", "success");
-      onLoginSuccess();
-      onRegisterSuccess();
+      
+      // Wait a bit for App.tsx to process the new user and transaction
+      setTimeout(() => {
+        setIsLoading(false);
+        onLoginSuccess();
+        onRegisterSuccess();
+      }, 1500);
+      
     } catch (err) {
       handleAuthError(err);
     }

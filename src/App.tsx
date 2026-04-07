@@ -284,10 +284,13 @@ export default function App() {
     }, 800);
   };
 
+  const [isAuthInitialized, setIsAuthInitialized] = useState(false);
+
   useEffect(() => {
     let unsubscribeDoc: (() => void) | null = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      setIsAuthInitialized(true);
       if (user) {
         const firebaseUid = user.uid;
         
@@ -310,14 +313,12 @@ export default function App() {
               localStorage.setItem('deviceId', deviceId);
             }
             
+            // Non-blocking IP fetch
             let userIp = 'unknown';
-            try {
-              const response = await fetch('https://api.ipify.org?format=json');
-              const data = await response.json();
-              userIp = data.ip;
-            } catch (e) {
-              console.error('Failed to fetch IP', e);
-            }
+            fetch('https://api.ipify.org?format=json')
+              .then(res => res.json())
+              .then(data => { userIp = data.ip; })
+              .catch(e => console.error('Failed to fetch IP', e));
 
             if (savedReferralCode) {
               const usersRef = collection(db, 'users');
@@ -344,6 +345,9 @@ export default function App() {
               let nextId = 101;
               if (metadataDoc.exists()) {
                 nextId = (metadataDoc.data().userCount || 100) + 1;
+              } else {
+                // Initialize metadata if it doesn't exist
+                transaction.set(metadataRef, { userCount: 100 });
               }
               
               const username = `K71${nextId}`;
@@ -424,17 +428,18 @@ export default function App() {
       }
     });
 
-    // Hide splash screen after 0.99 seconds
-    const timer = setTimeout(() => {
-      setShowSplash(false);
-    }, 500);
-
     return () => {
-      clearTimeout(timer);
       unsubscribeAuth();
       if (unsubscribeDoc) unsubscribeDoc();
     };
   }, []);
+
+  // Update splash screen logic
+  useEffect(() => {
+    if (isAuthInitialized) {
+      setShowSplash(false);
+    }
+  }, [isAuthInitialized]);
 
   useEffect(() => {
     // Save balance changes to localStorage

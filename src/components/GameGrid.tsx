@@ -408,18 +408,21 @@ export const GameGrid: React.FC<GameGridProps> = ({
       <div className="grid grid-cols-3 gap-2">
         {isLoading ? (
           [...Array(9)].map((_, i) => (
-            <div key={i} className="aspect-square rounded-xl bg-gradient-to-b from-teal-900/40 to-teal-950/60 overflow-hidden relative border border-white/5 shadow-sm">
-              <Skeleton className="w-full h-full rounded-none opacity-50" />
+            <div key={i} className="aspect-square rounded-xl bg-[#0d1525] border border-teal-900/20 overflow-hidden relative shadow-sm animate-pulse">
+              {/* Image Area Skeleton */}
+              <div className="absolute inset-0 bg-teal-900/10">
+                <Skeleton className="w-full h-full rounded-none" />
+              </div>
               
               {/* Top Right Star Skeleton */}
               <div className="absolute top-1.5 right-1.5 bg-black/20 rounded-full p-1.5 w-6 h-6">
                 <Skeleton className="w-full h-full rounded-full" shimmer={false} />
               </div>
 
-              {/* Bottom Gradient Overlay */}
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent pt-8 pb-2 px-2 flex flex-col justify-end items-center gap-1">
-                <Skeleton className="h-2.5 w-3/4" />
-                <Skeleton className="h-2 w-1/2 opacity-60" />
+              {/* Bottom Gradient Overlay Skeleton */}
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent pt-8 pb-3 px-2 flex flex-col justify-end items-center gap-1.5">
+                <Skeleton className="h-3 w-4/5 rounded-full opacity-60" />
+                <Skeleton className="h-2 w-2/5 rounded-full opacity-40" />
               </div>
             </div>
           ))
