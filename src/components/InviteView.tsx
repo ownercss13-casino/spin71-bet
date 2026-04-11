@@ -93,9 +93,9 @@ export default function InviteView({ onTabChange, userData, showToast, initialSu
   };
 
   return (
-    <div className="flex-1 overflow-y-auto pb-24 bg-[#0b0b0b]">
+    <div className="flex-1 overflow-y-auto pb-24 bg-[var(--bg-main)] transition-colors duration-300">
       {/* Header */}
-      <div className="bg-[#128a61] p-4 pt-6 rounded-b-3xl shadow-lg relative overflow-hidden">
+      <div className="bg-[var(--bg-surface)] p-4 pt-6 rounded-b-3xl shadow-lg relative overflow-hidden transition-colors duration-300">
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
         <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-yellow-400/20 rounded-full blur-3xl"></div>
         
@@ -151,7 +151,7 @@ export default function InviteView({ onTabChange, userData, showToast, initialSu
               className={`px-5 py-2.5 rounded-full font-bold whitespace-nowrap transition-all ${
                 activeTab === tab.id 
                   ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-black shadow-[0_0_15px_rgba(250,204,21,0.4)]' 
-                  : 'bg-[#1b1b1b] text-gray-400 border border-white/5 hover:bg-[#252525]'
+                  : 'bg-[var(--bg-card)] text-[var(--text-muted)] border border-[var(--border-color)] hover:bg-black/10'
               }`}
             >
               {tab.name}
@@ -245,15 +245,15 @@ export default function InviteView({ onTabChange, userData, showToast, initialSu
           </div>
 
           {/* Share Section */}
-          <div className="bg-[#1b1b1b] p-5 rounded-2xl border border-white/5">
-            <h3 className="text-white font-bold mb-3 flex items-center gap-2">
-              <Share2 size={18} className="text-teal-400" />
+          <div className="bg-[var(--bg-card)] p-5 rounded-2xl border border-[var(--border-color)] transition-colors duration-300">
+            <h3 className="text-[var(--text-main)] font-bold mb-3 flex items-center gap-2">
+              <Share2 size={18} className="text-[var(--brand-primary)]" />
               আপনার রেফারেল লিঙ্ক শেয়ার করুন
             </h3>
             
             <div className="mb-4 bg-black/30 p-3 rounded-xl border border-white/5 flex justify-between items-center">
               <div>
-                <p className="text-[10px] text-teal-400 uppercase font-bold mb-1">আপনার রেফারেল কোড</p>
+                <p className="text-[10px] text-[var(--brand-primary)] uppercase font-bold mb-1">আপনার রেফারেল কোড</p>
                 <p className="text-xl font-black text-yellow-400 tracking-wider">{referralCode}</p>
               </div>
               <button 
@@ -272,7 +272,7 @@ export default function InviteView({ onTabChange, userData, showToast, initialSu
               <span className="text-sm text-gray-300 truncate flex-1 pl-2 font-mono">{referralLink}</span>
               <button 
                 onClick={copyToClipboard}
-                className="bg-teal-600 hover:bg-teal-500 text-white p-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
+                className="bg-[var(--brand-primary)] hover:opacity-90 text-white p-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
               >
                 <Copy size={18} />
                 <span className="text-xs font-bold">কপি করুন</span>
@@ -284,33 +284,33 @@ export default function InviteView({ onTabChange, userData, showToast, initialSu
                 <div className="w-12 h-12 rounded-full bg-[#1877F2]/20 text-[#1877F2] flex items-center justify-center group-hover:bg-[#1877F2] group-hover:text-white transition-all">
                   <Facebook size={24} />
                 </div>
-                <span className="text-[10px] text-gray-400">Facebook</span>
+                <span className="text-[10px] text-[var(--text-muted)]">Facebook</span>
               </button>
               <button onClick={handleShare} className="flex flex-col items-center gap-2 group">
                 <div className="w-12 h-12 rounded-full bg-[#25D366]/20 text-[#25D366] flex items-center justify-center group-hover:bg-[#25D366] group-hover:text-white transition-all">
                   <MessageCircle size={24} />
                 </div>
-                <span className="text-[10px] text-gray-400">WhatsApp</span>
+                <span className="text-[10px] text-[var(--text-muted)]">WhatsApp</span>
               </button>
               <button onClick={handleShare} className="flex flex-col items-center gap-2 group">
                 <div className="w-12 h-12 rounded-full bg-[#0088cc]/20 text-[#0088cc] flex items-center justify-center group-hover:bg-[#0088cc] group-hover:text-white transition-all">
                   <Send size={24} />
                 </div>
-                <span className="text-[10px] text-gray-400">Telegram</span>
+                <span className="text-[10px] text-[var(--text-muted)]">Telegram</span>
               </button>
               <button onClick={handleShare} className="flex flex-col items-center gap-2 group">
-                <div className="w-12 h-12 rounded-full bg-white/10 text-white flex items-center justify-center group-hover:bg-white group-hover:text-black transition-all">
+                <div className="w-12 h-12 rounded-full bg-white/10 text-[var(--text-main)] flex items-center justify-center group-hover:bg-white group-hover:text-black transition-all">
                   <Share2 size={24} />
                 </div>
-                <span className="text-[10px] text-gray-400">More</span>
+                <span className="text-[10px] text-[var(--text-muted)]">More</span>
               </button>
             </div>
           </div>
 
           {/* Progress Section */}
-          <div className="bg-[#1b1b1b] p-5 rounded-2xl border border-white/5">
+          <div className="bg-[var(--bg-card)] p-5 rounded-2xl border border-[var(--border-color)] transition-colors duration-300">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-white font-bold flex items-center gap-2">
+              <h3 className="text-[var(--text-main)] font-bold flex items-center gap-2">
                 <TrendingUp size={18} className="text-yellow-400" />
                 পুরস্কারের স্তরসমূহ (Reward Tiers)
               </h3>
@@ -336,10 +336,10 @@ export default function InviteView({ onTabChange, userData, showToast, initialSu
             <div className="grid grid-cols-5 gap-1">
               {tiers.map((tier, idx) => (
                 <div key={idx} className="flex flex-col items-center gap-1.5">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center border transition-all ${currentReferrals >= tier.count ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.3)]' : 'bg-black border-white/10 text-gray-500'}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center border transition-all ${currentReferrals >= tier.count ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.3)]' : 'bg-black border-white/10 text-[var(--text-muted)]'}`}>
                     <span className="text-[10px] font-black">{tier.count}</span>
                   </div>
-                  <span className={`text-[9px] font-bold ${currentReferrals >= tier.count ? 'text-yellow-400' : 'text-gray-500'}`}>৳{tier.reward}</span>
+                  <span className={`text-[9px] font-bold ${currentReferrals >= tier.count ? 'text-yellow-400' : 'text-[var(--text-muted)]'}`}>৳{tier.reward}</span>
                 </div>
               ))}
             </div>
@@ -358,11 +358,11 @@ export default function InviteView({ onTabChange, userData, showToast, initialSu
                   onClick={() => setActiveShopCategory(cat.id)}
                   className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-bold whitespace-nowrap transition-all ${
                     activeShopCategory === cat.id 
-                      ? 'bg-teal-600 text-white shadow-[0_0_15px_rgba(20,184,166,0.4)]' 
-                      : 'bg-[#1b1b1b] text-gray-400 border border-white/5 hover:bg-[#252525]'
+                      ? 'bg-[var(--brand-primary)] text-white shadow-[0_0_15px_rgba(20,184,166,0.4)]' 
+                      : 'bg-[var(--bg-card)] text-[var(--text-muted)] border border-[var(--border-color)] hover:bg-black/10'
                   }`}
                 >
-                  <cat.icon size={16} className={activeShopCategory === cat.id ? 'text-white' : 'text-gray-400'} />
+                  <cat.icon size={16} className={activeShopCategory === cat.id ? 'text-white' : 'text-[var(--text-muted)]'} />
                   {cat.name}
                 </button>
               ))}
@@ -374,7 +374,7 @@ export default function InviteView({ onTabChange, userData, showToast, initialSu
             {shopItems[activeShopCategory as keyof typeof shopItems].map(item => (
               <div 
                 key={item.id} 
-                className={`bg-[#1b1b1b] rounded-2xl p-4 border ${item.border} flex flex-col items-center relative overflow-hidden group hover:scale-105 transition-transform`}
+                className={`bg-[var(--bg-card)] rounded-2xl p-4 border ${item.border} flex flex-col items-center relative overflow-hidden group hover:scale-105 transition-transform duration-300`}
               >
                 {/* Background Glow */}
                 <div className={`absolute inset-0 ${item.bg} opacity-20 group-hover:opacity-40 transition-opacity`}></div>
@@ -383,8 +383,8 @@ export default function InviteView({ onTabChange, userData, showToast, initialSu
                   <item.icon size={28} className={item.color} />
                 </div>
                 
-                <h3 className="text-white font-bold text-center text-sm mb-1 relative z-10">{item.name}</h3>
-                <p className="text-gray-400 text-[10px] text-center mb-3 h-6 relative z-10">{item.desc}</p>
+                <h3 className="text-[var(--text-main)] font-bold text-center text-sm mb-1 relative z-10">{item.name}</h3>
+                <p className="text-[var(--text-muted)] text-[10px] text-center mb-3 h-6 relative z-10">{item.desc}</p>
                 
                 <div className="w-full mt-auto relative z-10">
                   <button 
@@ -402,14 +402,14 @@ export default function InviteView({ onTabChange, userData, showToast, initialSu
 
       {activeTab === 'earnings' && (
         <div className="p-4 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="bg-[#1b1b1b] p-6 rounded-3xl border border-white/5 shadow-xl">
+          <div className="bg-[var(--bg-card)] p-6 rounded-3xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-12 h-12 rounded-2xl bg-teal-500/20 flex items-center justify-center">
                 <TrendingUp size={24} className="text-teal-400" />
               </div>
               <div>
-                <h3 className="text-white font-black text-lg italic">আয়ের বিশদ বিবরণ (Earnings Breakdown)</h3>
-                <p className="text-xs text-gray-400">আপনার রেফারেল থেকে অর্জিত মোট আয়</p>
+                <h3 className="text-[var(--text-main)] font-black text-lg italic">আয়ের বিশদ বিবরণ (Earnings Breakdown)</h3>
+                <p className="text-xs text-[var(--text-muted)]">আপনার রেফারেল থেকে অর্জিত মোট আয়</p>
               </div>
             </div>
 
@@ -434,16 +434,16 @@ export default function InviteView({ onTabChange, userData, showToast, initialSu
                 <span className="text-white font-black">৳ 0</span>
               </div>
 
-              <div className="pt-4 border-t border-white/5 flex justify-between items-center">
-                <span className="text-gray-400 font-bold">মোট ব্যালেন্স</span>
+              <div className="pt-4 border-t border-[var(--border-color)] flex justify-between items-center">
+                <span className="text-[var(--text-muted)] font-bold">মোট ব্যালেন্স</span>
                 <span className="text-2xl font-black text-yellow-400">৳ {totalEarned}</span>
               </div>
             </div>
           </div>
 
-          <div className="bg-[#1b1b1b] p-6 rounded-3xl border border-white/5 shadow-xl">
-            <h3 className="text-white font-black mb-4 flex items-center gap-2">
-              <Clock size={18} className="text-teal-400" />
+          <div className="bg-[var(--bg-card)] p-6 rounded-3xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
+            <h3 className="text-[var(--text-main)] font-black mb-4 flex items-center gap-2">
+              <Clock size={18} className="text-[var(--brand-primary)]" />
               সাম্প্রতিক লেনদেন (Recent Transactions)
             </h3>
             <div className="space-y-3">
@@ -457,7 +457,7 @@ export default function InviteView({ onTabChange, userData, showToast, initialSu
                 </div>
               ) : (
                 <div className="py-8 text-center">
-                  <p className="text-gray-500 text-sm italic">কোন লেনদেন পাওয়া যায়নি</p>
+                  <p className="text-[var(--text-muted)] text-sm italic">কোন লেনদেন পাওয়া যায়নি</p>
                 </div>
               )}
             </div>
@@ -477,7 +477,7 @@ export default function InviteView({ onTabChange, userData, showToast, initialSu
             </div>
           </div>
 
-          <div className="bg-[#1b1b1b] rounded-2xl border border-white/5 overflow-hidden shadow-xl">
+          <div className="bg-[var(--bg-card)] rounded-2xl border border-[var(--border-color)] overflow-hidden shadow-xl transition-colors duration-300">
             {[
               { name: "Sabbir_99", earned: "৳ 45,500", referrals: 124, rank: 1 },
               { name: "Rakib_H", earned: "৳ 32,200", referrals: 98, rank: 2 },
@@ -488,24 +488,24 @@ export default function InviteView({ onTabChange, userData, showToast, initialSu
               { name: "Joy_Bet", earned: "৳ 10,400", referrals: 32, rank: 7 },
               { name: "Emon_X", earned: "৳ 8,500", referrals: 28, rank: 8 },
             ].map((winner, i) => (
-              <div key={i} className="flex items-center justify-between p-4 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors">
+              <div key={i} className="flex items-center justify-between p-4 border-b border-[var(--border-color)] last:border-0 hover:bg-black/10 transition-colors">
                 <div className="flex items-center gap-4">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm ${
                     winner.rank === 1 ? 'bg-yellow-500 text-black shadow-[0_0_10px_rgba(234,179,8,0.5)]' :
                     winner.rank === 2 ? 'bg-gray-300 text-black' :
                     winner.rank === 3 ? 'bg-orange-500 text-black' :
-                    'bg-gray-800 text-gray-400'
+                    'bg-[var(--bg-surface)] text-[var(--text-muted)]'
                   }`}>
                     {winner.rank}
                   </div>
                   <div>
-                    <p className="text-white font-bold text-sm">{winner.name}</p>
-                    <p className="text-gray-500 text-[10px] uppercase font-bold">{winner.referrals} Referrals</p>
+                    <p className="text-[var(--text-main)] font-bold text-sm">{winner.name}</p>
+                    <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold">{winner.referrals} Referrals</p>
                   </div>
                 </div>
                 <div className="text-right">
                   <p className="text-yellow-400 font-black text-sm">{winner.earned}</p>
-                  <p className="text-gray-600 text-[9px] font-bold">Updated Just Now</p>
+                  <p className="text-[var(--text-muted)] text-[9px] font-bold">Updated Just Now</p>
                 </div>
               </div>
             ))}

@@ -4,7 +4,8 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signInWithPopup,
-  updateProfile
+  updateProfile,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 import { auth, googleProvider } from './firebase';
 import { 
@@ -21,7 +22,8 @@ import {
   Chrome,
   Eye,
   EyeOff,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useForm } from 'react-hook-form';
@@ -44,8 +46,13 @@ const registerSchema = z.object({
   path: ["confirmPassword"],
 });
 
+const resetSchema = z.object({
+  email: z.string().email('সঠিক ইমেইল দিন (Invalid email)'),
+});
+
 type LoginFormValues = z.infer<typeof loginSchema>;
 type RegisterFormValues = z.infer<typeof registerSchema>;
+type ResetFormValues = z.infer<typeof resetSchema>;
 
 import { ToastType } from './components/Toast';
 
@@ -55,13 +62,15 @@ interface LoginPageProps {
   onLoginSuccess: () => void;
   showToast: (msg: string, type?: ToastType) => void;
   casinoName?: string;
+  isLoggedIn?: boolean;
+  welcomeBonus?: number;
 }
 
-export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSuccess, showToast, casinoName = "SPIN71BET" }: LoginPageProps) {
+export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSuccess, showToast, casinoName = "SPIN71BET", isLoggedIn = false, welcomeBonus = 507 }: LoginPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot-password'>('login');
   const [showPassword, setShowPassword] = useState(false);
 
   const { 
@@ -80,9 +89,23 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     resolver: zodResolver(registerSchema)
   });
 
+  const { 
+    register: registerReset, 
+    handleSubmit: handleSubmitReset, 
+    formState: { errors: resetErrors } 
+  } = useForm<ResetFormValues>({
+    resolver: zodResolver(resetSchema)
+  });
+
   const handleAuthError = (err: any) => {
-    console.error("Auth Error:", err);
     setIsLoading(false);
+    
+    // Ignore popup closed by user as it's a common cancellation
+    if (err.code === 'auth/popup-closed-by-user') {
+      return;
+    }
+
+    console.error("Auth Error:", err);
     
     let msg = "কিছু ভুল হয়েছে। আবার চেষ্টা করুন। (Something went wrong. Please try again.)";
 
@@ -91,9 +114,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       return;
     }
 
-    if (err.code === 'auth/popup-closed-by-user') {
-      msg = "পপআপ উইন্ডোটি বন্ধ করা হয়েছে। আবার চেষ্টা করুন। (Popup closed. Please try again.)";
-    } else if (err.code === 'auth/email-already-in-use') {
+    if (err.code === 'auth/email-already-in-use') {
       msg = "এই ইমেইলটি ইতিমধ্যে ব্যবহার করা হয়েছে। (Email already in use.)";
     } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
       msg = "পাসওয়ার্ড ভুল। অনুগ্রহ করে সঠিক পাসওয়ার্ড দিন। (Invalid password. Please enter correct password.)";
@@ -123,18 +144,12 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     setError(null);
     try {
       await signInAnonymously(auth);
-      // Don't immediately call onLoginSuccess/onRegisterSuccess here.
-      // Let the onAuthStateChanged listener in App.tsx handle the user creation
-      // and state update. We just need to wait a moment for it to process.
       showToast("সফলভাবে লগইন করা হয়েছে (Guest)", "success");
       
-      // Wait a bit for App.tsx to process the new user and transaction
-      setTimeout(() => {
-        setIsLoading(false);
-        onLoginSuccess();
-        onRegisterSuccess();
-      }, 1500);
-      
+      setIsLoading(false);
+      setShowSuccessPopup(true);
+      onLoginSuccess();
+      onRegisterSuccess();
     } catch (err) {
       handleAuthError(err);
     }
@@ -177,9 +192,25 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       // Immediately trigger success UI
       setIsLoading(false);
       setShowSuccessPopup(true);
+      onLoginSuccess();
+      onRegisterSuccess();
       showToast("অ্যাকাউন্ট তৈরি সফল হয়েছে", "success");
     } catch (err) {
       handleAuthError(err);
+    }
+  };
+
+  const onPasswordReset = async (data: ResetFormValues) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await sendPasswordResetEmail(auth, data.email);
+      showToast("পাসওয়ার্ড রিসেট ইমেইল পাঠানো হয়েছে। আপনার ইনবক্স চেক করুন। (Reset email sent. Check your inbox.)", "success");
+      setAuthMode('login');
+    } catch (err: any) {
+      handleAuthError(err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -318,6 +349,15 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
                   </button>
                 </div>
                 {loginErrors.password && <p className="text-[10px] text-red-400 text-left pl-2">{loginErrors.password.message}</p>}
+                <div className="text-right pr-2">
+                  <button 
+                    type="button"
+                    onClick={() => setAuthMode('forgot-password')}
+                    className="text-[10px] text-teal-500 hover:text-teal-400 font-bold"
+                  >
+                    পাসওয়ার্ড ভুলে গেছেন? (Forgot Password?)
+                  </button>
+                </div>
               </div>
 
               <button 
@@ -400,6 +440,51 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
               </button>
             </motion.form>
           )}
+          {authMode === 'forgot-password' && (
+            <motion.form
+              key="forgot-password"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              onSubmit={handleSubmitReset(onPasswordReset)}
+              className="space-y-4"
+            >
+              <div className="text-left mb-4">
+                <h3 className="text-white font-bold text-sm mb-1">পাসওয়ার্ড রিসেট করুন</h3>
+                <p className="text-gray-500 text-[10px]">আপনার ইমেইল এড্রেস দিন, আমরা আপনাকে একটি রিসেট লিঙ্ক পাঠাবো।</p>
+              </div>
+
+              <div className="space-y-1">
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                  <input 
+                    {...registerReset('email')}
+                    type="email" 
+                    placeholder="ইমেইল এড্রেস"
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white text-sm focus:border-yellow-500 outline-none transition-all"
+                  />
+                </div>
+                {resetErrors.email && <p className="text-[10px] text-red-400 text-left pl-2">{resetErrors.email.message}</p>}
+              </div>
+
+              <div className="flex gap-3">
+                <button 
+                  type="button"
+                  onClick={() => setAuthMode('login')}
+                  className="flex-1 bg-white/5 py-4 rounded-2xl text-white font-black uppercase tracking-tight hover:bg-white/10 transition-all active:scale-95"
+                >
+                  ফিরে যান
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isLoading}
+                  className="flex-[2] bg-yellow-500 py-4 rounded-2xl text-black font-black uppercase tracking-tight flex items-center justify-center gap-2 hover:bg-yellow-400 transition-all active:scale-95"
+                >
+                  {isLoading ? <Loader2 size={20} className="animate-spin" /> : 'লিঙ্ক পাঠান'}
+                </button>
+              </div>
+            </motion.form>
+          )}
         </AnimatePresence>
 
         {/* Alternative Login Methods */}
@@ -469,14 +554,23 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
 
                 <div className="bg-white/5 rounded-2xl p-4 mb-8 border border-white/5">
                   <p className="text-gray-500 text-[10px] uppercase font-black tracking-widest mb-1">Welcome Bonus</p>
-                  <p className="text-yellow-400 text-3xl font-black">৳ ৫০৭.০০</p>
+                  <p className="text-yellow-400 text-3xl font-black">৳ {welcomeBonus.toFixed(2)}</p>
                 </div>
 
                 <button 
-                  onClick={onContinue} 
-                  className="w-full bg-gradient-to-r from-teal-500 to-teal-600 text-white font-black py-5 rounded-2xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-3 group"
+                  onClick={() => {
+                    if (!isLoggedIn) return;
+                    setShowSuccessPopup(false);
+                    onContinue();
+                  }} 
+                  disabled={!isLoggedIn}
+                  className={`w-full font-black py-5 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-3 group ${isLoggedIn ? 'bg-gradient-to-r from-teal-500 to-teal-600 text-white active:scale-95' : 'bg-gray-600 text-gray-300 cursor-not-allowed'}`}
                 >
-                  গেম শুরু করুন <ArrowRight size={22} className="group-hover:translate-x-1 transition-transform" />
+                  {isLoggedIn ? (
+                    <>গেম শুরু করুন <ArrowRight size={22} className="group-hover:translate-x-1 transition-transform" /></>
+                  ) : (
+                    <>অ্যাকাউন্ট প্রস্তুত হচ্ছে... <Loader2 size={22} className="animate-spin" /></>
+                  )}
                 </button>
               </div>
             </motion.div>

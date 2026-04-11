@@ -29,13 +29,35 @@
   }
 }
 
+:root {
+  --brand-primary: #16a374;
+  --bg-main: #16a374;
+  --bg-card: #0d9488;
+  --bg-surface: #115e59; /* teal-800 */
+  --bg-input: rgba(255, 255, 255, 0.1);
+  --text-main: #ffffff;
+  --text-muted: #ccfbf1;
+  --border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='light'] {
+  --bg-main: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-surface: #f1f5f9; /* slate-100 */
+  --bg-input: #ffffff;
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --border-color: #e2e8f0;
+}
+
 body {
   user-select: none;
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
   overscroll-behavior-y: none;
-  background-color: #16a374;
+  background-color: var(--bg-main);
+  color: var(--text-main);
   margin: 0;
   padding: 0;
   width: 100%;
@@ -43,6 +65,7 @@ body {
   overflow-x: hidden;
   -webkit-tap-highlight-color: transparent;
   touch-action: pan-x pan-y;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 @layer utilities {

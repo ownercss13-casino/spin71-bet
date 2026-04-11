@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import GameLoader from './GameLoader';
 import { ArrowLeft, Wallet, Play, RotateCcw, Star, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -25,6 +26,13 @@ interface SlotGameProps {
 const SYMBOLS = ['🍒', '🍋', '🍇', '🔔', '💎', '7️⃣', '⭐', '🍀'];
 
 export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate, referredBy, globalLogo, globalName }: SlotGameProps) {
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
   const [reels, setReels] = useState([
     [SYMBOLS[0], SYMBOLS[1], SYMBOLS[2]],
     [SYMBOLS[3], SYMBOLS[4], SYMBOLS[5]],
@@ -114,6 +122,13 @@ export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate, 
 
   return (
     <div className="fixed inset-0 z-[100] bg-black flex flex-col max-w-md mx-auto font-sans overflow-hidden min-h-[100dvh] safe-top safe-bottom">
+      {isLoading && (
+        <GameLoader 
+          gameName={globalName || game.name} 
+          provider={game.provider} 
+          logo={globalLogo || game.image} 
+        />
+      )}
       {/* Header */}
       <div className="flex items-center justify-between p-4 bg-teal-900 border-b border-teal-800">
         <button onClick={onClose} className="text-white p-1 hover:bg-teal-800 rounded-full">
@@ -205,44 +220,70 @@ export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate, 
       </div>
 
       {/* Controls */}
-      <div className="p-6 bg-teal-950 border-t border-teal-900 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2 bg-black/40 p-2 rounded-xl border border-white/10">
-          <button 
-            onClick={() => setBetAmount(prev => Math.max(1, prev - 10))}
-            className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-white text-xl font-bold"
-          >
-            -
-          </button>
-          <div className="w-20 text-center">
-            <span className="text-[10px] text-gray-500 uppercase font-bold block">Bet</span>
-            <span className="text-white font-black">৳ {betAmount}</span>
-          </div>
-          <button 
-            onClick={() => setBetAmount(prev => prev + 10)}
-            className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-white text-xl font-bold"
-          >
-            +
-          </button>
+      <div className="p-4 bg-teal-950 border-t border-teal-900 flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-2">
+          {[10, 50, 100, 500].map((amount) => (
+            <button
+              key={amount}
+              onClick={() => setBetAmount(amount)}
+              className={`flex-1 py-2 rounded-lg text-[10px] font-black border transition-all ${
+                betAmount === amount 
+                  ? 'bg-yellow-500 border-yellow-400 text-black' 
+                  : 'bg-black/40 border-white/10 text-gray-400'
+              }`}
+            >
+              ৳ {amount}
+            </button>
+          ))}
         </div>
 
-        <button 
-          onClick={spin}
-          disabled={isSpinning || userBalance < betAmount}
-          className={`flex-1 h-16 rounded-2xl font-black text-xl flex items-center justify-center gap-3 transition-all shadow-lg ${
-            isSpinning || userBalance < betAmount 
-              ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
-              : 'bg-gradient-to-b from-yellow-400 to-yellow-600 text-black hover:scale-105 active:scale-95'
-          }`}
-        >
-          {isSpinning ? (
-            <RotateCcw className="animate-spin" />
-          ) : (
-            <>
-              <Play className="fill-black" />
-              SPIN
-            </>
-          )}
-        </button>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2 bg-black/40 p-1.5 rounded-xl border border-white/10">
+            <button 
+              onClick={() => setBetAmount(prev => Math.max(10, prev - 10))}
+              className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center text-white text-xl font-bold hover:bg-gray-700 active:scale-90 transition-all"
+            >
+              -
+            </button>
+            <div className="w-24 text-center">
+              <span className="text-[9px] text-gray-500 uppercase font-black block leading-none mb-1">Bet Amount</span>
+              <input 
+                type="number"
+                value={betAmount}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value);
+                  if (!isNaN(val)) setBetAmount(Math.max(0, val));
+                }}
+                className="bg-transparent text-white font-black text-center w-full focus:outline-none text-lg"
+              />
+            </div>
+            <button 
+              onClick={() => setBetAmount(prev => prev + 10)}
+              className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center text-white text-xl font-bold hover:bg-gray-700 active:scale-90 transition-all"
+            >
+              +
+            </button>
+          </div>
+
+          <button 
+            onClick={spin}
+            disabled={isSpinning || userBalance < betAmount || betAmount <= 0}
+            className={`flex-1 h-14 rounded-xl font-black text-lg flex items-center justify-center gap-3 transition-all shadow-lg ${
+              isSpinning || userBalance < betAmount || betAmount <= 0
+                ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
+                : 'bg-gradient-to-b from-yellow-400 to-yellow-600 text-black hover:brightness-110 active:scale-95'
+            }`}
+          >
+            {isSpinning ? (
+              <RotateCcw className="animate-spin" />
+            ) : (
+              <>
+                <Play className="fill-black" size={20} />
+                SPIN
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

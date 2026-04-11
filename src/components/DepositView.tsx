@@ -16,7 +16,7 @@ const quickAmounts = [100, 200, 300, 500, 1200, 10000, 25000];
 import Skeleton from './Skeleton';
 import { ToastType } from './Toast';
 
-export default function DepositView({ onTabChange, balance, onBalanceUpdate, userData, showToast }: { onTabChange: (tab: any) => void, balance: number, onBalanceUpdate: (amount: number) => void, userData: any, showToast: (msg: string, type?: ToastType) => void }) {
+export default function DepositView({ onTabChange, balance, onBalanceUpdate, userData, showToast, minDeposit = 100 }: { onTabChange: (tab: any) => void, balance: number, onBalanceUpdate: (amount: number) => void, userData: any, showToast: (msg: string, type?: ToastType) => void, minDeposit?: number }) {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState('nagad');
@@ -72,8 +72,8 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
     }
 
     const depositAmount = parseFloat(amount);
-    if (isNaN(depositAmount) || depositAmount < 100 || depositAmount > 25000) {
-      showToast('সর্বনিম্ন ডিপোজিট ১০০ টাকা এবং সর্বোচ্চ ২৫,০০০ টাকা।', 'warning');
+    if (isNaN(depositAmount) || depositAmount < minDeposit || depositAmount > 25000) {
+      showToast(`সর্বনিম্ন ডিপোজিট ${minDeposit} টাকা এবং সর্বোচ্চ ২৫,০০০ টাকা।`, 'warning');
       return;
     }
 
@@ -82,8 +82,8 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
 
   const handleDeposit = async () => {
     const depositAmount = parseFloat(amount);
-    if (isNaN(depositAmount) || depositAmount < 100 || depositAmount > 25000) {
-      showToast('সর্বনিম্ন ডিপোজিট ১০০ টাকা এবং সর্বোচ্চ ২৫,০০০ টাকা।', 'warning');
+    if (isNaN(depositAmount) || depositAmount < minDeposit || depositAmount > 25000) {
+      showToast(`সর্বনিম্ন ডিপোজিট ${minDeposit} টাকা এবং সর্বোচ্চ ২৫,০০০ টাকা।`, 'warning');
       return;
     }
 
@@ -173,17 +173,17 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
   };
 
   return (
-    <div className="flex-1 overflow-y-auto pb-24 bg-[#0b0b0b] relative">
+    <div className="flex-1 overflow-y-auto pb-24 bg-[var(--bg-main)] relative transition-colors duration-300">
       {isSubmitting && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm max-w-md mx-auto">
-          <div className="flex flex-col items-center gap-3 bg-teal-900/90 p-8 rounded-3xl border border-teal-500/30 shadow-2xl scale-110">
+          <div className="flex flex-col items-center gap-3 bg-[var(--bg-surface)]/90 p-8 rounded-3xl border border-[var(--border-color)] shadow-2xl scale-110">
             <RefreshCw size={48} className="text-yellow-500 animate-spin" />
-            <span className="text-white font-black italic uppercase tracking-tighter text-lg animate-pulse">Processing...</span>
+            <span className="text-[var(--text-main)] font-black italic uppercase tracking-tighter text-lg animate-pulse">Processing...</span>
           </div>
         </div>
       )}
       {/* Header */}
-      <div className="bg-[#128a61] p-4 pt-6 rounded-b-3xl shadow-lg relative overflow-hidden">
+      <div className="bg-[var(--bg-surface)] p-4 pt-6 rounded-b-3xl shadow-lg relative overflow-hidden transition-colors duration-300">
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
         <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-yellow-400/20 rounded-full blur-3xl"></div>
         
@@ -205,10 +205,10 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
         </div>
 
         {/* Current Balance Card */}
-        <div className="bg-black/20 backdrop-blur-sm rounded-2xl p-4 border border-white/10 relative z-10 flex justify-between items-center">
+        <div className="bg-[var(--bg-card)]/50 backdrop-blur-sm rounded-2xl p-4 border border-[var(--border-color)] relative z-10 flex justify-between items-center transition-colors duration-300">
           <div>
-            <p className="text-teal-100 text-sm mb-1">বর্তমান ব্যালেন্স</p>
-            <p className="text-3xl font-black text-white">৳ {balance.toLocaleString()}</p>
+            <p className="text-[var(--text-muted)] text-sm mb-1">বর্তমান ব্যালেন্স</p>
+            <p className="text-3xl font-black text-[var(--text-main)]">৳ {balance.toLocaleString()}</p>
           </div>
           <div className="w-12 h-12 rounded-full bg-yellow-500/20 flex items-center justify-center border border-yellow-500/50">
             <Wallet size={24} className="text-yellow-400" />
@@ -219,8 +219,8 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
       <div className="p-4 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
         {showHistory ? (
           <div className="space-y-4">
-            <h4 className="text-white font-bold flex items-center gap-2">
-              <History size={18} className="text-teal-400" />
+            <h4 className="text-[var(--text-main)] font-bold flex items-center gap-2">
+              <History size={18} className="text-[var(--brand-primary)]" />
               ডিপোজিটের ইতিহাস
             </h4>
             
@@ -235,14 +235,14 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
             ) : deposits.length > 0 ? (
               <div className="space-y-3">
                 {deposits.map((trx) => (
-                  <div key={trx.id} className="bg-teal-900/20 p-4 rounded-2xl border border-teal-800/30 flex items-center justify-between">
+                  <div key={trx.id} className="bg-[var(--bg-card)] p-4 rounded-2xl border border-[var(--border-color)] flex items-center justify-between transition-colors duration-300">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center">
                         <ArrowDownLeft size={18} />
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-white uppercase">{trx.method}</p>
-                        <p className="text-[10px] text-teal-200">{trx.date}</p>
+                        <p className="text-sm font-bold text-[var(--text-main)] uppercase">{trx.method}</p>
+                        <p className="text-[10px] text-[var(--text-muted)]">{trx.date}</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -253,9 +253,9 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
                 ))}
               </div>
             ) : (
-              <div className="bg-teal-900/20 p-8 rounded-2xl border border-teal-800/30 text-center">
-                <History size={32} className="text-teal-700 mx-auto mb-2" />
-                <p className="text-teal-400 text-sm">কোনো ডিপোজিটের ইতিহাস নেই</p>
+              <div className="bg-[var(--bg-card)] p-8 rounded-2xl border border-[var(--border-color)] text-center transition-colors duration-300">
+                <History size={32} className="text-[var(--text-muted)] opacity-50 mx-auto mb-2" />
+                <p className="text-[var(--text-muted)] text-sm">কোনো ডিপোজিটের ইতিহাস নেই</p>
               </div>
             )}
           </div>
@@ -263,8 +263,8 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
           <>
             {/* Payment Methods */}
             <div>
-              <h3 className="text-white font-bold mb-3 flex items-center gap-2">
-                <CreditCard size={18} className="text-teal-400" />
+              <h3 className="text-[var(--text-main)] font-bold mb-3 flex items-center gap-2">
+                <CreditCard size={18} className="text-[var(--brand-primary)]" />
                 পেমেন্ট মেথড নির্বাচন করুন
               </h3>
               <div className="grid grid-cols-3 gap-3">
@@ -278,21 +278,21 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
                       }
                       setSelectedMethod(method.id);
                     }}
-                    className={`relative flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${
+                    className={`relative flex flex-col items-center gap-2 p-3 rounded-xl border transition-all duration-300 ${
                       selectedMethod === method.id 
-                        ? 'bg-[#1b1b1b] border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.2)]' 
-                        : 'bg-[#1b1b1b] border-white/5 hover:border-white/20'
+                        ? 'bg-[var(--bg-card)] border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.2)]' 
+                        : 'bg-[var(--bg-card)] border-[var(--border-color)] hover:border-[var(--text-muted)]'
                     }`}
                   >
                     {method.bonus && (
-                      <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-[#1b1b1b] animate-pulse">
+                      <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-[var(--bg-card)] animate-pulse">
                         {method.bonus}
                       </span>
                     )}
                     <div className={`w-10 h-10 rounded-full ${method.color} flex items-center justify-center shadow-lg`}>
                       <method.icon size={20} className="text-white" />
                     </div>
-                    <span className="text-xs font-medium text-gray-300">{method.name}</span>
+                    <span className="text-xs font-medium text-[var(--text-muted)]">{method.name}</span>
                     {selectedMethod === method.id && (
                       <div className="absolute inset-0 border-2 border-yellow-400 rounded-xl pointer-events-none"></div>
                     )}
@@ -302,15 +302,15 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
             </div>
 
             {/* Amount Selection */}
-            <div className="bg-[#1b1b1b] p-4 rounded-2xl border border-white/5">
-              <h3 className="text-white font-bold mb-3 text-sm">জমার পরিমাণ (৳)</h3>
+            <div className="bg-[var(--bg-card)] p-4 rounded-2xl border border-[var(--border-color)] transition-colors duration-300">
+              <h3 className="text-[var(--text-main)] font-bold mb-3 text-sm">জমার পরিমাণ (৳)</h3>
               <div className="relative mb-4">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xl">৳</span>
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] font-bold text-xl">৳</span>
                 <input 
                   type="number" 
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="w-full bg-black/50 border border-white/10 rounded-xl py-4 pl-10 pr-4 text-white font-black text-2xl focus:outline-none focus:border-yellow-400 transition-colors"
+                  className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] rounded-xl py-4 pl-10 pr-4 text-[var(--text-main)] font-black text-2xl focus:outline-none focus:border-yellow-400 transition-colors"
                   placeholder="100 - 25000"
                 />
               </div>
@@ -322,7 +322,7 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
                     className={`py-2.5 rounded-lg font-bold text-sm transition-colors ${
                       amount === amt.toString()
                         ? 'bg-yellow-500 text-black'
-                        : 'bg-white/5 text-gray-300 hover:bg-white/10'
+                        : 'bg-[var(--bg-surface)] text-[var(--text-muted)] hover:bg-black/10'
                     }`}
                   >
                     {amt.toLocaleString()}
@@ -355,11 +355,11 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
             <div className="flex items-center gap-3 mb-2">
               <button 
                 onClick={() => setStep(1)}
-                className="p-2 bg-[#1b1b1b] hover:bg-white/10 rounded-full transition-colors text-white border border-white/5"
+                className="p-2 bg-[var(--bg-card)] hover:bg-black/10 rounded-full transition-colors text-[var(--text-main)] border border-[var(--border-color)]"
               >
                 <ChevronLeft size={18} />
               </button>
-              <h3 className="text-white font-bold text-lg">পেমেন্ট সম্পন্ন করুন</h3>
+              <h3 className="text-[var(--text-main)] font-bold text-lg">পেমেন্ট সম্পন্ন করুন</h3>
             </div>
 
             {['nagad', 'bkash', 'rocket'].includes(selectedMethod) && (() => {
@@ -395,7 +395,7 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
               };
 
               return (
-                <div className="bg-[#1b1b1b] p-4 rounded-2xl border border-white/5 space-y-4">
+                <div className="bg-[var(--bg-card)] p-4 rounded-2xl border border-[var(--border-color)] space-y-4 transition-colors duration-300">
                   <div className="flex justify-between items-center bg-black/30 p-3 rounded-xl border border-white/5">
                     <span className="text-gray-400 text-sm">পরিমাণ:</span>
                     <span className="text-yellow-400 font-black text-xl">৳ {amount}</span>
@@ -422,24 +422,24 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
 
                   {/* TrxID Input */}
                   <div>
-                    <h3 className="text-white font-bold mb-2 text-sm">ট্রানজেকশন আইডি (TrxID)</h3>
+                    <h3 className="text-[var(--text-main)] font-bold mb-2 text-sm">ট্রানজেকশন আইডি (TrxID)</h3>
                     <input 
                       type="text" 
                       value={trxId}
                       onChange={(e) => setTrxId(e.target.value)}
-                      className={`w-full bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-white font-mono focus:outline-none focus:${theme.border} transition-colors`}
+                      className={`w-full bg-[var(--bg-input)] border border-[var(--border-color)] rounded-xl py-3 px-4 text-[var(--text-main)] font-mono focus:outline-none focus:${theme.border} transition-colors`}
                       placeholder="যেমন: 8A7B6C5D4E"
                     />
                   </div>
 
                   {/* Sender Number Input */}
                   <div>
-                    <h3 className="text-white font-bold mb-2 text-sm">সেন্ডার নাম্বার (যে নাম্বার থেকে টাকা পাঠিয়েছেন)</h3>
+                    <h3 className="text-[var(--text-main)] font-bold mb-2 text-sm">সেন্ডার নাম্বার (যে নাম্বার থেকে টাকা পাঠিয়েছেন)</h3>
                     <input 
                       type="tel" 
                       value={senderNumber}
                       onChange={(e) => setSenderNumber(e.target.value)}
-                      className={`w-full bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-white font-mono focus:outline-none focus:${theme.border} transition-colors`}
+                      className={`w-full bg-[var(--bg-input)] border border-[var(--border-color)] rounded-xl py-3 px-4 text-[var(--text-main)] font-mono focus:outline-none focus:${theme.border} transition-colors`}
                       placeholder="01XXXXXXXXX"
                     />
                   </div>

@@ -34,6 +34,10 @@ interface HomeViewProps {
   updateAllButtonName?: (newName: string) => void;
   casinoName?: string;
   updateCasinoName?: (newName: string) => void;
+  noticeText?: string;
+  telegramLink?: string;
+  whatsappLink?: string;
+  facebookLink?: string;
   showToast: (msg: string, type?: any) => void;
   loading?: boolean;
 }
@@ -68,6 +72,10 @@ export default function HomeView({
   updateAllButtonName,
   casinoName = "SPIN71BET",
   updateCasinoName,
+  noticeText = "আমাদের গেম উপভোগ করুন এবং বড় জয় নিশ্চিত করুন!",
+  telegramLink,
+  whatsappLink,
+  facebookLink,
   showToast,
   loading
 }: HomeViewProps) {
@@ -77,21 +85,21 @@ export default function HomeView({
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Top App Download Banner */}
-      <div className="bg-[#128a61] px-2 py-1.5 flex items-center justify-between text-xs">
+      <div className="bg-[var(--bg-surface)] px-2 py-1.5 flex items-center justify-between text-xs transition-colors duration-300">
         <div className="flex items-center gap-2">
-          <button className="text-teal-200">
+          <button className="text-[var(--text-muted)]">
             <X size={14} />
           </button>
           <div className="flex items-center gap-1">
             <span className="bg-gradient-to-b from-yellow-400 to-yellow-600 text-black px-1 rounded text-[10px] font-bold border border-yellow-300">
               {casinoName}.com
             </span>
-            <span className="text-teal-50">দৈনিক বিনামূল্যের অ্যাপ বোনাস</span>
+            <span className="text-[var(--text-main)] opacity-90">দৈনিক বিনামূল্যের অ্যাপ বোনাস</span>
           </div>
         </div>
         <button 
           onClick={() => window.open('#', '_blank')}
-          className="bg-[#16a374] border border-teal-500 px-3 py-1 rounded text-[10px] font-medium text-white shadow-sm flex items-center gap-1"
+          className="bg-[var(--bg-main)] border border-[var(--border-color)] px-3 py-1 rounded text-[10px] font-medium text-[var(--text-main)] shadow-sm flex items-center gap-1 transition-colors duration-300"
         >
           <Download size={10} />
           ডাউনলোড করুন
@@ -99,9 +107,9 @@ export default function HomeView({
       </div>
 
       {/* Main Header */}
-      <header className="flex items-center justify-between px-3 py-2 sticky top-0 z-40 bg-[#16a374] shadow-sm">
+      <header className="flex items-center justify-between px-3 py-2 sticky top-0 z-40 bg-[var(--bg-main)] shadow-sm transition-colors duration-300">
         <div className="flex items-center gap-3">
-          <button onClick={() => setIsSidebarOpen(true)} className="text-teal-50 hover:text-white transition-colors">
+          <button onClick={() => setIsSidebarOpen(true)} className="text-[var(--text-main)] opacity-90 hover:opacity-100 transition-opacity">
             <Menu size={24} />
           </button>
           <div 
@@ -116,14 +124,14 @@ export default function HomeView({
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 bg-[#128a61] rounded-full pl-2 pr-1 py-1 border border-teal-600 shadow-inner relative">
+          <div className="flex items-center gap-1.5 bg-[var(--bg-surface)] rounded-full pl-2 pr-1 py-1 border border-[var(--border-color)] shadow-inner relative transition-colors duration-300">
             <div className="w-2 h-2 rounded-full bg-red-500 border border-red-300 animate-pulse"></div>
-            <span className="text-sm font-bold tracking-tight">৳ {balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span className="text-sm font-bold tracking-tight text-[var(--text-main)]">৳ {balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             <button 
               onClick={handleRefresh}
-              className="p-0.5 hover:bg-teal-700 rounded-full transition-colors"
+              className="p-0.5 hover:bg-black/10 rounded-full transition-colors"
             >
-              <RefreshCw size={14} className={`text-teal-100 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw size={14} className={`text-[var(--text-muted)] ${isRefreshing ? 'animate-spin' : ''}`} />
             </button>
             <span className="absolute -bottom-1 -left-1 bg-red-600 text-white text-[6px] font-bold px-1 rounded-full animate-pulse">LIVE</span>
           </div>
@@ -148,25 +156,25 @@ export default function HomeView({
           <div className="relative">
             <button 
               onClick={() => setIsNotificationCenterOpen(true)}
-              className="p-1 text-teal-50 hover:text-white transition-colors relative"
+              className="p-1 text-[var(--text-main)] opacity-90 hover:opacity-100 transition-opacity relative"
             >
               <Bell size={22} />
               {unreadNotificationsCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 bg-red-600 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-[#16a374] animate-pulse">
+                <span className="absolute -top-0.5 -right-0.5 bg-red-600 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-[var(--bg-main)] animate-pulse">
                   {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
                 </span>
               )}
             </button>
           </div>
-          <Search size={22} className="text-teal-50" />
+          <Search size={22} className="text-[var(--text-main)] opacity-90" />
         </div>
       </header>
 
       {/* User Info Bar */}
-      <div className="bg-[#128a61]/50 px-4 py-2 flex items-center justify-between border-b border-teal-700/30 backdrop-blur-sm sticky top-[52px] z-30">
+      <div className="bg-[var(--bg-surface)]/50 px-4 py-2 flex items-center justify-between border-b border-[var(--border-color)] backdrop-blur-sm sticky top-[52px] z-30 transition-colors duration-300">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-400 to-yellow-600 p-0.5 shadow-lg overflow-hidden">
-            <div className="w-full h-full bg-[#16a374] rounded-full flex items-center justify-center border-2 border-white overflow-hidden">
+            <div className="w-full h-full bg-[var(--bg-main)] rounded-full flex items-center justify-center border-2 border-white overflow-hidden transition-colors duration-300">
               {userData?.profilePictureUrl ? (
                 <img src={userData.profilePictureUrl} alt="Profile" className="w-full h-full object-cover" />
               ) : (
@@ -175,77 +183,133 @@ export default function HomeView({
             </div>
           </div>
           <div className="flex flex-col">
-            <span className="text-[10px] text-teal-200 font-bold uppercase tracking-wider leading-none">স্বাগতম (Welcome)</span>
-            <span className="text-xs font-black text-white tracking-tight">{userData?.username || 'Player_SPIN71'}</span>
+            <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-wider leading-none">স্বাগতম (Welcome)</span>
+            <span className="text-xs font-black text-[var(--text-main)] tracking-tight">{userData?.username || 'Player_SPIN71'}</span>
           </div>
         </div>
         <div className="flex flex-col items-end">
-          <span className="text-[10px] text-teal-200 font-bold uppercase tracking-wider leading-none">আইডি (ID)</span>
-          <span className="text-xs font-mono text-yellow-400 font-bold">{userData?.id || '84729104'}</span>
+          <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-wider leading-none">আইডি (ID)</span>
+          <span className="text-xs font-mono text-yellow-400 font-bold">{userData?.numericId || userData?.id?.substring(0, 8) || '84729104'}</span>
         </div>
       </div>
 
       {/* Hero Banner Section */}
       <div className="p-2">
-        <div className="relative h-44 bg-gradient-to-br from-teal-800 to-teal-900 rounded-3xl overflow-hidden border border-white/10 shadow-2xl group">
+        <div className="relative h-48 bg-gradient-to-br from-[#0a1e1e] to-[#050f0f] rounded-3xl overflow-hidden border border-yellow-500/20 shadow-[0_0_30px_rgba(234,179,8,0.15)] group">
           {/* Animated Background Elements */}
           <div className="absolute inset-0 z-0">
-            <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
-            <div className="absolute -right-20 -top-20 w-64 h-64 bg-yellow-500/10 rounded-full blur-3xl animate-pulse"></div>
-            <div className="absolute -left-20 -bottom-20 w-64 h-64 bg-teal-500/10 rounded-full blur-3xl animate-pulse delay-700"></div>
+            <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
+            <div className="absolute -right-20 -top-20 w-80 h-80 bg-yellow-500/5 rounded-full blur-[100px] animate-pulse"></div>
+            <div className="absolute -left-20 -bottom-20 w-80 h-80 bg-teal-500/5 rounded-full blur-[100px] animate-pulse delay-700"></div>
           </div>
 
           {/* Character Image */}
-          <div className="absolute right-0 bottom-0 w-1/2 h-full z-20 pointer-events-none">
+          <div className="absolute right-0 bottom-0 w-[55%] h-full z-20 pointer-events-none">
             <img 
-              src={GAME_IMAGES.CRASH_GAME} 
+              src="https://picsum.photos/seed/casino_host/800/800" 
               alt="Casino Host" 
-              className="w-full h-full object-contain object-bottom transform scale-125 group-hover:scale-130 transition-transform duration-500 drop-shadow-[0_20px_40px_rgba(0,0,0,0.9)]"
+              className="w-full h-full object-contain object-bottom transform scale-110 group-hover:scale-115 transition-transform duration-700 drop-shadow-[0_10px_30px_rgba(0,0,0,0.8)]"
               referrerPolicy="no-referrer"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-          </div>
-
-          {/* Floating Casino Elements */}
-          <div className="absolute right-1/4 top-10 z-30 animate-[bounce_4s_ease-in-out_infinite] opacity-90">
-            <div className="w-8 h-8 rounded-full border-4 border-dashed border-yellow-400 bg-red-600 shadow-lg flex items-center justify-center">
-              <div className="w-4 h-4 rounded-full border-2 border-white"></div>
-            </div>
+            <div className="absolute inset-0 bg-gradient-to-t from-[#050f0f]/80 via-transparent to-transparent"></div>
           </div>
 
           {/* Banner Content */}
-          <div className="z-30 pl-5 w-1/2 relative h-full flex flex-col justify-center">
-            <div className="flex items-center gap-2 mb-1">
-              <h2 className="text-xl font-black leading-tight text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-                কেসিনো <span className="text-yellow-400 italic">লাইভ</span> গেম 🔥
-              </h2>
-              <span className="bg-red-600 text-white text-[8px] font-black px-2 py-0.5 rounded-full animate-pulse shadow-lg border border-red-400">REAL</span>
-            </div>
-            
-            <div className="space-y-1">
-              <p className="text-xs text-yellow-100 font-medium drop-shadow-md flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-ping"></span>
-                সেরা গেমিং অভিজ্ঞতা
-              </p>
-              <div className="relative inline-block">
-                <p className="text-sm font-black text-white drop-shadow-lg uppercase tracking-wider italic">
-                  নিশ্চিত বিনোদন
-                </p>
-                <div className="absolute -bottom-1 left-0 w-full h-1 bg-gradient-to-r from-yellow-400 to-transparent rounded-full"></div>
+          <div className="z-30 pl-6 w-[60%] relative h-full flex flex-col justify-center">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="bg-yellow-500 text-black text-[10px] font-black px-2 py-0.5 rounded italic shadow-lg border border-yellow-300 uppercase tracking-tighter">
+                999BD EXCLUSIVE
               </div>
             </div>
+            
+            <h2 className="text-2xl font-black leading-none text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] mb-2">
+              বন্ধুদের আমন্ত্রণ জানান <br/>
+              <span className="text-yellow-400 italic text-3xl">৳ ৯৯৯</span> জিততে!
+            </h2>
+            
+            <div className="flex items-center gap-2 mb-4">
+              <div className="flex -space-x-2">
+                {[1,2,3].map(i => (
+                  <div key={i} className="w-6 h-6 rounded-full border-2 border-[#050f0f] bg-gray-800 overflow-hidden">
+                    <img src={`https://picsum.photos/seed/user${i}/50/50`} alt="user" className="w-full h-full object-cover" />
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-yellow-100/80 font-bold">
+                +৫০০ জন আজ জয়ী হয়েছেন
+              </p>
+            </div>
 
-            <button className="mt-3 bg-gradient-to-r from-yellow-400 to-yellow-600 text-black text-[10px] font-black px-4 py-1.5 rounded-full shadow-lg hover:scale-105 active:scale-95 transition-all border border-yellow-200 uppercase tracking-tighter w-fit">
-              এখনই খেলুন
+            <button className="bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600 text-black text-xs font-black px-6 py-2.5 rounded-xl shadow-[0_10px_20px_rgba(234,179,8,0.3)] hover:scale-105 active:scale-95 transition-all border border-yellow-200 uppercase tracking-widest w-fit">
+              এখনই শুরু করুন
             </button>
           </div>
 
           {/* Pagination Dots */}
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 z-40">
-            <div className="w-4 h-1.5 rounded-full bg-white"></div>
-            <div className="w-1.5 h-1.5 rounded-full bg-white/50"></div>
-            <div className="w-1.5 h-1.5 rounded-full bg-white/50"></div>
-            <div className="w-1.5 h-1.5 rounded-full bg-white/50"></div>
+          <div className="absolute bottom-3 left-6 flex gap-2 z-40">
+            <div className="w-6 h-1.5 rounded-full bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]"></div>
+            <div className="w-1.5 h-1.5 rounded-full bg-white/20"></div>
+            <div className="w-1.5 h-1.5 rounded-full bg-white/20"></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Live Winners Feed */}
+      <div className="px-2 mt-2">
+        <div className="bg-[#0a1e1e]/40 border border-yellow-500/10 rounded-2xl p-3 backdrop-blur-sm overflow-hidden relative">
+          <div className="flex items-center gap-2 mb-3 border-b border-white/5 pb-2">
+            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]"></div>
+            <h3 className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.2em]">লাইভ উইনার্স (Live Winners)</h3>
+          </div>
+          
+          <div className="h-24 overflow-hidden relative">
+            <div className="animate-scroll-vertical space-y-2">
+              {[
+                { user: 'Pl***82', amount: '৳ ৫,৪০০', game: 'Super Ace' },
+                { user: 'Ka***12', amount: '৳ ১২,০০০', game: 'Fortune Gems' },
+                { user: 'Ab***09', amount: '৳ ২,৫০০', game: 'Aviator' },
+                { user: 'Ro***44', amount: '৳ ৪৫,০০০', game: 'Money Coming' },
+                { user: 'Sa***77', amount: '৳ ৮,৯০০', game: 'Boxing King' },
+                { user: 'Mi***21', amount: '৳ ৩,২০০', game: 'Crazy 777' },
+                { user: 'Ju***55', amount: '৳ ১৫,৬০০', game: 'Roma X' },
+              ].map((win, i) => (
+                <div key={i} className="flex items-center justify-between bg-white/5 p-2 rounded-xl border border-white/5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-yellow-500/10 flex items-center justify-center text-yellow-500 border border-yellow-500/20">
+                      <User size={14} />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-white">{win.user}</p>
+                      <p className="text-[8px] text-slate-400 font-bold uppercase">{win.game}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-black text-green-400 italic">{win.amount}</p>
+                    <p className="text-[8px] text-slate-500 font-bold uppercase">জয়ী</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Referral Program Banner */}
+      <div className="px-2 mt-4">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1a1a1a] to-[#0a0a0a] border border-yellow-500/20 p-4 shadow-xl group">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-500/10 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-yellow-500/20 transition-all"></div>
+          <div className="relative z-10 flex items-center justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Users className="text-yellow-500" size={20} />
+                <span className="text-[10px] font-black text-yellow-500 uppercase tracking-widest">রেফারেল প্রোগ্রাম</span>
+              </div>
+              <h4 className="text-lg font-black text-white italic">বন্ধুদের আমন্ত্রণ জানান</h4>
+              <p className="text-xs text-slate-400 font-bold">প্রতি রেফারেলে পান <span className="text-yellow-400">৳ ৯৯৯</span> পর্যন্ত বোনাস!</p>
+            </div>
+            <button className="bg-yellow-500 text-black px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-tighter shadow-lg hover:scale-105 active:scale-95 transition-all">
+              শেয়ার করুন
+            </button>
           </div>
         </div>
       </div>
@@ -316,16 +380,16 @@ export default function HomeView({
       </div>
 
       {/* Marquee Announcement */}
-      <div className="flex items-center gap-2 px-3 py-2 text-sm text-teal-100 bg-[#16a374] mt-4">
-        <Volume2 size={18} className="shrink-0 text-teal-200" />
+      <div className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--text-muted)] bg-[var(--bg-main)] mt-4 transition-colors duration-300">
+        <Volume2 size={18} className="shrink-0 text-[var(--text-muted)]" />
         <div className="overflow-hidden whitespace-nowrap flex-1 relative h-5">
-          <p className="absolute animate-marquee text-[13px]">
-            বোনাস এবং একাধিক ডিপোজিট অফার অফার করি। আমরা আশা করি আপনি আমাদের সাথে উপভোগ করবেন!
+          <p className="absolute animate-marquee text-[13px] text-[var(--text-main)]">
+            {noticeText}
           </p>
         </div>
         <div className="relative shrink-0 ml-2">
-          <Mail size={22} className="text-white" />
-          <span className="absolute -top-1.5 -right-2 bg-red-600 text-white text-[9px] px-1 rounded-full border border-[#16a374]">
+          <Mail size={22} className="text-[var(--text-main)]" />
+          <span className="absolute -top-1.5 -right-2 bg-red-600 text-white text-[9px] px-1 rounded-full border border-[var(--bg-main)]">
             99+
           </span>
         </div>
@@ -334,18 +398,18 @@ export default function HomeView({
       {/* Search Bar */}
       <div className="px-2 py-2">
         <div className="relative">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-teal-400" />
+          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
           <input 
             type="text" 
             placeholder="গেম খুঁজুন..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-[#128a61] border border-teal-600/50 rounded-full py-2 pl-10 pr-4 text-sm text-white placeholder-teal-300 focus:outline-none focus:border-teal-400 transition-colors"
+            className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] rounded-full py-2 pl-10 pr-4 text-sm text-[var(--text-main)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--brand-primary)] transition-all duration-300 shadow-inner"
           />
           {searchQuery && (
             <button 
               onClick={() => setSearchQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-teal-300"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
             >
               <X size={16} />
             </button>
@@ -354,18 +418,26 @@ export default function HomeView({
       </div>
 
       {/* Category Navigation */}
-      <div className="flex overflow-x-auto gap-6 px-4 py-2 no-scrollbar text-[13px] font-medium border-b border-teal-600/50">
+      <div className="flex overflow-x-auto gap-4 px-4 py-3 no-scrollbar bg-[#0a1e1e]/20 border-b border-white/5 sticky top-[92px] z-30 backdrop-blur-md transition-colors duration-300">
         {[
           { id: 'সেরা', icon: Flame, label: 'সেরা' },
           { id: 'পছন্দ', icon: Star, label: 'পছন্দ' },
           { id: 'স্লট', icon: Gamepad2, label: 'স্লট' },
+          { id: 'লাইভ', icon: Tv, label: 'লাইভ' },
+          { id: 'টেবিল', icon: Club, label: 'টেবিল' },
+          { id: 'মাছ', icon: Fish, label: 'মাছ' },
         ].map((cat) => (
           <div 
             key={cat.id}
             onClick={() => setActiveCategory(cat.id)}
-            className={`flex items-center gap-1.5 whitespace-nowrap cursor-pointer transition-colors ${activeCategory === cat.id ? 'text-white' : 'text-teal-200'}`}
+            className={`flex flex-col items-center gap-1 min-w-[50px] cursor-pointer transition-all ${activeCategory === cat.id ? 'scale-110' : 'opacity-60'}`}
           >
-            <cat.icon size={16} className={activeCategory === cat.id ? 'text-teal-100' : ''} /> {cat.label}
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${activeCategory === cat.id ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-black shadow-lg shadow-yellow-500/20' : 'bg-white/5 text-slate-400'}`}>
+              <cat.icon size={20} />
+            </div>
+            <span className={`text-[10px] font-black uppercase tracking-tighter ${activeCategory === cat.id ? 'text-yellow-500' : 'text-slate-500'}`}>
+              {cat.label}
+            </span>
           </div>
         ))}
       </div>
@@ -374,25 +446,25 @@ export default function HomeView({
       <div className="px-2 pt-3 pb-6">
         {/* Section Header */}
         <div className="flex items-center justify-between mb-3 px-1">
-          <div className="flex items-center gap-1.5 text-lg font-bold text-teal-50">
+          <div className="flex items-center gap-1.5 text-lg font-bold text-[var(--text-main)]">
             {activeCategory === 'পছন্দ' ? (
               <Star className="text-yellow-400 fill-yellow-400" size={20} />
             ) : (
-              <Flame className="text-teal-200 fill-teal-200" size={20} />
+              <Flame className="text-[var(--brand-primary)] fill-[var(--brand-primary)]" size={20} />
             )} 
             {activeCategory}
           </div>
           <div className="flex items-center gap-1">
-            <button className="p-1 rounded bg-[#128a61] text-teal-200 hover:text-white transition-colors">
+            <button className="p-1 rounded bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors duration-300">
               <ChevronLeft size={16} />
             </button>
             <button 
               onClick={() => setActiveCategory('সব')}
-              className={`px-4 py-1 rounded text-[13px] font-medium transition-colors ${activeCategory === 'সব' ? 'bg-yellow-500 text-black' : 'bg-[#128a61] text-teal-50 hover:bg-[#0f7552]'}`}
+              className={`px-4 py-1 rounded text-[13px] font-medium transition-colors duration-300 ${activeCategory === 'সব' ? 'bg-yellow-500 text-black' : 'bg-[var(--bg-surface)] text-[var(--text-muted)] hover:bg-[var(--bg-main)] hover:text-[var(--text-main)]'}`}
             >
               সব
             </button>
-            <button className="p-1 rounded bg-[#128a61] text-teal-200 hover:text-white transition-colors">
+            <button className="p-1 rounded bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors duration-300">
               <ChevronRight size={16} />
             </button>
           </div>
@@ -512,4 +584,29 @@ export default function HomeView({
       )}
     </div>
   );
+}
+
+const style = `
+  @keyframes scroll-vertical {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(-50%); }
+  }
+  .animate-scroll-vertical {
+    animation: scroll-vertical 15s linear infinite;
+  }
+  .animate-scroll-vertical:hover {
+    animation-play-state: paused;
+  }
+  @keyframes fly-card {
+    0% { transform: translate(-30px, 20px) rotate(-30deg) scale(0.8); opacity: 0; }
+    20% { opacity: 1; }
+    80% { opacity: 1; }
+    100% { transform: translate(40px, -30px) rotate(-30deg) scale(1.2); opacity: 0; }
+  }
+`;
+
+if (typeof document !== 'undefined') {
+  const styleTag = document.createElement('style');
+  styleTag.innerHTML = style;
+  document.head.appendChild(styleTag);
 }

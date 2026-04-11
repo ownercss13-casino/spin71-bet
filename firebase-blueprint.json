@@ -257,6 +257,37 @@
           "description": "Map of game IDs to their global names"
         }
       }
+    },
+    "ApiToken": {
+      "title": "ApiToken",
+      "description": "API token for external system access",
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "The actual API token string"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the API token"
+        },
+        "expirationDate": {
+          "type": "string",
+          "format": "date",
+          "description": "Expiration date of the token"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "inactive"],
+          "description": "Status of the token"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["token", "name", "expirationDate", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -291,6 +322,10 @@
     "/global_config/{configId}": {
       "schema": "GlobalConfig",
       "description": "Global configuration settings accessible to all users"
+    },
+    "/api_tokens/{tokenId}": {
+      "schema": "ApiToken",
+      "description": "Collection of API tokens for admin access"
     }
   }
 }

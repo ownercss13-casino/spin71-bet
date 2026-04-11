@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { updateTurnover } from '../services/firebaseService';
 import { auth } from '../firebase';
 import { useLiveAviator } from '../hooks/useLiveAviator';
+import GameLoader from './GameLoader';
 import { ArrowLeft, Wallet, Play, X, History, Users, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GAME_IMAGES } from '../constants/gameAssets';
@@ -18,7 +19,13 @@ interface AviatorGameProps {
 }
 
 export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, logo, onLogoChange, showToast, referredBy, globalName }: AviatorGameProps) {
+  const [isLoading, setIsLoading] = useState(true);
   const IS_BETTING_DISABLED = false;
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 2000);
+    return () => clearTimeout(timer);
+  }, []);
   const { session } = useLiveAviator();
   const [multiplier, setMultiplier] = useState(1.00);
   const [isFlying, setIsFlying] = useState(false);
@@ -228,6 +235,13 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
       onCopy={(e) => e.preventDefault()}
       style={{ touchAction: 'none' }}
     >
+      {isLoading && (
+        <GameLoader 
+          gameName={globalName || 'AVIATOR'} 
+          provider="SPRIBE" 
+          logo={logo || undefined} 
+        />
+      )}
       {/* Header */}
       <div className="flex items-center justify-between p-3 bg-[#1b1b1b] border-b border-white/5">
         <div className="flex items-center gap-3">

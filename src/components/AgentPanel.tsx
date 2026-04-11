@@ -69,7 +69,7 @@ export default function AgentPanel({
   casinoName,
   updateCasinoName
 }: AgentPanelProps) {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'players' | 'transfer' | 'earnings' | 'stats'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'players' | 'transfer' | 'earnings' | 'stats' | 'admin'>('dashboard');
 
   const tabs = [
     { id: 'dashboard', label: 'ড্যাশবোর্ড', icon: Activity },

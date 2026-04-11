@@ -4,7 +4,23 @@ import { claimDailyBonus, claimWelcomeBonus } from '../services/firebaseService'
 
 import { ToastType } from './Toast';
 
-export default function BonusCenter({ userData, balance, onBalanceUpdate, onTabChange, showToast }: { userData: any, balance: number, onBalanceUpdate: (newBalance: number) => void, onTabChange: (tab: any) => void, showToast: (msg: string, type?: ToastType) => void }) {
+export default function BonusCenter({ 
+  userData, 
+  balance, 
+  onBalanceUpdate, 
+  onTabChange, 
+  showToast, 
+  welcomeBonus = 57,
+  onOpenPromoModal
+}: { 
+  userData: any, 
+  balance: number, 
+  onBalanceUpdate: (newBalance: number) => void, 
+  onTabChange: (tab: any) => void, 
+  showToast: (msg: string, type?: ToastType) => void, 
+  welcomeBonus?: number,
+  onOpenPromoModal?: () => void
+}) {
   const [showPopup, setShowPopup] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
   const [popupMessage, setPopupMessage] = useState("");
@@ -41,9 +57,9 @@ export default function BonusCenter({ userData, balance, onBalanceUpdate, onTabC
       setIsClaiming(true);
       setTimeout(async () => {
         try {
-          await claimWelcomeBonus(userData.id, balance);
-          onBalanceUpdate(balance + 57);
-          setPopupMessage("আপনি ৫৭ টাকা ওয়েলকাম বোনাস পেয়েছেন!");
+          await claimWelcomeBonus(userData.id, balance, welcomeBonus);
+          onBalanceUpdate(balance + welcomeBonus);
+          setPopupMessage(`আপনি ${welcomeBonus} টাকা ওয়েলকাম বোনাস পেয়েছেন!`);
           setShowPopup(true);
         } catch (error) {
           console.error("Error claiming welcome bonus:", error);
@@ -55,21 +71,44 @@ export default function BonusCenter({ userData, balance, onBalanceUpdate, onTabC
   };
 
   return (
-    <div className="p-6 bg-[#0a4d3c] min-h-screen text-white pb-24 relative">
+    <div className="p-6 bg-[var(--bg-main)] min-h-screen text-[var(--text-main)] pb-24 relative transition-colors duration-300">
       {isClaiming && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm max-w-md mx-auto">
-          <div className="flex flex-col items-center gap-3 bg-teal-900/90 p-8 rounded-3xl border border-teal-500/30 shadow-2xl scale-110">
+          <div className="flex flex-col items-center gap-3 bg-[var(--bg-surface)]/90 p-8 rounded-3xl border border-[var(--border-color)] shadow-2xl scale-110">
             <RefreshCw size={48} className="text-yellow-500 animate-spin" />
-            <span className="text-white font-black italic uppercase tracking-tighter text-lg animate-pulse">Claiming...</span>
+            <span className="text-[var(--text-main)] font-black italic uppercase tracking-tighter text-lg animate-pulse">Claiming...</span>
           </div>
         </div>
       )}
       <h2 className="text-2xl font-black italic mb-6 text-yellow-400">বোনাস সেন্টার (Bonus Center)</h2>
       
       <div className="space-y-4">
+        {/* Promo Code Card */}
+        <div className="bg-gradient-to-br from-teal-900/40 to-teal-800/20 p-6 rounded-2xl shadow-xl border border-teal-500/30 relative overflow-hidden group transition-all duration-300 hover:border-teal-400/50">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform text-teal-400">
+            <Gift size={80} />
+          </div>
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-teal-500/20 rounded-lg">
+                <Gift className="text-teal-400" size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-white">প্রোমো কোড (Promo Code)</h3>
+            </div>
+            <p className="text-teal-200/70 text-sm mb-4">আপনার কাছে কি কোনো প্রোমো কোড আছে? এখানে ব্যবহার করুন এবং বোনাস পান।</p>
+            
+            <button 
+              onClick={() => onOpenPromoModal?.()}
+              className="w-full font-black py-4 rounded-xl text-lg transition-all shadow-lg bg-teal-500 text-black hover:bg-teal-400 hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
+            >
+              প্রোমো কোড লিখুন (Enter Code)
+            </button>
+          </div>
+        </div>
+
         {/* Daily Bonus Card */}
-        <div className="bg-gradient-to-br from-teal-800 to-teal-900 p-6 rounded-2xl shadow-xl border border-teal-700 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+        <div className="bg-[var(--bg-card)] p-6 rounded-2xl shadow-xl border border-[var(--border-color)] relative overflow-hidden group transition-colors duration-300">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform text-[var(--text-main)]">
             <Calendar size={80} />
           </div>
           <div className="relative z-10">
@@ -77,9 +116,9 @@ export default function BonusCenter({ userData, balance, onBalanceUpdate, onTabC
               <div className="p-2 bg-yellow-500/20 rounded-lg">
                 <Calendar className="text-yellow-500" size={24} />
               </div>
-              <h3 className="text-xl font-bold">ডেইলি বোনাস (Daily Bonus)</h3>
+              <h3 className="text-xl font-bold text-[var(--text-main)]">ডেইলি বোনাস (Daily Bonus)</h3>
             </div>
-            <p className="text-teal-200 text-sm mb-4">প্রতি ২৪ ঘণ্টায় একবার ৬.৭৭ টাকা বোনাস পান।</p>
+            <p className="text-[var(--text-muted)] text-sm mb-4">প্রতি ২৪ ঘণ্টায় একবার ৬.৭৭ টাকা বোনাস পান।</p>
             
             <button 
               onClick={handleClaimDaily}
@@ -89,7 +128,7 @@ export default function BonusCenter({ userData, balance, onBalanceUpdate, onTabC
               {canClaimDaily ? '৬.৭৭ টাকা ক্লেইম করুন' : 'ইতিমধ্যে ক্লেইম করা হয়েছে'}
             </button>
             {!canClaimDaily && lastClaimed && (
-              <p className="text-center text-[10px] text-teal-400 mt-2">
+              <p className="text-center text-[10px] text-[var(--text-muted)] mt-2">
                 পরবর্তী ক্লেইম: {new Date(lastClaimed.getTime() + 24 * 60 * 60 * 1000).toLocaleString()}
               </p>
             )}
@@ -97,8 +136,8 @@ export default function BonusCenter({ userData, balance, onBalanceUpdate, onTabC
         </div>
 
         {/* Welcome Bonus Card */}
-        <div className="bg-gradient-to-br from-teal-800 to-teal-900 p-6 rounded-2xl shadow-xl border border-teal-700 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+        <div className="bg-[var(--bg-card)] p-6 rounded-2xl shadow-xl border border-[var(--border-color)] relative overflow-hidden group transition-colors duration-300">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform text-[var(--text-main)]">
             <Star size={80} />
           </div>
           <div className="relative z-10">
@@ -107,21 +146,21 @@ export default function BonusCenter({ userData, balance, onBalanceUpdate, onTabC
                 <div className="p-2 bg-yellow-500/20 rounded-lg">
                   <Star className="text-yellow-500" size={24} />
                 </div>
-                <h3 className="text-xl font-bold">ওয়েলকাম বোনাস (Welcome Bonus)</h3>
+                <h3 className="text-xl font-bold text-[var(--text-main)]">ওয়েলকাম বোনাস (Welcome Bonus)</h3>
               </div>
               <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${hasMadeDeposit ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
                 {hasMadeDeposit ? 'ডিপোজিট সম্পন্ন' : 'ডিপোজিট প্রয়োজন'}
               </div>
             </div>
 
-            <div className="bg-teal-950/50 rounded-xl p-4 mb-4 border border-teal-700/50">
+            <div className="bg-[var(--bg-surface)] rounded-xl p-4 mb-4 border border-[var(--border-color)] transition-colors duration-300">
               <div className="flex justify-between items-center mb-2">
-                <span className="text-teal-300 text-xs">বোনাস পরিমাণ:</span>
-                <span className="text-yellow-400 font-bold">৫৭.০০ টাকা</span>
+                <span className="text-[var(--text-muted)] text-xs">বোনাস পরিমাণ:</span>
+                <span className="text-yellow-400 font-bold">{welcomeBonus.toFixed(2)} টাকা</span>
               </div>
               <div className="flex justify-between items-center mb-2 relative">
                 <span 
-                  className="text-teal-300 text-xs cursor-help border-b border-dotted border-teal-500"
+                  className="text-[var(--text-muted)] text-xs cursor-help border-b border-dotted border-[var(--brand-primary)]"
                   onMouseEnter={() => setTooltip('wagering')}
                   onMouseLeave={() => setTooltip(null)}
                 >
@@ -132,11 +171,11 @@ export default function BonusCenter({ userData, balance, onBalanceUpdate, onTabC
                     বোনাস ব্যালেন্স উইথড্র করার আগে অন্তত ১ গুণ গেম খেলতে হবে।
                   </div>
                 )}
-                <span className="text-white text-xs font-medium">১x (১ গুণ)</span>
+                <span className="text-[var(--text-main)] text-xs font-medium">১x (১ গুণ)</span>
               </div>
               <div className="flex justify-between items-center relative">
                 <span 
-                  className="text-teal-300 text-xs cursor-help border-b border-dotted border-teal-500"
+                  className="text-[var(--text-muted)] text-xs cursor-help border-b border-dotted border-[var(--brand-primary)]"
                   onMouseEnter={() => setTooltip('validity')}
                   onMouseLeave={() => setTooltip(null)}
                 >
@@ -147,11 +186,11 @@ export default function BonusCenter({ userData, balance, onBalanceUpdate, onTabC
                     বোনাসটি ক্লেইম করার পর ৭ দিনের মধ্যে ব্যবহার করতে হবে।
                   </div>
                 )}
-                <span className="text-white text-xs font-medium">৭ দিন</span>
+                <span className="text-[var(--text-main)] text-xs font-medium">৭ দিন</span>
               </div>
             </div>
 
-            <p className="text-teal-200 text-[11px] mb-4 leading-relaxed italic">
+            <p className="text-[var(--text-muted)] text-[11px] mb-4 leading-relaxed italic">
               * এই বোনাসটি শুধুমাত্র নতুন ইউজারদের জন্য। বোনাস ব্যালেন্স উইথড্র করার আগে অন্তত একবার গেম খেলতে হবে।
             </p>
             

@@ -16,12 +16,12 @@ export default function ProfileNavigation({ activeSubTab, handleSubTabChange }: 
   ];
 
   return (
-    <div className="flex px-4 mt-4 gap-2 overflow-x-auto no-scrollbar pb-2">
+    <div className="flex px-4 mt-4 gap-2 overflow-x-auto no-scrollbar pb-2 transition-colors duration-300">
       {tabs.map((tab) => (
         <button 
           key={tab.id}
           onClick={() => handleSubTabChange(tab.id)}
-          className={`flex-1 min-w-[80px] py-2 rounded-lg text-sm font-bold transition-colors ${activeSubTab === tab.id ? 'bg-yellow-500 text-black shadow-md' : 'bg-teal-800/50 text-teal-100 border border-teal-700'}`}
+          className={`flex-1 min-w-[80px] py-2 rounded-lg text-sm font-bold transition-all duration-300 ${activeSubTab === tab.id ? 'bg-yellow-500 text-black shadow-md' : 'bg-[var(--bg-surface)] text-[var(--text-muted)] border border-[var(--border-color)]'}`}
         >
           {tab.label}
         </button>

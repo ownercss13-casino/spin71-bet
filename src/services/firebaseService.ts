@@ -3,7 +3,9 @@ import { collection, addDoc, getDocs, deleteDoc, doc, query, where, serverTimest
 
 export interface User {
   id: string;
+  numericId?: string;
   username: string;
+  fullName?: string;
   email: string;
   phoneNumber?: string;
   registrationDate: string;
@@ -26,6 +28,15 @@ export interface User {
   country?: string | null;
   role?: 'user' | 'agent' | 'admin';
   aviatorLogo?: string | null;
+  bankCards?: BankCard[];
+}
+
+export interface BankCard {
+  id: string;
+  bankName: string;
+  accountNumber: string;
+  accountHolderName: string;
+  isDefault?: boolean;
 }
 
 export interface Notification {
@@ -114,12 +125,33 @@ export const updateBalance = async (userId: string, balance: number) => {
   }
 };
 
+import { VIP_LEVELS, getVIPLevel } from '../constants/vipLevels';
+
 export const updateTurnover = async (userId: string, amount: number, referredBy?: string | null) => {
   const path = `users/${userId}`;
   try {
-    // Update user's own turnover
+    // Get current user data to calculate new VIP level
+    const userDoc = await getDoc(doc(db, path));
+    if (!userDoc.exists()) return;
+    
+    const userData = userDoc.data() as User;
+    const newTurnover = (userData.turnover || 0) + amount;
+    
+    const currentVIP = getVIPLevel(newTurnover);
+    const nextVIP = VIP_LEVELS[currentVIP.level + 1];
+    
+    let progress = 100;
+    if (nextVIP) {
+      const range = nextVIP.minTurnover - currentVIP.minTurnover;
+      const currentProgress = newTurnover - currentVIP.minTurnover;
+      progress = Math.min(100, Math.floor((currentProgress / range) * 100));
+    }
+
+    // Update user's own turnover and VIP status
     await updateDoc(doc(db, path), { 
-      turnover: increment(amount)
+      turnover: increment(amount),
+      vipLevel: currentVIP.level,
+      vipProgress: progress
     });
 
     // If user was referred, give commission to referrer
@@ -161,17 +193,17 @@ export const claimDailyBonus = async (userId: string, currentBalance: number) =>
   }
 };
 
-export const claimWelcomeBonus = async (userId: string, currentBalance: number) => {
+export const claimWelcomeBonus = async (userId: string, currentBalance: number, amount: number) => {
   const path = `users/${userId}`;
   try {
     await updateDoc(doc(db, path), {
-      balance: currentBalance + 57,
-      requiredTurnover: increment(57 * 7),
+      balance: currentBalance + amount,
+      requiredTurnover: increment(amount * 7),
       hasClaimedWelcomeBonus: true
     });
     await addNotification(userId, {
       title: "স্বাগতম বোনাস প্রাপ্ত!",
-      message: "আপনি সফলভাবে ৳ ৫৭ স্বাগতম বোনাস পেয়েছেন।",
+      message: `আপনি সফলভাবে ৳ ${amount} স্বাগতম বোনাস পেয়েছেন।`,
       type: "bonus"
     });
   } catch (error) {
@@ -185,6 +217,36 @@ export const updateAllButtonName = async (newName: string) => {
     await setDoc(doc(db, path), { allButtonName: newName }, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
+  }
+};
+
+export const addBankCard = async (userId: string, card: Omit<BankCard, 'id'>) => {
+  const path = `users/${userId}`;
+  const newCard = { ...card, id: Math.random().toString(36).substr(2, 9) };
+  try {
+    const userDoc = await getDoc(doc(db, path));
+    const userData = userDoc.data();
+    const bankCards = userData?.bankCards || [];
+    await updateDoc(doc(db, path), {
+      bankCards: [...bankCards, newCard]
+    });
+    return newCard;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+};
+
+export const removeBankCard = async (userId: string, cardId: string) => {
+  const path = `users/${userId}`;
+  try {
+    const userDoc = await getDoc(doc(db, path));
+    const userData = userDoc.data();
+    const bankCards = userData?.bankCards || [];
+    await updateDoc(doc(db, path), {
+      bankCards: bankCards.filter((c: any) => c.id !== cardId)
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
   }
 };
 
@@ -287,7 +349,25 @@ export const sendMessage = async (userId: string, text: string, sender: 'user' |
   }
 };
 
-export const updateGlobalGameLogo = async (gameId: string, logoUrl: string) => {
+export const updateGlobalGameLogo = async (gameId: string, logoUrl: string, isAdmin: boolean = false) => {
+  if (!isAdmin) {
+    // Submit request for approval
+    const path = 'logo_requests';
+    try {
+      await addDoc(collection(db, path), {
+        gameId,
+        type: 'logo',
+        value: logoUrl,
+        status: 'pending',
+        requestedBy: auth.currentUser?.uid,
+        requestedAt: serverTimestamp()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+    }
+    return;
+  }
+
   const path = `global_config/game_logos`;
   try {
     await updateDoc(doc(db, path), {
@@ -305,7 +385,25 @@ export const updateGlobalGameLogo = async (gameId: string, logoUrl: string) => {
   }
 };
 
-export const updateGlobalGameName = async (gameId: string, name: string) => {
+export const updateGlobalGameName = async (gameId: string, name: string, isAdmin: boolean = false) => {
+  if (!isAdmin) {
+    // Submit request for approval
+    const path = 'logo_requests';
+    try {
+      await addDoc(collection(db, path), {
+        gameId,
+        type: 'name',
+        value: name,
+        status: 'pending',
+        requestedBy: auth.currentUser?.uid,
+        requestedAt: serverTimestamp()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+    }
+    return;
+  }
+
   const path = `global_config/game_names`;
   try {
     await updateDoc(doc(db, path), {
@@ -323,6 +421,40 @@ export const updateGlobalGameName = async (gameId: string, name: string) => {
   }
 };
 
+export const updateGlobalGameProvider = async (gameId: string, provider: string) => {
+  const path = `global_config/game_providers`;
+  try {
+    await updateDoc(doc(db, path), {
+      [gameId]: provider
+    });
+  } catch (error) {
+    // If document doesn't exist, create it
+    try {
+      await setDoc(doc(db, path), {
+        [gameId]: provider
+      });
+    } catch (innerError) {
+      handleFirestoreError(innerError, OperationType.WRITE, path);
+    }
+  }
+};
+
+export const createPromoCode = async (code: string, amount: number, maxUses: number = 0, turnoverMultiplier: number = 5) => {
+  const path = `promo_codes/${code.toUpperCase()}`;
+  try {
+    await setDoc(doc(db, 'promo_codes', code.toUpperCase()), {
+      amount,
+      maxUses,
+      usedCount: 0,
+      isActive: true,
+      turnoverMultiplier,
+      createdAt: serverTimestamp()
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, 'promo_codes');
+  }
+};
+
 export const clearChatHistory = async (userId: string) => {
   const path = `users/${userId}/chat`;
   try {
@@ -332,6 +464,19 @@ export const clearChatHistory = async (userId: string) => {
     await Promise.all(deletePromises);
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
+  }
+};
+
+export const updateGlobalAppSettings = async (settings: Record<string, any>) => {
+  const path = `global_config/app_settings`;
+  try {
+    await updateDoc(doc(db, path), settings);
+  } catch (error) {
+    try {
+      await setDoc(doc(db, path), settings);
+    } catch (innerError) {
+      handleFirestoreError(innerError, OperationType.WRITE, path);
+    }
   }
 };
 

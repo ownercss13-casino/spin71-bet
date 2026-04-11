@@ -8,8 +8,9 @@ import Skeleton from './Skeleton';
 import { Timestamp, collection, query, where, orderBy, onSnapshot, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { unlink, linkWithPopup, GoogleAuthProvider, FacebookAuthProvider } from 'firebase/auth';
-import { Smartphone, ChevronLeft, CreditCard, ChevronRight, AlertTriangle, RefreshCw, AlertCircle, CheckCircle2, X, User, Settings, Wallet, Shield, Bell, LogOut, Gift, Award, Users, ArrowUpRight, ArrowDownLeft, Clock, Gamepad2, KeyRound, UserCog, Headset, HelpCircle, BadgeCheck, FileText, Camera, Send, Facebook, Mail, Link, Filter, ArrowDownUp, QrCode, Copy, Check, Download, Eye, EyeOff, MapPin, Calendar, Loader2, Building2, Search, Play, Info, TrendingUp, Edit, Crown, History as HistoryIcon } from 'lucide-react';
-import { updateUserProfile, addNotification } from '../services/firebaseService';
+import { Smartphone, ChevronLeft, CreditCard, ChevronRight, AlertTriangle, RefreshCw, AlertCircle, CheckCircle2, X, User, Settings, Wallet, Shield, Bell, LogOut, Gift, Award, Users, ArrowUpRight, ArrowDownLeft, Clock, Gamepad2, KeyRound, UserCog, Headset, HelpCircle, BadgeCheck, FileText, Camera, Send, Facebook, Mail, Link, Filter, ArrowDownUp, QrCode, Copy, Check, Download, Eye, EyeOff, MapPin, Calendar, Loader2, Building2, Search, Play, Info, TrendingUp, Edit, Crown, History as HistoryIcon, BarChart3, ClipboardList, UserPlus, Coins, Percent, MessageSquare, MessageCircle, Lock, Trophy, FileSearch, AtSign, MessageSquareText, CheckSquare, Sparkles } from 'lucide-react';
+import { updateUserProfile, addNotification, addBankCard, removeBankCard } from '../services/firebaseService';
+import { VIP_LEVELS, getVIPLevel, getNextVIPLevel } from '../constants/vipLevels';
 const fetcher = (url: string) => fetch(url).then(res => {
   if (!res.ok) throw new Error('Network response was not ok');
   return res.json();
@@ -34,7 +35,9 @@ export default function ProfileView({
   updateGlobalGameUrl,
   updateGlobalGameOption,
   allButtonName,
-  updateAllButtonName
+  updateAllButtonName,
+  initialSubTab = 'dashboard',
+  minWithdraw = 500
 }: { 
   onTabChange: (tab: any) => void, 
   balance: number, 
@@ -52,26 +55,47 @@ export default function ProfileView({
   updateGlobalGameUrl?: (gameId: string, url: string) => Promise<void>,
   updateGlobalGameOption?: (gameId: string, option: string) => Promise<void>,
   allButtonName?: string,
-  updateAllButtonName?: (newName: string) => Promise<void>
+  updateAllButtonName?: (newName: string) => Promise<void>,
+  initialSubTab?: 'dashboard' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory' | 'reward-center' | 'betting-record' | 'profit-loss' | 'deposit-record' | 'withdraw-record' | 'account-record' | 'security' | 'rebate' | 'mail' | 'feedback' | 'support' | 'invite',
+  minWithdraw?: number
 }) {
-  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory'>('overview');
+  const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory' | 'reward-center' | 'betting-record' | 'profit-loss' | 'deposit-record' | 'withdraw-record' | 'account-record' | 'security' | 'rebate' | 'mail' | 'feedback' | 'support' | 'invite'>(initialSubTab);
+  
+  useEffect(() => {
+    if (initialSubTab) {
+      setActiveSubTab(initialSubTab);
+    }
+  }, [initialSubTab]);
   const [isTabLoading, setIsTabLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [profilePic, setProfilePic] = useState<string | null>(userData?.profilePictureUrl || null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
+  const [isVIPDetailsModalOpen, setIsVIPDetailsModalOpen] = useState(false);
   const [isTurnoverInfoModalOpen, setIsTurnoverInfoModalOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [editUsername, setEditUsername] = useState("");
   const [editPhone, setEditPhone] = useState("");
+  const [editFullName, setEditFullName] = useState("");
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [showAgentPanel, setShowAgentPanel] = useState(false);
   const [isEditingCasinoName, setIsEditingCasinoName] = useState(false);
   const [newCasinoName, setNewCasinoName] = useState(casinoName || "");
   const [isUpdatingCasinoName, setIsUpdatingCasinoName] = useState(false);
+  const [isBankCardsModalOpen, setIsBankCardsModalOpen] = useState(false);
+  const [isAddingBankCard, setIsAddingBankCard] = useState(false);
+  const [newBankName, setNewBankName] = useState("");
+  const [newAccountNumber, setNewAccountNumber] = useState("");
+  const [newAccountHolderName, setNewAccountHolderName] = useState("");
+  const [isSubmittingBankCard, setIsSubmittingBankCard] = useState(false);
 
-  const [totals, setTotals] = useState({
+  const [totals, setTotals] = useState<{
+    deposit: number;
+    withdraw: number;
+    bonus: number;
+    rebate: number;
+  }>({
     deposit: 0,
     withdraw: 0,
     bonus: 0,
@@ -93,7 +117,12 @@ export default function ProfileView({
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const trxData = snapshot.docs.map(doc => doc.data());
       
-      const newTotals = trxData.reduce((acc, trx) => {
+      const newTotals = trxData.reduce<{
+        deposit: number;
+        withdraw: number;
+        bonus: number;
+        rebate: number;
+      }>((acc, trx: any) => {
         const amountStr = String(trx.amount || "0");
         const amount = parseFloat(amountStr.replace(/[^0-9.-]+/g,"")) || 0;
         if (trx.type === 'deposit') acc.deposit += amount;
@@ -111,7 +140,7 @@ export default function ProfileView({
     return () => unsubscribe();
   }, []);
 
-  const handleSubTabChange = (tab: 'overview' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory') => {
+  const handleSubTabChange = (tab: 'dashboard' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory') => {
     if (tab === activeSubTab) return;
     setIsTabLoading(true);
     setTimeout(() => {
@@ -123,6 +152,7 @@ export default function ProfileView({
   const handleOpenEditProfile = () => {
     setEditUsername(userData?.username || profileData?.username || "");
     setEditPhone(userData?.phoneNumber || userData?.phone || profileData?.phoneNumber || profileData?.phone || "");
+    setEditFullName(userData?.fullName || "");
     setIsEditProfileModalOpen(true);
   };
 
@@ -135,8 +165,10 @@ export default function ProfileView({
     try {
       await updateUserProfile(userId, {
         username: editUsername,
-        phoneNumber: editPhone
-      });
+        phoneNumber: editPhone,
+        phone: editPhone, // Keep both for compatibility
+        fullName: editFullName
+      } as any);
       showToast("প্রোফাইল আপডেট সফল হয়েছে! (Profile updated!)", "success");
       setIsEditProfileModalOpen(false);
     } catch (err) {
@@ -144,6 +176,47 @@ export default function ProfileView({
       showToast("প্রোফাইল আপডেট ব্যর্থ হয়েছে। (Update failed.)", "error");
     } finally {
       setIsUpdatingProfile(false);
+    }
+  };
+
+  const handleAddBankCard = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userData?.id) return;
+    if (!newBankName || !newAccountNumber || !newAccountHolderName) {
+      showToast("সবগুলো তথ্য পূরণ করুন।", "error");
+      return;
+    }
+
+    setIsSubmittingBankCard(true);
+    try {
+      await addBankCard(userData.id, {
+        bankName: newBankName,
+        accountNumber: newAccountNumber,
+        accountHolderName: newAccountHolderName
+      });
+      showToast("ব্যাংক কার্ড সফলভাবে যুক্ত হয়েছে!", "success");
+      setIsAddingBankCard(false);
+      setNewBankName("");
+      setNewAccountNumber("");
+      setNewAccountHolderName("");
+    } catch (err) {
+      console.error("Add bank card error:", err);
+      showToast("ব্যাংক কার্ড যুক্ত করতে ব্যর্থ হয়েছে।", "error");
+    } finally {
+      setIsSubmittingBankCard(false);
+    }
+  };
+
+  const handleRemoveBankCard = async (cardId: string) => {
+    if (!userData?.id) return;
+    if (!window.confirm("আপনি কি নিশ্চিতভাবে এই কার্ডটি মুছে ফেলতে চান?")) return;
+
+    try {
+      await removeBankCard(userData.id, cardId);
+      showToast("ব্যাংক কার্ড মুছে ফেলা হয়েছে।", "success");
+    } catch (err) {
+      console.error("Remove bank card error:", err);
+      showToast("মুছে ফেলতে ব্যর্থ হয়েছে।", "error");
     }
   };
 
@@ -238,22 +311,9 @@ export default function ProfileView({
   const profileData = userData;
 
   return (
-    <div className="flex-1 overflow-y-auto pb-20">
-      <ProfileHeader 
-        userData={userData}
-        profilePic={profilePic}
-        fileInputRef={fileInputRef}
-        handleProfilePicChange={handleProfilePicChange}
-        onBack={() => onTabChange('home')}
-      />
-
-      <ProfileNavigation 
-        activeSubTab={activeSubTab}
-        handleSubTabChange={handleSubTabChange}
-      />
-
+    <div className="flex-1 overflow-y-auto pb-20 bg-[#16a374]">
       {/* Tab Content */}
-      <div className="p-4 relative min-h-[300px]">
+      <div className="relative min-h-screen">
         {isTabLoading && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#0b0b0b]/60 backdrop-blur-[2px] rounded-2xl">
             <div className="flex flex-col items-center gap-3">
@@ -263,7 +323,7 @@ export default function ProfileView({
           </div>
         )}
         
-        {activeSubTab === 'overview' && (
+        {activeSubTab === 'dashboard' && (
           <OverviewTab 
             onTabChange={onTabChange} 
             onSubTabChange={handleSubTabChange}
@@ -279,6 +339,10 @@ export default function ProfileView({
             setIsTurnoverInfoModalOpen={setIsTurnoverInfoModalOpen}
             casinoName={casinoName}
             onEditCasinoName={() => setIsEditingCasinoName(true)}
+            onOpenBankCards={() => setIsBankCardsModalOpen(true)}
+            onLogout={onLogout}
+            onOpenVIPDetails={() => setIsVIPDetailsModalOpen(true)}
+            showToast={showToast}
           />
         )}
 
@@ -290,12 +354,70 @@ export default function ProfileView({
             profilePic={profilePic}
             onLogout={onLogout}
             showToast={showToast}
+            onOpenBankCards={() => setIsBankCardsModalOpen(true)}
           />
         )}
         {activeSubTab === 'history' && <HistoryTab email={profileData?.email} />}
         {activeSubTab === 'withdrawHistory' && <WithdrawalHistoryTab email={profileData?.email} />}
         {activeSubTab === 'links' && <LinksTab onTabChange={onTabChange} onSubTabChange={handleSubTabChange} showToast={showToast} />}
-        {activeSubTab === 'withdraw' && <WithdrawTab onBack={() => handleSubTabChange('overview')} balance={balance} showToast={showToast} userData={userData} setIsTurnoverInfoModalOpen={setIsTurnoverInfoModalOpen} />}
+        {activeSubTab === 'withdraw' && <WithdrawTab onBack={() => handleSubTabChange('dashboard')} balance={balance} showToast={showToast} userData={userData} setIsTurnoverInfoModalOpen={setIsTurnoverInfoModalOpen} minWithdraw={minWithdraw} />}
+        
+        {activeSubTab === 'betting-record' && <HistoryTab email={profileData?.email} />}
+        {activeSubTab === 'deposit-record' && <DepositHistoryTab />}
+        {activeSubTab === 'withdraw-record' && <WithdrawalHistoryTab email={profileData?.email} />}
+        {activeSubTab === 'account-record' && <AccountRecordTab />}
+        {activeSubTab === 'security' && (
+          <div className="p-4">
+            <button onClick={() => handleSubTabChange('dashboard')} className="flex items-center gap-2 text-teal-400 mb-4 font-bold">
+              <ChevronLeft size={20} /> ফিরে যান
+            </button>
+            <SettingsTab 
+              profileData={userData} 
+              onLogout={onLogout} 
+              onEditProfile={handleOpenEditProfile} 
+              showToast={showToast} 
+              hideAccountDetails={false} 
+              onOpenBankCards={() => setIsBankCardsModalOpen(true)}
+            />
+          </div>
+        )}
+        {activeSubTab === 'reward-center' && (
+          <div className="p-4 text-center">
+             <button onClick={() => handleSubTabChange('dashboard')} className="flex items-center gap-2 text-teal-400 mb-4 font-bold">
+              <ChevronLeft size={20} /> ফিরে যান
+            </button>
+            <h3 className="text-white font-bold mb-4">পুরস্কার সেন্টার (Reward Center)</h3>
+            <p className="text-teal-300 text-sm">আপনার বোনাস এবং পুরস্কার এখানে দেখুন।</p>
+            <button onClick={() => onTabChange('bonus')} className="mt-4 bg-yellow-500 text-black font-bold py-2 px-6 rounded-xl">বোনাস সেন্টারে যান</button>
+          </div>
+        )}
+        {activeSubTab === 'profit-loss' && <ProfitLossTab totals={totals} onBack={() => handleSubTabChange('dashboard')} />}
+        {activeSubTab === 'rebate' && (
+          <div className="p-4 text-center">
+             <button onClick={() => handleSubTabChange('dashboard')} className="flex items-center gap-2 text-teal-400 mb-4 font-bold">
+              <ChevronLeft size={20} /> ফিরে যান
+            </button>
+            <h3 className="text-white font-bold mb-4">রিবেট (Rebate)</h3>
+            <p className="text-teal-300 text-sm">আপনার ক্যাশব্যাক এবং কমিশন এখানে দেখুন।</p>
+            <div className="mt-6 bg-teal-900/20 p-6 rounded-2xl border border-teal-800/30">
+              <p className="text-teal-400 text-xs uppercase font-bold mb-1">মোট রিবেট আয়</p>
+              <p className="text-3xl font-black text-white italic">৳ {totals.rebate.toLocaleString()}</p>
+            </div>
+          </div>
+        )}
+        {activeSubTab === 'mail' && <MailTab onBack={() => handleSubTabChange('dashboard')} />}
+        {activeSubTab === 'feedback' && <FeedbackTab showToast={showToast} onBack={() => handleSubTabChange('dashboard')} />}
+        {activeSubTab === 'support' && <HelpCenterTab onBack={() => handleSubTabChange('dashboard')} />}
+        {activeSubTab === 'invite' && (
+          <div className="p-4 text-center">
+             <button onClick={() => handleSubTabChange('dashboard')} className="flex items-center gap-2 text-teal-400 mb-4 font-bold">
+              <ChevronLeft size={20} /> ফিরে যান
+            </button>
+            <h3 className="text-white font-bold mb-4">বন্ধুদের আমন্ত্রণ জানান (Invite Friends)</h3>
+            <p className="text-teal-300 text-sm">আপনার বন্ধুদের আমন্ত্রণ জানান এবং বোনাস পান।</p>
+            <button onClick={() => onTabChange('invite')} className="mt-4 bg-yellow-500 text-black font-bold py-2 px-6 rounded-xl">আমন্ত্রণ পেজে যান</button>
+          </div>
+        )}
       </div>
 
       {/* Agent Panel */}
@@ -409,7 +531,92 @@ export default function ProfileView({
           </div>
         </div>
       )}
-
+      {/* VIP Details Modal */}
+      {isVIPDetailsModalOpen && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl animate-in fade-in duration-300">
+          <div className="bg-slate-900 rounded-[40px] w-full max-w-lg overflow-hidden shadow-[0_0_100px_rgba(234,179,8,0.2)] animate-in zoom-in-95 duration-300 max-h-[90vh] flex flex-col border border-yellow-500/20">
+            <div className="p-8 border-b border-white/5 flex items-center justify-between bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative">
+              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
+              <div className="relative z-10">
+                <h3 className="text-2xl font-black text-yellow-500 italic uppercase tracking-tighter flex items-center gap-3">
+                  <Crown size={28} className="fill-yellow-500" /> 
+                  VIP মেম্বারশিপ
+                </h3>
+                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em] mt-1">এক্সক্লুসিভ রিওয়ার্ডস এবং বেনিফিটস</p>
+              </div>
+              <button 
+                onClick={() => setIsVIPDetailsModalOpen(false)}
+                className="relative z-10 text-white/40 hover:text-white p-2 bg-white/5 hover:bg-white/10 rounded-full transition-all"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
+              {VIP_LEVELS.map((level) => (
+                <div 
+                  key={level.level}
+                  className={`relative p-6 rounded-[32px] border transition-all duration-500 ${
+                    userData?.vipLevel === level.level 
+                      ? 'border-yellow-500 bg-gradient-to-br from-yellow-500/20 to-transparent shadow-[0_10px_30px_rgba(234,179,8,0.1)] scale-[1.02]' 
+                      : 'border-white/5 bg-white/5 opacity-60 grayscale-[0.5]'
+                  }`}
+                >
+                  {userData?.vipLevel === level.level && (
+                    <div className="absolute -top-3 right-6 bg-yellow-500 text-black text-[9px] font-black px-4 py-1 rounded-full shadow-lg uppercase tracking-widest animate-bounce">
+                      আপনার বর্তমান লেভেল
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center gap-5 mb-6">
+                    <div className={`w-16 h-16 rounded-2xl ${level.bgColor} flex items-center justify-center text-4xl shadow-2xl border ${level.borderColor} relative`}>
+                      <div className="absolute inset-0 bg-white/5 rounded-2xl"></div>
+                      <span className="relative z-10">{level.icon}</span>
+                    </div>
+                    <div>
+                      <h4 className={`text-xl font-black italic tracking-tighter ${level.color} flex items-center gap-2`}>
+                        VIP {level.level}: {level.name}
+                        {level.level >= 4 && <Sparkles size={16} className="text-yellow-400 animate-pulse" />}
+                      </h4>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="h-1 w-12 bg-slate-700 rounded-full overflow-hidden">
+                          <div className={`h-full ${level.color.replace('text-', 'bg-')} w-full`}></div>
+                        </div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          টার্নওভার: ৳ {level.minTurnover.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+ 
+                  <div className="space-y-3">
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">সুবিধাসমূহ (Exclusive Benefits):</p>
+                    <div className="grid grid-cols-1 gap-2">
+                      {level.benefits.map((benefit, i) => (
+                        <div key={i} className="flex items-center gap-3 text-[11px] font-bold text-slate-300 bg-white/5 p-3 rounded-2xl border border-white/5 hover:border-white/10 transition-colors">
+                          <div className="w-5 h-5 rounded-full bg-yellow-500/10 flex items-center justify-center shrink-0">
+                            <CheckCircle2 size={12} className="text-yellow-500" />
+                          </div>
+                          {benefit}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div className="p-8 bg-slate-900 border-t border-white/5">
+              <button 
+                onClick={() => setIsVIPDetailsModalOpen(false)}
+                className="w-full bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600 text-black font-black py-5 rounded-[24px] transition-all active:scale-95 uppercase tracking-[0.2em] text-xs shadow-[0_10px_30px_rgba(234,179,8,0.3)] hover:shadow-[0_15px_40px_rgba(234,179,8,0.4)]"
+              >
+                বন্ধ করুন
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Edit Profile Modal */}
       {isEditProfileModalOpen && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
@@ -439,6 +646,17 @@ export default function ProfileView({
                   className="w-full bg-teal-950/50 border border-teal-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-teal-400 transition-colors"
                   placeholder="আপনার ইউজার নেম লিখুন"
                   required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs text-teal-200 font-medium">পুরো নাম (Full Name)</label>
+                <input 
+                  type="text" 
+                  value={editFullName}
+                  onChange={(e) => setEditFullName(e.target.value)}
+                  className="w-full bg-teal-950/50 border border-teal-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-teal-400 transition-colors"
+                  placeholder="আপনার পুরো নাম লিখুন"
                 />
               </div>
               
@@ -529,11 +747,176 @@ export default function ProfileView({
           </div>
         )}
       </AnimatePresence>
+
+      {/* Bank Cards Modal */}
+      <AnimatePresence>
+        {isBankCardsModalOpen && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsBankCardsModalOpen(false)}
+              className="absolute inset-0 bg-black/90 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-teal-950 border border-teal-500/30 rounded-[32px] w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+            >
+              <div className="p-6 border-b border-teal-800/50 flex items-center justify-between bg-teal-900/50">
+                <h3 className="text-xl font-black text-white italic flex items-center gap-3">
+                  <CreditCard size={24} className="text-yellow-400" />
+                  ব্যাংক কার্ড (Bank Cards)
+                </h3>
+                <button 
+                  onClick={() => setIsBankCardsModalOpen(false)}
+                  className="text-teal-400 hover:text-white p-2 bg-white/5 rounded-full transition-all"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {isAddingBankCard ? (
+                  <motion.form 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    onSubmit={handleAddBankCard} 
+                    className="space-y-4 bg-teal-900/40 p-5 rounded-2xl border border-teal-500/20"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-white font-bold text-sm">নতুন কার্ড যুক্ত করুন</h4>
+                      <button 
+                        type="button"
+                        onClick={() => setIsAddingBankCard(false)}
+                        className="text-xs text-red-400 font-bold hover:underline"
+                      >
+                        বাতিল (Cancel)
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-teal-300 font-bold uppercase tracking-wider ml-1">ব্যাংকের নাম (Bank Name)</label>
+                        <select 
+                          value={newBankName}
+                          onChange={(e) => setNewBankName(e.target.value)}
+                          className="w-full bg-black/40 border border-teal-700 rounded-xl px-4 py-3 text-white text-sm focus:border-yellow-500 outline-none transition-all"
+                          required
+                        >
+                          <option value="" disabled className="bg-teal-950">নির্বাচন করুন</option>
+                          <option value="bKash" className="bg-teal-950">bKash</option>
+                          <option value="Nagad" className="bg-teal-950">Nagad</option>
+                          <option value="Rocket" className="bg-teal-950">Rocket</option>
+                          <option value="Upay" className="bg-teal-950">Upay</option>
+                          <option value="Bank Asia" className="bg-teal-950">Bank Asia</option>
+                          <option value="Dutch-Bangla Bank" className="bg-teal-950">Dutch-Bangla Bank</option>
+                          <option value="Islami Bank" className="bg-teal-950">Islami Bank</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-teal-300 font-bold uppercase tracking-wider ml-1">অ্যাকাউন্ট নাম্বার (Account No)</label>
+                        <input 
+                          type="text"
+                          value={newAccountNumber}
+                          onChange={(e) => setNewAccountNumber(e.target.value)}
+                          className="w-full bg-black/40 border border-teal-700 rounded-xl px-4 py-3 text-white text-sm focus:border-yellow-500 outline-none transition-all"
+                          placeholder="01XXXXXXXXX"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-teal-300 font-bold uppercase tracking-wider ml-1">অ্যাকাউন্ট হোল্ডার নাম (Holder Name)</label>
+                        <input 
+                          type="text"
+                          value={newAccountHolderName}
+                          onChange={(e) => setNewAccountHolderName(e.target.value)}
+                          className="w-full bg-black/40 border border-teal-700 rounded-xl px-4 py-3 text-white text-sm focus:border-yellow-500 outline-none transition-all"
+                          placeholder="আপনার নাম লিখুন"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <button 
+                      type="submit"
+                      disabled={isSubmittingBankCard}
+                      className="w-full bg-yellow-500 text-black font-black py-4 rounded-xl hover:bg-yellow-400 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-yellow-500/20"
+                    >
+                      {isSubmittingBankCard ? <Loader2 className="animate-spin" /> : "কার্ড যুক্ত করুন (Add Card)"}
+                    </button>
+                  </motion.form>
+                ) : (
+                  <button 
+                    onClick={() => setIsAddingBankCard(true)}
+                    className="w-full bg-teal-500/10 border-2 border-dashed border-teal-500/30 p-6 rounded-2xl flex flex-col items-center gap-3 hover:bg-teal-500/20 hover:border-teal-500/50 transition-all group"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-teal-500/20 flex items-center justify-center text-teal-400 group-hover:scale-110 transition-transform">
+                      <CreditCard size={24} />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-white font-bold">নতুন কার্ড যুক্ত করুন</p>
+                      <p className="text-teal-400 text-[10px] uppercase font-bold tracking-widest">Add New Bank Card</p>
+                    </div>
+                  </button>
+                )}
+
+                <div className="space-y-4">
+                  <h4 className="text-teal-300 text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                    <Shield size={14} /> আপনার কার্ডসমূহ (Your Cards)
+                  </h4>
+                  
+                  {userData?.bankCards && userData.bankCards.length > 0 ? (
+                    <div className="space-y-3">
+                      {userData.bankCards.map((card: any) => (
+                        <div key={card.id} className="bg-gradient-to-br from-teal-900 to-teal-800 p-5 rounded-2xl border border-teal-700/50 relative overflow-hidden group">
+                          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform text-teal-400">
+                            <Building2 size={60} />
+                          </div>
+                          <div className="relative z-10 flex justify-between items-start">
+                            <div className="space-y-1">
+                              <p className="text-yellow-400 font-black text-lg italic">{card.bankName}</p>
+                              <p className="text-white font-mono text-sm tracking-widest">{card.accountNumber}</p>
+                              <p className="text-teal-300 text-[10px] font-bold uppercase mt-2">{card.accountHolderName}</p>
+                            </div>
+                            <button 
+                              onClick={() => handleRemoveBankCard(card.id)}
+                              className="p-2 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-lg transition-all"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 bg-teal-900/20 rounded-2xl border border-teal-800/30">
+                      <CreditCard size={48} className="text-teal-800 mx-auto mb-3" />
+                      <p className="text-teal-500 text-sm">কোনো কার্ড যুক্ত করা নেই</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="p-6 bg-teal-900/30 border-t border-teal-800/50">
+                <p className="text-[10px] text-teal-400 text-center leading-relaxed">
+                  নিরাপত্তার স্বার্থে আপনার ব্যাংক কার্ডের তথ্য গোপন রাখা হয়। <br />
+                  যেকোনো সমস্যায় আমাদের <span className="text-yellow-500 font-bold">লাইভ সাপোর্ট</span> এ যোগাযোগ করুন।
+                </p>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoModalOpen }: { onBack: () => void, balance: number, showToast: (msg: string, type?: any) => void, userData: any, setIsTurnoverInfoModalOpen: (show: boolean) => void }) {
+function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoModalOpen, minWithdraw = 500 }: { onBack: () => void, balance: number, showToast: (msg: string, type?: any) => void, userData: any, setIsTurnoverInfoModalOpen: (show: boolean) => void, minWithdraw?: number }) {
   const [step, setStep] = useState(1);
   const [selectedMethod, setSelectedMethod] = useState('');
   const [amount, setAmount] = useState('');
@@ -596,8 +979,8 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
       return;
     }
 
-    if (isNaN(withdrawAmount) || withdrawAmount < 200) {
-      showToast('সর্বনিম্ন উত্তোলন ২০০ টাকা।', 'warning');
+    if (isNaN(withdrawAmount) || withdrawAmount < minWithdraw) {
+      showToast(`সর্বনিম্ন উত্তোলন ${minWithdraw} টাকা।`, 'warning');
       return;
     }
 
@@ -617,39 +1000,55 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
     }
 
     setIsSubmitting(true);
-    const path = `users/${auth.currentUser.uid}/transactions`;
+    const userTransactionsPath = `users/${auth.currentUser.uid}/transactions`;
+    const withdrawalsPath = `withdrawals`;
+    const trxId = `WTH-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
     try {
-      // Deduct balance first
+      // Deduct balance and update requiredTurnover
       const userRef = doc(db, 'users', auth.currentUser.uid);
       await updateDoc(userRef, {
-        balance: balance - withdrawAmount
+        balance: balance - withdrawAmount,
+        requiredTurnover: Math.max(requiredTurnover, turnover)
       });
 
-      await addDoc(collection(db, path), {
+      const transactionData = {
         type: 'withdraw',
         amount: -withdrawAmount,
         method: selectedMethod,
         number: accountNumber,
         status: 'pending',
         date: serverTimestamp(),
-        trxId: `WTH-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+        trxId: trxId,
         statusColor: 'bg-yellow-500/20 text-yellow-500'
+      };
+
+      // Add to user's transactions
+      await addDoc(collection(db, userTransactionsPath), transactionData);
+
+      // Add to global withdrawals collection
+      await addDoc(collection(db, withdrawalsPath), {
+        ...transactionData,
+        userId: auth.currentUser.uid,
+        userEmail: auth.currentUser.email,
+        amount: withdrawAmount // positive amount for admin view
       });
 
       showToast('উত্তোলন রিকোয়েস্ট সফল হয়েছে! এডমিন এপ্রুভ করলে আপনার অ্যাকাউন্টে টাকা পৌঁছে যাবে।', 'success');
       onBack();
     } catch (error) {
-      // If addDoc fails, try to revert balance deduction
+      // If fails, try to revert balance deduction
       try {
         const userRef = doc(db, 'users', auth.currentUser.uid);
         await updateDoc(userRef, {
-          balance: balance
+          balance: balance,
+          requiredTurnover: requiredTurnover
         });
       } catch (revertError) {
         console.error("Failed to revert balance:", revertError);
       }
       showToast('উত্তোলন রিকোয়েস্ট ব্যর্থ হয়েছে। আবার চেষ্টা করুন।', 'error');
-      handleFirestoreError(error, OperationType.WRITE, path);
+      handleFirestoreError(error, OperationType.WRITE, withdrawalsPath);
     } finally {
       setIsSubmitting(false);
     }
@@ -660,29 +1059,29 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
       <div className="flex items-center gap-4 mb-4">
         <button 
           onClick={onBack}
-          className="p-2 bg-teal-800/50 hover:bg-teal-700/50 rounded-full transition-colors text-white"
+          className="p-2 bg-[var(--bg-card)] hover:bg-black/10 rounded-full transition-colors text-[var(--text-main)] border border-[var(--border-color)]"
         >
           <ChevronLeft size={20} />
         </button>
-        <h3 className="text-white font-bold text-lg">উত্তোলন (Withdraw)</h3>
+        <h3 className="text-[var(--text-main)] font-bold text-lg">উত্তোলন (Withdraw)</h3>
       </div>
 
       {/* Turnover Progress Card */}
-      <div className="bg-black/40 p-4 rounded-2xl border border-white/5 space-y-3">
+      <div className="bg-[var(--bg-surface)] p-4 rounded-2xl border border-[var(--border-color)] space-y-3 transition-colors duration-300">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <RefreshCw size={14} className="text-teal-400" />
-            <span className="text-xs text-teal-200 font-bold uppercase tracking-wider">টানউভার (Turnover)</span>
+            <RefreshCw size={14} className="text-[var(--brand-primary)]" />
+            <span className="text-xs text-[var(--text-muted)] font-bold uppercase tracking-wider">টানউভার (Turnover)</span>
             <button 
               onClick={() => setIsTurnoverInfoModalOpen(true)}
-              className="text-teal-500 hover:text-teal-300 transition-colors"
+              className="text-[var(--brand-primary)] hover:opacity-80 transition-colors"
             >
               <Info size={14} />
             </button>
           </div>
-          <span className="text-[10px] text-teal-400 font-black">{turnoverProgress.toFixed(1)}%</span>
+          <span className="text-[10px] text-[var(--brand-primary)] font-black">{turnoverProgress.toFixed(1)}%</span>
         </div>
-        <div className="h-2 bg-white/5 rounded-full overflow-hidden border border-white/5">
+        <div className="h-2 bg-black/30 rounded-full overflow-hidden border border-white/5">
           <motion.div 
             initial={{ width: 0 }}
             animate={{ width: `${turnoverProgress}%` }}
@@ -690,8 +1089,8 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
           />
         </div>
         <div className="flex justify-between text-[10px] font-bold">
-          <span className="text-gray-500">৳ {turnover.toLocaleString()}</span>
-          <span className="text-teal-400">লক্ষ্য: ৳ {requiredTurnover.toLocaleString()}</span>
+          <span className="text-[var(--text-muted)]">৳ {turnover.toLocaleString()}</span>
+          <span className="text-[var(--brand-primary)]">লক্ষ্য: ৳ {requiredTurnover.toLocaleString()}</span>
         </div>
         {turnover < requiredTurnover && (
           <div className="flex items-center gap-2 bg-yellow-500/10 p-2 rounded-lg border border-yellow-500/20">
@@ -701,15 +1100,15 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
         )}
       </div>
 
-      <div className="bg-gradient-to-br from-teal-800 to-teal-950 p-5 rounded-2xl border border-teal-700/50 shadow-xl relative overflow-hidden">
+      <div className="bg-[var(--bg-surface)] p-5 rounded-2xl border border-[var(--border-color)] shadow-xl relative overflow-hidden transition-colors duration-300">
         <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/5 rounded-full blur-2xl"></div>
-        <p className="text-teal-200 text-xs font-bold uppercase tracking-widest mb-1">বর্তমান ব্যালেন্স</p>
-        <p className="text-3xl font-black text-white italic tracking-tight">৳ {balance.toLocaleString()}</p>
+        <p className="text-[var(--text-muted)] text-xs font-bold uppercase tracking-widest mb-1">বর্তমান ব্যালেন্স</p>
+        <p className="text-3xl font-black text-[var(--text-main)] italic tracking-tight">৳ {balance.toLocaleString()}</p>
       </div>
 
       {step === 1 ? (
         <>
-          <h4 className="text-white font-bold mb-3 flex items-center gap-2">
+          <h4 className="text-[var(--text-main)] font-bold mb-3 flex items-center gap-2">
             <CreditCard size={18} className="text-yellow-500" />
             পদ্ধতি নির্বাচন করুন
           </h4>
@@ -718,43 +1117,43 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
               <button 
                 key={method.id} 
                 onClick={() => { setSelectedMethod(method.id); setStep(2); }}
-                className="bg-teal-900/40 p-4 rounded-2xl border border-teal-800/50 flex items-center justify-between hover:bg-teal-800/60 transition-all group"
+                className="bg-[var(--bg-card)] p-4 rounded-2xl border border-[var(--border-color)] flex items-center justify-between hover:bg-black/10 transition-all group"
               >
                 <div className="flex items-center gap-4">
                   <div className={`w-12 h-12 rounded-xl ${method.color} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform`}>
                     <Smartphone size={24} className="text-white" />
                   </div>
-                  <span className="text-white font-black text-lg">{method.name}</span>
+                  <span className="text-[var(--text-main)] font-black text-lg">{method.name}</span>
                 </div>
-                <ChevronRight size={20} className="text-teal-600 group-hover:text-teal-400 transition-colors" />
+                <ChevronRight size={20} className="text-[var(--text-muted)] group-hover:text-[var(--text-main)] transition-colors" />
               </button>
             ))}
           </div>
         </>
       ) : (
         <div className="space-y-5 animate-in slide-in-from-right-4 duration-300">
-          <div className="bg-teal-900/20 p-4 rounded-2xl border border-teal-800/30 flex items-center gap-4">
+          <div className="bg-[var(--bg-surface)] p-4 rounded-2xl border border-[var(--border-color)] flex items-center gap-4 transition-colors duration-300">
              <div className={`w-10 h-10 rounded-lg ${methods.find(m => m.id === selectedMethod)?.color} flex items-center justify-center`}>
                 <Smartphone size={20} className="text-white" />
              </div>
              <div>
-                <p className="text-[10px] text-teal-400 font-bold uppercase tracking-widest">Selected Method</p>
-                <p className="text-white font-black">{methods.find(m => m.id === selectedMethod)?.name}</p>
+                <p className="text-[10px] text-[var(--brand-primary)] font-bold uppercase tracking-widest">Selected Method</p>
+                <p className="text-[var(--text-main)] font-black">{methods.find(m => m.id === selectedMethod)?.name}</p>
              </div>
              <button onClick={() => setStep(1)} className="ml-auto text-[10px] text-yellow-500 font-bold underline">Change</button>
           </div>
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-teal-200 text-xs font-bold uppercase tracking-widest ml-1">উত্তোলনের পরিমাণ (৳)</label>
+              <label className="text-[var(--text-muted)] text-xs font-bold uppercase tracking-widest ml-1">উত্তোলনের পরিমাণ (৳)</label>
               <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-500 font-black">৳</span>
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--brand-primary)] font-black">৳</span>
                 <input 
                   type="number" 
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="সর্বনিম্ন ২০০"
-                  className="w-full bg-teal-950/50 border border-teal-700 rounded-2xl pl-8 pr-4 py-4 text-white font-black focus:outline-none focus:border-yellow-500 transition-all"
+                  className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] rounded-2xl pl-8 pr-4 py-4 text-[var(--text-main)] font-black focus:outline-none focus:border-yellow-500 transition-all"
                 />
               </div>
               
@@ -765,7 +1164,7 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
                     key={amt}
                     onClick={() => setAmount(amt.toString())}
                     className={`py-2 rounded-xl text-[10px] font-black border transition-all active:scale-95 ${
-                      amount === amt.toString() ? 'bg-yellow-500 border-yellow-500 text-black' : 'bg-teal-900/30 border-teal-800 text-teal-300 hover:border-teal-600'
+                      amount === amt.toString() ? 'bg-yellow-500 border-yellow-500 text-black' : 'bg-[var(--bg-surface)] border-[var(--border-color)] text-[var(--text-muted)] hover:border-[var(--brand-primary)]'
                     }`}
                   >
                     {amt >= 1000 ? `${amt/1000}k` : amt}
@@ -775,13 +1174,13 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
             </div>
 
             <div className="space-y-2">
-              <label className="text-teal-200 text-xs font-bold uppercase tracking-widest ml-1">অ্যাকাউন্ট নাম্বার</label>
+              <label className="text-[var(--text-muted)] text-xs font-bold uppercase tracking-widest ml-1">অ্যাকাউন্ট নাম্বার</label>
               <input 
                 type="text" 
                 value={accountNumber}
                 onChange={(e) => setAccountNumber(e.target.value)}
                 placeholder="01XXXXXXXXX"
-                className="w-full bg-teal-950/50 border border-teal-700 rounded-2xl px-4 py-4 text-white font-black focus:outline-none focus:border-yellow-500 transition-all"
+                className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] rounded-2xl px-4 py-4 text-[var(--text-main)] font-black focus:outline-none focus:border-yellow-500 transition-all"
               />
             </div>
 
@@ -863,9 +1262,13 @@ interface OverviewTabProps {
   setIsTurnoverInfoModalOpen: (show: boolean) => void;
   casinoName?: string;
   onEditCasinoName?: (newName: string) => void;
+  onOpenBankCards?: () => void;
+  onLogout: () => void;
+  onOpenVIPDetails: () => void;
+  showToast: (msg: string, type?: ToastType) => void;
 }
 
-function ProfileTab({ userData, onEditProfile, onEditProfilePic, profilePic, onLogout, showToast }: { userData: any, onEditProfile: () => void, onEditProfilePic: () => void, profilePic: string | null, onLogout: () => void, showToast: (msg: string, type?: ToastType) => void }) {
+function ProfileTab({ userData, onEditProfile, onEditProfilePic, profilePic, onLogout, showToast, onOpenBankCards }: { userData: any, onEditProfile: () => void, onEditProfilePic: () => void, profilePic: string | null, onLogout: () => void, showToast: (msg: string, type?: ToastType) => void, onOpenBankCards?: () => void }) {
   const [isSortedAZ, setIsSortedAZ] = useState(false);
 
   const userDetails = useMemo(() => {
@@ -876,7 +1279,7 @@ function ProfileTab({ userData, onEditProfile, onEditProfilePic, profilePic, onL
       { label: 'ফোন নম্বর (Phone)', value: userData.phoneNumber || userData.phone || 'Not provided', icon: Smartphone },
       { label: 'ইমেইল (Email)', value: userData.email || 'Not provided', icon: Mail },
       { label: 'নিবন্ধন তারিখ (Registration)', value: userData.registrationDate || 'Not provided', icon: Calendar },
-      { label: 'ভিআইপি লেভেল (VIP Level)', value: `Level ${userData.vipLevel || 1}`, icon: Crown },
+      { label: 'ভিআইপি লেভেল (VIP Level)', value: `Level ${userData.vipLevel || 0}`, icon: Crown },
       { label: 'দেশ (Country)', value: userData.country || 'Not provided', icon: MapPin },
       { label: 'রেফারেল কোড (Referral Code)', value: userData.referralCode || 'SPIN71', icon: QrCode },
       { label: 'ব্যালেন্স (Balance)', value: `৳ ${userData.balance?.toLocaleString() || 0}`, icon: Wallet },
@@ -892,22 +1295,22 @@ function ProfileTab({ userData, onEditProfile, onEditProfilePic, profilePic, onL
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
       {/* Profile Header Card */}
-      <div className="bg-teal-800/40 rounded-2xl p-6 border border-teal-700/50 shadow-lg text-center relative overflow-hidden">
+      <div className="bg-[var(--bg-card)] rounded-2xl p-6 border border-[var(--border-color)] shadow-lg text-center relative overflow-hidden transition-colors duration-300">
         <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-500/5 rounded-full blur-3xl -mr-16 -mt-16"></div>
         <div className="absolute bottom-0 left-0 w-32 h-32 bg-teal-500/5 rounded-full blur-3xl -ml-16 -mb-16"></div>
         
         <div className="relative z-10 flex flex-col items-center">
           <div className="relative group cursor-pointer" onClick={onEditProfilePic}>
             <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-yellow-400 to-yellow-600 p-1 shadow-xl">
-              <div className="w-full h-full bg-teal-900 rounded-full flex items-center justify-center border-4 border-teal-800 overflow-hidden">
+              <div className="w-full h-full bg-[var(--bg-main)] rounded-full flex items-center justify-center border-4 border-[var(--border-color)] overflow-hidden">
                 {profilePic ? (
                   <img src={profilePic} alt="Profile" className="w-full h-full object-cover" />
                 ) : (
-                  <User size={48} className="text-teal-400" />
+                  <User size={48} className="text-[var(--brand-primary)]" />
                 )}
               </div>
             </div>
-            <div className="absolute bottom-0 right-0 bg-yellow-500 p-2 rounded-full shadow-lg border-2 border-teal-900 group-hover:scale-110 transition-transform">
+            <div className="absolute bottom-0 right-0 bg-yellow-500 p-2 rounded-full shadow-lg border-2 border-[var(--bg-main)] group-hover:scale-110 transition-transform">
               <Camera size={14} className="text-black" />
             </div>
             <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -915,12 +1318,12 @@ function ProfileTab({ userData, onEditProfile, onEditProfilePic, profilePic, onL
             </div>
           </div>
           
-          <h2 className="text-xl font-black text-white mt-4">{userData?.username || 'Player'}</h2>
-          <p className="text-teal-400 text-xs font-mono uppercase tracking-widest mt-1">ID: {userData?.id || '84729104'}</p>
+          <h2 className="text-xl font-black text-[var(--text-main)] mt-4">{userData?.username || 'Player'}</h2>
+          <p className="text-[var(--brand-primary)] text-xs font-mono uppercase tracking-widest mt-1">ID: {userData?.numericId || userData?.id?.substring(0, 8) || '84729104'}</p>
           
           <button 
             onClick={onEditProfile}
-            className="mt-4 px-6 py-2 bg-teal-700/50 hover:bg-teal-600 text-white text-sm font-bold rounded-xl border border-teal-600/50 transition-all flex items-center gap-2"
+            className="mt-4 px-6 py-2 bg-[var(--bg-surface)] hover:opacity-80 text-[var(--text-main)] text-sm font-bold rounded-xl border border-[var(--border-color)] transition-all flex items-center gap-2"
           >
             <Edit size={16} /> প্রোফাইল এডিট করুন
           </button>
@@ -928,34 +1331,34 @@ function ProfileTab({ userData, onEditProfile, onEditProfilePic, profilePic, onL
       </div>
 
       {/* Details List */}
-      <div className="bg-teal-800/40 rounded-2xl border border-teal-700/50 overflow-hidden">
-        <div className="p-4 border-b border-teal-700/50 flex items-center justify-between bg-teal-900/30">
-          <h3 className="font-bold text-white flex items-center gap-2">
+      <div className="bg-[var(--bg-card)] rounded-2xl border border-[var(--border-color)] overflow-hidden transition-colors duration-300">
+        <div className="p-4 border-b border-[var(--border-color)] flex items-center justify-between bg-black/5">
+          <h3 className="font-bold text-[var(--text-main)] flex items-center gap-2">
             <Info size={18} className="text-yellow-400" /> ব্যক্তিগত তথ্য (Personal Info)
           </h3>
           <button 
             onClick={() => setIsSortedAZ(!isSortedAZ)}
-            className={`p-2 rounded-lg transition-colors ${isSortedAZ ? 'bg-yellow-500 text-black' : 'bg-teal-700 text-teal-300'}`}
+            className={`p-2 rounded-lg transition-colors ${isSortedAZ ? 'bg-yellow-500 text-black' : 'bg-[var(--bg-surface)] text-[var(--text-muted)] border border-[var(--border-color)]'}`}
             title={isSortedAZ ? "Original Order" : "Sort A-Z"}
           >
             <ArrowDownUp size={16} />
           </button>
         </div>
         
-        <div className="divide-y divide-teal-700/30">
+        <div className="divide-y divide-[var(--border-color)]">
           {userDetails.map((detail, index) => (
-            <div key={index} className="p-4 flex items-center justify-between hover:bg-teal-700/20 transition-colors">
+            <div key={index} className="p-4 flex items-center justify-between hover:bg-black/5 transition-colors">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-teal-900/50 flex items-center justify-center text-teal-400">
+                <div className="w-8 h-8 rounded-lg bg-[var(--bg-surface)] flex items-center justify-center text-[var(--brand-primary)]">
                   <detail.icon size={16} />
                 </div>
                 <div>
-                  <p className="text-[10px] text-teal-400 uppercase tracking-wider font-bold">{detail.label}</p>
-                  <p className="text-sm text-white font-medium mt-0.5">{detail.value}</p>
+                  <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-bold">{detail.label}</p>
+                  <p className="text-sm text-[var(--text-main)] font-medium mt-0.5">{detail.value}</p>
                 </div>
               </div>
               {detail.label.includes('Username') || detail.label.includes('Phone') ? (
-                <button onClick={onEditProfile} className="p-2 text-teal-500 hover:text-yellow-400 transition-colors">
+                <button onClick={onEditProfile} className="p-2 text-[var(--brand-primary)] hover:text-yellow-400 transition-colors">
                   <Edit size={14} />
                 </button>
               ) : null}
@@ -965,7 +1368,121 @@ function ProfileTab({ userData, onEditProfile, onEditProfilePic, profilePic, onL
       </div>
 
       {/* Settings Tab Content (Security Center, Linked Accounts, 2FA) */}
-      <SettingsTab profileData={userData} onLogout={onLogout} onEditProfile={onEditProfile} showToast={showToast} hideAccountDetails={true} />
+      <SettingsTab 
+        profileData={userData} 
+        onLogout={onLogout} 
+        onEditProfile={onEditProfile} 
+        showToast={showToast} 
+        hideAccountDetails={true} 
+        onOpenBankCards={onOpenBankCards}
+      />
+    </div>
+  );
+}
+
+function DepositHistoryTab() {
+  return (
+    <div className="p-4">
+      <h3 className="text-white font-bold mb-4">জমা রেকর্ড (Deposit Record)</h3>
+      <div className="bg-teal-900/20 p-8 rounded-2xl border border-teal-800/30 text-center">
+        <ArrowDownLeft size={32} className="text-teal-700 mx-auto mb-2" />
+        <p className="text-teal-400 text-sm">কোনো জমার রেকর্ড নেই</p>
+      </div>
+    </div>
+  );
+}
+
+function AccountRecordTab() {
+  return (
+    <div className="p-4">
+      <h3 className="text-white font-bold mb-4">অ্যাকাউন্ট রেকর্ড (Account Record)</h3>
+      <div className="bg-teal-900/20 p-8 rounded-2xl border border-teal-800/30 text-center">
+        <ClipboardList size={32} className="text-teal-700 mx-auto mb-2" />
+        <p className="text-teal-400 text-sm">কোনো অ্যাকাউন্টের রেকর্ড নেই</p>
+      </div>
+    </div>
+  );
+}
+
+function ProfitLossTab({ totals, onBack }: { totals: any, onBack: () => void }) {
+  return (
+    <div className="p-4">
+      <button onClick={onBack} className="flex items-center gap-2 text-teal-400 mb-4 font-bold">
+        <ChevronLeft size={20} /> ফিরে যান
+      </button>
+      <h3 className="text-white font-bold mb-4">লাভ এবং লস (Profit & Loss)</h3>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-green-500/10 p-4 rounded-2xl border border-green-500/20">
+          <p className="text-green-400 text-xs font-bold uppercase">মোট লাভ</p>
+          <p className="text-2xl font-black text-white">৳ {totals.deposit.toLocaleString()}</p>
+        </div>
+        <div className="bg-red-500/10 p-4 rounded-2xl border border-red-500/20">
+          <p className="text-red-400 text-xs font-bold uppercase">মোট লস</p>
+          <p className="text-2xl font-black text-white">৳ {totals.withdraw.toLocaleString()}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MailTab({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="p-4">
+      <button onClick={onBack} className="flex items-center gap-2 text-teal-400 mb-4 font-bold">
+        <ChevronLeft size={20} /> ফিরে যান
+      </button>
+      <h3 className="text-white font-bold mb-4">মেইল (Mail)</h3>
+      <div className="bg-teal-900/20 p-8 rounded-2xl border border-teal-800/30 text-center">
+        <Mail size={32} className="text-teal-700 mx-auto mb-2" />
+        <p className="text-teal-400 text-sm">কোনো মেইল নেই</p>
+      </div>
+    </div>
+  );
+}
+
+function FeedbackTab({ showToast, onBack }: { showToast: (msg: string) => void, onBack: () => void }) {
+  const [feedback, setFeedback] = useState('');
+  return (
+    <div className="p-4">
+      <button onClick={onBack} className="flex items-center gap-2 text-teal-400 mb-4 font-bold">
+        <ChevronLeft size={20} /> ফিরে যান
+      </button>
+      <h3 className="text-white font-bold mb-4">পরামর্শ (Feedback)</h3>
+      <textarea 
+        value={feedback}
+        onChange={(e) => setFeedback(e.target.value)}
+        placeholder="আপনার পরামর্শ এখানে লিখুন..."
+        className="w-full bg-black/40 border border-teal-800/50 rounded-2xl p-4 text-white min-h-[150px] focus:outline-none focus:border-teal-500"
+      />
+      <button 
+        onClick={() => {
+          showToast('আপনার পরামর্শ সফলভাবে পাঠানো হয়েছে');
+          setFeedback('');
+          onBack();
+        }}
+        className="w-full mt-4 bg-teal-500 text-black font-black py-3 rounded-2xl"
+      >
+        জমা দিন
+      </button>
+    </div>
+  );
+}
+
+function HelpCenterTab({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="p-4">
+      <button onClick={onBack} className="flex items-center gap-2 text-teal-400 mb-4 font-bold">
+        <ChevronLeft size={20} /> ফিরে যান
+      </button>
+      <h3 className="text-white font-bold mb-4">সাহায্য কেন্দ্র (Help Center)</h3>
+      <div className="space-y-3">
+        {['কিভাবে জমা করবেন?', 'কিভাবে উত্তোলন করবেন?', 'পাসওয়ার্ড ভুলে গেলে কি করবেন?', 'বোনাস কিভাবে পাবেন?'].map((q, i) => (
+          <div key={i} className="bg-teal-900/20 p-4 rounded-xl border border-teal-800/30 flex items-center justify-between">
+            <span className="text-teal-200 text-sm">{q}</span>
+            <ChevronRight size={16} className="text-teal-500" />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -984,279 +1501,197 @@ function OverviewTab({
   setIsChatOpen,
   setIsTurnoverInfoModalOpen,
   casinoName,
-  onEditCasinoName
+  onEditCasinoName,
+  onOpenBankCards,
+  onLogout,
+  onOpenVIPDetails,
+  showToast
 }: OverviewTabProps) {
   const turnover = userData?.turnover || 0;
-  const requiredTurnover = userData?.requiredTurnover || 0;
-  const turnoverProgress = requiredTurnover > 0 ? Math.min(100, (turnover / requiredTurnover) * 100) : 100;
+  const currentVIP = VIP_LEVELS[userData?.vipLevel || 0] || VIP_LEVELS[0];
+  const nextVIP = VIP_LEVELS[(userData?.vipLevel || 0) + 1];
+  const vipProgress = userData?.vipProgress || 0;
 
   return (
-    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
-      {/* Account Balance Card */}
-      <div className="bg-gradient-to-r from-teal-700 to-teal-900 rounded-2xl p-6 border border-teal-600 shadow-xl flex items-center justify-between relative overflow-hidden">
-        <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-white/5 rounded-full blur-3xl"></div>
-        <div className="relative z-10">
-          <div className="flex items-center gap-2 mb-1">
-            <p className="text-teal-200 text-sm font-medium">বর্তমান ব্যালেন্স</p>
-            {userData?.role === 'admin' && (
-              <button 
-                onClick={onEditCasinoName}
-                className="p-1 bg-white/10 hover:bg-white/20 rounded text-[8px] text-teal-100 flex items-center gap-1 border border-white/5"
-              >
-                <Edit size={10} /> {casinoName}
-              </button>
-            )}
-          </div>
-          <div className="flex items-center gap-3 mt-1">
-            <h2 className="text-3xl font-black text-white italic tracking-tight">৳ {balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h2>
-            <button 
-              onClick={onRefresh}
-              className="p-1.5 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
-            >
-              <RefreshCw size={18} className={`text-teal-100 ${isRefreshing ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-        </div>
-        <div 
-          className="bg-white/10 p-3 rounded-full cursor-pointer relative z-10"
-        >
-          <Wallet size={32} className="text-yellow-400" />
-        </div>
-      </div>
-
-      {/* Turnover Progress Card */}
-      <div className="bg-teal-800/40 p-4 rounded-2xl border border-teal-700/50 space-y-3">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <RefreshCw size={14} className="text-teal-400" />
-            <span className="text-xs text-teal-200 font-bold uppercase tracking-wider">টানউভার (Turnover)</span>
-            <button 
-              onClick={() => setIsTurnoverInfoModalOpen(true)}
-              className="text-teal-500 hover:text-teal-300 transition-colors"
-            >
-              <Info size={14} />
-            </button>
-          </div>
-          <span className="text-[10px] text-teal-400 font-black">{turnoverProgress.toFixed(1)}%</span>
-        </div>
-        <div className="h-2 bg-black/30 rounded-full overflow-hidden border border-white/5">
-          <div className="h-full bg-gradient-to-r from-teal-500 to-teal-300 shadow-[0_0_10px_rgba(20,184,166,0.5)]" style={{ width: `${turnoverProgress}%` }}></div>
-        </div>
-        <div className="flex justify-between text-[10px] font-bold">
-          <span className="text-gray-400">৳ {turnover.toLocaleString()}</span>
-          <span className="text-teal-400">লক্ষ্য: ৳ {requiredTurnover.toLocaleString()}</span>
-        </div>
-      </div>
-
-      {/* Quick Actions / Cross-links */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <button 
-          onClick={() => onSubTabChange('profile')}
-          className="bg-teal-800/40 rounded-xl p-4 border border-teal-700/50 flex flex-col items-center justify-center text-center hover:bg-teal-700/60 transition-all group"
-        >
-          <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center mb-2 text-blue-400 group-hover:scale-110 transition-transform">
-            <User size={24} />
-          </div>
-          <span className="text-white font-bold text-sm">প্রোফাইল</span>
-          <span className="text-teal-300 text-[10px] mt-1">তথ্য দেখুন</span>
+    <div className="animate-in fade-in duration-500 pb-10 bg-[#16a374] min-h-screen">
+      {/* Emerald Header */}
+      <div className="p-4 flex items-center gap-4">
+        <button onClick={() => onTabChange('home')} className="w-10 h-10 rounded-full bg-black/20 flex items-center justify-center text-white">
+          <ChevronLeft size={24} />
         </button>
+        <h1 className="text-white text-xl font-bold">আমার প্রোফাইল</h1>
+      </div>
 
+      {/* Profile Info Section */}
+      <div className="px-6 py-4 flex items-center gap-6">
+        <div className="relative">
+          <div className="w-24 h-24 rounded-full border-4 border-yellow-400 p-1 bg-white/10">
+            <div className="w-full h-full rounded-full bg-[#16a374] flex items-center justify-center overflow-hidden">
+              {userData?.profilePic ? (
+                <img src={userData.profilePic} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <User size={48} className="text-white/80" />
+              )}
+            </div>
+          </div>
+          <div className="absolute -bottom-1 -right-1 bg-yellow-500 text-black text-[10px] font-black px-2 py-1 rounded-full border-2 border-[#16a374] shadow-lg">
+            VIP {userData?.vipLevel || 0}
+          </div>
+        </div>
+
+        <div className="flex-1 space-y-1">
+          <div className="flex items-center gap-2">
+            <h2 className="text-white text-2xl font-black tracking-tight">{userData?.username || 'mdkayaskhan06'}</h2>
+            <button onClick={() => {
+              navigator.clipboard.writeText(userData?.username || '');
+              showToast("ইউজারনেম কপি করা হয়েছে", "success");
+            }} className="text-white/60">
+              <Copy size={16} />
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <p className="text-white/80 text-xs font-bold break-all">ID: {userData?.numericId || userData?.id?.substring(0, 8) || '84729104'}</p>
+            <button onClick={() => {
+              navigator.clipboard.writeText(userData?.numericId || userData?.id || '');
+              showToast("আইডি কপি করা হয়েছে", "success");
+            }} className="text-white/60">
+              <Copy size={12} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* VIP Status Premium Card */}
+      <div className="px-4 mt-4">
+        <div 
+          onClick={onOpenVIPDetails}
+          className="relative overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800 rounded-[32px] p-6 border border-yellow-500/30 shadow-[0_20px_50px_rgba(0,0,0,0.3)] cursor-pointer group active:scale-[0.98] transition-all"
+        >
+          {/* Decorative Elements */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-500/10 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-yellow-500/20 transition-colors"></div>
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl -ml-12 -mb-12"></div>
+          
+          <div className="relative z-10 flex items-center justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <div className={`w-14 h-14 rounded-2xl ${currentVIP.bgColor} flex items-center justify-center text-3xl shadow-inner border ${currentVIP.borderColor} animate-pulse`}>
+                {currentVIP.icon}
+              </div>
+              <div>
+                <h3 className={`text-xl font-black italic tracking-tighter ${currentVIP.color} flex items-center gap-2`}>
+                  {currentVIP.name} <Crown size={18} className="fill-current" />
+                </h3>
+                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">বর্তমান মেম্বারশিপ লেভেল</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-yellow-500 text-xs font-black italic">VIP {userData?.vipLevel || 0}</p>
+              <div className="flex items-center gap-1 text-slate-500 text-[10px] font-bold">
+                বিস্তারিত <ChevronRight size={12} />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex justify-between items-end">
+              <div className="space-y-1">
+                <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest block">পরবর্তী লেভেল: {nextVIP?.name || 'MAX'}</span>
+                <p className="text-white text-xs font-bold">টার্নওভার: ৳ {turnover.toLocaleString()} / ৳ {nextVIP?.minTurnover.toLocaleString() || '---'}</p>
+              </div>
+              <span className="text-yellow-500 text-sm font-black italic">{vipProgress}%</span>
+            </div>
+            
+            <div className="h-3 bg-slate-700/50 rounded-full overflow-hidden border border-white/5 p-0.5">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${vipProgress}%` }}
+                className={`h-full rounded-full bg-gradient-to-r ${currentVIP.level >= 4 ? 'from-purple-500 to-indigo-600' : 'from-yellow-400 to-yellow-600'} shadow-[0_0_10px_rgba(234,179,8,0.5)]`}
+              />
+            </div>
+            <p className="text-slate-500 text-[9px] font-medium text-center italic">পরবর্তী লেভেলে পৌঁছাতে আরও ৳ {(nextVIP?.minTurnover || 0) - turnover > 0 ? ((nextVIP?.minTurnover || 0) - turnover).toLocaleString() : 0} টার্নওভার প্রয়োজন</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Top Action Buttons */}
+      <div className="px-4 grid grid-cols-3 gap-3 mt-4">
+        <button 
+          onClick={() => onSubTabChange('withdraw')}
+          className="bg-[#f59e0b] text-black font-black py-3 rounded-xl shadow-lg active:scale-95 transition-all text-sm"
+        >
+          উত্তোলন
+        </button>
+        <button 
+          onClick={() => onSubTabChange('history')}
+          className="bg-[#065f46] text-white font-bold py-3 rounded-xl active:scale-95 transition-all text-sm"
+        >
+          ইতিহাস
+        </button>
+        <button 
+          onClick={() => onSubTabChange('security')}
+          className="bg-[#065f46] text-white font-bold py-3 rounded-xl active:scale-95 transition-all text-sm"
+        >
+          সেটিংস
+        </button>
+      </div>
+
+      {/* Balance Card */}
+      <div className="px-4 mt-6">
+        <div className="bg-[#064e3b] rounded-[32px] p-8 flex items-center justify-between shadow-2xl border border-white/5">
+          <div className="space-y-2">
+            <p className="text-emerald-400 text-sm font-bold">বর্তমান ব্যালেন্স</p>
+            <div className="flex items-center gap-3">
+              <span className="text-4xl font-black text-white">৳ {balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              <button onClick={onRefresh} className="text-emerald-400/60 hover:text-emerald-400 transition-colors">
+                <RefreshCw size={24} className={isRefreshing ? 'animate-spin' : ''} />
+              </button>
+            </div>
+          </div>
+          <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center text-yellow-500">
+            <Wallet size={32} />
+          </div>
+        </div>
+      </div>
+
+      {/* Invite Section */}
+      <div className="px-4 mt-6">
         <button 
           onClick={() => onTabChange('invite')}
-          className="bg-teal-800/40 rounded-xl p-4 border border-teal-700/50 flex flex-col items-center justify-center text-center hover:bg-teal-700/60 transition-all group"
+          className="w-full bg-[#065f46]/60 rounded-[32px] p-8 flex flex-col items-center gap-4 border border-white/5 hover:bg-[#065f46]/80 transition-all active:scale-[0.98]"
         >
-          <div className="w-12 h-12 rounded-full bg-yellow-500/20 flex items-center justify-center mb-2 text-yellow-400 group-hover:scale-110 transition-transform">
-            <Users size={24} />
+          <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center text-yellow-500">
+            <Users size={32} />
           </div>
-          <span className="text-white font-bold text-sm">আমন্ত্রণ</span>
-          <span className="text-teal-300 text-[10px] mt-1">বোনাস পান</span>
-        </button>
-
-        <button 
-          onClick={() => setIsChatOpen(true)}
-          className="bg-teal-800/40 rounded-xl p-4 border border-teal-700/50 flex flex-col items-center justify-center text-center hover:bg-teal-700/60 transition-all group"
-        >
-          <div className="w-12 h-12 rounded-full bg-yellow-500/20 flex items-center justify-center mb-2 text-yellow-400 group-hover:scale-110 transition-transform">
-            <Headset size={24} />
+          <div className="text-center">
+            <h3 className="text-white text-xl font-black">বন্ধুদের আমন্ত্রণ জানান</h3>
+            <p className="text-emerald-400 text-sm font-bold">বোনাস পান</p>
           </div>
-          <span className="text-white font-bold text-sm">সাপোর্ট চ্যাট</span>
-          <span className="text-teal-300 text-[10px] mt-1">সাহায্য নিন</span>
         </button>
+      </div>
 
-        {(userData?.role === 'agent' || userData?.role === 'admin') && (
+      {/* Member Center Grid */}
+      <div className="px-4 mt-8 grid grid-cols-2 gap-4">
+        {[
+          { label: 'ড্যাশবোর্ড (Dashboard)', icon: BarChart3, color: 'text-blue-400', action: () => onSubTabChange('dashboard') },
+          { label: 'প্রোফাইল (Profile)', icon: User, color: 'text-indigo-400', action: () => onSubTabChange('profile') },
+          { label: 'ওয়ালেট (Wallet)', icon: Wallet, color: 'text-purple-400', action: () => onTabChange('wallet') },
+          { label: 'ডিপোজিট (Deposit)', icon: ArrowDownLeft, color: 'text-green-400', action: () => onTabChange('deposit') },
+          { label: 'উত্তোলন (Withdraw)', icon: ArrowUpRight, color: 'text-red-400', action: () => onSubTabChange('withdraw') },
+          { label: 'হিস্ট্রি (History)', icon: HistoryIcon, color: 'text-orange-400', action: () => onSubTabChange('history') },
+          { label: 'বোনাস (Bonus)', icon: Gift, color: 'text-yellow-500', action: () => onTabChange('bonus') },
+          { label: 'রেফারেল (Referral)', icon: Users, color: 'text-emerald-400', action: () => onTabChange('invite') },
+          { label: 'ভিআইপি (VIP)', icon: Crown, color: 'text-yellow-400', action: () => onOpenVIPDetails?.() },
+          { label: 'নিরাপত্তা (Security)', icon: Shield, color: 'text-red-500', action: () => onSubTabChange('security') },
+          { label: 'সাপোর্ট (Support)', icon: Headset, color: 'text-teal-400', action: () => onSubTabChange('support') },
+        ].map((item, i) => (
           <button 
-            onClick={() => setShowAgentPanel(true)}
-            className="bg-teal-800/40 rounded-xl p-4 border border-teal-700/50 flex flex-col items-center justify-center text-center hover:bg-teal-700/60 transition-all group"
+            key={i}
+            onClick={item.action} 
+            className="bg-[#065f46]/40 p-6 rounded-3xl flex items-center gap-4 border border-white/5 hover:bg-[#065f46]/60 transition-all active:scale-95"
           >
-            <div className="w-12 h-12 rounded-full bg-teal-500/20 flex items-center justify-center mb-2 text-teal-400 group-hover:scale-110 transition-transform">
-              <TrendingUp size={24} />
-            </div>
-            <span className="text-white font-bold text-sm">এজেন্ট</span>
-            <span className="text-teal-300 text-[10px] mt-1">প্যানেল</span>
+            <item.icon className={item.color} size={24} />
+            <span className="text-white font-bold text-sm">{item.label}</span>
           </button>
-        )}
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-teal-800/40 rounded-xl p-3 border border-teal-700/50 flex flex-col items-center justify-center text-center">
-          <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center mb-2 text-blue-300">
-            <Wallet size={20} />
-          </div>
-          <span className="text-teal-100 text-xs mb-1">মোট জমা</span>
-          <span className="text-white font-bold">৳ {totals.deposit.toLocaleString()}</span>
-        </div>
-        <div className="bg-teal-800/40 rounded-xl p-3 border border-teal-700/50 flex flex-col items-center justify-center text-center">
-          <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center mb-2 text-green-300">
-            <CreditCard size={20} />
-          </div>
-          <span className="text-teal-100 text-xs mb-1">মোট উত্তোলন</span>
-          <span className="text-white font-bold">৳ {totals.withdraw.toLocaleString()}</span>
-        </div>
-        <div className="bg-teal-800/40 rounded-xl p-3 border border-teal-700/50 flex flex-col items-center justify-center text-center">
-          <div className="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center mb-2 text-yellow-300">
-            <Gift size={20} />
-          </div>
-          <span className="text-teal-100 text-xs mb-1">মোট বোনাস</span>
-          <span className="text-white font-bold">৳ {totals.bonus.toLocaleString()}</span>
-        </div>
-        <div className="bg-teal-800/40 rounded-xl p-3 border border-teal-700/50 flex flex-col items-center justify-center text-center">
-          <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center mb-2 text-purple-300">
-            <Award size={20} />
-          </div>
-          <span className="text-teal-100 text-xs mb-1">রিবেট</span>
-          <span className="text-white font-bold">৳ {totals.rebate.toLocaleString()}</span>
-        </div>
-      </div>
-
-      {/* Support & Community */}
-      <div className="grid grid-cols-1 gap-3">
-        <h3 className="text-white font-bold text-sm px-1 flex items-center gap-2">
-          <Headset size={18} className="text-yellow-500" /> সাপোর্ট ও কমিউনিটি (Support & Community)
-        </h3>
-        <div className="grid grid-cols-2 gap-3">
-          <a 
-            href="https://t.me/spin71_bet" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="bg-[#0088cc]/10 border border-[#0088cc]/30 p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-[#0088cc]/20 transition-all group"
-          >
-            <div className="w-10 h-10 rounded-full bg-[#0088cc] flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform">
-              <Send size={20} />
-            </div>
-            <span className="text-white font-bold text-[10px] uppercase tracking-tighter">টেলিগ্রাম চ্যানেল</span>
-          </a>
-          <a 
-            href="https://t.me/spin71_bot" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="bg-[#0088cc]/10 border border-[#0088cc]/30 p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-[#0088cc]/20 transition-all group"
-          >
-            <div className="w-10 h-10 rounded-full bg-[#0088cc] flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform">
-              <Headset size={20} />
-            </div>
-            <span className="text-white font-bold text-[10px] uppercase tracking-tighter">সাপোর্ট বট</span>
-          </a>
-        </div>
-        <button 
-          onClick={() => setIsChatOpen(true)}
-          className="w-full bg-teal-800/40 border border-teal-700/50 p-4 rounded-2xl flex items-center justify-between hover:bg-teal-700/50 transition-all group"
-        >
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-teal-500 flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform">
-              <Headset size={20} />
-            </div>
-            <div className="text-left">
-              <p className="text-white font-bold text-sm">লাইভ চ্যাট সাপোর্ট</p>
-              <p className="text-teal-400 text-[10px] uppercase font-bold">২৪/৭ অনলাইন সাপোর্ট</p>
-            </div>
-          </div>
-          <ChevronRight size={20} className="text-teal-600 group-hover:text-teal-400 transition-colors" />
-        </button>
-      </div>
-
-      {/* Personal Information */}
-      <div className="bg-teal-800/40 rounded-xl border border-teal-700/50 overflow-hidden">
-        <div className="p-3 border-b border-teal-700/50 flex items-center justify-between">
-          <h3 className="font-bold text-white flex items-center gap-2">
-            <User size={16} className="text-teal-400" /> ব্যক্তিগত তথ্য (Personal Info)
-          </h3>
-          <button 
-            onClick={onEditProfile}
-            className="text-[10px] bg-teal-700/50 hover:bg-teal-600/50 text-teal-100 px-2 py-1 rounded-lg border border-teal-600/50 transition-colors flex items-center gap-1"
-          >
-            <UserCog size={12} /> এডিট করুন (Edit)
-          </button>
-        </div>
-        <div className="p-3 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-teal-900 flex items-center justify-center text-teal-300">
-                <Mail size={14} />
-              </div>
-              <div>
-                <p className="text-white text-sm font-medium">ইমেইল (Email)</p>
-                <p className="text-teal-200 text-xs">{profileData?.email || 'Not provided'}</p>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-teal-900 flex items-center justify-center text-teal-300">
-                <Smartphone size={14} />
-              </div>
-              <div>
-                <p className="text-white text-sm font-medium">ফোন নম্বর (Phone)</p>
-                <p className="text-teal-200 text-xs">{userData?.phoneNumber || userData?.phone || profileData?.phoneNumber || profileData?.phone || 'Not provided'}</p>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-teal-900 flex items-center justify-center text-teal-300">
-                <Clock size={14} />
-              </div>
-              <div>
-                <p className="text-white text-sm font-medium">নিবন্ধন তারিখ (Registration Date)</p>
-                <p className="text-teal-200 text-xs">{profileData?.registrationDate || 'Not provided'}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-teal-800/40 rounded-xl border border-teal-700/50 overflow-hidden">
-        <div className="p-3 border-b border-teal-700/50 flex items-center justify-between">
-          <h3 className="font-bold text-white flex items-center gap-2">
-            <Shield size={16} className="text-yellow-400" /> নিরাপত্তা কেন্দ্র
-          </h3>
-          <span className="text-xs bg-green-500/20 text-green-300 px-2 py-0.5 rounded-full border border-green-500/30">উচ্চ</span>
-        </div>
-        <div className="p-3 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-teal-900 flex items-center justify-center text-teal-300">
-                <User size={14} />
-              </div>
-              <div>
-                <p className="text-sm text-white font-medium">ব্যক্তিগত তথ্য</p>
-                <p className="text-[10px] text-teal-200">সম্পূর্ণ</p>
-              </div>
-            </div>
-            <ChevronRight size={16} className="text-teal-400" />
-          </div>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-teal-900 flex items-center justify-center text-teal-300">
-                <CreditCard size={14} />
-              </div>
-              <div>
-                <p className="text-sm text-white font-medium">ব্যাংক কার্ড</p>
-                <p className="text-[10px] text-teal-200">২টি কার্ড যুক্ত</p>
-              </div>
-            </div>
-            <ChevronRight size={16} className="text-teal-400" />
-          </div>
-        </div>
+        ))}
       </div>
     </div>
   );
@@ -1315,21 +1750,21 @@ function LinksTab({ onTabChange, onSubTabChange, showToast }: { onTabChange: (ta
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
       <div className="flex justify-between items-center mb-2">
-        <h3 className="font-bold text-white">আমার লিংক (My Links)</h3>
+        <h3 className="font-bold text-[var(--text-main)]">আমার লিংক (My Links)</h3>
       </div>
 
       <div className="flex flex-col gap-3 mb-4">
         {/* Search */}
         <div className="relative">
           <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-            <Search size={16} className="text-teal-400" />
+            <Search size={16} className="text-[var(--brand-primary)]" />
           </div>
           <input 
             type="text" 
             placeholder="লিংক খুঁজুন..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-teal-800/60 border border-teal-700/50 text-teal-100 text-sm rounded-xl pl-10 pr-4 py-3 focus:outline-none focus:border-yellow-500 transition-colors"
+            className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] text-[var(--text-main)] text-sm rounded-xl pl-10 pr-4 py-3 focus:outline-none focus:border-yellow-500 transition-colors"
           />
         </div>
 
@@ -1337,12 +1772,12 @@ function LinksTab({ onTabChange, onSubTabChange, showToast }: { onTabChange: (ta
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
           <div className="relative flex-1 min-w-[130px]">
             <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
-              <Filter size={14} className="text-teal-400" />
+              <Filter size={14} className="text-[var(--brand-primary)]" />
             </div>
             <select 
               value={filterType} 
               onChange={(e) => setFilterType(e.target.value)}
-              className="w-full bg-teal-800/60 border border-teal-700/50 text-teal-100 text-xs rounded-lg pl-8 pr-2 py-2.5 appearance-none focus:outline-none focus:border-yellow-500"
+              className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] text-[var(--text-main)] text-xs rounded-lg pl-8 pr-2 py-2.5 appearance-none focus:outline-none focus:border-yellow-500"
             >
               <option value="all">সব ধরন</option>
               <option value="page">পেজ</option>
@@ -1354,12 +1789,12 @@ function LinksTab({ onTabChange, onSubTabChange, showToast }: { onTabChange: (ta
           
           <div className="relative flex-1 min-w-[140px]">
             <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
-              <ArrowDownUp size={14} className="text-teal-400" />
+              <ArrowDownUp size={14} className="text-[var(--brand-primary)]" />
             </div>
             <select 
               value={sortBy} 
               onChange={(e) => setSortBy(e.target.value)}
-              className="w-full bg-teal-800/60 border border-teal-700/50 text-teal-100 text-xs rounded-lg pl-8 pr-2 py-2.5 appearance-none focus:outline-none focus:border-yellow-500"
+              className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] text-[var(--text-main)] text-xs rounded-lg pl-8 pr-2 py-2.5 appearance-none focus:outline-none focus:border-yellow-500"
             >
               <option value="recent">সাম্প্রতিক</option>
               <option value="clicks_desc">সবচেয়ে বেশি ক্লিক</option>
@@ -1372,7 +1807,7 @@ function LinksTab({ onTabChange, onSubTabChange, showToast }: { onTabChange: (ta
       <div className="space-y-3">
         {filteredAndSortedLinks.length > 0 ? (
           filteredAndSortedLinks.map((link) => (
-            <div key={link.id} className="bg-teal-800/40 rounded-xl p-4 border border-teal-700/50 hover:bg-teal-700/50 transition-colors">
+            <div key={link.id} className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border-color)] hover:bg-black/5 transition-colors">
               <div className="flex justify-between items-start mb-2">
                 <div className="flex items-center gap-2">
                   <div className={`p-2 rounded-lg ${
@@ -1387,8 +1822,8 @@ function LinksTab({ onTabChange, onSubTabChange, showToast }: { onTabChange: (ta
                      <Info size={16} />}
                   </div>
                   <div>
-                    <h4 className="text-white font-bold text-sm">{link.title}</h4>
-                    <span className="text-[10px] text-teal-300 uppercase tracking-wider">{link.type}</span>
+                    <h4 className="text-[var(--text-main)] font-bold text-sm">{link.title}</h4>
+                    <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">{link.type}</span>
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -1403,7 +1838,7 @@ function LinksTab({ onTabChange, onSubTabChange, showToast }: { onTabChange: (ta
                       navigator.clipboard.writeText(link.url);
                       showToast('লিংক কপি করা হয়েছে!', 'success');
                     }}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-teal-900/50 text-teal-300 hover:text-white hover:bg-teal-700 rounded-md transition-colors border border-teal-700/30"
+                    className="flex items-center gap-1 px-3 py-1.5 bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-black/10 rounded-md transition-colors border border-[var(--border-color)]"
                     title="Copy Link"
                   >
                     <Copy size={14} />
@@ -1412,11 +1847,11 @@ function LinksTab({ onTabChange, onSubTabChange, showToast }: { onTabChange: (ta
                 </div>
               </div>
               
-              <div className="bg-black/20 p-2 rounded-lg mb-3 overflow-hidden">
-                <p className="text-xs text-teal-100/70 truncate font-mono">{link.url}</p>
+              <div className="bg-black/5 p-2 rounded-lg mb-3 overflow-hidden">
+                <p className="text-xs text-[var(--text-muted)] truncate font-mono">{link.url}</p>
               </div>
               
-              <div className="flex justify-between items-center text-[10px] text-teal-400">
+              <div className="flex justify-between items-center text-[10px] text-[var(--text-muted)]">
                 <span className="flex items-center gap-1">
                   <TrendingUp size={12} /> {link.clicks} ক্লিক
                 </span>
@@ -1427,7 +1862,7 @@ function LinksTab({ onTabChange, onSubTabChange, showToast }: { onTabChange: (ta
             </div>
           ))
         ) : (
-          <div className="text-center py-8 text-teal-400/60">
+          <div className="text-center py-8 text-[var(--text-muted)]">
             <p>কোনো লিংক পাওয়া যায়নি</p>
           </div>
         )}
@@ -1533,7 +1968,7 @@ function HistoryTab({ email }: { email?: string }) {
   return (
     <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
       <div className="flex justify-between items-center mb-2">
-        <h3 className="font-bold text-white">সাম্প্রতিক লেনদেন</h3>
+        <h3 className="font-bold text-[var(--text-main)]">সাম্প্রতিক লেনদেন</h3>
         <button className="text-xs text-yellow-400 flex items-center gap-1">
           সব দেখুন <ChevronRight size={12} />
         </button>
@@ -1543,12 +1978,12 @@ function HistoryTab({ email }: { email?: string }) {
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
           <div className="relative flex-1 min-w-[120px]">
             <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
-              <Filter size={14} className="text-teal-400" />
+              <Filter size={14} className="text-[var(--brand-primary)]" />
             </div>
             <select 
               value={filterType} 
               onChange={(e) => setFilterType(e.target.value)}
-              className="w-full bg-teal-800/60 border border-teal-700/50 text-teal-100 text-xs rounded-lg pl-8 pr-2 py-2 appearance-none focus:outline-none focus:border-teal-500"
+              className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] text-[var(--text-main)] text-xs rounded-lg pl-8 pr-2 py-2 appearance-none focus:outline-none focus:border-yellow-500"
             >
               <option value="all">সব ধরন</option>
               <option value="deposit">জমা</option>
@@ -1560,12 +1995,12 @@ function HistoryTab({ email }: { email?: string }) {
           
           <div className="relative flex-1 min-w-[140px]">
             <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
-              <ArrowDownUp size={14} className="text-teal-400" />
+              <ArrowDownUp size={14} className="text-[var(--brand-primary)]" />
             </div>
             <select 
               value={sortBy} 
               onChange={(e) => setSortBy(e.target.value)}
-              className="w-full bg-teal-800/60 border border-teal-700/50 text-teal-100 text-xs rounded-lg pl-8 pr-2 py-2 appearance-none focus:outline-none focus:border-teal-500"
+              className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] text-[var(--text-main)] text-xs rounded-lg pl-8 pr-2 py-2 appearance-none focus:outline-none focus:border-yellow-500"
             >
               <option value="date_desc">নতুন থেকে পুরানো</option>
               <option value="date_asc">পুরানো থেকে নতুন</option>
@@ -1576,12 +2011,12 @@ function HistoryTab({ email }: { email?: string }) {
 
           <div className="relative flex-1 min-w-[140px]">
             <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
-              <Calendar size={14} className="text-teal-400" />
+              <Calendar size={14} className="text-[var(--brand-primary)]" />
             </div>
             <select 
               value={dateRange} 
               onChange={(e) => setDateRange(e.target.value)}
-              className="w-full bg-teal-800/60 border border-teal-700/50 text-teal-100 text-xs rounded-lg pl-8 pr-2 py-2 appearance-none focus:outline-none focus:border-teal-500"
+              className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] text-[var(--text-main)] text-xs rounded-lg pl-8 pr-2 py-2 appearance-none focus:outline-none focus:border-yellow-500"
             >
               <option value="all">সব সময়</option>
               <option value="7days">গত ৭ দিন</option>
@@ -1594,21 +2029,21 @@ function HistoryTab({ email }: { email?: string }) {
         {dateRange === 'custom' && (
           <div className="flex gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="flex-1">
-              <label className="text-[10px] text-teal-300 mb-1 block">শুরুর তারিখ</label>
+              <label className="text-[10px] text-[var(--text-muted)] mb-1 block">শুরুর তারিখ</label>
               <input 
                 type="date" 
                 value={customStartDate}
                 onChange={(e) => setCustomStartDate(e.target.value)}
-                className="w-full bg-teal-800/60 border border-teal-700/50 text-teal-100 text-xs rounded-lg px-2 py-2 focus:outline-none focus:border-teal-500"
+                className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] text-[var(--text-main)] text-xs rounded-lg px-2 py-2 focus:outline-none focus:border-yellow-500"
               />
             </div>
             <div className="flex-1">
-              <label className="text-[10px] text-teal-300 mb-1 block">শেষ তারিখ</label>
+              <label className="text-[10px] text-[var(--text-muted)] mb-1 block">শেষ তারিখ</label>
               <input 
                 type="date" 
                 value={customEndDate}
                 onChange={(e) => setCustomEndDate(e.target.value)}
-                className="w-full bg-teal-800/60 border border-teal-700/50 text-teal-100 text-xs rounded-lg px-2 py-2 focus:outline-none focus:border-teal-500"
+                className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] text-[var(--text-main)] text-xs rounded-lg px-2 py-2 focus:outline-none focus:border-yellow-500"
               />
             </div>
           </div>
@@ -1625,7 +2060,7 @@ function HistoryTab({ email }: { email?: string }) {
         </div>
       ) : filteredAndSortedTransactions.length > 0 ? (
         filteredAndSortedTransactions.map((trx: any) => (
-          <div key={trx.id} onClick={() => setSelectedTrx(trx)} className="bg-teal-800/40 rounded-xl p-3 border border-teal-700/50 flex items-center justify-between cursor-pointer hover:bg-teal-700/50 transition-colors">
+          <div key={trx.id} onClick={() => setSelectedTrx(trx)} className="bg-[var(--bg-card)] rounded-xl p-3 border border-[var(--border-color)] flex items-center justify-between cursor-pointer hover:bg-black/5 transition-colors">
             <div className="flex items-center gap-3">
               <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                 trx.type === 'deposit' ? 'bg-blue-500/20 text-blue-400' :
@@ -1639,23 +2074,23 @@ function HistoryTab({ email }: { email?: string }) {
                 {trx.type === 'bet' && <Gamepad2 size={18} />}
               </div>
               <div>
-                <p className="text-sm font-bold text-white">
+                <p className="text-sm font-bold text-[var(--text-main)]">
                   {trx.type === 'deposit' ? 'জমা' :
                    trx.type === 'withdraw' ? 'উত্তোলন' :
                    trx.type === 'bonus' ? 'বোনাস' : 'বাজি'}
                 </p>
                 <div className="flex flex-col gap-0.5 mt-0.5">
-                  <div className="flex items-center gap-1 text-[10px] text-teal-200">
+                  <div className="flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
                     <Clock size={10} /> {trx.date}
                   </div>
-                  <div className="flex items-center gap-1 text-[10px] text-teal-400">
+                  <div className="flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
                     <span className="font-mono opacity-70">{trx.trxId}</span> • <span className="font-medium">{trx.method}</span>
                   </div>
                 </div>
               </div>
             </div>
             <div className="text-right">
-              <p className={`text-sm font-bold ${trx.type === 'deposit' || trx.type === 'bonus' ? 'text-green-400' : 'text-white'}`}>
+              <p className={`text-sm font-bold ${trx.type === 'deposit' || trx.type === 'bonus' ? 'text-green-400' : 'text-[var(--text-main)]'}`}>
                 {trx.type === 'deposit' || trx.type === 'bonus' ? '+' : '-'}৳{Math.abs(trx.amount).toLocaleString()}
               </p>
               <p className={`text-[10px] mt-0.5 ${trx.statusColor}`}>{trx.status}</p>
@@ -1663,7 +2098,7 @@ function HistoryTab({ email }: { email?: string }) {
           </div>
         ))
       ) : (
-        <div className="text-center py-8 text-teal-300/50">
+        <div className="text-center py-8 text-[var(--text-muted)]">
           কোনো লেনদেন পাওয়া যায়নি
         </div>
       )}
@@ -1671,42 +2106,42 @@ function HistoryTab({ email }: { email?: string }) {
       {/* Transaction Details Modal */}
       {selectedTrx && (
         <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4" onClick={() => setSelectedTrx(null)}>
-          <div className="bg-teal-900 rounded-2xl p-6 max-w-sm w-full border border-teal-700 shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="bg-[var(--bg-card)] rounded-2xl p-6 max-w-sm w-full border border-[var(--border-color)] shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-white">লেনদেনের বিস্তারিত</h3>
-              <button onClick={() => setSelectedTrx(null)} className="text-teal-300 hover:text-white">
+              <h3 className="text-xl font-bold text-[var(--text-main)]">লেনদেনের বিস্তারিত</h3>
+              <button onClick={() => setSelectedTrx(null)} className="text-[var(--text-muted)] hover:text-[var(--text-main)]">
                 <X size={20} />
               </button>
             </div>
             <div className="space-y-3">
-              <div className="flex justify-between py-2 border-b border-teal-800">
-                <span className="text-teal-300 text-sm">লেনদেন আইডি:</span>
-                <span className="text-white font-mono font-bold">{selectedTrx.trxId}</span>
+              <div className="flex justify-between py-2 border-b border-[var(--border-color)]">
+                <span className="text-[var(--text-muted)] text-sm">লেনদেন আইডি:</span>
+                <span className="text-[var(--text-main)] font-mono font-bold">{selectedTrx.trxId}</span>
               </div>
-              <div className="flex justify-between py-2 border-b border-teal-800">
-                <span className="text-teal-300 text-sm">পদ্ধতি:</span>
-                <span className="text-white font-bold">{selectedTrx.method}</span>
+              <div className="flex justify-between py-2 border-b border-[var(--border-color)]">
+                <span className="text-[var(--text-muted)] text-sm">পদ্ধতি:</span>
+                <span className="text-[var(--text-main)] font-bold">{selectedTrx.method}</span>
               </div>
-              <div className="flex justify-between py-2 border-b border-teal-800">
-                <span className="text-teal-300 text-sm">ধরন:</span>
-                <span className="text-white font-bold">
+              <div className="flex justify-between py-2 border-b border-[var(--border-color)]">
+                <span className="text-[var(--text-muted)] text-sm">ধরন:</span>
+                <span className="text-[var(--text-main)] font-bold">
                   {selectedTrx.type === 'deposit' ? 'জমা' :
                    selectedTrx.type === 'withdraw' ? 'উত্তোলন' :
                    selectedTrx.type === 'bonus' ? 'বোনাস' : 'বাজি'}
                 </span>
               </div>
-              <div className="flex justify-between py-2 border-b border-teal-800">
-                <span className="text-teal-300 text-sm">পরিমাণ:</span>
-                <span className={`font-bold ${selectedTrx.type === 'deposit' || selectedTrx.type === 'bonus' ? 'text-green-400' : 'text-white'}`}>
+              <div className="flex justify-between py-2 border-b border-[var(--border-color)]">
+                <span className="text-[var(--text-muted)] text-sm">পরিমাণ:</span>
+                <span className={`font-bold ${selectedTrx.type === 'deposit' || selectedTrx.type === 'bonus' ? 'text-green-400' : 'text-[var(--text-main)]'}`}>
                   {selectedTrx.type === 'deposit' || selectedTrx.type === 'bonus' ? '+' : '-'}৳{Math.abs(selectedTrx.amount).toLocaleString()}
                 </span>
               </div>
-              <div className="flex justify-between py-2 border-b border-teal-800">
-                <span className="text-teal-300 text-sm">তারিখ:</span>
-                <span className="text-white">{selectedTrx.date}</span>
+              <div className="flex justify-between py-2 border-b border-[var(--border-color)]">
+                <span className="text-[var(--text-muted)] text-sm">তারিখ:</span>
+                <span className="text-[var(--text-main)]">{selectedTrx.date}</span>
               </div>
               <div className="flex justify-between py-2">
-                <span className="text-teal-300 text-sm">অবস্থা:</span>
+                <span className="text-[var(--text-muted)] text-sm">অবস্থা:</span>
                 <span className={`font-bold ${selectedTrx.statusColor}`}>{selectedTrx.status}</span>
               </div>
             </div>
@@ -1792,14 +2227,14 @@ function WithdrawalHistoryTab({ email }: { email?: string }) {
   return (
     <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
       <div className="flex justify-between items-center mb-2">
-        <h3 className="font-bold text-white">উত্তোলন ইতিহাস</h3>
+        <h3 className="font-bold text-[var(--text-main)]">উত্তোলন ইতিহাস</h3>
       </div>
 
       <div className="flex gap-2 mb-4">
         <select 
           value={sortBy} 
           onChange={(e) => setSortBy(e.target.value)}
-          className="w-full bg-teal-800/60 border border-teal-700/50 text-teal-100 text-xs rounded-lg px-2 py-2 appearance-none focus:outline-none focus:border-teal-500"
+          className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] text-[var(--text-main)] text-xs rounded-lg px-2 py-2 appearance-none focus:outline-none focus:border-yellow-500"
         >
           <option value="date_desc">নতুন থেকে পুরানো</option>
           <option value="date_asc">পুরানো থেকে নতুন</option>
@@ -1817,17 +2252,17 @@ function WithdrawalHistoryTab({ email }: { email?: string }) {
           ))}
         </div>
       ) : filteredAndSortedTransactions.length === 0 ? (
-        <div className="text-center text-teal-400 text-sm py-10">কোনো উত্তোলন ইতিহাস নেই।</div>
+        <div className="text-center text-[var(--text-muted)] text-sm py-10">কোনো উত্তোলন ইতিহাস নেই।</div>
       ) : (
         <div className="space-y-2">
           {filteredAndSortedTransactions.map((trx) => (
-            <div key={trx.id} className="bg-teal-900/40 p-3 rounded-xl border border-teal-700/30 flex justify-between items-center">
+            <div key={trx.id} className="bg-[var(--bg-card)] p-3 rounded-xl border border-[var(--border-color)] flex justify-between items-center transition-colors duration-300">
               <div>
-                <p className="text-white font-bold text-sm">{trx.amount}</p>
-                <p className="text-teal-400 text-[10px]">{trx.date}</p>
+                <p className="text-[var(--text-main)] font-bold text-sm">{trx.amount}</p>
+                <p className="text-[var(--text-muted)] text-[10px]">{trx.date}</p>
               </div>
               <div className="text-right">
-                <p className="text-teal-100 text-xs">{trx.method}</p>
+                <p className="text-[var(--text-main)] text-xs">{trx.method}</p>
                 <p className={`text-[10px] font-bold ${trx.status === 'completed' ? 'text-green-400' : 'text-yellow-400'}`}>
                   {trx.status === 'completed' ? 'সম্পন্ন' : 'প্রক্রিয়াধীন'}
                 </p>
@@ -1840,7 +2275,7 @@ function WithdrawalHistoryTab({ email }: { email?: string }) {
   );
 }
 
-function SettingsTab({ profileData, onLogout, onEditProfile, showToast, hideAccountDetails }: { profileData: any, onLogout: () => void, onEditProfile: () => void, showToast: (msg: string, type?: ToastType) => void, hideAccountDetails?: boolean }) {
+function SettingsTab({ profileData, onLogout, onEditProfile, showToast, hideAccountDetails, onOpenBankCards }: { profileData: any, onLogout: () => void, onEditProfile: () => void, showToast: (msg: string, type?: ToastType) => void, hideAccountDetails?: boolean, onOpenBankCards?: () => void }) {
   const [showPassword, setShowPassword] = useState(false);
   const [is2FAEnabled, setIs2FAEnabled] = useState(false);
   const [twoFAMethod, setTwoFAMethod] = useState<'app' | 'sms'>('app');
@@ -1889,7 +2324,7 @@ function SettingsTab({ profileData, onLogout, onEditProfile, showToast, hideAcco
 
   const fetchLocation = () => {
     if (!navigator.geolocation) {
-      setLocationError("Geolocation is not supported by your browser");
+      fetchLocationByIP();
       return;
     }
 
@@ -1900,33 +2335,92 @@ function SettingsTab({ profileData, onLogout, onEditProfile, showToast, hideAcco
       async (position) => {
         try {
           const { latitude, longitude } = position.coords;
-          // Use a free reverse geocoding API (e.g., bigdatacloud)
-          const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`);
-          if (!response.ok) throw new Error("Failed to fetch location data");
-          
-          const data = await response.json();
-          if (data.countryName) {
-            setCountry(data.countryName);
-            // Update the user's profile in Firestore
-            if (auth.currentUser) {
-              await updateUserProfile(auth.currentUser.uid, { country: data.countryName });
+          let countryName = null;
+
+          // Try BigDataCloud first
+          try {
+            const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`);
+            if (response.ok) {
+              const data = await response.json();
+              countryName = data.countryName;
             }
+          } catch (e) {
+            console.warn("BigDataCloud reverse geocode failed:", e);
+          }
+
+          // Fallback to Nominatim if BigDataCloud fails
+          if (!countryName) {
+            try {
+              const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=3&addressdetails=1`, {
+                headers: { 'Accept-Language': 'en' }
+              });
+              if (response.ok) {
+                const data = await response.json();
+                countryName = data.address?.country;
+              }
+            } catch (e) {
+              console.warn("Nominatim reverse geocode failed:", e);
+            }
+          }
+
+          if (countryName) {
+            handleUpdateCountry(countryName);
           } else {
-             setLocationError("Could not determine country from location");
+            // If reverse geocoding failed, try IP-based
+            await fetchLocationByIP();
           }
         } catch (error) {
-          console.error("Error fetching location:", error);
-          setLocationError("Failed to get country name");
+          console.error("Error processing geolocation:", error);
+          await fetchLocationByIP();
         } finally {
           setIsFetchingLocation(false);
         }
       },
-      (error) => {
-        console.error("Geolocation error:", error);
-        setLocationError("Location access denied or unavailable");
+      async (error) => {
+        console.warn("Geolocation error, falling back to IP:", error);
+        await fetchLocationByIP();
         setIsFetchingLocation(false);
-      }
+      },
+      { timeout: 8000, maximumAge: 60000 }
     );
+  };
+
+  const fetchLocationByIP = async () => {
+    try {
+      // Try ipapi.co first
+      const response = await fetch('https://ipapi.co/json/');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.country_name) {
+          handleUpdateCountry(data.country_name);
+          return;
+        }
+      }
+      
+      // Fallback to ip-api.com (HTTP only for free tier, but let's try)
+      const response2 = await fetch('https://ipwho.is/');
+      if (response2.ok) {
+        const data = await response2.json();
+        if (data.country) {
+          handleUpdateCountry(data.country);
+          return;
+        }
+      }
+    } catch (e) {
+      console.error("IP-based location failed:", e);
+    }
+    setLocationError("Could not determine location");
+  };
+
+  const handleUpdateCountry = async (countryName: string) => {
+    setCountry(countryName);
+    if (auth.currentUser) {
+      try {
+        await updateUserProfile(auth.currentUser.uid, { country: countryName });
+      } catch (e) {
+        console.error("Failed to update country in profile:", e);
+      }
+    }
   };
 
   const handleLinkGoogle = async () => {

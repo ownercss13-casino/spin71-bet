@@ -17,25 +17,33 @@ export interface Game {
 }
 
 export const games: Game[] = [
-  // JILI (8)
+  // JILI (12)
   { id: 'jili_1', name: 'Super Ace', provider: 'JILI', image: 'https://picsum.photos/seed/jili1/400/600', category: 'স্লট', isHot: true, bgColor: 'from-yellow-600 to-green-600' },
   { id: 'jili_2', name: 'Golden Empire', provider: 'JILI', image: 'https://picsum.photos/seed/jili2/400/600', category: 'স্লট', isHot: true, bgColor: 'from-yellow-500 to-yellow-700' },
-  { id: 'jili_3', name: 'Fortune Gems', provider: 'JILI', image: 'https://picsum.photos/seed/jili3/400/600', category: 'স্লট', bgColor: 'from-red-500 to-red-800' },
+  { id: 'jili_3', name: 'Fortune Gems', provider: 'JILI', image: 'https://picsum.photos/seed/jili3/400/600', category: 'স্লট', isHot: true, bgColor: 'from-red-500 to-red-800' },
   { id: 'jili_4', name: 'Boxing King', provider: 'JILI', image: 'https://picsum.photos/seed/jili4/400/600', category: 'স্লট', isHot: true, bgColor: 'from-orange-500 to-red-600' },
-  { id: 'jili_5', name: 'Money Coming', provider: 'JILI', image: 'https://picsum.photos/seed/jili5/400/600', category: 'স্লট', bgColor: 'from-green-500 to-green-800' },
+  { id: 'jili_5', name: 'Money Coming', provider: 'JILI', image: 'https://picsum.photos/seed/jili5/400/600', category: 'স্লট', isHot: true, bgColor: 'from-green-500 to-green-800' },
   { id: 'jili_6', name: 'Charge Buffalo', provider: 'JILI', image: 'https://picsum.photos/seed/jili6/400/600', category: 'স্লট', bgColor: 'from-yellow-600 to-orange-800' },
   { id: 'jili_7', name: 'Magic Lamp', provider: 'JILI', image: 'https://picsum.photos/seed/jili7/400/600', category: 'স্লট', bgColor: 'from-purple-500 to-purple-800' },
   { id: 'jili_8', name: 'Ali Baba', provider: 'JILI', image: 'https://picsum.photos/seed/jili8/400/600', category: 'স্লট', bgColor: 'from-blue-500 to-blue-800' },
+  { id: 'jili_9', name: 'Crazy 777', provider: 'JILI', image: 'https://picsum.photos/seed/jili9/400/600', category: 'স্লট', isHot: true, bgColor: 'from-red-600 to-yellow-600' },
+  { id: 'jili_10', name: 'Seven Seven Seven', provider: 'JILI', image: 'https://picsum.photos/seed/jili10/400/600', category: 'স্লট', bgColor: 'from-red-500 to-red-700' },
+  { id: 'jili_11', name: 'Roma X', provider: 'JILI', image: 'https://picsum.photos/seed/jili11/400/600', category: 'স্লট', bgColor: 'from-orange-600 to-red-800' },
+  { id: 'jili_12', name: 'Jungle King', provider: 'JILI', image: 'https://picsum.photos/seed/jili12/400/600', category: 'স্লট', bgColor: 'from-green-600 to-green-900' },
 
-  // PG (8)
+  // PG (12)
   { id: 'pg_1', name: 'Mahjong Ways', provider: 'PG', image: 'https://picsum.photos/seed/pg1/400/600', category: 'স্লট', isHot: true, bgColor: 'from-red-600 to-red-900' },
   { id: 'pg_2', name: 'Mahjong Ways 2', provider: 'PG', image: 'https://picsum.photos/seed/pg2/400/600', category: 'স্লট', isHot: true, bgColor: 'from-red-500 to-red-800' },
-  { id: 'pg_3', name: 'Treasure of Aztec', provider: 'PG', image: 'https://picsum.photos/seed/pg3/400/600', category: 'স্লট', bgColor: 'from-yellow-500 to-orange-700' },
-  { id: 'pg_4', name: 'Lucky Neko', provider: 'PG', image: 'https://picsum.photos/seed/pg4/400/600', category: 'স্লট', bgColor: 'from-pink-500 to-purple-700' },
+  { id: 'pg_3', name: 'Treasure of Aztec', provider: 'PG', image: 'https://picsum.photos/seed/pg3/400/600', category: 'স্লট', isHot: true, bgColor: 'from-yellow-500 to-orange-700' },
+  { id: 'pg_4', name: 'Lucky Neko', provider: 'PG', image: 'https://picsum.photos/seed/pg4/400/600', category: 'স্লট', isHot: true, bgColor: 'from-pink-500 to-purple-700' },
   { id: 'pg_5', name: 'Wild Bandito', provider: 'PG', image: 'https://picsum.photos/seed/pg5/400/600', category: 'স্লট', bgColor: 'from-purple-600 to-purple-900' },
   { id: 'pg_6', name: 'Dreams of Macau', provider: 'PG', image: 'https://picsum.photos/seed/pg6/400/600', category: 'স্লট', bgColor: 'from-blue-500 to-blue-800' },
   { id: 'pg_7', name: 'Caishen Wins', provider: 'PG', image: 'https://picsum.photos/seed/pg7/400/600', category: 'স্লট', bgColor: 'from-red-400 to-red-700' },
   { id: 'pg_8', name: 'Egypts Book', provider: 'PG', image: 'https://picsum.photos/seed/pg8/400/600', category: 'স্লট', bgColor: 'from-yellow-600 to-yellow-900' },
+  { id: 'pg_9', name: 'Ganesha Fortune', provider: 'PG', image: 'https://picsum.photos/seed/pg9/400/600', category: 'স্লট', bgColor: 'from-orange-500 to-orange-800' },
+  { id: 'pg_10', name: 'Double Fortune', provider: 'PG', image: 'https://picsum.photos/seed/pg10/400/600', category: 'স্লট', bgColor: 'from-red-500 to-red-800' },
+  { id: 'pg_11', name: 'Dragon Hatch', provider: 'PG', image: 'https://picsum.photos/seed/pg11/400/600', category: 'স্লট', bgColor: 'from-green-600 to-green-900' },
+  { id: 'pg_12', name: 'Medusa', provider: 'PG', image: 'https://picsum.photos/seed/pg12/400/600', category: 'স্লট', bgColor: 'from-blue-600 to-blue-900' },
 
   // JBD (8)
   { id: 'jbd_1', name: 'Open Sesame', provider: 'JBD', image: 'https://picsum.photos/seed/jbd1/400/600', category: 'স্লট', bgColor: 'from-purple-500 to-purple-800' },
@@ -74,7 +82,8 @@ const PROVIDERS = [
   { id: 'PG', name: 'PG', logo: 'https://placehold.co/100x40/ea580c/ffffff?text=PG' },
   { id: 'JBD', name: 'JBD', logo: 'https://placehold.co/100x40/047857/ffffff?text=JBD' },
   { id: 'SPRIBE', name: 'SPRIBE', logo: 'https://placehold.co/100x40/b91c1c/ffffff?text=SPRIBE' },
-  { id: 'BT GAME', name: 'BT GAME', logo: 'https://placehold.co/100x40/4338ca/ffffff?text=BT+GAME' },
+  { id: 'EVOLUTION', name: 'EVOLUTION', logo: 'https://placehold.co/100x40/000000/ffffff?text=EVO' },
+  { id: 'PRAGMATIC', name: 'PRAGMATIC', logo: 'https://placehold.co/100x40/4338ca/ffffff?text=PP' },
 ];
 
 interface GameCardProps {
@@ -192,7 +201,7 @@ const GameCard: React.FC<GameCardProps> = ({
       </div>
       
       {/* Change Logo Button */}
-      {isAdmin && onLogoChange && (
+      {onLogoChange && (
         <div 
           onClick={(e) => {
             e.stopPropagation();
@@ -247,35 +256,26 @@ const GameCard: React.FC<GameCardProps> = ({
         </div>
       )}
       {/* Change Name/Details Button */}
-      {isAdmin && (
-        <div 
-          onClick={(e) => {
-            e.stopPropagation();
-            setEditingGame({
-              gameId: game.id,
-              name: displayName,
-              logo: displayImage,
-              url: displayUrl,
-              option: displayOption
-            });
-          }}
-          className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/80 to-transparent pt-8 pb-2 px-1 flex items-center justify-center gap-1 z-20 group/name cursor-pointer"
-        >
-          <span className="text-[10px] font-bold text-white drop-shadow-md group-hover:text-yellow-400 transition-colors truncate max-w-[80%] uppercase tracking-tighter">
-            {displayName}
-          </span>
-          <div className="bg-yellow-500/20 p-1 rounded transition-all hover:bg-yellow-500/40">
-            <Edit2 size={10} className="text-yellow-400" />
-          </div>
+      <div 
+        onClick={(e) => {
+          e.stopPropagation();
+          setEditingGame({
+            gameId: game.id,
+            name: displayName,
+            logo: displayImage,
+            url: displayUrl,
+            option: displayOption
+          });
+        }}
+        className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/80 to-transparent pt-8 pb-2 px-1 flex items-center justify-center gap-1 z-20 group/name cursor-pointer"
+      >
+        <span className="text-[10px] font-bold text-white drop-shadow-md group-hover:text-yellow-400 transition-colors truncate max-w-[80%] uppercase tracking-tighter">
+          {displayName}
+        </span>
+        <div className="bg-yellow-500/20 p-1 rounded transition-all hover:bg-yellow-500/40">
+          <Edit2 size={10} className="text-yellow-400" />
         </div>
-      )}
-      {!isAdmin && (
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/80 to-transparent pt-8 pb-2 px-1 flex items-center justify-center z-20">
-          <span className="text-[10px] font-bold text-white drop-shadow-md truncate max-w-[90%] uppercase tracking-tighter">
-            {displayName}
-          </span>
-        </div>
-      )}
+      </div>
       {/* Hover Glow Effect */}
       <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/0 to-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
     </div>

@@ -1,16 +1,39 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
+import admin from "firebase-admin";
+import fs from "fs";
 
-let envToken = process.env.TELEGRAM_BOT_TOKEN;
-if (envToken === "YOUR_TELEGRAM_BOT_TOKEN" || !envToken) {
-  envToken = "8608514077:AAFHK4yjhkPn1McxvI2NvBhxzPPjUyhc7Z0";
+// Initialize Firebase Admin
+let db: admin.firestore.Firestore | null = null;
+try {
+  const firebaseConfig = JSON.parse(fs.readFileSync('./firebase-applet-config.json', 'utf8'));
+  
+  let credential;
+  if (fs.existsSync('./serviceAccountKey.json')) {
+    credential = admin.credential.cert(require('./serviceAccountKey.json'));
+  } else {
+    credential = admin.credential.applicationDefault();
+  }
+
+  admin.initializeApp({
+    credential,
+    projectId: firebaseConfig.projectId,
+  });
+
+  db = admin.firestore();
+  db.settings({ databaseId: firebaseConfig.firestoreDatabaseId });
+  console.log("Firebase Admin initialized successfully.");
+} catch (e) {
+  console.error("Failed to initialize Firebase Admin. Admin APIs may not work.", e);
 }
-const TELEGRAM_BOT_TOKEN = envToken;
 
-let adminChatId: string | null = process.env.TELEGRAM_ADMIN_CHAT_ID || "7354725295";
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "8608514077:AAFHK4yjhkPn1McxvI2NvBhxzPPjUyhc7Z0";
+const TELEGRAM_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID || "7354725295";
+
+let adminChatId: string | null = TELEGRAM_ADMIN_CHAT_ID;
 if (adminChatId === "YOUR_TELEGRAM_ADMIN_CHAT_ID") {
-  adminChatId = "7354725295";
+  adminChatId = null; // Force user to provide a real one or send a message to the bot
 }
 
 // Multi-user chat history: { [userId: string]: Message[] }
@@ -104,6 +127,169 @@ async function startServer() {
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", message: "Server is running!" });
   });
+
+  // Admin API Middleware
+  const verifyAdminToken = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ error: "Unauthorized: Missing or invalid token" });
+      return;
+    }
+
+    const token = authHeader.split(' ')[1];
+    
+    if (!db) {
+      res.status(500).json({ error: "Firebase Admin is not initialized. Please provide serviceAccountKey.json." });
+      return;
+    }
+
+    try {
+      const tokenDoc = await db.collection('api_tokens').doc(token).get();
+      if (!tokenDoc.exists || tokenDoc.data()?.status !== 'active') {
+        res.status(403).json({ error: "Forbidden: Invalid or inactive token" });
+        return;
+      }
+      next();
+    } catch (error) {
+      console.error("Token verification error:", error);
+      res.status(500).json({ error: "Internal server error during token verification" });
+    }
+  };
+
+  // --- Admin API Endpoints ---
+
+  // Get all users
+  app.get("/api/admin/users", verifyAdminToken, async (req, res) => {
+    try {
+      const snapshot = await db!.collection('users').get();
+      const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      res.json({ success: true, count: users.length, users });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update user balance
+  app.post("/api/admin/users/:userId/balance", verifyAdminToken, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { amount, type, reason } = req.body; // type: 'add' or 'subtract'
+      
+      if (!amount || typeof amount !== 'number') {
+        res.status(400).json({ error: "Invalid amount" });
+        return;
+      }
+
+      const userRef = db!.collection('users').doc(userId);
+      const userDoc = await userRef.get();
+      
+      if (!userDoc.exists) {
+        res.status(404).json({ error: "User not found" });
+        return;
+      }
+
+      const currentBalance = userDoc.data()?.balance || 0;
+      const newBalance = type === 'add' ? currentBalance + amount : currentBalance - amount;
+
+      if (newBalance < 0) {
+        res.status(400).json({ error: "Balance cannot be negative" });
+        return;
+      }
+
+      await userRef.update({ balance: newBalance });
+
+      // Create transaction record
+      await db!.collection('users').doc(userId).collection('transactions').add({
+        method: 'System Admin',
+        type: type === 'add' ? 'bonus' : 'withdraw',
+        amount: type === 'add' ? amount : -amount,
+        date: admin.firestore.FieldValue.serverTimestamp(),
+        status: 'সম্পন্ন',
+        statusColor: 'text-green-400',
+        trxId: 'SYS_' + Date.now(),
+        reason: reason || 'Admin adjustment'
+      });
+
+      res.json({ success: true, newBalance });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update user role
+  app.post("/api/admin/users/:userId/role", verifyAdminToken, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { role } = req.body;
+      
+      if (!['user', 'agent', 'admin'].includes(role)) {
+        res.status(400).json({ error: "Invalid role" });
+        return;
+      }
+
+      await db!.collection('users').doc(userId).update({ role });
+      res.json({ success: true, role });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get all pending transactions
+  app.get("/api/admin/transactions/pending", verifyAdminToken, async (req, res) => {
+    try {
+      // This requires a collection group query or querying all users. 
+      // For simplicity, we'll query the global transactions if they exist, 
+      // or we can just return a message that this requires a specific schema.
+      res.json({ message: "To fetch all pending transactions efficiently, consider storing them in a root 'transactions' collection." });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Create Promo Code
+  app.post("/api/admin/promos", verifyAdminToken, async (req, res) => {
+    try {
+      const { code, amount, maxUses } = req.body;
+      if (!code || !amount) {
+        res.status(400).json({ error: "Code and amount are required" });
+        return;
+      }
+
+      await db!.collection('promo_codes').doc(code).set({
+        code,
+        amount: Number(amount),
+        maxUses: Number(maxUses) || 100,
+        usedCount: 0,
+        active: true,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      res.json({ success: true, code });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update Global Settings
+  app.post("/api/admin/settings", verifyAdminToken, async (req, res) => {
+    try {
+      const { key, value } = req.body;
+      if (!key) {
+        res.status(400).json({ error: "Key is required" });
+        return;
+      }
+
+      await db!.collection('metadata').doc('settings').set({
+        [key]: value
+      }, { merge: true });
+
+      res.json({ success: true, key, value });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // --- End Admin API Endpoints ---
 
   app.get("/api/user/profile", (req, res) => {
     // Simulating database fetch

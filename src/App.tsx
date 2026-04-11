@@ -10,10 +10,11 @@ import ProfileView from "./components/ProfileView";
 import InviteView from "./components/InviteView";
 import HomeView from "./components/HomeView";
 import DepositView from "./components/DepositView";
+import WalletView from "./components/WalletView";
 import AviatorGame from "./components/AviatorGame";
 import SupportChat from "./components/SupportChat";
 import SlotGame from "./components/SlotGame";
-import BetSlip from "./components/BetSlip";
+import PromoCodeModal from "./components/PromoCodeModal";
 import PermissionManager from "./components/PermissionManager";
 import NotificationCenter from "./components/NotificationCenter";
 import AdminPanel from "./components/AdminPanel";
@@ -23,6 +24,7 @@ import { GameGrid, Game } from "./components/GameGrid";
 import { CasinoGallery } from "./components/CasinoGallery";
 import { GAME_IMAGES } from "./constants/gameAssets";
 import { saveItem, getSavedItems, removeItem, updateUserProfile, updateFavorites, updateBalance, updateGlobalGameLogo, updateGlobalGameName, updateGlobalGameUrl, updateGlobalGameOption, updateAllButtonName, updateCasinoName } from './services/firebaseService';
+import GameLoader from "./components/GameLoader";
 import { ToastContainer, ToastType } from "./components/Toast";
 import {
   AlertCircle,
@@ -58,20 +60,77 @@ import {
   Check,
   Download,
   Trophy,
-  Bell
+  Bell,
+  Moon,
+  Sun
 } from "lucide-react";
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userData, setUserData] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'home' | 'profile' | 'invite' | 'deposit' | 'bonus'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'profile' | 'invite' | 'deposit' | 'bonus' | 'admin' | 'wallet'>('home');
+  const [profileSubTab, setProfileSubTab] = useState<string>('dashboard');
+
+  // URL Syncing
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      if (path === '/') {
+        setActiveTab('home');
+      } else if (path.startsWith('/member/')) {
+        const subPath = path.replace('/member/', '');
+        if (subPath === 'wallet') {
+          setActiveTab('wallet');
+        } else if (subPath === 'deposit') {
+          setActiveTab('deposit');
+        } else if (subPath === 'bonus') {
+          setActiveTab('bonus');
+        } else if (subPath === 'referral') {
+          setActiveTab('invite');
+        } else {
+          setActiveTab('profile');
+          setProfileSubTab(subPath || 'dashboard');
+        }
+      } else if (path === '/admin') {
+        setActiveTab('admin');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    handlePopState(); // Initial check
+
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    let newPath = '/';
+    if (activeTab === 'profile') {
+      newPath = `/member/${profileSubTab}`;
+    } else if (activeTab === 'admin') {
+      newPath = '/admin';
+    } else if (activeTab === 'wallet') {
+      newPath = '/member/wallet';
+    } else if (activeTab === 'deposit') {
+      newPath = '/member/deposit';
+    } else if (activeTab === 'bonus') {
+      newPath = '/member/bonus';
+    } else if (activeTab === 'invite') {
+      newPath = '/member/referral';
+    } else if (activeTab === 'home') {
+      newPath = '/';
+    }
+
+    if (window.location.pathname !== newPath) {
+      window.history.pushState({}, '', newPath);
+    }
+  }, [activeTab, profileSubTab]);
   const [activeCategory, setActiveCategory] = useState('সেরা');
   const [favorites, setFavorites] = useState<string[]>([]);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [showGallery, setShowGallery] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [showBetSlip, setShowBetSlip] = useState(false);
+  const [showPromoModal, setShowPromoModal] = useState(false);
   const [selectedOdds, setSelectedOdds] = useState(2.0);
   const [betGameName, setBetGameName] = useState("Casino Game");
 
@@ -81,6 +140,20 @@ export default function App() {
   const [isTabLoading, setIsTabLoading] = useState(false);
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const saved = localStorage.getItem('theme');
+    return (saved as 'light' | 'dark') || 'dark';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
 
   const handleTabChange = (tab: any) => {
     if (tab === activeTab) return;
@@ -161,6 +234,14 @@ export default function App() {
   const [globalOptions, setGlobalOptions] = useState<Record<string, string>>({});
   const [allButtonName, setAllButtonName] = useState<string>("ALL");
   const [casinoName, setCasinoName] = useState<string>("SPIN71BET");
+  const [telegramLink, setTelegramLink] = useState<string>("https://t.me/spin71bet_official");
+  const [whatsappLink, setWhatsappLink] = useState<string>("https://wa.me/...");
+  const [facebookLink, setFacebookLink] = useState<string>("https://facebook.com/...");
+  const [supportEmail, setSupportEmail] = useState<string>("support@example.com");
+  const [minDeposit, setMinDeposit] = useState<number>(100);
+  const [minWithdraw, setMinWithdraw] = useState<number>(500);
+  const [welcomeBonus, setWelcomeBonus] = useState<number>(507);
+  const [noticeText, setNoticeText] = useState<string>("আমাদের গেম উপভোগ করুন এবং বড় জয় নিশ্চিত করুন!");
   const [toasts, setToasts] = useState<{ id: string; message: string; type: ToastType }[]>([]);
 
   // Referral tracking
@@ -190,6 +271,29 @@ export default function App() {
         if (data.casinoName) {
           setCasinoName(data.casinoName);
         }
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+    });
+
+    return () => unsubscribe();
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const path = `global_config/app_settings`;
+    const unsubscribe = onSnapshot(doc(db, path), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.casinoName) setCasinoName(data.casinoName);
+        if (data.telegramLink) setTelegramLink(data.telegramLink);
+        if (data.whatsappLink) setWhatsappLink(data.whatsappLink);
+        if (data.facebookLink) setFacebookLink(data.facebookLink);
+        if (data.supportEmail) setSupportEmail(data.supportEmail);
+        if (data.minDeposit) setMinDeposit(data.minDeposit);
+        if (data.minWithdraw) setMinWithdraw(data.minWithdraw);
+        if (data.welcomeBonus) setWelcomeBonus(data.welcomeBonus);
+        if (data.noticeText) setNoticeText(data.noticeText);
       }
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, path);
@@ -284,6 +388,24 @@ export default function App() {
     }, 800);
   };
 
+  const handleUpdateGlobalGameLogo = async (gameId: string, logo: string) => {
+    await updateGlobalGameLogo(gameId, logo, userData?.role === 'admin');
+    if (userData?.role !== 'admin') {
+      showToast("পরিবর্তনের অনুরোধ পাঠানো হয়েছে। অ্যাডমিন অ্যাপ্রুভ করলে আপডেট হবে।", "success");
+    } else {
+      showToast("গেম লোগো আপডেট হয়েছে", "success");
+    }
+  };
+
+  const handleUpdateGlobalGameName = async (gameId: string, name: string) => {
+    await updateGlobalGameName(gameId, name, userData?.role === 'admin');
+    if (userData?.role !== 'admin') {
+      showToast("পরিবর্তনের অনুরোধ পাঠানো হয়েছে। অ্যাডমিন অ্যাপ্রুভ করলে আপডেট হবে।", "success");
+    } else {
+      showToast("গেমের নাম আপডেট হয়েছে", "success");
+    }
+  };
+
   const [isAuthInitialized, setIsAuthInitialized] = useState(false);
 
   useEffect(() => {
@@ -345,15 +467,13 @@ export default function App() {
               let nextId = 101;
               if (metadataDoc.exists()) {
                 nextId = (metadataDoc.data().userCount || 100) + 1;
-              } else {
-                // Initialize metadata if it doesn't exist
-                transaction.set(metadataRef, { userCount: 100 });
               }
               
               const username = `K71${nextId}`;
               
               const newUser: any = {
                 username: username,
+                numericId: nextId.toString(),
                 referralCode: username,
                 phoneNumber: 'Not Provided',
                 password: user.isAnonymous ? 'anonymous-auth' : 'email-auth',
@@ -364,7 +484,7 @@ export default function App() {
                 role: 'user',
                 isGmailLinked: false,
                 favorites: [],
-                vipLevel: 1,
+                vipLevel: 0,
                 vipProgress: 0,
                 profilePictureUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
                 deviceId: deviceId,
@@ -393,7 +513,7 @@ export default function App() {
               }
               
               transaction.set(userRef, newUser);
-              transaction.set(metadataRef, { userCount: nextId }, { merge: true });
+              transaction.set(metadataRef, { userCount: nextId });
             });
           }
           
@@ -401,6 +521,19 @@ export default function App() {
           unsubscribeDoc = onSnapshot(doc(db, 'users', firebaseUid), (docSnap) => {
             if (docSnap.exists()) {
               const data = docSnap.data();
+              
+              // Lazy migration for numericId
+              if (!data.numericId) {
+                const numericPart = data.username?.replace('K71', '');
+                if (numericPart && !isNaN(Number(numericPart))) {
+                  updateDoc(doc(db, 'users', firebaseUid), { numericId: numericPart });
+                } else {
+                  // Fallback: generate a random 8-digit ID if username doesn't follow pattern
+                  const randomId = Math.floor(10000000 + Math.random() * 90000000).toString();
+                  updateDoc(doc(db, 'users', firebaseUid), { numericId: randomId });
+                }
+              }
+
               setUserData({ ...data, id: firebaseUid });
               setBalance(data.balance || 0);
               setFavorites(data.favorites || []);
@@ -678,12 +811,14 @@ export default function App() {
         onLoginSuccess={() => setJustLoggedIn(true)}
         showToast={showToast}
         casinoName={casinoName}
+        isLoggedIn={isLoggedIn}
+        welcomeBonus={welcomeBonus}
       />
     );
   }
 
   return (
-    <div className="max-w-md mx-auto bg-[#16a374] min-h-[100dvh] relative overflow-x-hidden font-sans text-white pb-16 flex flex-col safe-top">
+    <div className="max-w-md mx-auto bg-[var(--bg-main)] min-h-[100dvh] relative overflow-x-hidden font-sans text-[var(--text-main)] pb-16 flex flex-col safe-top transition-colors duration-300">
       {/* Main Content Area */}
       <div className="relative min-h-[calc(100vh-120px)]">
         {activeTab === 'admin' && userData?.role === 'admin' && (
@@ -712,14 +847,18 @@ export default function App() {
             activeCategory={activeCategory}
             setActiveCategory={setActiveCategory}
             handleToggleFavorite={handleToggleFavorite}
-            updateGlobalGameLogo={updateGlobalGameLogo}
-            updateGlobalGameName={updateGlobalGameName}
+            updateGlobalGameLogo={handleUpdateGlobalGameLogo}
+            updateGlobalGameName={handleUpdateGlobalGameName}
             updateGlobalGameUrl={updateGlobalGameUrl}
             updateGlobalGameOption={updateGlobalGameOption}
             allButtonName={allButtonName}
             updateAllButtonName={updateAllButtonName}
             casinoName={casinoName}
             updateCasinoName={updateCasinoName}
+            telegramLink={telegramLink}
+            whatsappLink={whatsappLink}
+            facebookLink={facebookLink}
+            noticeText={noticeText}
             showToast={showToast}
             loading={isTabLoading}
           />
@@ -746,8 +885,13 @@ export default function App() {
           {/* Game Viewport */}
           <div className="flex-1 relative bg-black flex flex-col items-center justify-center overflow-hidden">
             {selectedGame.provider === 'JILI' && (
-              <div className="absolute inset-0 z-[110] bg-black flex flex-col items-center justify-center animate-in fade-in duration-500">
-                {/* Close Button at Top Left like in the image */}
+              <div className="absolute inset-0 z-[110] bg-[#0b0b0b] flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500">
+                {/* Background Glow */}
+                <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-yellow-500/10 rounded-full blur-[120px]"></div>
+                </div>
+
+                {/* Close Button at Top Left */}
                 <button 
                   onClick={() => handleGameSelect(null)}
                   className="absolute top-6 left-6 w-10 h-10 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center text-white border border-white/10 hover:bg-black/60 transition-all active:scale-90 z-[120]"
@@ -755,17 +899,25 @@ export default function App() {
                   <X size={24} />
                 </button>
 
-                <div className="relative flex flex-col items-center">
-                  {/* Golden JILI Logo from Image */}
-                  <div className="relative mb-8 group">
-                    <h1 className="text-7xl font-black tracking-tighter italic bg-gradient-to-b from-yellow-200 via-yellow-400 to-yellow-600 text-transparent bg-clip-text drop-shadow-[0_5px_15px_rgba(234,179,8,0.6)]" style={{ fontFamily: 'serif' }}>
+                <div className="relative z-10 flex flex-col items-center max-w-xs w-full">
+                  {/* Golden JILI Logo */}
+                  <div className="relative mb-12 group">
+                    <h1 className="text-8xl font-black tracking-tighter italic bg-gradient-to-b from-yellow-200 via-yellow-400 to-yellow-600 text-transparent bg-clip-text drop-shadow-[0_5px_25px_rgba(234,179,8,0.8)]" style={{ fontFamily: 'serif' }}>
                       JILI
                     </h1>
-                    <div className="absolute -inset-4 bg-yellow-500/20 blur-2xl rounded-full -z-10 animate-pulse"></div>
+                    <div className="absolute -inset-8 bg-yellow-500/20 blur-3xl rounded-full -z-10 animate-pulse"></div>
+                    
+                    {/* Floating Particles */}
+                    <div className="absolute -top-4 -right-4 w-2 h-2 bg-yellow-400 rounded-full animate-ping"></div>
+                    <div className="absolute -bottom-2 -left-6 w-1.5 h-1.5 bg-yellow-200 rounded-full animate-bounce"></div>
                   </div>
 
-                  {/* Progress Bar from Image */}
-                  <div className="w-64 h-1.5 bg-gray-900/80 rounded-full overflow-hidden border border-white/5 shadow-inner">
+                  {/* Game Info */}
+                  <h2 className="text-xl font-black text-white mb-1 tracking-tight italic uppercase">{globalNames[selectedGame.id] || selectedGame.name}</h2>
+                  <p className="text-yellow-500/60 text-[10px] font-bold uppercase tracking-[0.4em] mb-10">JILI PREMIUM SLOTS</p>
+
+                  {/* Progress Bar */}
+                  <div className="w-full h-1.5 bg-gray-900/80 rounded-full overflow-hidden border border-white/5 shadow-inner mb-6">
                     <motion.div 
                       initial={{ width: "0%" }}
                       animate={{ width: "100%" }}
@@ -775,24 +927,31 @@ export default function App() {
                         repeat: Infinity,
                         repeatType: "loop"
                       }}
-                      className="h-full bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-200 shadow-[0_0_10px_rgba(234,179,8,0.5)]"
+                      className="h-full bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-200 shadow-[0_0_15px_rgba(234,179,8,0.6)]"
                     ></motion.div>
                   </div>
                   
-                  <div className="mt-4 text-yellow-500/60 text-[10px] font-bold uppercase tracking-[0.3em] animate-pulse">
+                  <div className="flex items-center gap-2 text-yellow-500/40 text-[10px] font-bold uppercase tracking-[0.2em] animate-pulse">
+                    <RefreshCw size={12} className="animate-spin" />
                     Loading Game Assets...
                   </div>
+
+                  {/* Fun Tip */}
+                  <div className="mt-16 p-4 bg-yellow-500/5 rounded-2xl border border-yellow-500/10 w-full">
+                    <p className="text-[9px] text-yellow-200/40 font-medium leading-relaxed italic">
+                      "JILI স্লট গেমগুলোতে বড় জয়ের সুযোগ থাকে। আপনার ভাগ্য পরীক্ষা করুন!"
+                    </p>
+                  </div>
                 </div>
-                
-                {/* User requested: "শুধু লোডিং হতে থাকবে কোন কিছু আসবে না" (Just keep loading, nothing will come) */}
-                {/* So we don't hide this loader even if the iframe loads for JILI */}
               </div>
             )}
 
             {isGameLoading && selectedGame.provider !== 'JILI' && (
-              <div className="absolute inset-0 z-10 bg-gray-900 flex items-center justify-center">
-                <div className="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
-              </div>
+              <GameLoader 
+                gameName={globalNames[selectedGame.id] || selectedGame.name}
+                provider={globalOptions[selectedGame.id] || selectedGame.provider}
+                logo={globalLogos[selectedGame.id] || selectedGame.image}
+              />
             )}
             
             <iframe 
@@ -814,13 +973,7 @@ export default function App() {
           logo={globalLogos['5'] || globalLogos.aviator || aviatorLogo}
           onLogoChange={async (newLogo) => {
             if (userData?.id) {
-              try {
-                await updateGlobalGameLogo('5', newLogo);
-                showToast("গেম লোগো সফলভাবে আপডেট করা হয়েছে এবং সবার জন্য সেভ হয়েছে", "success");
-              } catch (err) {
-                console.error("Failed to update global logo:", err);
-                showToast("লোগো আপডেট করতে সমস্যা হয়েছে", "error");
-              }
+              await handleUpdateGlobalGameLogo('5', newLogo);
             }
           }}
           showToast={showToast}
@@ -935,6 +1088,11 @@ export default function App() {
         handleLogout={handleLogout}
         showToast={showToast}
         casinoName={casinoName}
+        telegramLink={telegramLink}
+        whatsappLink={whatsappLink}
+        facebookLink={facebookLink}
+        theme={theme}
+        toggleTheme={toggleTheme}
       />
 
       {activeTab === 'profile' && (
@@ -956,11 +1114,33 @@ export default function App() {
           updateGlobalGameOption={updateGlobalGameOption}
           allButtonName={allButtonName}
           updateAllButtonName={updateAllButtonName}
+          initialSubTab={profileSubTab}
+          minWithdraw={minWithdraw}
         />
       )}
-      {activeTab === 'bonus' && <BonusCenter userData={userData} balance={balance} onBalanceUpdate={setBalance} onTabChange={handleTabChange} showToast={showToast} />}
+      {activeTab === 'bonus' && (
+        <BonusCenter 
+          userData={userData} 
+          balance={balance} 
+          onBalanceUpdate={setBalance} 
+          onTabChange={handleTabChange} 
+          showToast={showToast} 
+          welcomeBonus={welcomeBonus} 
+          onOpenPromoModal={() => setShowPromoModal(true)}
+        />
+      )}
       {activeTab === 'invite' && <InviteView onTabChange={handleTabChange} userData={userData} showToast={showToast} />}
-      {activeTab === 'deposit' && <DepositView onTabChange={handleTabChange} balance={balance} onBalanceUpdate={handleBalanceUpdate} userData={userData} showToast={showToast} />}
+      {activeTab === 'deposit' && <DepositView onTabChange={handleTabChange} balance={balance} onBalanceUpdate={handleBalanceUpdate} userData={userData} showToast={showToast} minDeposit={minDeposit} />}
+      {activeTab === 'wallet' && (
+        <WalletView 
+          balance={balance} 
+          userData={userData} 
+          onTabChange={handleTabChange}
+          onSubTabChange={setProfileSubTab}
+          showToast={showToast}
+          minWithdraw={minWithdraw}
+        />
+      )}
       </div>
 
       {/* Leaderboard Modal */}
@@ -980,7 +1160,14 @@ export default function App() {
       )}
 
       {/* Support Chat */}
-      <SupportChat isOpen={isSupportChatOpen} onClose={() => setIsSupportChatOpen(false)} userData={userData} />
+      <SupportChat 
+        isOpen={isSupportChatOpen} 
+        onClose={() => setIsSupportChatOpen(false)} 
+        userData={userData} 
+        telegramLink={telegramLink}
+        whatsappLink={whatsappLink}
+        facebookLink={facebookLink}
+      />
 
       {/* Notification Center */}
       <NotificationCenter 
@@ -1008,12 +1195,12 @@ export default function App() {
       <div className="fixed bottom-20 right-4 md:right-[calc(50%-13rem)] z-40 flex flex-col gap-3">
         {/* Bet Slip Trigger */}
         <button 
-          onClick={() => setShowBetSlip(true)}
-          className="w-12 h-12 bg-yellow-500 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(234,179,8,0.5)] hover:scale-110 transition-transform border-2 border-white/20 group relative"
+          onClick={() => setShowPromoModal(true)}
+          className="w-12 h-12 bg-teal-500 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(20,184,166,0.5)] hover:scale-110 transition-transform border-2 border-white/20 group relative"
         >
-          <Ticket size={24} className="text-black" />
+          <Gift size={24} className="text-white" />
           <span className="absolute right-full mr-3 bg-black/80 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none font-bold">
-            Bet Slip
+            Promo Code
           </span>
           <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 rounded-full border border-white flex items-center justify-center">
             <span className="text-[8px] font-bold text-white">1</span>
@@ -1021,7 +1208,7 @@ export default function App() {
         </button>
 
         <a 
-          href="https://t.me/spin71_bet" 
+          href={telegramLink} 
           target="_blank" 
           rel="noopener noreferrer"
           className="w-12 h-12 bg-[#0088cc] rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(0,136,204,0.5)] hover:scale-110 transition-transform border-2 border-white/20 group relative"
@@ -1034,7 +1221,7 @@ export default function App() {
           </span>
         </a>
         <a 
-          href="https://t.me/spin71_bot" 
+          href={telegramLink} 
           target="_blank" 
           rel="noopener noreferrer"
           className="w-12 h-12 bg-[#0088cc] rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(0,136,204,0.5)] hover:scale-110 transition-transform border-2 border-white/20 group relative"
@@ -1072,11 +1259,11 @@ export default function App() {
           <span>আমন্ত্রণ</span>
         </div>
         <div 
-          onClick={() => handleTabChange('deposit')}
-          className={`flex flex-col items-center gap-1 relative cursor-pointer transition-colors ${activeTab === 'deposit' ? 'text-white' : 'hover:text-white'}`}
+          onClick={() => handleTabChange('wallet')}
+          className={`flex flex-col items-center gap-1 relative cursor-pointer transition-colors ${activeTab === 'wallet' ? 'text-white' : 'hover:text-white'}`}
         >
           <Wallet size={22} />
-          <span>জমা</span>
+          <span>ওয়ালেট</span>
           <span className="absolute -top-1 -right-3 bg-red-600 text-white text-[9px] font-bold px-1 rounded-full border border-[#16a374]">
             +5%
           </span>
@@ -1125,15 +1312,11 @@ export default function App() {
 
       {isLoggedIn && <PermissionManager />}
 
-      <BetSlip 
-        isOpen={showBetSlip}
-        onClose={() => setShowBetSlip(false)}
-        userBalance={balance}
-        onBalanceUpdate={handleBalanceUpdate}
-        selectedOdds={selectedOdds}
-        gameName={betGameName}
+      <PromoCodeModal 
+        isOpen={showPromoModal}
+        onClose={() => setShowPromoModal(false)}
         showToast={showToast}
-        referredBy={userData?.referredBy}
+        isAdmin={userData?.role === 'admin'}
       />
 
       <style>{`

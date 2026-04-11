@@ -4,6 +4,7 @@ import { Send, X, MessageCircle, User, Loader2, Trash2 } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { sendMessage, clearChatHistory } from '../services/firebaseService';
+import { getAIResponse } from '../services/geminiService';
 
 interface Message {
   id: string;
@@ -13,7 +14,21 @@ interface Message {
   timestamp?: any;
 }
 
-export default function SupportChat({ isOpen, onClose, userData }: { isOpen: boolean, onClose: () => void, userData?: any }) {
+export default function SupportChat({ 
+  isOpen, 
+  onClose, 
+  userData, 
+  telegramLink = "https://t.me/spin71bet_official",
+  whatsappLink = "https://wa.me/...",
+  facebookLink = "https://facebook.com/..."
+}: { 
+  isOpen: boolean, 
+  onClose: () => void, 
+  userData?: any, 
+  telegramLink?: string,
+  whatsappLink?: string,
+  facebookLink?: string
+}) {
   const [chatHistory, setChatHistory] = useState<Message[]>([]);
   const [chatMessage, setChatMessage] = useState("");
   const [isUserTyping, setIsUserTyping] = useState(false);
@@ -69,10 +84,9 @@ export default function SupportChat({ isOpen, onClose, userData }: { isOpen: boo
     try {
       await sendMessage(userData.id, text, 'user');
       
-      // Simulate agent response
-      setTimeout(async () => {
-        await sendMessage(userData.id, "ধন্যবাদ আপনার মেসেজের জন্য। আমাদের একজন এজেন্ট শীঘ্রই আপনার সাথে যোগাযোগ করবে। (Thank you for your message. An agent will contact you shortly.)", 'agent');
-      }, 2000);
+      // Get AI response
+      const aiResponse = await getAIResponse(text, userData);
+      await sendMessage(userData.id, aiResponse, 'agent');
       
     } catch (err) {
       setChatError(err instanceof Error ? err.message : "মেসেজ পাঠানো সম্ভব হয়নি।");
@@ -207,9 +221,22 @@ export default function SupportChat({ isOpen, onClose, userData }: { isOpen: boo
                 <Send size={18} />
               </button>
             </form>
-            <p className="text-[10px] text-teal-500 mt-2 text-center">
-              টেলিগ্রামের মাধ্যমে সরাসরি যোগাযোগ করুন: <a href="https://t.me/spin71bet_official" target="_blank" rel="noreferrer" className="text-yellow-500 underline">@spin71bet_official</a>
-            </p>
+            <div className="flex flex-col gap-2 mt-2">
+              <p className="text-[10px] text-teal-500 text-center">
+                সরাসরি যোগাযোগ করুন:
+              </p>
+              <div className="flex justify-center gap-4">
+                <a href={telegramLink} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1 text-[10px] font-bold">
+                  Telegram
+                </a>
+                <a href={whatsappLink} target="_blank" rel="noreferrer" className="text-green-400 hover:text-green-300 transition-colors flex items-center gap-1 text-[10px] font-bold">
+                  WhatsApp
+                </a>
+                <a href={facebookLink} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-500 transition-colors flex items-center gap-1 text-[10px] font-bold">
+                  Facebook
+                </a>
+              </div>
+            </div>
           </div>
         </motion.div>
       )}
