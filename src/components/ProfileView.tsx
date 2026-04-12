@@ -56,10 +56,10 @@ export default function ProfileView({
   updateGlobalGameOption?: (gameId: string, option: string) => Promise<void>,
   allButtonName?: string,
   updateAllButtonName?: (newName: string) => Promise<void>,
-  initialSubTab?: 'dashboard' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory' | 'reward-center' | 'betting-record' | 'profit-loss' | 'deposit-record' | 'withdraw-record' | 'account-record' | 'security' | 'rebate' | 'mail' | 'feedback' | 'support' | 'invite',
+  initialSubTab?: 'dashboard' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory' | 'reward-center' | 'betting-record' | 'profit-loss' | 'deposit-record' | 'withdraw-record' | 'account-record' | 'security' | 'rebate' | 'mail' | 'feedback' | 'support' | 'invite' | 'faq',
   minWithdraw?: number
 }) {
-  const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory' | 'reward-center' | 'betting-record' | 'profit-loss' | 'deposit-record' | 'withdraw-record' | 'account-record' | 'security' | 'rebate' | 'mail' | 'feedback' | 'support' | 'invite'>(initialSubTab);
+  const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory' | 'reward-center' | 'betting-record' | 'profit-loss' | 'deposit-record' | 'withdraw-record' | 'account-record' | 'security' | 'rebate' | 'mail' | 'feedback' | 'support' | 'invite' | 'faq'>(initialSubTab);
   
   useEffect(() => {
     if (initialSubTab) {
@@ -311,7 +311,7 @@ export default function ProfileView({
   const profileData = userData;
 
   return (
-    <div className="flex-1 overflow-y-auto pb-20 bg-[#16a374]">
+    <div className="flex-1 overflow-y-auto pb-20 bg-[#0f766e]">
       {/* Tab Content */}
       <div className="relative min-h-screen">
         {isTabLoading && (
@@ -1682,6 +1682,7 @@ function OverviewTab({
           { label: 'ভিআইপি (VIP)', icon: Crown, color: 'text-yellow-400', action: () => onOpenVIPDetails?.() },
           { label: 'নিরাপত্তা (Security)', icon: Shield, color: 'text-red-500', action: () => onSubTabChange('security') },
           { label: 'সাপোর্ট (Support)', icon: Headset, color: 'text-teal-400', action: () => onSubTabChange('support') },
+          { label: 'প্রশ্নোত্তর (FAQ)', icon: HelpCircle, color: 'text-yellow-500', action: () => onTabChange('faq') },
         ].map((item, i) => (
           <button 
             key={i}

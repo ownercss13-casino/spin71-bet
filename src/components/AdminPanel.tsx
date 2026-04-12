@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, onSnapshot, doc, updateDoc, increment, deleteDoc, serverTimestamp, setDoc } from 'firebase/firestore';
-import { Settings, Users, History, Activity, Gift, Image as ImageIcon, Check, X, Trash2, Plus, Bot, Sparkles, KeyRound } from 'lucide-react';
+import { Settings, Users, History, Activity, Gift, Image as ImageIcon, Check, X, Trash2, Plus, Bot, Sparkles, KeyRound, LayoutDashboard } from 'lucide-react';
 import AdminAIChat from './AdminAIChat';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { createPromoCode, updateGlobalGameLogo, updateGlobalGameName, updateGlobalGameUrl, updateGlobalGameOption, updateGlobalAppSettings } from '../services/firebaseService';
@@ -42,7 +42,7 @@ interface LogoRequest {
 }
 
 export default function AdminPanel({ showToast }: { showToast: (msg: string, type: 'success' | 'error') => void }) {
-  const [activeTab, setActiveTab] = useState<'users' | 'transactions' | 'analytics' | 'promos' | 'requests' | 'games' | 'settings' | 'api_tokens'>('users');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'transactions' | 'analytics' | 'promos' | 'requests' | 'games' | 'settings' | 'api_tokens'>('dashboard');
   const [showAIChat, setShowAIChat] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -178,6 +178,9 @@ export default function AdminPanel({ showToast }: { showToast: (msg: string, typ
       <h1 className="text-3xl font-black italic mb-8">অ্যাডমিন প্যানেল</h1>
       
       <div className="flex gap-4 mb-8 overflow-x-auto pb-2 no-scrollbar">
+        <button onClick={() => setActiveTab('dashboard')} className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 shrink-0 ${activeTab === 'dashboard' ? 'bg-yellow-500 text-black' : 'bg-gray-800'}`}>
+          <LayoutDashboard size={20} /> ড্যাশবোর্ড
+        </button>
         <button onClick={() => setActiveTab('users')} className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 shrink-0 ${activeTab === 'users' ? 'bg-yellow-500 text-black' : 'bg-gray-800'}`}>
           <Users size={20} /> ইউজার ম্যানেজমেন্ট
         </button>
@@ -211,6 +214,41 @@ export default function AdminPanel({ showToast }: { showToast: (msg: string, typ
       </div>
 
       <AdminAIChat isOpen={showAIChat} onClose={() => setShowAIChat(false)} />
+
+      {activeTab === 'dashboard' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-gray-900 p-6 rounded-2xl border border-white/10">
+              <p className="text-gray-400 text-sm">Total Users</p>
+              <p className="text-3xl font-black">{users.length}</p>
+            </div>
+            <div className="bg-gray-900 p-6 rounded-2xl border border-white/10">
+              <p className="text-gray-400 text-sm">Active Users</p>
+              <p className="text-3xl font-black">{users.filter(u => u.role === 'user').length}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-gray-900 p-6 rounded-2xl border border-white/10">
+              <h3 className="font-bold mb-4">Recent Deposits</h3>
+              {transactions.filter(t => t.type === 'deposit').sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).slice(0, 5).map(t => (
+                <div key={t.id} className="flex justify-between py-2 border-b border-white/5">
+                  <span className="text-xs text-gray-400">{t.userId.slice(0, 8)}...</span>
+                  <span className="text-green-400 font-bold">+{t.amount}</span>
+                </div>
+              ))}
+            </div>
+            <div className="bg-gray-900 p-6 rounded-2xl border border-white/10">
+              <h3 className="font-bold mb-4">Recent Withdrawals</h3>
+              {transactions.filter(t => t.type === 'withdraw').sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).slice(0, 5).map(t => (
+                <div key={t.id} className="flex justify-between py-2 border-b border-white/5">
+                  <span className="text-xs text-gray-400">{t.userId.slice(0, 8)}...</span>
+                  <span className="text-red-400 font-bold">-{t.amount}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {activeTab === 'users' && (
         <div className="bg-gray-900 rounded-2xl p-6 border border-white/10">

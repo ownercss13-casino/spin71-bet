@@ -32,13 +32,12 @@ import * as z from 'zod';
 
 // Validation Schemas
 const loginSchema = z.object({
-  email: z.string().email('সঠিক ইমেইল দিন (Invalid email)'),
+  username: z.string().min(3, 'নাম কমপক্ষে ৩ অক্ষরের হতে হবে (Min 3 chars)'),
   password: z.string().min(6, 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে (Min 6 chars)'),
 });
 
 const registerSchema = z.object({
   username: z.string().min(3, 'নাম কমপক্ষে ৩ অক্ষরের হতে হবে (Min 3 chars)'),
-  email: z.string().email('সঠিক ইমেইল দিন (Invalid email)'),
   password: z.string().min(6, 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে (Min 6 chars)'),
   confirmPassword: z.string().min(6, 'পাসওয়ার্ড নিশ্চিত করুন'),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -72,7 +71,16 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot-password'>('login');
   const [showPassword, setShowPassword] = useState(false);
+  const [passwordStrength, setPasswordStrength] = useState(0);
 
+  const checkPasswordStrength = (password: string) => {
+    let strength = 0;
+    if (password.length > 6) strength += 1;
+    if (/[A-Z]/.test(password)) strength += 1;
+    if (/[0-9]/.test(password)) strength += 1;
+    if (/[^A-Za-z0-9]/.test(password)) strength += 1;
+    setPasswordStrength(strength);
+  };
   const { 
     register: registerLogin, 
     handleSubmit: handleSubmitLogin, 
@@ -138,23 +146,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     showToast(msg, "error");
   };
 
-  const onOneClick = async () => {
-    if (isLoading) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      await signInAnonymously(auth);
-      showToast("সফলভাবে লগইন করা হয়েছে (Guest)", "success");
-      
-      setIsLoading(false);
-      setShowSuccessPopup(true);
-      onLoginSuccess();
-      onRegisterSuccess();
-    } catch (err) {
-      handleAuthError(err);
-    }
-  };
-
+  // Remove onOneClick function
   const onGoogleLogin = async () => {
     if (isLoading) return;
     setIsLoading(true);
@@ -173,12 +165,16 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     setIsLoading(true);
     setError(null);
     try {
-      await signInWithEmailAndPassword(auth, data.email, data.password);
+      // Since we are using username, we need to map it to a dummy email for Firebase Auth
+      const dummyEmail = `${data.username.toLowerCase().replace(/\s/g, '')}@spin71bet.com`;
+      await signInWithEmailAndPassword(auth, dummyEmail, data.password);
       showToast("লগইন সফল হয়েছে", "success");
       onLoginSuccess();
       onRegisterSuccess();
     } catch (err) {
       handleAuthError(err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -186,7 +182,11 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     setIsLoading(true);
     setError(null);
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+      // Create user with a dummy email based on username since email is removed from form
+      const dummyEmail = `${data.username.toLowerCase().replace(/\s/g, '')}@${Date.now()}.com`;
+      const userCredential = await createUserWithEmailAndPassword(auth, dummyEmail, data.password);
+      
+      // Update profile
       await updateProfile(userCredential.user, { displayName: data.username });
       
       // Immediately trigger success UI
@@ -197,6 +197,8 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       showToast("অ্যাকাউন্ট তৈরি সফল হয়েছে", "success");
     } catch (err) {
       handleAuthError(err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -215,46 +217,46 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
   };
 
   return (
-    <div className="min-h-[100dvh] bg-[#0a0a0a] flex flex-col items-center justify-center p-6 relative overflow-hidden font-sans safe-top safe-bottom">
+    <div className="min-h-[100dvh] bg-[var(--bg-main)] flex flex-col items-center justify-center p-6 relative overflow-hidden font-sans safe-top safe-bottom">
       {/* Background Effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-teal-500/20 rounded-full blur-[120px] animate-pulse"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-yellow-500/10 rounded-full blur-[120px] animate-pulse delay-700"></div>
+        <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-[var(--bg-card)] rounded-full blur-[120px] opacity-50"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-[var(--bg-surface)] rounded-full blur-[120px] opacity-50"></div>
       </div>
       
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative z-10 text-center max-w-sm w-full"
+        className="relative z-10 text-center max-w-sm w-full bg-[var(--bg-card)] p-8 rounded-[32px] border border-[var(--border-color)] shadow-2xl"
       >
         {/* Logo Section */}
         <div className="mb-8">
           <motion.div
             animate={{ y: [0, -10, 0] }}
             transition={{ duration: 3, repeat: Infinity }}
-            className="inline-block"
+            className="inline-block p-4 bg-[var(--bg-surface)] rounded-full border border-[var(--border-color)]"
           >
-            <Plane size={60} className="text-yellow-400 drop-shadow-[0_0_15px_rgba(250,204,21,0.5)] mx-auto" />
+            <Plane size={48} className="text-white" />
           </motion.div>
-          <h1 className="text-4xl font-black text-white mt-4 italic tracking-tighter">
+          <h1 className="text-3xl font-black text-[var(--text-main)] mt-4 italic tracking-tighter">
             {casinoName}
           </h1>
-          <p className="text-teal-500 font-bold uppercase tracking-widest text-[10px] mt-1">Premium Gaming Platform</p>
+          <p className="text-[var(--text-muted)] font-bold uppercase tracking-widest text-[10px] mt-1">VIP Gaming Platform</p>
         </div>
 
         {/* Auth Mode Toggle */}
-        <div className="flex bg-white/5 p-1 rounded-2xl mb-8 border border-white/10">
+        <div className="flex bg-[var(--bg-surface)] p-1 rounded-2xl mb-8 border border-[var(--border-color)]">
           <button 
             onClick={() => setAuthMode('login')}
-            className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${authMode === 'login' ? 'bg-yellow-500 text-black shadow-md' : 'text-gray-400 hover:text-white'}`}
+            className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${authMode === 'login' ? 'bg-[var(--bg-main)] text-white shadow-lg' : 'text-[var(--text-muted)] hover:text-white'}`}
           >
-            লগইন (Login)
+            লগইন
           </button>
           <button 
             onClick={() => setAuthMode('register')}
-            className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${authMode === 'register' ? 'bg-yellow-500 text-black shadow-md' : 'text-gray-400 hover:text-white'}`}
+            className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${authMode === 'register' ? 'bg-[var(--bg-main)] text-white shadow-lg' : 'text-[var(--text-muted)] hover:text-white'}`}
           >
-            নিবন্ধন (Register)
+            নিবন্ধন
           </button>
         </div>
 
@@ -320,30 +322,30 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
             >
               <div className="space-y-1">
                 <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={18} />
                   <input 
-                    {...registerLogin('email')}
-                    type="email" 
-                    placeholder="ইমেইল এড্রেস"
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white text-sm focus:border-yellow-500 outline-none transition-all"
+                    {...registerLogin('username')}
+                    type="text" 
+                    placeholder="আপনার নাম (Username)"
+                    className="w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl py-4 pl-12 pr-4 text-[var(--text-main)] text-sm focus:border-[var(--brand-primary)] outline-none transition-all"
                   />
                 </div>
-                {loginErrors.email && <p className="text-[10px] text-red-400 text-left pl-2">{loginErrors.email.message}</p>}
+                {loginErrors.username && <p className="text-[10px] text-red-400 text-left pl-2">{loginErrors.username.message}</p>}
               </div>
 
               <div className="space-y-1">
                 <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={18} />
                   <input 
                     {...registerLogin('password')}
                     type={showPassword ? "text" : "password"} 
                     placeholder="পাসওয়ার্ড"
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-12 text-white text-sm focus:border-yellow-500 outline-none transition-all"
+                    className="w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl py-4 pl-12 pr-12 text-[var(--text-main)] text-sm focus:border-[var(--brand-primary)] outline-none transition-all"
                   />
                   <button 
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-white"
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
@@ -353,9 +355,9 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
                   <button 
                     type="button"
                     onClick={() => setAuthMode('forgot-password')}
-                    className="text-[10px] text-teal-500 hover:text-teal-400 font-bold"
+                    className="text-[10px] text-[var(--text-muted)] hover:text-white font-bold"
                   >
-                    পাসওয়ার্ড ভুলে গেছেন? (Forgot Password?)
+                    পাসওয়ার্ড ভুলে গেছেন?
                   </button>
                 </div>
               </div>
@@ -363,9 +365,9 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
               <button 
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-yellow-500 py-4 rounded-2xl text-black font-black uppercase tracking-tight flex items-center justify-center gap-2 hover:bg-yellow-400 transition-all active:scale-95"
+                className="w-full bg-[var(--brand-primary)] py-4 rounded-2xl text-white font-black uppercase tracking-tight flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-95"
               >
-                {isLoading ? <div className="w-6 h-6 border-3 border-black border-t-transparent rounded-full animate-spin"></div> : <><LogIn size={20} /> লগইন করুন</>}
+                {isLoading ? <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin"></div> : <><LogIn size={20} /> লগইন করুন</>}
               </button>
             </motion.form>
           )}
@@ -379,54 +381,61 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
               onSubmit={handleSubmitSignup(onEmailRegister)}
               className="space-y-3"
             >
-              <div className="space-y-1">
-                <div className="relative">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+              <div className="space-y-2">
+                <div className="relative group">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] group-focus-within:text-[var(--brand-primary)] transition-colors" size={18} />
                   <input 
                     {...registerSignup('username')}
                     type="text" 
-                    placeholder="আপনার নাম"
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 pl-12 pr-4 text-white text-sm focus:border-yellow-500 outline-none transition-all"
+                    placeholder="আপনার নাম (Username)"
+                    className="w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl py-4 pl-12 pr-4 text-[var(--text-main)] text-sm focus:border-[var(--brand-primary)] outline-none transition-all duration-300"
                   />
                 </div>
                 {signupErrors.username && <p className="text-[10px] text-red-400 text-left pl-2">{signupErrors.username.message}</p>}
               </div>
 
-              <div className="space-y-1">
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+              <div className="space-y-2">
+                <div className="relative group">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] group-focus-within:text-[var(--brand-primary)] transition-colors" size={18} />
                   <input 
-                    {...registerSignup('email')}
-                    type="email" 
-                    placeholder="ইমেইল এড্রেস"
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 pl-12 pr-4 text-white text-sm focus:border-yellow-500 outline-none transition-all"
-                  />
-                </div>
-                {signupErrors.email && <p className="text-[10px] text-red-400 text-left pl-2">{signupErrors.email.message}</p>}
-              </div>
-
-              <div className="space-y-1">
-                <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                  <input 
-                    {...registerSignup('password')}
+                    {...registerSignup('password', { onChange: (e) => checkPasswordStrength(e.target.value) })}
                     type={showPassword ? "text" : "password"} 
                     placeholder="পাসওয়ার্ড"
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 pl-12 pr-12 text-white text-sm focus:border-yellow-500 outline-none transition-all"
+                    className="w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl py-4 pl-12 pr-12 text-[var(--text-main)] text-sm focus:border-[var(--brand-primary)] outline-none transition-all duration-300"
                   />
+                  <button 
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-white"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+                {/* Strength Meter */}
+                <div className="flex gap-1 mt-2">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className={`h-1 flex-1 rounded-full ${i <= passwordStrength ? (passwordStrength > 2 ? 'bg-green-500' : 'bg-[var(--brand-primary)]') : 'bg-[var(--bg-surface)]'}`} />
+                  ))}
                 </div>
                 {signupErrors.password && <p className="text-[10px] text-red-400 text-left pl-2">{signupErrors.password.message}</p>}
               </div>
 
-              <div className="space-y-1">
-                <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+              <div className="space-y-2">
+                <div className="relative group">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] group-focus-within:text-[var(--brand-primary)] transition-colors" size={18} />
                   <input 
                     {...registerSignup('confirmPassword')}
                     type={showPassword ? "text" : "password"} 
                     placeholder="পাসওয়ার্ড নিশ্চিত করুন"
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 pl-12 pr-12 text-white text-sm focus:border-yellow-500 outline-none transition-all"
+                    className="w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl py-4 pl-12 pr-12 text-[var(--text-main)] text-sm focus:border-[var(--brand-primary)] outline-none transition-all duration-300"
                   />
+                  <button 
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-white"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
                 {signupErrors.confirmPassword && <p className="text-[10px] text-red-400 text-left pl-2">{signupErrors.confirmPassword.message}</p>}
               </div>
@@ -434,9 +443,9 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
               <button 
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-yellow-500 py-4 rounded-2xl text-black font-black uppercase tracking-tight flex items-center justify-center gap-2 hover:bg-yellow-400 transition-all active:scale-95 mt-2"
+                className="w-full bg-[var(--brand-primary)] py-4 rounded-2xl text-white font-black uppercase tracking-tight flex items-center justify-center gap-2 hover:opacity-90 transition-all duration-300 active:scale-[0.98] mt-4"
               >
-                {isLoading ? <div className="w-6 h-6 border-3 border-black border-t-transparent rounded-full animate-spin"></div> : <><UserPlus size={20} /> নিবন্ধন করুন</>}
+                {isLoading ? <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin"></div> : <><UserPlus size={20} /> নিবন্ধন করুন</>}
               </button>
             </motion.form>
           )}
@@ -494,21 +503,6 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
             <span className="text-[10px] text-gray-500 font-bold uppercase">অথবা (Or)</span>
             <div className="flex-1 h-[1px] bg-white/10"></div>
           </div>
-
-          <button 
-            onClick={onOneClick}
-            disabled={isLoading}
-            className="w-full bg-gradient-to-r from-teal-500 to-teal-700 py-3.5 rounded-2xl flex items-center justify-center gap-3 hover:opacity-90 transition-all active:scale-95 shadow-lg"
-          >
-            {isLoading ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-            ) : (
-              <>
-                <Play size={18} className="fill-white text-white" />
-                <span className="text-white font-bold text-sm">ওয়ান ক্লিক এ প্রবেশ করুন</span>
-              </>
-            )}
-          </button>
 
           <button 
             onClick={onGoogleLogin}

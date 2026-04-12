@@ -26,7 +26,6 @@ export default function BonusCenter({
   const [popupMessage, setPopupMessage] = useState("");
   const [showErrorPopup, setShowErrorPopup] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [tooltip, setTooltip] = useState<string | null>(null);
 
   const lastClaimed = userData?.lastDailyBonusClaimedAt?.toDate();
   const canClaimDaily = !lastClaimed || (new Date().getTime() - lastClaimed.getTime() > 24 * 60 * 60 * 1000);
@@ -158,41 +157,26 @@ export default function BonusCenter({
                 <span className="text-[var(--text-muted)] text-xs">বোনাস পরিমাণ:</span>
                 <span className="text-yellow-400 font-bold">{welcomeBonus.toFixed(2)} টাকা</span>
               </div>
-              <div className="flex justify-between items-center mb-2 relative">
-                <span 
-                  className="text-[var(--text-muted)] text-xs cursor-help border-b border-dotted border-[var(--brand-primary)]"
-                  onMouseEnter={() => setTooltip('wagering')}
-                  onMouseLeave={() => setTooltip(null)}
-                >
-                  ওয়েজারিং (Wagering):
-                </span>
-                {tooltip === 'wagering' && (
-                  <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-black/90 text-white text-[10px] rounded shadow-lg z-50">
-                    বোনাস ব্যালেন্স উইথড্র করার আগে অন্তত ১ গুণ গেম খেলতে হবে।
-                  </div>
-                )}
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-[var(--text-muted)] text-xs">ওয়েজারিং (Wagering):</span>
                 <span className="text-[var(--text-main)] text-xs font-medium">১x (১ গুণ)</span>
               </div>
-              <div className="flex justify-between items-center relative">
-                <span 
-                  className="text-[var(--text-muted)] text-xs cursor-help border-b border-dotted border-[var(--brand-primary)]"
-                  onMouseEnter={() => setTooltip('validity')}
-                  onMouseLeave={() => setTooltip(null)}
-                >
-                  মেয়াদ (Validity):
-                </span>
-                {tooltip === 'validity' && (
-                  <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-black/90 text-white text-[10px] rounded shadow-lg z-50">
-                    বোনাসটি ক্লেইম করার পর ৭ দিনের মধ্যে ব্যবহার করতে হবে।
-                  </div>
-                )}
+              <div className="flex justify-between items-center">
+                <span className="text-[var(--text-muted)] text-xs">মেয়াদ (Validity):</span>
                 <span className="text-[var(--text-main)] text-xs font-medium">৭ দিন</span>
               </div>
             </div>
 
-            <p className="text-[var(--text-muted)] text-[11px] mb-4 leading-relaxed italic">
-              * এই বোনাসটি শুধুমাত্র নতুন ইউজারদের জন্য। বোনাস ব্যালেন্স উইথড্র করার আগে অন্তত একবার গেম খেলতে হবে।
-            </p>
+            <div className="bg-[var(--bg-surface)] rounded-xl p-4 mb-4 border border-[var(--border-color)] transition-colors duration-300">
+              <h4 className="text-white text-sm font-bold mb-2">বোনাসের শর্তাবলী (Terms & Conditions):</h4>
+              <ul className="text-[var(--text-muted)] text-[11px] list-disc list-inside space-y-1">
+                <li>এই বোনাসটি শুধুমাত্র নতুন ইউজারদের জন্য প্রযোজ্য।</li>
+                <li>বোনাস ব্যালেন্স উইথড্র করার আগে অন্তত ১ গুণ (1x) গেম খেলতে হবে।</li>
+                <li>বোনাসটি ক্লেইম করার পর ৭ দিনের মধ্যে ব্যবহার করতে হবে।</li>
+                <li>প্রতিটি ইউজার শুধুমাত্র একবার এই বোনাসটি ক্লেইম করতে পারবেন।</li>
+                <li>ক্যাসিনো কর্তৃপক্ষ যেকোনো সময় এই বোনাস পলিসি পরিবর্তন বা বাতিল করার অধিকার রাখে।</li>
+              </ul>
+            </div>
             
             {!hasClaimedWelcome && !hasMadeDeposit ? (
               <button 

@@ -18,6 +18,7 @@ import PromoCodeModal from "./components/PromoCodeModal";
 import PermissionManager from "./components/PermissionManager";
 import NotificationCenter from "./components/NotificationCenter";
 import AdminPanel from "./components/AdminPanel";
+import FAQView from "./components/FAQView";
 import Sidebar from "./components/Sidebar";
 import LeaderboardView from "./components/LeaderboardView";
 import { GameGrid, Game } from "./components/GameGrid";
@@ -69,7 +70,7 @@ export default function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userData, setUserData] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'home' | 'profile' | 'invite' | 'deposit' | 'bonus' | 'admin' | 'wallet'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'profile' | 'invite' | 'deposit' | 'bonus' | 'admin' | 'wallet' | 'faq'>('home');
   const [profileSubTab, setProfileSubTab] = useState<string>('dashboard');
 
   // URL Syncing
@@ -821,7 +822,10 @@ export default function App() {
     <div className="max-w-md mx-auto bg-[var(--bg-main)] min-h-[100dvh] relative overflow-x-hidden font-sans text-[var(--text-main)] pb-16 flex flex-col safe-top transition-colors duration-300">
       {/* Main Content Area */}
       <div className="relative min-h-[calc(100vh-120px)]">
-        {activeTab === 'admin' && userData?.role === 'admin' && (
+        {activeTab === 'faq' && (
+          <FAQView />
+        )}
+        {activeTab === 'admin' && userData?.email === 'owner.css13@gmail.com' && (
           <AdminPanel showToast={showToast} />
         )}
         {activeTab === 'home' && (
@@ -1114,7 +1118,7 @@ export default function App() {
           updateGlobalGameOption={updateGlobalGameOption}
           allButtonName={allButtonName}
           updateAllButtonName={updateAllButtonName}
-          initialSubTab={profileSubTab}
+          initialSubTab={profileSubTab as any}
           minWithdraw={minWithdraw}
         />
       )}
