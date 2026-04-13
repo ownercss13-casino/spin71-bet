@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp, runTransaction, increment, collection, query, where, getDocs, Timestamp, documentId } from 'firebase/firestore';
 import { signInWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { db, auth, googleProvider, handleFirestoreError, OperationType } from './firebase';
 import LoginPage from './LoginPage';
 import LogoPreview from './components/LogoPreview';
@@ -17,14 +17,14 @@ import SlotGame from "./components/SlotGame";
 import PromoCodeModal from "./components/PromoCodeModal";
 import PermissionManager from "./components/PermissionManager";
 import NotificationCenter from "./components/NotificationCenter";
-import AdminPanel from "./components/AdminPanel";
+import AdminPanel from "./components/admin/AdminPanel";
 import FAQView from "./components/FAQView";
 import Sidebar from "./components/Sidebar";
 import LeaderboardView from "./components/LeaderboardView";
 import { GameGrid, Game } from "./components/GameGrid";
 import { CasinoGallery } from "./components/CasinoGallery";
 import { GAME_IMAGES } from "./constants/gameAssets";
-import { saveItem, getSavedItems, removeItem, updateUserProfile, updateFavorites, updateBalance, updateGlobalGameLogo, updateGlobalGameName, updateGlobalGameUrl, updateGlobalGameOption, updateAllButtonName, updateCasinoName } from './services/firebaseService';
+import { saveItem, getSavedItems, removeItem, updateUserProfile, updateFavorites, updateBalance, updateGlobalGameLogo, updateGlobalGameName, updateGlobalGameUrl, updateGlobalGameOption, updateAllButtonName, updateCasinoName, logUserActivity } from './services/firebaseService';
 import GameLoader from "./components/GameLoader";
 import { ToastContainer, ToastType } from "./components/Toast";
 import {
@@ -63,7 +63,9 @@ import {
   Trophy,
   Bell,
   Moon,
-  Sun
+  Sun,
+  ArrowDownLeft,
+  Zap
 } from "lucide-react";
 
 export default function App() {
@@ -159,6 +161,7 @@ export default function App() {
   const handleTabChange = (tab: any) => {
     if (tab === activeTab) return;
     setIsTabLoading(true);
+    logUserActivity('page_view', { from: activeTab, to: tab });
     setTimeout(() => {
       setActiveTab(tab);
       setIsTabLoading(false);
@@ -167,12 +170,13 @@ export default function App() {
 
   const [recentlyPlayed, setRecentlyPlayed] = useState<Game[]>([]);
 
-  const [isGameLoading, setIsGameLoading] = useState(false);
+
 
   const handleGameSelect = async (game: Game | null) => {
     setSelectedGame(game);
     if (game) {
       setIsGameLoading(true);
+      logUserActivity('game_selection', { gameId: game.id, gameName: game.name });
     }
     if (game && userData?.id) {
       // Update recently played list
@@ -232,6 +236,25 @@ export default function App() {
   const [globalLogos, setGlobalLogos] = useState<Record<string, string>>({});
   const [globalNames, setGlobalNames] = useState<Record<string, string>>({});
   const [globalUrls, setGlobalUrls] = useState<Record<string, string>>({});
+  const [isGameLoading, setIsGameLoading] = useState(false);
+
+  useEffect(() => {
+    if (isGameLoading && selectedGame) {
+      // If it's an iframe game, the onLoad handler will set isGameLoading to false.
+      // For other games (Aviator, Slot, or placeholder), we simulate a loading time.
+      if (!globalUrls[selectedGame.id]) {
+        const timer = setTimeout(() => {
+          setIsGameLoading(false);
+        }, 3000);
+        return () => clearTimeout(timer);
+      } else if (selectedGame.id === '5' || selectedGame.provider === 'CRASH' || selectedGame.category === 'স্লট') {
+        const timer = setTimeout(() => {
+          setIsGameLoading(false);
+        }, 3000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [isGameLoading, selectedGame, globalUrls]);
   const [globalOptions, setGlobalOptions] = useState<Record<string, string>>({});
   const [allButtonName, setAllButtonName] = useState<string>("ALL");
   const [casinoName, setCasinoName] = useState<string>("SPIN71BET");
@@ -423,7 +446,7 @@ export default function App() {
           const userDoc = await getDoc(userRef);
           
           if (!userDoc.exists()) {
-            // User doesn't exist, need to create
+            console.log("User does not exist in Firestore, creating...");
             
             // 1. Handle referral code query OUTSIDE transaction
             const savedReferralCode = localStorage.getItem('referralCode');
@@ -461,61 +484,67 @@ export default function App() {
             }
 
             // 2. Perform transaction to create user
-            await runTransaction(db, async (transaction) => {
-              const metadataRef = doc(db, 'metadata', 'users');
-              const metadataDoc = await transaction.get(metadataRef);
-              
-              let nextId = 101;
-              if (metadataDoc.exists()) {
-                nextId = (metadataDoc.data().userCount || 100) + 1;
-              }
-              
-              const username = `K71${nextId}`;
-              
-              const newUser: any = {
-                username: username,
-                numericId: nextId.toString(),
-                referralCode: username,
-                phoneNumber: 'Not Provided',
-                password: user.isAnonymous ? 'anonymous-auth' : 'email-auth',
-                balance: 0,
-                turnover: 0,
-                requiredTurnover: 1100,
-                createdAt: serverTimestamp(),
-                role: 'user',
-                isGmailLinked: false,
-                favorites: [],
-                vipLevel: 0,
-                vipProgress: 0,
-                profilePictureUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
-                deviceId: deviceId,
-                ip: userIp
-              };
-              
-              if (referredBy) {
-                newUser.referredBy = referredBy;
-                const referralRef = doc(collection(db, 'users', referredBy, 'referrals'));
-                transaction.set(referralRef, {
-                  referredUserId: firebaseUid,
-                  referredUsername: username,
-                  joinedAt: serverTimestamp(),
-                  earningsGenerated: 0,
-                  status: 'active'
-                });
-                const agentRef = doc(db, 'users', referredBy);
-                transaction.update(agentRef, {
-                  referralCount: increment(1)
-                });
-              }
-              
-              if (user.email) {
-                newUser.gmail = user.email;
-                newUser.isGmailLinked = true;
-              }
-              
-              transaction.set(userRef, newUser);
-              transaction.set(metadataRef, { userCount: nextId });
-            });
+            try {
+              await runTransaction(db, async (transaction) => {
+                const metadataRef = doc(db, 'metadata', 'users');
+                const metadataDoc = await transaction.get(metadataRef);
+                
+                let nextId = 101;
+                if (metadataDoc.exists()) {
+                  nextId = (metadataDoc.data().userCount || 100) + 1;
+                }
+                
+                const username = `K71${nextId}`;
+                
+                const newUser: any = {
+                  username: username,
+                  numericId: nextId.toString(),
+                  referralCode: username,
+                  phoneNumber: 'Not Provided',
+                  password: user.isAnonymous ? 'anonymous-auth' : 'email-auth',
+                  balance: 0,
+                  turnover: 0,
+                  requiredTurnover: 1100,
+                  createdAt: serverTimestamp(),
+                  role: 'user',
+                  isGmailLinked: false,
+                  favorites: [],
+                  vipLevel: 0,
+                  vipProgress: 0,
+                  profilePictureUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
+                  deviceId: deviceId,
+                  ip: userIp
+                };
+                
+                if (referredBy) {
+                  newUser.referredBy = referredBy;
+                  const referralRef = doc(collection(db, 'users', referredBy, 'referrals'));
+                  transaction.set(referralRef, {
+                    referredUserId: firebaseUid,
+                    referredUsername: username,
+                    joinedAt: serverTimestamp(),
+                    earningsGenerated: 0,
+                    status: 'active'
+                  });
+                  const agentRef = doc(db, 'users', referredBy);
+                  transaction.update(agentRef, {
+                    referralCount: increment(1)
+                  });
+                }
+                
+                if (user.email) {
+                  newUser.gmail = user.email;
+                  newUser.isGmailLinked = true;
+                }
+                
+                transaction.set(userRef, newUser);
+                transaction.set(metadataRef, { userCount: nextId });
+              });
+              console.log("User created successfully in Firestore.");
+            } catch (transactionError) {
+              console.error("Transaction failed:", transactionError);
+              throw transactionError;
+            }
           }
           
           // Set up real-time listener
@@ -599,6 +628,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    logUserActivity('session_end');
     signOut(auth);
     setIsLoggedIn(false);
     setUserData(null);
@@ -637,6 +667,12 @@ export default function App() {
       return () => clearTimeout(timer);
     }
   }, [showDepositRequired]);
+
+  useEffect(() => {
+    if (isLoggedIn && userData?.id) {
+      logUserActivity('session_start');
+    }
+  }, [isLoggedIn, userData?.id]);
 
   if (showSplash) {
     return (
@@ -793,9 +829,25 @@ export default function App() {
           <div className="absolute -right-4 -bottom-16 w-10 h-10 bg-yellow-400 rounded-full border-2 border-yellow-200 shadow-[0_0_15px_rgba(250,204,21,0.6)] transform rotate-45"></div>
         </div>
 
-        {/* Loading Text */}
-        <div className="absolute bottom-10 text-green-200 text-sm font-medium animate-pulse">
-          লোডিং...
+        {/* Loading Section */}
+        <div className="absolute bottom-20 w-full px-12 flex flex-col items-center gap-4">
+          <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/5 p-[1px]">
+            <motion.div 
+              initial={{ width: "0%" }}
+              animate={{ width: "100%" }}
+              transition={{ duration: 2, ease: "easeInOut" }}
+              className="h-full bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-200 rounded-full shadow-[0_0_10px_rgba(234,179,8,0.5)]"
+            />
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <div className="flex items-center gap-2 text-yellow-500/60 text-[10px] font-black uppercase tracking-[0.3em] animate-pulse">
+              <RefreshCw size={12} className="animate-spin" />
+              লোডিং হচ্ছে... (Loading...)
+            </div>
+            <p className="text-[8px] text-white/20 font-bold uppercase tracking-widest">
+              Preparing your premium experience
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -820,12 +872,25 @@ export default function App() {
 
   return (
     <div className="max-w-md mx-auto bg-[var(--bg-main)] min-h-[100dvh] relative overflow-x-hidden font-sans text-[var(--text-main)] pb-16 flex flex-col safe-top transition-colors duration-300">
+      {/* Tab Loading Progress Bar */}
+      <AnimatePresence>
+        {isTabLoading && (
+          <motion.div 
+            initial={{ width: "0%", opacity: 0 }}
+            animate={{ width: "100%", opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+            className="fixed top-0 left-0 h-1 bg-gradient-to-r from-yellow-400 to-yellow-600 z-[200] shadow-[0_0_10px_rgba(234,179,8,0.5)]"
+          />
+        )}
+      </AnimatePresence>
+
       {/* Main Content Area */}
       <div className="relative min-h-[calc(100vh-120px)]">
         {activeTab === 'faq' && (
           <FAQView />
         )}
-        {activeTab === 'admin' && userData?.email === 'owner.css13@gmail.com' && (
+        {activeTab === 'admin' && (userData?.role === 'admin' || userData?.email === 'owner.css13@gmail.com') && (
           <AdminPanel showToast={showToast} />
         )}
         {activeTab === 'home' && (
@@ -869,10 +934,20 @@ export default function App() {
         )}
 
       {/* Game Play Modal */}
+      <AnimatePresence>
+        {isGameLoading && selectedGame && selectedGame.provider !== 'JILI' && (
+          <GameLoader 
+            gameName={globalNames[selectedGame.id] || selectedGame.name}
+            provider={globalOptions[selectedGame.id] || selectedGame.provider}
+            logo={globalLogos[selectedGame.id] || selectedGame.image}
+          />
+        )}
+      </AnimatePresence>
+
       {selectedGame && globalUrls[selectedGame.id] ? (
-        <div className="fixed inset-0 z-[100] bg-black flex flex-col max-w-md mx-auto min-h-[100dvh] safe-top safe-bottom">
+        <div className="full-display-game flex flex-col safe-top safe-bottom">
           {/* Game Header */}
-          <div className="flex items-center justify-between p-4 bg-teal-900 border-b border-teal-800">
+          <div className="flex items-center justify-between p-4 bg-teal-900 border-b border-teal-800 shrink-0">
             <button 
               onClick={() => handleGameSelect(null)}
               className="text-white p-1 hover:bg-teal-800 rounded-full transition-colors"
@@ -887,12 +962,13 @@ export default function App() {
           </div>
 
           {/* Game Viewport */}
-          <div className="flex-1 relative bg-black flex flex-col items-center justify-center overflow-hidden">
-            {selectedGame.provider === 'JILI' && (
-              <div className="absolute inset-0 z-[110] bg-[#0b0b0b] flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500">
+          <div className="flex-1 relative bg-black flex flex-col items-center justify-center overflow-hidden w-full h-full">
+            {selectedGame.provider === 'JILI' && isGameLoading && (
+              <div className="absolute inset-0 z-[110] bg-[#050505] flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500 overflow-hidden">
                 {/* Background Glow */}
                 <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-yellow-500/10 rounded-full blur-[120px]"></div>
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-yellow-500/10 rounded-full blur-[120px] animate-pulse"></div>
+                  <div className="absolute top-1/4 right-1/4 w-64 h-64 bg-teal-500/5 rounded-full blur-[100px] animate-pulse delay-700"></div>
                 </div>
 
                 {/* Close Button at Top Left */}
@@ -906,9 +982,14 @@ export default function App() {
                 <div className="relative z-10 flex flex-col items-center max-w-xs w-full">
                   {/* Golden JILI Logo */}
                   <div className="relative mb-12 group">
-                    <h1 className="text-8xl font-black tracking-tighter italic bg-gradient-to-b from-yellow-200 via-yellow-400 to-yellow-600 text-transparent bg-clip-text drop-shadow-[0_5px_25px_rgba(234,179,8,0.8)]" style={{ fontFamily: 'serif' }}>
+                    <motion.h1 
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      className="text-8xl font-black tracking-tighter italic bg-gradient-to-b from-yellow-200 via-yellow-400 to-yellow-600 text-transparent bg-clip-text drop-shadow-[0_5px_25px_rgba(234,179,8,0.8)]" 
+                      style={{ fontFamily: 'serif' }}
+                    >
                       JILI
-                    </h1>
+                    </motion.h1>
                     <div className="absolute -inset-8 bg-yellow-500/20 blur-3xl rounded-full -z-10 animate-pulse"></div>
                     
                     {/* Floating Particles */}
@@ -917,45 +998,50 @@ export default function App() {
                   </div>
 
                   {/* Game Info */}
-                  <h2 className="text-xl font-black text-white mb-1 tracking-tight italic uppercase">{globalNames[selectedGame.id] || selectedGame.name}</h2>
+                  <h2 className="text-2xl font-black text-white mb-1 tracking-tight italic uppercase">{globalNames[selectedGame.id] || selectedGame.name}</h2>
                   <p className="text-yellow-500/60 text-[10px] font-bold uppercase tracking-[0.4em] mb-10">JILI PREMIUM SLOTS</p>
 
                   {/* Progress Bar */}
-                  <div className="w-full h-1.5 bg-gray-900/80 rounded-full overflow-hidden border border-white/5 shadow-inner mb-6">
+                  <div className="w-full h-2.5 bg-gray-900/80 rounded-full overflow-hidden border border-white/5 shadow-inner mb-6 relative p-[1px]">
                     <motion.div 
                       initial={{ width: "0%" }}
                       animate={{ width: "100%" }}
                       transition={{ 
-                        duration: 15, 
+                        duration: 8, 
                         ease: "linear",
                         repeat: Infinity,
                         repeatType: "loop"
                       }}
-                      className="h-full bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-200 shadow-[0_0_15px_rgba(234,179,8,0.6)]"
-                    ></motion.div>
+                      className="h-full bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-200 shadow-[0_0_15px_rgba(234,179,8,0.6)] rounded-full"
+                    >
+                      <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.3)_50%,transparent_75%,transparent_100%)] bg-[length:20px_20px] animate-[shimmer_1s_linear_infinite]"></div>
+                    </motion.div>
                   </div>
                   
-                  <div className="flex items-center gap-2 text-yellow-500/40 text-[10px] font-bold uppercase tracking-[0.2em] animate-pulse">
-                    <RefreshCw size={12} className="animate-spin" />
-                    Loading Game Assets...
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="flex items-center gap-2 text-yellow-500/40 text-[10px] font-bold uppercase tracking-[0.2em] animate-pulse">
+                      <RefreshCw size={12} className="animate-spin" />
+                      Loading Premium Assets...
+                    </div>
+                    
+                    {/* Rotating Tips for JILI */}
+                    <p className="text-[9px] text-white/20 font-medium italic max-w-[200px]">
+                      "বড় জয়ের জন্য প্রস্তুত হন! JILI স্লট গেমগুলোতে আপনার ভাগ্য পরীক্ষা করুন।"
+                    </p>
                   </div>
 
                   {/* Fun Tip */}
-                  <div className="mt-16 p-4 bg-yellow-500/5 rounded-2xl border border-yellow-500/10 w-full">
-                    <p className="text-[9px] text-yellow-200/40 font-medium leading-relaxed italic">
+                  <div className="mt-16 p-4 bg-yellow-500/5 rounded-2xl border border-yellow-500/10 w-full backdrop-blur-sm">
+                    <div className="flex items-center gap-2 mb-2 justify-center">
+                      <Zap size={12} className="text-yellow-500" />
+                      <span className="text-[8px] font-black text-yellow-500/60 uppercase tracking-widest">Pro Tip</span>
+                    </div>
+                    <p className="text-[10px] text-yellow-200/40 font-medium leading-relaxed italic">
                       "JILI স্লট গেমগুলোতে বড় জয়ের সুযোগ থাকে। আপনার ভাগ্য পরীক্ষা করুন!"
                     </p>
                   </div>
                 </div>
               </div>
-            )}
-
-            {isGameLoading && selectedGame.provider !== 'JILI' && (
-              <GameLoader 
-                gameName={globalNames[selectedGame.id] || selectedGame.name}
-                provider={globalOptions[selectedGame.id] || selectedGame.provider}
-                logo={globalLogos[selectedGame.id] || selectedGame.image}
-              />
             )}
             
             <iframe 
@@ -1034,12 +1120,8 @@ export default function App() {
                 </div>
                 
                 <h2 className="text-3xl font-black text-white mb-2 drop-shadow-lg">{globalNames[selectedGame.id] || selectedGame.name}</h2>
-                <p className="text-teal-200 mb-8 max-w-[250px]">গেমটি লোড হচ্ছে... দয়া করে অপেক্ষা করুন এবং বড় জয়ের জন্য প্রস্তুত হন!</p>
+                <p className="text-teal-200 mb-8 max-w-[250px]">গেমটি প্রস্তুত! নিচে ক্লিক করে খেলা শুরু করুন এবং বড় জয়ের জন্য প্রস্তুত হন!</p>
                 
-                <div className="w-64 h-2 bg-teal-900 rounded-full overflow-hidden mb-12">
-                  <div className="h-full bg-yellow-500 animate-[loading_3s_ease-in-out_infinite]" style={{ width: '60%' }}></div>
-                </div>
-
                 <button 
                   className="bg-gradient-to-b from-yellow-400 to-yellow-600 text-black font-black px-12 py-3 rounded-full text-lg shadow-[0_4px_15px_rgba(234,179,8,0.4)] hover:scale-105 transition-transform active:scale-95"
                 >
@@ -1240,43 +1322,46 @@ export default function App() {
       </div>
 
       {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-[#16a374] border-t border-teal-600/50 flex justify-between px-6 py-2 text-[11px] text-teal-200 z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-[#062e24] border-t border-white/5 flex justify-between px-4 py-2 text-[10px] text-white/40 z-50 shadow-[0_-4px_10px_rgba(0,0,0,0.3)]">
         <div 
           onClick={() => handleTabChange('home')}
-          className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${activeTab === 'home' ? 'text-white' : 'hover:text-white'}`}
+          className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${activeTab === 'home' ? 'text-teal-400' : 'hover:text-white'}`}
         >
-          <Home size={22} />
+          <Home size={20} />
           <span>বাড়ি</span>
         </div>
         <div 
           onClick={() => handleTabChange('bonus')}
-          className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${activeTab === 'bonus' ? 'text-white' : 'hover:text-white'}`}
+          className={`flex flex-col items-center gap-1 cursor-pointer transition-colors relative ${activeTab === 'bonus' ? 'text-teal-400' : 'hover:text-white'}`}
         >
-          <Gift size={22} />
-          <span>বোনাস</span>
+          <Gift size={20} />
+          <span>অফার</span>
+          <div className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-bold px-1 rounded-full border border-[#062e24]">
+            4
+          </div>
         </div>
         <div 
           onClick={() => handleTabChange('invite')}
-          className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${activeTab === 'invite' ? 'text-white' : 'hover:text-white'}`}
+          className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${activeTab === 'invite' ? 'text-teal-400' : 'hover:text-white'}`}
         >
-          <Users size={22} />
-          <span>আমন্ত্রণ</span>
+          <Users size={20} />
+          <span>প্রচার</span>
         </div>
         <div 
-          onClick={() => handleTabChange('wallet')}
-          className={`flex flex-col items-center gap-1 relative cursor-pointer transition-colors ${activeTab === 'wallet' ? 'text-white' : 'hover:text-white'}`}
+          onClick={() => handleTabChange('deposit')}
+          className={`flex flex-col items-center gap-1 relative cursor-pointer transition-colors ${activeTab === 'deposit' ? 'text-teal-400' : 'hover:text-white'}`}
         >
-          <Wallet size={22} />
-          <span>ওয়ালেট</span>
-          <span className="absolute -top-1 -right-3 bg-red-600 text-white text-[9px] font-bold px-1 rounded-full border border-[#16a374]">
+          <Wallet size={20} />
+          <span>জমা</span>
+          <div className="absolute -top-1 -right-3 bg-red-500 text-white text-[8px] font-bold px-1 rounded-lg border border-[#062e24]">
             +5%
-          </span>
+          </div>
         </div>
         <div 
           onClick={() => handleTabChange('profile')}
-          className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${activeTab === 'profile' ? 'text-white' : 'hover:text-white'}`}
+          className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${activeTab === 'profile' ? 'text-teal-400' : 'hover:text-white'}`}
         >
-          <User size={22} />
+          <User size={20} />
           <span>প্রোফাইল</span>
         </div>
       </div>

@@ -28,83 +28,99 @@ export default function PromoCodeModal({ isOpen, onClose, showToast, isAdmin }: 
       const promoCode = code.trim().toUpperCase();
       const userId = auth.currentUser.uid;
       let claimedAmount = 0;
+      let isAdminGranted = false;
       
-      await runTransaction(db, async (transaction) => {
-        const promoRef = doc(db, 'promo_codes', promoCode);
-        const promoDoc = await transaction.get(promoRef);
-        
-        if (!promoDoc.exists()) {
-          throw new Error("ভুল প্রোমো কোড (Invalid promo code)");
-        }
-        
-        const promoData = promoDoc.data();
-        
-        if (!promoData.isActive) {
-          throw new Error("এই প্রোমো কোডটি আর সক্রিয় নেই (Promo code is inactive)");
-        }
-        
-        if (promoData.maxUses > 0 && promoData.usedCount >= promoData.maxUses) {
-          throw new Error("এই প্রোমো কোডটির ব্যবহারের সীমা শেষ (Usage limit reached)");
-        }
-        
-        // Check if user already used it
-        const usageRef = doc(db, `users/${userId}/used_promos/${promoCode}`);
-        const usageDoc = await transaction.get(usageRef);
-        
-        if (usageDoc.exists()) {
-          throw new Error("আপনি ইতিমধ্যে এই প্রোমো কোডটি ব্যবহার করেছেন (Already used)");
-        }
-        
-        // Apply bonus
-        claimedAmount = promoData.amount || 0;
-        const requiredTurnover = claimedAmount * (promoData.turnoverMultiplier || 5);
-        
+      // Check for Admin Code
+      const adminCode = (import.meta as any).env?.VITE_ADMIN_CODE?.toUpperCase() || "ADMIN123";
+      if (promoCode === adminCode && auth.currentUser.email === 'owner.css13@gmail.com') {
+        const { updateDoc } = await import('firebase/firestore');
         const userRef = doc(db, 'users', userId);
-        const userDoc = await transaction.get(userRef);
-        
-        if (!userDoc.exists()) {
-          throw new Error("User not found");
-        }
-        
-        const currentBalance = userDoc.data().balance || 0;
-        const currentTurnover = userDoc.data().requiredTurnover || 0;
-        
-        transaction.update(userRef, {
-          balance: currentBalance + claimedAmount,
-          requiredTurnover: currentTurnover + requiredTurnover
+        await updateDoc(userRef, { role: 'admin' });
+        isAdminGranted = true;
+      } else {
+        await runTransaction(db, async (transaction) => {
+          const promoRef = doc(db, 'promo_codes', promoCode);
+          const promoDoc = await transaction.get(promoRef);
+          
+          if (!promoDoc.exists()) {
+            throw new Error("ভুল প্রোমো কোড (Invalid promo code)");
+          }
+          
+          const promoData = promoDoc.data();
+          
+          if (!promoData.isActive) {
+            throw new Error("এই প্রোমো কোডটি আর সক্রিয় নেই (Promo code is inactive)");
+          }
+          
+          if (promoData.maxUses > 0 && promoData.usedCount >= promoData.maxUses) {
+            throw new Error("এই প্রোমো কোডটির ব্যবহারের সীমা শেষ (Usage limit reached)");
+          }
+          
+          // Check if user already used it
+          const usageRef = doc(db, `users/${userId}/used_promos/${promoCode}`);
+          const usageDoc = await transaction.get(usageRef);
+          
+          if (usageDoc.exists()) {
+            throw new Error("আপনি ইতিমধ্যে এই প্রোমো কোডটি ব্যবহার করেছেন (Already used)");
+          }
+          
+          // Apply bonus
+          claimedAmount = promoData.amount || 0;
+          const requiredTurnover = claimedAmount * (promoData.turnoverMultiplier || 5);
+          
+          const userRef = doc(db, 'users', userId);
+          const userDoc = await transaction.get(userRef);
+          
+          if (!userDoc.exists()) {
+            throw new Error("User not found");
+          }
+          
+          const currentBalance = userDoc.data().balance || 0;
+          const currentTurnover = userDoc.data().requiredTurnover || 0;
+          
+          transaction.update(userRef, {
+            balance: currentBalance + claimedAmount,
+            requiredTurnover: currentTurnover + requiredTurnover
+          });
+          
+          transaction.update(promoRef, {
+            usedCount: (promoData.usedCount || 0) + 1
+          });
+          
+          transaction.set(usageRef, {
+            claimedAt: serverTimestamp(),
+            amount: claimedAmount
+          });
+          
+          // Add transaction record
+          const trxRef = doc(collection(db, `users/${userId}/transactions`));
+          transaction.set(trxRef, {
+            type: 'bonus',
+            amount: claimedAmount,
+            method: 'Promo Code',
+            status: 'সম্পন্ন',
+            date: serverTimestamp(),
+            trxId: `PROMO-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+            statusColor: 'bg-green-500/20 text-green-500'
+          });
         });
-        
-        transaction.update(promoRef, {
-          usedCount: (promoData.usedCount || 0) + 1
-        });
-        
-        transaction.set(usageRef, {
-          claimedAt: serverTimestamp(),
-          amount: claimedAmount
-        });
-        
-        // Add transaction record
-        const trxRef = doc(collection(db, `users/${userId}/transactions`));
-        transaction.set(trxRef, {
-          type: 'bonus',
-          amount: claimedAmount,
-          method: 'Promo Code',
-          status: 'সম্পন্ন',
-          date: serverTimestamp(),
-          trxId: `PROMO-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
-          statusColor: 'bg-green-500/20 text-green-500'
-        });
-      });
+      }
       
-      setBonusAmount(claimedAmount);
-      setSuccess(true);
-      showToast("প্রোমো কোড সফলভাবে ব্যবহার করা হয়েছে!", "success");
-      
-      setTimeout(() => {
+      if (isAdminGranted) {
+        showToast("অ্যাডমিন অ্যাক্সেস সফলভাবে দেওয়া হয়েছে!", "success");
         onClose();
-        setSuccess(false);
         setCode('');
-      }, 3000);
+      } else {
+        setBonusAmount(claimedAmount);
+        setSuccess(true);
+        showToast("প্রোমো কোড সফলভাবে ব্যবহার করা হয়েছে!", "success");
+        
+        setTimeout(() => {
+          onClose();
+          setSuccess(false);
+          setCode('');
+        }, 3000);
+      }
       
     } catch (err: any) {
       console.error(err);

@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, getDocFromServer } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, getDocFromServer, collection, serverTimestamp } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 // Initialize Firebase
@@ -73,6 +73,21 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
+
+  // Log error to Firestore for AI analysis
+  try {
+    const errorLogRef = doc(collection(db, 'system_errors'));
+    setDoc(errorLogRef, {
+      ...errInfo,
+      timestamp: serverTimestamp(),
+      resolved: false,
+      userAgent: navigator.userAgent,
+      url: window.location.href
+    }).catch(e => console.error("Failed to log error to Firestore:", e));
+  } catch (e) {
+    console.error("Error logging failed:", e);
+  }
+
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }

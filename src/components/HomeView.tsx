@@ -324,7 +324,16 @@ export default function HomeView({
               </div>
               <h3 className="text-white font-black text-sm italic uppercase tracking-tight">Recently Played</h3>
             </div>
-            <span className="text-[10px] text-teal-500 font-bold uppercase tracking-widest">{loading ? 'Loading...' : `${recentlyPlayed.length} Games`}</span>
+            <span className="text-[10px] text-teal-500 font-bold uppercase tracking-widest flex items-center gap-1.5">
+              {loading ? (
+                <div className="flex items-center gap-2 px-2 py-0.5 bg-yellow-500/10 rounded-full border border-yellow-500/20 animate-pulse">
+                  <RefreshCw size={10} className="animate-spin text-yellow-500" />
+                  <span className="text-[9px] font-black text-yellow-500 uppercase tracking-widest">Updating...</span>
+                </div>
+              ) : (
+                `${recentlyPlayed.length} Games`
+              )}
+            </span>
           </div>
           <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
             {loading ? (
@@ -420,6 +429,7 @@ export default function HomeView({
       {/* Category Navigation */}
       <div className="flex overflow-x-auto gap-4 px-4 py-3 no-scrollbar bg-[#0a1e1e]/20 border-b border-white/5 sticky top-[92px] z-30 backdrop-blur-md transition-colors duration-300">
         {[
+          { id: 'সব', icon: Gamepad2, label: 'সব' },
           { id: 'সেরা', icon: Flame, label: 'সেরা' },
           { id: 'পছন্দ', icon: Star, label: 'পছন্দ' },
           { id: 'স্লট', icon: Gamepad2, label: 'স্লট' },
@@ -449,6 +459,8 @@ export default function HomeView({
           <div className="flex items-center gap-1.5 text-lg font-bold text-[var(--text-main)]">
             {activeCategory === 'পছন্দ' ? (
               <Star className="text-yellow-400 fill-yellow-400" size={20} />
+            ) : activeCategory === 'সব' ? (
+              <Gamepad2 className="text-blue-400 fill-blue-400" size={20} />
             ) : (
               <Flame className="text-[var(--brand-primary)] fill-[var(--brand-primary)]" size={20} />
             )} 
@@ -473,6 +485,7 @@ export default function HomeView({
         {/* Grid */}
         <GameGrid 
           category={activeCategory} 
+          setActiveCategory={setActiveCategory}
           searchQuery={searchQuery} 
           onGameSelect={handleGameSelect} 
           favorites={favorites}

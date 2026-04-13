@@ -1,517 +1,523 @@
-import React, { useState } from "react";
-import { Copy, HelpCircle, Share2, User, Users, Award, Facebook, Twitter, MessageCircle, Send, Gift, ChevronLeft, TrendingUp, DollarSign, Target, ShoppingCart, Package, Crown, Coins, Zap, Shield, Star, Activity, Clock } from "lucide-react";
-
-const shopCategories = [
-  { id: 'vip', name: 'ভিআইপি (VIP)', icon: Crown },
-  { id: 'coins', name: 'কয়েন (Coins)', icon: Coins },
-  { id: 'offers', name: 'অফার (Offers)', icon: Gift },
-];
-
-const shopItems = {
-  vip: [
-    { id: 'v1', name: 'VIP Bronze', price: '৳ 500', icon: Shield, color: 'text-orange-400', bg: 'bg-orange-400/20', border: 'border-orange-400/50', desc: 'দৈনিক ৫% ক্যাশব্যাক' },
-    { id: 'v2', name: 'VIP Silver', price: '৳ 1,000', icon: Star, color: 'text-gray-300', bg: 'bg-gray-300/20', border: 'border-gray-300/50', desc: 'দৈনিক ১০% ক্যাশব্যাক' },
-    { id: 'v3', name: 'VIP Gold', price: '৳ 5,000', icon: Crown, color: 'text-yellow-400', bg: 'bg-yellow-400/20', border: 'border-yellow-400/50', desc: 'দৈনিক ১৫% ক্যাশব্যাক' },
-  ],
-  coins: [
-    { id: 'c1', name: '10,000 Coins', price: '৳ 100', icon: Coins, color: 'text-yellow-500', bg: 'bg-yellow-500/20', border: 'border-yellow-500/50', desc: '+500 বোনাস' },
-    { id: 'c2', name: '50,000 Coins', price: '৳ 450', icon: Coins, color: 'text-yellow-500', bg: 'bg-yellow-500/20', border: 'border-yellow-500/50', desc: '+3,000 বোনাস' },
-    { id: 'c3', name: '100,000 Coins', price: '৳ 800', icon: Coins, color: 'text-yellow-500', bg: 'bg-yellow-500/20', border: 'border-yellow-500/50', desc: '+10,000 বোনাস' },
-  ],
-  offers: [
-    { id: 'o1', name: 'Welcome Pack', price: '৳ 200', icon: Zap, color: 'text-blue-400', bg: 'bg-blue-400/20', border: 'border-blue-400/50', desc: '20k Coins + VIP 1 Day' },
-    { id: 'o2', name: 'Weekend Special', price: '৳ 500', icon: Gift, color: 'text-purple-400', bg: 'bg-purple-400/20', border: 'border-purple-400/50', desc: '50k Coins + 5 Free Spins' },
-  ]
-};
-
+import React, { useState, useEffect } from "react";
+import { collection, query, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase';
+import { 
+  Copy, 
+  HelpCircle, 
+  Share2, 
+  User, 
+  Users, 
+  Award, 
+  Facebook, 
+  Twitter, 
+  MessageCircle, 
+  Send, 
+  Gift, 
+  ChevronLeft, 
+  TrendingUp, 
+  DollarSign, 
+  Target, 
+  Crown, 
+  Coins, 
+  Zap, 
+  Shield, 
+  Star, 
+  Activity, 
+  Clock,
+  QrCode,
+  Calendar,
+  ChevronDown,
+  Plane,
+  Info
+} from "lucide-react";
 import { ToastType } from './Toast';
 
 export default function InviteView({ onTabChange, userData, showToast, initialSubTab = 'overview' }: { onTabChange: (tab: any) => void, userData?: any, showToast: (msg: string, type?: ToastType) => void, initialSubTab?: string }) {
   const [activeTab, setActiveTab] = useState(initialSubTab);
-  const [activeShopCategory, setActiveShopCategory] = useState('vip');
-  const [totalShares, setTotalShares] = useState(12);
+  const [incomeCalculatorValue, setIncomeCalculatorValue] = useState(1);
+  const [referralsList, setReferralsList] = useState<any[]>([]);
+  
+  useEffect(() => {
+    if (!userData?.id) return;
+    
+    const referralsRef = collection(db, 'users', userData.id, 'referrals');
+    const q = query(referralsRef);
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setReferralsList(list);
+    });
+    
+    return () => unsubscribe();
+  }, [userData?.id]);
   
   const currentReferrals = userData?.referralCount || 0;
   const totalEarned = userData?.totalReferralEarnings || 0;
   const referralCode = userData?.referralCode || (userData?.id ? userData.id.substring(0, 6).toUpperCase() : 'SPIN71');
-  const referralLink = `https://spin71-bet-e0m5.onrender.com/?ref=${referralCode}`;
+  const referralLink = `${window.location.origin}/?ref=${referralCode}`;
 
-  const tiers = [
-    { count: 1, reward: 50 },
-    { count: 5, reward: 300 },
-    { count: 10, reward: 1000 },
-    { count: 25, reward: 2500 },
-    { count: 50, reward: 5000 },
+  const tabs = [
+    { id: 'overview', name: 'Overview' },
+    { id: 'rewards', name: 'Rewards' },
+    { id: 'incomes', name: 'Incomes' },
+    { id: 'records', name: 'Records' },
+    { id: 'invited', name: 'Invited List' }
   ];
 
-  const nextTier = tiers.find(t => t.count > currentReferrals) || tiers[tiers.length - 1];
-  const isMaxTier = currentReferrals >= tiers[tiers.length - 1].count;
-  
-  const progressToNext = isMaxTier ? 100 : (currentReferrals / nextTier.count) * 100;
-
-  const incrementShares = () => setTotalShares(prev => prev + 1);
-
-  const getProgress = (min: number, max: number) => {
-    if (currentReferrals < min) return 0;
-    if (currentReferrals >= max) return 100;
-    return ((currentReferrals - min) / (max - min)) * 100;
+  const copyToClipboard = (text: string, msg: string) => {
+    navigator.clipboard.writeText(text);
+    showToast(msg, "success");
   };
 
-  const handleShare = async () => {
-    const shareData = {
-      title: 'SPIN71 BET - আমার রেফারেল লিঙ্ক',
-      text: 'আমার রেফারেল লিঙ্ক ব্যবহার করে যোগ দিন এবং বোনাস পান!',
-      url: referralLink,
-    };
-
-    try {
-      if (navigator.share) {
-        await navigator.share(shareData);
-        incrementShares();
-      } else {
-        navigator.clipboard.writeText(referralLink);
-        showToast('লিঙ্কটি কপি করা হয়েছে!', 'success');
-        incrementShares();
-      }
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        console.error('Error sharing:', err);
-      }
-    } finally {
-      // Done
-    }
-  };
-
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(referralLink);
-    showToast("লিঙ্কটি কপি করা হয়েছে!", "success");
-    incrementShares();
-  };
-
-  const handleBuyItem = (item: any) => {
-    showToast(`${item.name} কেনার জন্য পর্যাপ্ত ব্যালেন্স নেই!`, "warning");
-  };
-
-  return (
-    <div className="flex-1 overflow-y-auto pb-24 bg-[var(--bg-main)] transition-colors duration-300">
-      {/* Header */}
-      <div className="bg-[var(--bg-surface)] p-4 pt-6 rounded-b-3xl shadow-lg relative overflow-hidden transition-colors duration-300">
-        <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
-        <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-yellow-400/20 rounded-full blur-3xl"></div>
-        
-        <div className="flex justify-between items-center relative z-10">
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={() => onTabChange('home')}
-              className="p-2 bg-black/20 hover:bg-black/40 rounded-full transition-colors text-white backdrop-blur-sm"
-            >
-              <ChevronLeft size={20} />
-            </button>
-            <h2 className="text-2xl font-black italic tracking-tighter text-white drop-shadow-md">
-              SPIN71 <span className="text-yellow-400">INVITE</span>
-            </h2>
-          </div>
-          <div className="bg-black/30 px-3 py-1.5 rounded-full flex items-center gap-2 border border-white/10 backdrop-blur-sm">
-            <Users size={16} className="text-yellow-400" />
-            <span className="text-white font-bold text-sm">আমন্ত্রণ</span>
-          </div>
+  const EmptyState = () => (
+    <div className="flex flex-col items-center justify-center py-20 animate-in fade-in duration-500">
+      <div className="relative mb-6">
+        <Plane size={80} className="text-blue-400 transform -rotate-12 animate-bounce" />
+        <div className="absolute -top-2 -right-2 flex gap-1">
+          <Star size={12} className="text-blue-300 fill-blue-300" />
+          <Star size={8} className="text-blue-200 fill-blue-200" />
         </div>
-
-        {/* Stats Summary */}
-        <div className="mt-6 grid grid-cols-2 gap-2 relative z-10">
-          <div className="bg-black/20 backdrop-blur-sm rounded-2xl p-2 border border-white/10 flex flex-col items-center justify-center text-center">
-            <div className="flex items-center gap-1 text-teal-100 mb-1">
-              <Users size={12} />
-              <span className="text-[10px]">সফল রেফারেল</span>
-            </div>
-            <div className="text-lg font-black text-white">{currentReferrals}</div>
-          </div>
-          <div className="bg-black/20 backdrop-blur-sm rounded-2xl p-2 border border-white/10 flex flex-col items-center justify-center text-center">
-            <div className="flex items-center gap-1 text-teal-100 mb-1">
-              <DollarSign size={12} />
-              <span className="text-[10px]">মোট আয়</span>
-            </div>
-            <div className="text-lg font-black text-yellow-400">৳ {totalEarned}</div>
-          </div>
+        <div className="absolute -bottom-2 -left-2">
+          <Star size={10} className="text-blue-300 fill-blue-300" />
         </div>
       </div>
+      <h3 className="text-2xl font-bold text-blue-500">No data</h3>
+    </div>
+  );
 
-      {/* Tabs */}
-      <div className="px-4 mt-6">
-        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-          {[
-            { id: 'overview', name: 'সংক্ষিপ্ত বর্ণনা' },
-            { id: 'shop', name: 'শপ (Shop)' },
-            { id: 'earnings', name: 'আয়' },
-            { id: 'leaderboard', name: 'লিডারবোর্ড' }
-          ].map(tab => (
+  return (
+    <div className="flex-1 flex flex-col h-full bg-[#f4f7f9]">
+      {/* Header */}
+      <div className="bg-[#1a0b2e] p-4 flex items-center gap-4 sticky top-0 z-20">
+        <button 
+          onClick={() => onTabChange('home')}
+          className="text-white p-1"
+        >
+          <ChevronLeft size={24} />
+        </button>
+        <h2 className="text-white text-lg font-medium flex-1 text-center mr-8">Invite Friends</h2>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="bg-white border-b border-gray-200 sticky top-[60px] z-20">
+        <div className="flex overflow-x-auto no-scrollbar">
+          {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-5 py-2.5 rounded-full font-bold whitespace-nowrap transition-all ${
-                activeTab === tab.id 
-                  ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-black shadow-[0_0_15px_rgba(250,204,21,0.4)]' 
-                  : 'bg-[var(--bg-card)] text-[var(--text-muted)] border border-[var(--border-color)] hover:bg-black/10'
+              className={`flex-1 min-w-[100px] py-4 text-sm font-medium transition-colors relative ${
+                activeTab === tab.id ? 'text-blue-500' : 'text-gray-600'
               }`}
             >
               {tab.name}
+              {activeTab === tab.id && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
+              )}
             </button>
           ))}
         </div>
       </div>
 
-      {activeTab === 'overview' && (
-        <div className="p-4 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          {/* Total Earnings Highlight Card */}
-          <div className="bg-gradient-to-br from-yellow-500/10 to-yellow-600/5 p-6 rounded-3xl border border-yellow-500/20 shadow-2xl relative overflow-hidden group">
-            <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-yellow-500/10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
-            <div className="flex items-center justify-between relative z-10">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center shadow-lg shadow-yellow-500/20">
-                  <Coins size={30} className="text-black" />
+      <div className="flex-1 overflow-y-auto pb-24">
+        {activeTab === 'overview' && (
+          <div className="p-4 space-y-4 animate-in fade-in duration-500">
+            {/* Share Section */}
+            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+              <p className="text-xs font-bold text-indigo-900 mb-3">Share to your friends</p>
+              <div className="flex gap-4 items-start mb-4">
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-16 h-16 bg-white border border-gray-200 p-1 rounded flex items-center justify-center">
+                    <QrCode size={56} className="text-black" />
+                  </div>
+                  <span className="text-[8px] bg-indigo-900 text-white px-1 rounded">Save invite code</span>
+                </div>
+                <div className="flex-1 space-y-3">
+                  <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded p-1.5">
+                    <span className="text-[10px] text-gray-500 truncate flex-1">{referralLink}</span>
+                    <button 
+                      onClick={() => copyToClipboard(referralLink, "Link copied!")}
+                      className="p-1 bg-indigo-900 rounded text-white"
+                    >
+                      <Copy size={12} />
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center text-white"><Facebook size={16} /></button>
+                    <button className="w-8 h-8 rounded bg-black flex items-center justify-center text-white"><XIcon size={16} /></button>
+                    <button className="w-8 h-8 rounded bg-blue-400 flex items-center justify-center text-white"><Send size={16} /></button>
+                    <button className="w-8 h-8 rounded bg-green-500 flex items-center justify-center text-white"><MessageCircle size={16} /></button>
+                    <button className="w-8 h-8 rounded bg-green-600 flex items-center justify-center text-white"><LineIcon size={16} /></button>
+                    <button className="w-8 h-8 rounded bg-blue-500 flex items-center justify-center text-white"><Share2 size={16} /></button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-blue-400 rounded-lg p-3 text-white">
+                  <p className="text-[10px] font-medium text-center opacity-90">Today's Income</p>
+                  <p className="text-lg font-bold text-center">৳ 0.00</p>
+                </div>
+                <div className="bg-purple-400 rounded-lg p-3 text-white">
+                  <p className="text-[10px] font-medium text-center opacity-90">Yesterday's Income</p>
+                  <p className="text-lg font-bold text-center">৳ 0.00</p>
+                </div>
+                <div className="bg-purple-500 rounded-lg p-3 text-white">
+                  <p className="text-[10px] font-medium text-center opacity-90">Registers</p>
+                  <p className="text-lg font-bold text-center">{currentReferrals}</p>
+                </div>
+                <div className="bg-blue-500 rounded-lg p-3 text-white">
+                  <p className="text-[10px] font-medium text-center opacity-90">Valid Referral</p>
+                  <p className="text-lg font-bold text-center">0</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Banner */}
+            <div className="bg-gradient-to-r from-purple-900 to-indigo-900 rounded-xl p-4 text-white relative overflow-hidden shadow-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-16 h-16 rounded-xl bg-yellow-500 p-1 flex items-center justify-center shadow-lg">
+                  <img src="https://picsum.photos/seed/casino/100/100" alt="VIP" className="rounded-lg w-full h-full object-cover" />
                 </div>
                 <div>
-                  <h3 className="text-yellow-100/60 text-xs font-black uppercase tracking-widest mb-1">আপনার মোট আয় (Total Earnings)</h3>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-black text-white italic tracking-tighter">৳ {totalEarned.toLocaleString()}</span>
-                    <span className="text-yellow-400 text-xs font-bold animate-pulse">LIVE</span>
+                  <h3 className="text-xl font-black italic">বাজি কমিশন</h3>
+                  <div className="flex items-center gap-1">
+                    <span className="text-2xl font-black text-yellow-400">৳ 88,000.00</span>
+                    <HelpCircle size={14} className="text-white/60" />
                   </div>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="bg-yellow-500/20 px-3 py-1 rounded-full border border-yellow-500/30 inline-block">
-                  <span className="text-yellow-400 text-[10px] font-black italic">WITHDRAWABLE</span>
+                  <p className="text-[10px] text-white/60">বাজি কমিশন</p>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Next Reward Card */}
-          <div className="bg-gradient-to-br from-[#128a61] to-[#0a4d3c] p-5 rounded-2xl shadow-xl border border-white/10 relative overflow-hidden">
-            <div className="absolute -right-4 -top-4 w-24 h-24 bg-yellow-400/10 rounded-full blur-2xl"></div>
-            <div className="relative z-10">
-              <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center border border-yellow-500/30">
-                    <Award size={20} className="text-yellow-400" />
-                  </div>
-                  <div>
-                    <h3 className="text-white font-black text-sm italic">পরবর্তী পুরস্কার (Next Reward)</h3>
-                    <p className="text-[10px] text-teal-200">আরও {isMaxTier ? 0 : nextTier.count - currentReferrals} জন বন্ধুকে আমন্ত্রণ জানান</p>
-                  </div>
+            {/* Rewards Released */}
+            <div className="space-y-3">
+              <h3 className="text-center font-bold text-indigo-900 text-lg">Rewards Released to Date</h3>
+              <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center gap-4">
+                <div className="w-16 h-16 flex items-center justify-center">
+                  <Star size={48} className="text-yellow-400 fill-yellow-400" />
                 </div>
-                <div className="text-right">
-                  <div className="text-yellow-400 font-black text-lg italic">৳ {nextTier.reward}</div>
-                  <div className="text-[9px] text-teal-300 uppercase font-bold tracking-wider">বোনাস</div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-gray-700">Invitation Rewards</p>
+                  <p className="text-xl font-black text-indigo-900">৳ 445,557,036.00</p>
+                  <p className="text-[10px] text-gray-500">438288 claimed</p>
                 </div>
               </div>
+              <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center gap-4">
+                <div className="w-16 h-16 flex items-center justify-center">
+                  <Award size={48} className="text-blue-400 fill-blue-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-gray-700">Achievement Rewards</p>
+                  <p className="text-xl font-black text-indigo-900">৳ 246,443,928.00</p>
+                  <p className="text-[10px] text-gray-500">175932 claimed</p>
+                </div>
+              </div>
+            </div>
 
+            {/* Commission Details */}
+            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 space-y-4">
+              <div className="text-center space-y-1">
+                <h3 className="text-indigo-900 font-bold text-lg">VIPTAKA এর নতুন রেফারেল প্রোগ্রাম</h3>
+                <p className="text-indigo-800 text-sm">এজেন্টের ৪টি সুপার কমিশন উপভোগ করুন</p>
+              </div>
+              
               <div className="space-y-2">
-                <div className="flex justify-between text-[10px] font-bold text-teal-100">
-                  <span>অগ্রগতি (Progress)</span>
-                  <span>{Math.round(progressToNext)}%</span>
+                <div className="bg-purple-100 rounded-lg p-2 flex items-center gap-3 border border-purple-200">
+                  <div className="bg-blue-500 text-white w-6 h-6 rounded flex items-center justify-center font-bold text-xs">1</div>
+                  <p className="text-indigo-900 font-bold text-sm">প্রতিটি আমন্ত্রণে <span className="text-yellow-600">৳৩০৮</span></p>
                 </div>
-                <div className="relative h-2.5 bg-black/40 rounded-full overflow-hidden border border-white/5">
-                  <div 
-                    className="absolute top-0 left-0 h-full bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-500 rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(250,204,21,0.3)]"
-                    style={{ width: `${progressToNext}%` }}
-                  >
-                    <div className="absolute inset-0 bg-white/20 animate-[loading_2s_linear_infinite]"></div>
+                <div className="bg-purple-100 rounded-lg p-2 flex items-center gap-3 border border-purple-200">
+                  <div className="bg-blue-500 text-white w-6 h-6 rounded flex items-center justify-center font-bold text-xs">2</div>
+                  <p className="text-indigo-900 font-bold text-sm">প্রতিটি ডিপোজিটে <span className="text-yellow-600">০.৮৮%</span></p>
+                </div>
+                <div className="bg-purple-100 rounded-lg p-2 flex items-center gap-3 border border-purple-200">
+                  <div className="bg-blue-500 text-white w-6 h-6 rounded flex items-center justify-center font-bold text-xs">3</div>
+                  <p className="text-indigo-900 font-bold text-sm">৩ লেভেলে বাজির কমিশন <span className="text-yellow-600">০.৯৮%</span></p>
+                </div>
+              </div>
+
+              {/* Hierarchy Diagram */}
+              <div className="py-6 flex flex-col items-center">
+                <div className="w-12 h-12 rounded-full bg-yellow-500 border-2 border-white shadow-md flex items-center justify-center mb-2">
+                  <User size={24} className="text-white" />
+                </div>
+                <p className="text-[10px] font-bold text-indigo-900 mb-4">আপনি</p>
+                
+                <div className="w-full h-px bg-indigo-200 relative">
+                  <div className="absolute -top-1 left-1/4 w-2 h-2 rounded-full bg-indigo-300"></div>
+                  <div className="absolute -top-1 right-1/4 w-2 h-2 rounded-full bg-indigo-300"></div>
+                </div>
+                
+                <div className="flex justify-around w-full mt-4">
+                  <div className="flex flex-col items-center">
+                    <div className="w-10 h-10 rounded-full bg-gray-200 border border-white shadow-sm flex items-center justify-center">
+                      <User size={20} className="text-gray-500" />
+                    </div>
+                    <p className="text-[8px] font-bold text-gray-600">স্তর ১</p>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <div className="w-10 h-10 rounded-full bg-gray-200 border border-white shadow-sm flex items-center justify-center">
+                      <User size={20} className="text-gray-500" />
+                    </div>
+                    <p className="text-[8px] font-bold text-gray-600">স্তর ১</p>
                   </div>
                 </div>
-                <div className="flex justify-between text-[9px] text-teal-300 font-medium">
-                  <span>{currentReferrals} রেফারেল</span>
-                  <span>{nextTier.count} রেফারেল</span>
+              </div>
+
+              <div className="bg-purple-100 rounded-lg p-2 flex items-center gap-3 border border-purple-200">
+                <div className="bg-blue-500 text-white w-6 h-6 rounded flex items-center justify-center font-bold text-xs">4</div>
+                <p className="text-indigo-900 font-bold text-sm">অর্জন বোনাস <span className="text-yellow-600">৳১৯,৯৯৯,৯৯৯</span></p>
+              </div>
+            </div>
+
+            {/* Leaderboard */}
+            <div className="space-y-4">
+              <h3 className="text-center font-bold text-indigo-900 text-2xl">Leaderboard</h3>
+              <div className="bg-gradient-to-b from-blue-400 to-purple-600 rounded-2xl p-4 shadow-lg">
+                <h4 className="text-white font-bold text-center mb-4">Who received the rewards</h4>
+                <div className="space-y-2">
+                  {[
+                    { name: 'ro******1', amount: '৳ 308.00' },
+                    { name: 'md**********0', amount: '৳ 308.00' },
+                    { name: 'mi******6', amount: '৳ 308.00' },
+                    { name: '18*******2', amount: '৳ 308.00' }
+                  ].map((item, i) => (
+                    <div key={i} className="bg-white/90 rounded-full px-4 py-2 flex justify-between items-center text-xs font-bold text-gray-700">
+                      <span className="w-1/3">{item.name}</span>
+                      <span className="w-1/3 text-center text-gray-400">Received</span>
+                      <span className="w-1/3 text-right text-indigo-900">{item.amount}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Revenue Goal Banner */}
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-5 rounded-2xl shadow-lg relative overflow-hidden group">
-            <div className="absolute right-0 top-0 w-32 h-32 bg-white/10 rounded-full blur-2xl transform translate-x-1/2 -translate-y-1/2 group-hover:scale-150 transition-transform duration-700"></div>
-            <div className="flex justify-between items-center relative z-10">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <h2 className="font-bold text-white text-lg">রাজস্ব লক্ষ্য</h2>
-                  <Target size={18} className="text-blue-200" />
+            {/* Income Calculator */}
+            <div className="bg-gradient-to-br from-pink-500 to-purple-600 rounded-2xl p-6 shadow-lg text-white">
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-16 h-16 bg-yellow-400 rounded-xl flex items-center justify-center shadow-lg">
+                  <MailIcon size={40} className="text-white" />
                 </div>
-                <p className="text-sm text-blue-100">বন্ধুদের আমন্ত্রণ জানান এবং এক্সট্রা বোনাস জিতুন!</p>
-              </div>
-              <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/30">
-                <Gift size={24} className="text-white" />
-              </div>
-            </div>
-          </div>
-
-          {/* Share Section */}
-          <div className="bg-[var(--bg-card)] p-5 rounded-2xl border border-[var(--border-color)] transition-colors duration-300">
-            <h3 className="text-[var(--text-main)] font-bold mb-3 flex items-center gap-2">
-              <Share2 size={18} className="text-[var(--brand-primary)]" />
-              আপনার রেফারেল লিঙ্ক শেয়ার করুন
-            </h3>
-            
-            <div className="mb-4 bg-black/30 p-3 rounded-xl border border-white/5 flex justify-between items-center">
-              <div>
-                <p className="text-[10px] text-[var(--brand-primary)] uppercase font-bold mb-1">আপনার রেফারেল কোড</p>
-                <p className="text-xl font-black text-yellow-400 tracking-wider">{referralCode}</p>
-              </div>
-              <button 
-                onClick={() => { 
-                  navigator.clipboard.writeText(referralCode); 
-                  showToast('কোড কপি করা হয়েছে!', 'success'); 
-                  incrementShares(); 
-                }} 
-                className="p-2 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <Copy size={16} className="text-white" />
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2 bg-black/50 p-2 rounded-xl border border-white/10 mb-4">
-              <span className="text-sm text-gray-300 truncate flex-1 pl-2 font-mono">{referralLink}</span>
-              <button 
-                onClick={copyToClipboard}
-                className="bg-[var(--brand-primary)] hover:opacity-90 text-white p-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
-              >
-                <Copy size={18} />
-                <span className="text-xs font-bold">কপি করুন</span>
-              </button>
-            </div>
-
-            <div className="grid grid-cols-4 gap-3">
-              <button onClick={handleShare} className="flex flex-col items-center gap-2 group">
-                <div className="w-12 h-12 rounded-full bg-[#1877F2]/20 text-[#1877F2] flex items-center justify-center group-hover:bg-[#1877F2] group-hover:text-white transition-all">
-                  <Facebook size={24} />
-                </div>
-                <span className="text-[10px] text-[var(--text-muted)]">Facebook</span>
-              </button>
-              <button onClick={handleShare} className="flex flex-col items-center gap-2 group">
-                <div className="w-12 h-12 rounded-full bg-[#25D366]/20 text-[#25D366] flex items-center justify-center group-hover:bg-[#25D366] group-hover:text-white transition-all">
-                  <MessageCircle size={24} />
-                </div>
-                <span className="text-[10px] text-[var(--text-muted)]">WhatsApp</span>
-              </button>
-              <button onClick={handleShare} className="flex flex-col items-center gap-2 group">
-                <div className="w-12 h-12 rounded-full bg-[#0088cc]/20 text-[#0088cc] flex items-center justify-center group-hover:bg-[#0088cc] group-hover:text-white transition-all">
-                  <Send size={24} />
-                </div>
-                <span className="text-[10px] text-[var(--text-muted)]">Telegram</span>
-              </button>
-              <button onClick={handleShare} className="flex flex-col items-center gap-2 group">
-                <div className="w-12 h-12 rounded-full bg-white/10 text-[var(--text-main)] flex items-center justify-center group-hover:bg-white group-hover:text-black transition-all">
-                  <Share2 size={24} />
-                </div>
-                <span className="text-[10px] text-[var(--text-muted)]">More</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Progress Section */}
-          <div className="bg-[var(--bg-card)] p-5 rounded-2xl border border-[var(--border-color)] transition-colors duration-300">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-[var(--text-main)] font-bold flex items-center gap-2">
-                <TrendingUp size={18} className="text-yellow-400" />
-                পুরস্কারের স্তরসমূহ (Reward Tiers)
-              </h3>
-            </div>
-            
-            <div className="relative h-4 bg-black rounded-full overflow-hidden border border-white/10 mb-6">
-              <div 
-                className="absolute top-0 left-0 h-full bg-gradient-to-r from-teal-600 to-teal-400 rounded-full transition-all duration-1000"
-                style={{ width: `${getProgress(0, 50)}%` }}
-              >
-                <div className="absolute inset-0 bg-white/20 animate-[loading_2s_linear_infinite]"></div>
-              </div>
-              {/* Tier Markers */}
-              {tiers.map((tier, idx) => (
-                <div 
-                  key={idx}
-                  className="absolute top-0 w-0.5 h-full bg-white/20"
-                  style={{ left: `${(tier.count / 50) * 100}%` }}
+                <h3 className="text-2xl font-black">Income calculator</h3>
+                <p className="text-3xl font-black text-yellow-300">৳ {(incomeCalculatorValue * 8000).toLocaleString()}.00</p>
+                <p className="text-[10px] font-bold opacity-80">Invite <span className="text-yellow-300">{incomeCalculatorValue}</span> active users, expected revenue</p>
+                <input 
+                  type="range" 
+                  min="1" 
+                  max="100" 
+                  value={incomeCalculatorValue} 
+                  onChange={(e) => setIncomeCalculatorValue(parseInt(e.target.value))}
+                  className="w-full h-1.5 bg-white/30 rounded-lg appearance-none cursor-pointer accent-teal-400"
                 />
-              ))}
+              </div>
             </div>
-            
-            <div className="grid grid-cols-5 gap-1">
-              {tiers.map((tier, idx) => (
-                <div key={idx} className="flex flex-col items-center gap-1.5">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center border transition-all ${currentReferrals >= tier.count ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.3)]' : 'bg-black border-white/10 text-[var(--text-muted)]'}`}>
-                    <span className="text-[10px] font-black">{tier.count}</span>
-                  </div>
-                  <span className={`text-[9px] font-bold ${currentReferrals >= tier.count ? 'text-yellow-400' : 'text-[var(--text-muted)]'}`}>৳{tier.reward}</span>
-                </div>
-              ))}
+
+            <div className="text-center py-4">
+              <h3 className="text-indigo-900 font-black text-2xl">এজেন্ট ৪ সুপার কমিশন</h3>
+              <div className="mt-4 bg-gray-100 rounded-xl p-4 border border-gray-200">
+                <p className="text-indigo-900 font-bold">VIPTAKA এর এজেন্ট হন এখনই</p>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {activeTab === 'shop' && (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-          {/* Categories */}
-          <div className="px-4 mt-6">
-            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-              {shopCategories.map(cat => (
-                <button
-                  key={cat.id}
-                  onClick={() => setActiveShopCategory(cat.id)}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-bold whitespace-nowrap transition-all ${
-                    activeShopCategory === cat.id 
-                      ? 'bg-[var(--brand-primary)] text-white shadow-[0_0_15px_rgba(20,184,166,0.4)]' 
-                      : 'bg-[var(--bg-card)] text-[var(--text-muted)] border border-[var(--border-color)] hover:bg-black/10'
-                  }`}
-                >
-                  <cat.icon size={16} className={activeShopCategory === cat.id ? 'text-white' : 'text-[var(--text-muted)]'} />
-                  {cat.name}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Items Grid */}
-          <div className="p-4 grid grid-cols-2 gap-4">
-            {shopItems[activeShopCategory as keyof typeof shopItems].map(item => (
-              <div 
-                key={item.id} 
-                className={`bg-[var(--bg-card)] rounded-2xl p-4 border ${item.border} flex flex-col items-center relative overflow-hidden group hover:scale-105 transition-transform duration-300`}
-              >
-                {/* Background Glow */}
-                <div className={`absolute inset-0 ${item.bg} opacity-20 group-hover:opacity-40 transition-opacity`}></div>
-                
-                <div className={`w-14 h-14 rounded-full ${item.bg} flex items-center justify-center mb-3 relative z-10 shadow-lg`}>
-                  <item.icon size={28} className={item.color} />
+        {activeTab === 'rewards' && (
+          <div className="p-4 space-y-3 animate-in fade-in duration-500">
+            <div className="text-right text-[10px] text-gray-400 mb-2">no expiration</div>
+            {[
+              { count: 5, reward: '399.00', icon: Award, color: 'text-orange-400' },
+              { count: 20, reward: '1,699.00', icon: Award, color: 'text-green-400' },
+              { count: 50, reward: '3,999.00', icon: Award, color: 'text-blue-400' },
+              { count: 100, reward: '9,999.00', icon: Award, color: 'text-purple-400' },
+              { count: 200, reward: '16,999.00', icon: Star, color: 'text-teal-400' },
+              { count: 500, reward: '49,999.00', icon: Star, color: 'text-yellow-400' },
+              { count: 1000, reward: '99,999.00', icon: Crown, color: 'text-yellow-500' }
+            ].map((tier, i) => (
+              <div key={i} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center gap-4">
+                <div className={`w-14 h-14 rounded-full bg-gray-50 flex items-center justify-center ${tier.color}`}>
+                  <tier.icon size={32} />
                 </div>
-                
-                <h3 className="text-[var(--text-main)] font-bold text-center text-sm mb-1 relative z-10">{item.name}</h3>
-                <p className="text-[var(--text-muted)] text-[10px] text-center mb-3 h-6 relative z-10">{item.desc}</p>
-                
-                <div className="w-full mt-auto relative z-10">
-                  <button 
-                    onClick={() => handleBuyItem(item)}
-                    className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-bold py-2 rounded-xl text-sm shadow-lg transition-all active:scale-95 flex items-center justify-center gap-1"
-                  >
-                    {item.price}
-                  </button>
+                <div className="flex-1">
+                  <p className="text-xs font-medium text-gray-500">Over {tier.count} valid referral in total.</p>
+                  <p className="text-lg font-black text-gray-700 flex items-center gap-1">
+                    <Coins size={14} className="text-gray-400" />
+                    {tier.reward}
+                  </p>
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-[10px] font-bold text-indigo-900">0 <span className="text-gray-400">/ {tier.count}</span></span>
+                  <button className="bg-blue-200 text-white text-[10px] font-bold px-3 py-1 rounded shadow-sm cursor-not-allowed">Available</button>
                 </div>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
 
-      {activeTab === 'earnings' && (
-        <div className="p-4 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="bg-[var(--bg-card)] p-6 rounded-3xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-2xl bg-teal-500/20 flex items-center justify-center">
-                <TrendingUp size={24} className="text-teal-400" />
-              </div>
-              <div>
-                <h3 className="text-[var(--text-main)] font-black text-lg italic">আয়ের বিশদ বিবরণ (Earnings Breakdown)</h3>
-                <p className="text-xs text-[var(--text-muted)]">আপনার রেফারেল থেকে অর্জিত মোট আয়</p>
+        {activeTab === 'incomes' && (
+          <div className="p-4 space-y-4 animate-in fade-in duration-500">
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+              <p className="text-center text-gray-500 text-sm mb-4">Total Income <span className="text-indigo-900 font-bold">৳ 2.76</span></p>
+              <div className="space-y-3">
+                <IncomeItem label="Invitation Rewards" value="৳ 0.00" />
+                <IncomeItem label="Achievement Rewards" value="৳ 0.00" />
+                <IncomeItem label="Deposit Rebate" value="৳ 0.00" />
+                <IncomeItem label="Betting Rebate" value="৳ 2.76" />
+                <IncomeItem label="Registers" value="10" isCurrency={false} />
+                <IncomeItem label="Valid Referral" value="0" isCurrency={false} />
+                <IncomeItem label="Depositors" value="0" isCurrency={false} />
               </div>
             </div>
 
-            <div className="space-y-4">
-              <div className="flex justify-between items-center p-4 bg-black/30 rounded-2xl border border-white/5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-yellow-500/10 flex items-center justify-center">
-                    <Users size={18} className="text-yellow-400" />
-                  </div>
-                  <span className="text-sm text-gray-300">রেফারেল বোনাস</span>
-                </div>
-                <span className="text-white font-black">৳ {totalEarned}</span>
-              </div>
-              
-              <div className="flex justify-between items-center p-4 bg-black/30 rounded-2xl border border-white/5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
-                    <Activity size={18} className="text-blue-400" />
-                  </div>
-                  <span className="text-sm text-gray-300">কমিশন (Commission)</span>
-                </div>
-                <span className="text-white font-black">৳ 0</span>
-              </div>
+            <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100">
+              <img src="https://picsum.photos/seed/referral/400/200" alt="Referral Program" className="w-full h-auto" />
+            </div>
 
-              <div className="pt-4 border-t border-[var(--border-color)] flex justify-between items-center">
-                <span className="text-[var(--text-muted)] font-bold">মোট ব্যালেন্স</span>
-                <span className="text-2xl font-black text-yellow-400">৳ {totalEarned}</span>
+            <p className="text-center text-[10px] text-gray-400">Note : The system updates the data every 15 minutes.</p>
+          </div>
+        )}
+
+        {activeTab === 'records' && (
+          <div className="p-4 space-y-4 animate-in fade-in duration-500 h-full flex flex-col">
+            <div className="flex gap-2">
+              <div className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 flex items-center justify-between text-xs text-blue-500 font-medium">
+                Invitation Rewards
+                <ChevronDown size={14} />
               </div>
+              <div className="bg-white border border-gray-200 rounded-lg px-3 py-2 flex items-center gap-2 text-xs text-blue-500 font-medium">
+                <Calendar size={14} />
+                04/13- 04/13
+              </div>
+            </div>
+
+            <div className="bg-gray-100 rounded p-2 flex text-[10px] font-bold text-gray-500">
+              <span className="w-1/3 text-center">Registration date</span>
+              <span className="w-1/3 text-center">Username</span>
+              <span className="w-1/3 text-center">Amount</span>
+            </div>
+
+            <div className="flex-1 flex flex-col items-center justify-center">
+              <EmptyState />
+            </div>
+
+            <div className="bg-white border-t border-gray-200 p-4 flex justify-between items-center text-sm font-bold text-gray-700">
+              <span>Total</span>
+              <span>0.00</span>
             </div>
           </div>
+        )}
 
-          <div className="bg-[var(--bg-card)] p-6 rounded-3xl border border-[var(--border-color)] shadow-xl transition-colors duration-300">
-            <h3 className="text-[var(--text-main)] font-black mb-4 flex items-center gap-2">
-              <Clock size={18} className="text-[var(--brand-primary)]" />
-              সাম্প্রতিক লেনদেন (Recent Transactions)
-            </h3>
-            <div className="space-y-3">
-              {currentReferrals > 0 ? (
-                <div className="p-4 bg-black/20 rounded-2xl border border-white/5 flex justify-between items-center">
-                  <div>
-                    <p className="text-white font-bold text-sm">রেফারেল বোনাস প্রাপ্ত</p>
-                    <p className="text-[10px] text-gray-500">সফল রেফারেল থেকে</p>
-                  </div>
-                  <span className="text-green-400 font-black">+৳ {totalEarned}</span>
+        {activeTab === 'invited' && (
+          <div className="p-4 space-y-4 animate-in fade-in duration-500 h-full flex flex-col">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+                  <User size={20} className="text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-blue-900">Registers</p>
+                  <p className="text-lg font-black text-blue-500">{currentReferrals}</p>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+                  <Users size={20} className="text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-blue-900">Valid Referral</p>
+                  <p className="text-lg font-black text-blue-500">{referralsList.filter(r => r.status === 'active').length}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-orange-50 rounded-lg p-2 border border-orange-100">
+                <p className="text-[8px] font-bold text-orange-800">Today</p>
+                <p className="text-xs font-black text-orange-900 text-right">+0</p>
+              </div>
+              <div className="bg-orange-50 rounded-lg p-2 border border-orange-100">
+                <p className="text-[8px] font-bold text-orange-800">Yesterday</p>
+                <p className="text-xs font-black text-orange-900 text-right">+0</p>
+              </div>
+              <div className="bg-orange-50 rounded-lg p-2 border border-orange-100">
+                <p className="text-[8px] font-bold text-orange-800">Current Month</p>
+                <p className="text-xs font-black text-orange-900 text-right">+0</p>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <div className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 flex items-center justify-between text-xs text-blue-500 font-medium">
+                All
+                <ChevronDown size={14} />
+              </div>
+              <div className="bg-blue-500 rounded-lg px-3 py-2 flex items-center gap-2 text-xs text-white font-medium">
+                <Shield size={14} />
+                Today
+              </div>
+              <div className="bg-white border border-gray-200 rounded-lg px-3 py-2 flex items-center gap-2 text-xs text-blue-500 font-medium">
+                <Calendar size={14} />
+                04/13- 04/13
+              </div>
+            </div>
+
+            <div className="flex-1 flex flex-col">
+              {referralsList.length > 0 ? (
+                <div className="space-y-2 mt-4">
+                  {referralsList.map((ref, idx) => (
+                    <div key={idx} className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex justify-between items-center">
+                      <div>
+                        <p className="font-bold text-indigo-900 text-sm">{ref.referredUsername || 'Unknown'}</p>
+                        <p className="text-[10px] text-gray-500">{ref.joinedAt ? new Date(ref.joinedAt.seconds * 1000).toLocaleDateString() : 'N/A'}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs font-bold text-green-500">৳ {ref.earningsGenerated || 0}</p>
+                        <p className="text-[10px] text-gray-400">{ref.status}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : (
-                <div className="py-8 text-center">
-                  <p className="text-[var(--text-muted)] text-sm italic">কোন লেনদেন পাওয়া যায়নি</p>
+                <div className="flex-1 flex flex-col items-center justify-center">
+                  <EmptyState />
                 </div>
               )}
             </div>
           </div>
-        </div>
-      )}
-
-      {activeTab === 'leaderboard' && (
-        <div className="p-4 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="bg-gradient-to-r from-yellow-600 to-yellow-800 p-4 rounded-2xl shadow-lg flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Award className="text-white" size={32} />
-              <div>
-                <h2 className="text-white font-black text-xl italic uppercase tracking-tighter">রেফারেল লিডারবোর্ড</h2>
-                <p className="text-yellow-200 text-[10px] font-bold uppercase tracking-widest">Top Referral Earners</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-[var(--bg-card)] rounded-2xl border border-[var(--border-color)] overflow-hidden shadow-xl transition-colors duration-300">
-            {[
-              { name: "Sabbir_99", earned: "৳ 45,500", referrals: 124, rank: 1 },
-              { name: "Rakib_H", earned: "৳ 32,200", referrals: 98, rank: 2 },
-              { name: "Mitu_Khan", earned: "৳ 28,400", referrals: 85, rank: 3 },
-              { name: "Arif_77", earned: "৳ 22,100", referrals: 62, rank: 4 },
-              { name: "Sumon_Pro", earned: "৳ 15,800", referrals: 45, rank: 5 },
-              { name: "Nila_22", earned: "৳ 12,900", referrals: 38, rank: 6 },
-              { name: "Joy_Bet", earned: "৳ 10,400", referrals: 32, rank: 7 },
-              { name: "Emon_X", earned: "৳ 8,500", referrals: 28, rank: 8 },
-            ].map((winner, i) => (
-              <div key={i} className="flex items-center justify-between p-4 border-b border-[var(--border-color)] last:border-0 hover:bg-black/10 transition-colors">
-                <div className="flex items-center gap-4">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm ${
-                    winner.rank === 1 ? 'bg-yellow-500 text-black shadow-[0_0_10px_rgba(234,179,8,0.5)]' :
-                    winner.rank === 2 ? 'bg-gray-300 text-black' :
-                    winner.rank === 3 ? 'bg-orange-500 text-black' :
-                    'bg-[var(--bg-surface)] text-[var(--text-muted)]'
-                  }`}>
-                    {winner.rank}
-                  </div>
-                  <div>
-                    <p className="text-[var(--text-main)] font-bold text-sm">{winner.name}</p>
-                    <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold">{winner.referrals} Referrals</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-yellow-400 font-black text-sm">{winner.earned}</p>
-                  <p className="text-[var(--text-muted)] text-[9px] font-bold">Updated Just Now</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
+  );
+}
+
+function IncomeItem({ label, value, isCurrency = true }: { label: string, value: string, isCurrency?: boolean }) {
+  return (
+    <div className="flex justify-between items-center text-sm">
+      <span className="text-gray-500 font-medium">{label}</span>
+      <span className="text-indigo-900 font-black">{value}</span>
+    </div>
+  );
+}
+
+function XIcon({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4l16 16M4 20L20 4" />
+    </svg>
+  );
+}
+
+function LineIcon({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M24 10.304c0-5.23-5.39-9.456-12-9.456s-12 4.226-12 9.456c0 4.687 4.276 8.604 10.052 9.33l-.644 3.87c-.033.203.158.377.354.29l4.548-2.02c4.361-.533 7.69-3.414 7.69-6.47z" />
+    </svg>
+  );
+}
+
+function MailIcon({ size, className }: { size: number, className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+      <polyline points="22,6 12,13 2,6" />
+    </svg>
   );
 }

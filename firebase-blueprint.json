@@ -288,6 +288,61 @@
         }
       },
       "required": ["token", "name", "expirationDate", "status", "createdAt"]
+    },
+    "UserActivity": {
+      "title": "UserActivity",
+      "description": "Log of user activity for analysis",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "ID of the user performing the activity"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["game_selection", "bet_placement", "session_start", "session_end", "page_view"],
+          "description": "Type of activity"
+        },
+        "details": {
+          "type": "object",
+          "description": "Additional details about the activity (e.g., gameId, betAmount)"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the activity occurred"
+        }
+      },
+      "required": ["userId", "type", "timestamp"]
+    },
+    "SystemError": {
+      "title": "SystemError",
+      "description": "Log of a system error for AI analysis and fixing",
+      "type": "object",
+      "properties": {
+        "error": { "type": "string" },
+        "operationType": { "type": "string" },
+        "path": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "resolved": { "type": "boolean" },
+        "authInfo": { "type": "object" },
+        "userAgent": { "type": "string" },
+        "url": { "type": "string" }
+      },
+      "required": ["error", "operationType", "timestamp", "resolved"]
+    },
+    "SystemAlert": {
+      "title": "SystemAlert",
+      "description": "Alert message for administrators",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["info", "warning", "error", "success"] },
+        "read": { "type": "boolean" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "message", "type", "read", "timestamp"]
     }
   },
   "firestore": {
@@ -311,6 +366,10 @@
       "schema": "Notification",
       "description": "Collection of notifications for a specific user"
     },
+    "/users/{userId}/activities/{activityId}": {
+      "schema": "UserActivity",
+      "description": "Collection of activities for a specific user"
+    },
     "/metadata/users": {
       "schema": "Metadata",
       "description": "Document containing the user counter"
@@ -326,6 +385,14 @@
     "/api_tokens/{tokenId}": {
       "schema": "ApiToken",
       "description": "Collection of API tokens for admin access"
+    },
+    "/system_errors/{errorId}": {
+      "schema": "SystemError",
+      "description": "Collection of system errors for AI analysis"
+    },
+    "/system_alerts/{alertId}": {
+      "schema": "SystemAlert",
+      "description": "Collection of system alerts for administrators"
     }
   }
 }

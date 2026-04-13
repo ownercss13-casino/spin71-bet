@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   signInAnonymously, 
   signInWithEmailAndPassword, 
@@ -23,7 +23,14 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
-  Loader2
+  Loader2,
+  Facebook,
+  Send,
+  Scan,
+  Smartphone,
+  ShieldCheck,
+  ChevronLeft,
+  Gift
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useForm } from 'react-hook-form';
@@ -71,7 +78,23 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot-password'>('login');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [rememberPassword, setRememberPassword] = useState(() => {
+    return localStorage.getItem('remember_me') === 'true';
+  });
+  const [acceptTerms, setAcceptTerms] = useState(true);
   const [passwordStrength, setPasswordStrength] = useState(0);
+
+  useEffect(() => {
+    if (rememberPassword) {
+      const savedUsername = localStorage.getItem('saved_username');
+      if (savedUsername && authMode === 'login') {
+        // We can't easily set form values here without access to the form methods, 
+        // but we can store it in a ref or state if needed.
+        // For now, we'll just ensure the preference is saved.
+      }
+    }
+  }, [rememberPassword, authMode]);
 
   const checkPasswordStrength = (password: string) => {
     let strength = 0;
@@ -124,10 +147,8 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
 
     if (err.code === 'auth/email-already-in-use') {
       msg = "এই ইমেইলটি ইতিমধ্যে ব্যবহার করা হয়েছে। (Email already in use.)";
-    } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
-      msg = "পাসওয়ার্ড ভুল। অনুগ্রহ করে সঠিক পাসওয়ার্ড দিন। (Invalid password. Please enter correct password.)";
-    } else if (err.code === 'auth/user-not-found') {
-      msg = "এই ইমেইল দিয়ে কোনো অ্যাকাউন্ট পাওয়া যায়নি। (User not found. Please register first.)";
+    } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
+      msg = "ইউজারনেম অথবা পাসওয়ার্ড ভুল। অনুগ্রহ করে সঠিক তথ্য দিন। (Invalid username or password.)";
     } else if (err.code === 'auth/invalid-email') {
       msg = "ইমেইলটি সঠিক নয়। (Invalid email format.)";
     } else if (err.code === 'auth/too-many-requests') {
@@ -166,8 +187,21 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     setError(null);
     try {
       // Since we are using username, we need to map it to a dummy email for Firebase Auth
-      const dummyEmail = `${data.username.toLowerCase().replace(/\s/g, '')}@spin71bet.com`;
-      await signInWithEmailAndPassword(auth, dummyEmail, data.password);
+      // If the user entered an email address directly, use it
+      let emailToUse = data.username;
+      if (!emailToUse.includes('@')) {
+        emailToUse = `${data.username.toLowerCase().replace(/\s/g, '')}@spin71bet.com`;
+      }
+      await signInWithEmailAndPassword(auth, emailToUse, data.password);
+      
+      if (rememberPassword) {
+        localStorage.setItem('remember_me', 'true');
+        localStorage.setItem('saved_username', data.username);
+      } else {
+        localStorage.removeItem('remember_me');
+        localStorage.removeItem('saved_username');
+      }
+
       showToast("লগইন সফল হয়েছে", "success");
       onLoginSuccess();
       onRegisterSuccess();
@@ -183,8 +217,11 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     setError(null);
     try {
       // Create user with a dummy email based on username since email is removed from form
-      const dummyEmail = `${data.username.toLowerCase().replace(/\s/g, '')}@${Date.now()}.com`;
-      const userCredential = await createUserWithEmailAndPassword(auth, dummyEmail, data.password);
+      let emailToUse = data.username;
+      if (!emailToUse.includes('@')) {
+        emailToUse = `${data.username.toLowerCase().replace(/\s/g, '')}@spin71bet.com`;
+      }
+      const userCredential = await createUserWithEmailAndPassword(auth, emailToUse, data.password);
       
       // Update profile
       await updateProfile(userCredential.user, { displayName: data.username });
@@ -217,157 +254,123 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
   };
 
   return (
-    <div className="min-h-[100dvh] bg-[var(--bg-main)] flex flex-col items-center justify-center p-6 relative overflow-hidden font-sans safe-top safe-bottom">
-      {/* Background Effects */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-[var(--bg-card)] rounded-full blur-[120px] opacity-50"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-[var(--bg-surface)] rounded-full blur-[120px] opacity-50"></div>
+    <div className="min-h-[100dvh] bg-black flex flex-col items-center relative overflow-x-hidden font-sans safe-top safe-bottom">
+      {/* Header Banner */}
+      <div className="w-full relative h-[180px] sm:h-[220px]">
+        <img 
+          src="https://images.unsplash.com/photo-1585336261022-680e295ce3fe?q=80&w=2070&auto=format&fit=crop" 
+          alt="Banner" 
+          className="w-full h-full object-cover"
+          referrerPolicy="no-referrer"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/80"></div>
+        <button 
+          onClick={onContinue}
+          className="absolute top-4 right-4 z-20 text-white/60 hover:text-white transition-colors"
+        >
+          <X size={24} />
+        </button>
       </div>
-      
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="relative z-10 text-center max-w-sm w-full bg-[var(--bg-card)] p-8 rounded-[32px] border border-[var(--border-color)] shadow-2xl"
-      >
-        {/* Logo Section */}
-        <div className="mb-8">
-          <motion.div
-            animate={{ y: [0, -10, 0] }}
-            transition={{ duration: 3, repeat: Infinity }}
-            className="inline-block p-4 bg-[var(--bg-surface)] rounded-full border border-[var(--border-color)]"
-          >
-            <Plane size={48} className="text-white" />
-          </motion.div>
-          <h1 className="text-3xl font-black text-[var(--text-main)] mt-4 italic tracking-tighter">
-            {casinoName}
-          </h1>
-          <p className="text-[var(--text-muted)] font-bold uppercase tracking-widest text-[10px] mt-1">VIP Gaming Platform</p>
-        </div>
 
-        {/* Auth Mode Toggle */}
-        <div className="flex bg-[var(--bg-surface)] p-1 rounded-2xl mb-8 border border-[var(--border-color)]">
-          <button 
-            onClick={() => setAuthMode('login')}
-            className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${authMode === 'login' ? 'bg-[var(--bg-main)] text-white shadow-lg' : 'text-[var(--text-muted)] hover:text-white'}`}
-          >
-            লগইন
-          </button>
-          <button 
-            onClick={() => setAuthMode('register')}
-            className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${authMode === 'register' ? 'bg-[var(--bg-main)] text-white shadow-lg' : 'text-[var(--text-muted)] hover:text-white'}`}
-          >
-            নিবন্ধন
-          </button>
-        </div>
+      <div className="w-full max-w-md px-6 -mt-8 relative z-10">
+        <h1 className="text-white text-2xl font-black text-center mb-8">
+          {authMode === 'login' ? 'লগইন' : 'নিবন্ধন'}
+        </h1>
 
         {/* Error Display */}
-        {error && error === "ADMIN_RESTRICTED" ? (
+        {error && (
           <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="mb-6 bg-yellow-500/10 border border-yellow-500/30 text-yellow-200 p-4 rounded-2xl text-left backdrop-blur-md"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4 bg-red-500/20 border border-red-500/30 text-red-200 p-3 rounded-xl text-xs flex items-center gap-2"
           >
-            <h3 className="font-black text-yellow-400 text-xs mb-1 flex items-center gap-2">
-              <AlertCircle size={14} /> সেটিংস ঠিক করুন
-            </h3>
-            <p className="text-[10px] opacity-80 mb-3">ফায়ারবেস কনসোলে "Anonymous Login" চালু করতে হবে।</p>
-            <a 
-              href="https://console.firebase.google.com/project/gen-lang-client-0089977420/authentication/providers" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="block w-full bg-yellow-500 text-black text-center py-2 rounded-lg font-black text-[10px] hover:bg-yellow-400 transition-colors"
-            >
-              কনসোল ওপেন করুন
-            </a>
-          </motion.div>
-        ) : error && error.includes("Email already in use") ? (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="mb-6 bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-xl text-[10px] leading-relaxed flex flex-col gap-2"
-          >
-            <div className="flex items-center gap-2">
-              <AlertCircle size={14} /> {error}
-            </div>
-            <button 
-              onClick={() => {
-                setAuthMode('login');
-                setError(null);
-              }}
-              className="bg-red-500/20 text-red-400 py-1.5 rounded-lg font-black text-[9px] hover:bg-red-500/30 transition-all border border-red-500/20"
-            >
-              লগইন করুন (Login Now)
-            </button>
-          </motion.div>
-        ) : error && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="mb-6 bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-xl text-[10px] leading-relaxed flex items-center gap-2"
-          >
-            <AlertCircle size={14} /> {error}
+            <AlertCircle size={16} className="shrink-0" />
+            <span>{error}</span>
           </motion.div>
         )}
 
-        {/* Auth Forms */}
         <AnimatePresence mode="wait">
           {authMode === 'login' && (
             <motion.form
               key="login"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
               onSubmit={handleSubmitLogin(onEmailLogin)}
-              className="space-y-4"
+              className="space-y-6"
             >
-              <div className="space-y-1">
-                <div className="relative">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={18} />
+              {/* Username Field */}
+              <div className="space-y-2">
+                <div className="relative group">
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
+                    <User size={20} />
+                  </div>
                   <input 
                     {...registerLogin('username')}
                     type="text" 
-                    placeholder="আপনার নাম (Username)"
-                    className="w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl py-4 pl-12 pr-4 text-[var(--text-main)] text-sm focus:border-[var(--brand-primary)] outline-none transition-all"
+                    placeholder="দয়া করে ব্যবহারকারী নাম দিন"
+                    className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-4 pl-12 pr-4 text-white text-sm focus:border-red-500/50 outline-none transition-all placeholder:text-white/40"
                   />
                 </div>
-                {loginErrors.username && <p className="text-[10px] text-red-400 text-left pl-2">{loginErrors.username.message}</p>}
+                <p className="text-[10px] text-red-500 font-medium leading-tight">
+                  দয়া করে 6 - 13 বর্ণমালা এবং সংখ্যাসহ বিশেষ চিহ্ন ছাড়া একটি অক্ষর লিখুন
+                </p>
               </div>
 
-              <div className="space-y-1">
-                <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={18} />
+              {/* Password Field */}
+              <div className="space-y-2">
+                <div className="relative group">
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
+                    <Lock size={20} />
+                  </div>
                   <input 
                     {...registerLogin('password')}
                     type={showPassword ? "text" : "password"} 
-                    placeholder="পাসওয়ার্ড"
-                    className="w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl py-4 pl-12 pr-12 text-[var(--text-main)] text-sm focus:border-[var(--brand-primary)] outline-none transition-all"
+                    placeholder="পাসওয়ার্ড প্রবেশ করুন"
+                    className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-4 pl-12 pr-12 text-white text-sm focus:border-red-500/50 outline-none transition-all placeholder:text-white/40"
                   />
                   <button 
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-white"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
                   >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                   </button>
                 </div>
-                {loginErrors.password && <p className="text-[10px] text-red-400 text-left pl-2">{loginErrors.password.message}</p>}
-                <div className="text-right pr-2">
-                  <button 
-                    type="button"
-                    onClick={() => setAuthMode('forgot-password')}
-                    className="text-[10px] text-[var(--text-muted)] hover:text-white font-bold"
-                  >
-                    পাসওয়ার্ড ভুলে গেছেন?
-                  </button>
-                </div>
+                <p className="text-[10px] text-red-500 font-medium leading-tight">
+                  দয়া করে 6 - 12 বর্ণমালা এবং সংখ্যাসহ বিশেষ চিহ্ন ছাড়া একটি অক্ষর লিখুন
+                </p>
               </div>
 
+              {/* Remember Me & Forgot Password */}
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <div 
+                    onClick={() => setRememberPassword(!rememberPassword)}
+                    className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${rememberPassword ? 'bg-white border-white' : 'border-white/40'}`}
+                  >
+                    {rememberPassword && <CheckCircle2 size={14} className="text-black" />}
+                  </div>
+                  <span className="text-white text-sm font-medium">মনে রাখুন</span>
+                </label>
+                <button 
+                  type="button"
+                  onClick={() => setAuthMode('forgot-password')}
+                  className="text-yellow-500 text-sm font-bold hover:underline"
+                >
+                  পাসওয়ার্ড ভুলে গেছেন?
+                </button>
+              </div>
+
+              {/* Login Button */}
               <button 
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-[var(--brand-primary)] py-4 rounded-2xl text-white font-black uppercase tracking-tight flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-95"
+                className="w-full bg-[#22c55e] py-4 rounded-full text-black font-black text-lg shadow-[0_0_20px_rgba(34,197,94,0.3)] hover:bg-[#16a34a] transition-all active:scale-95 flex items-center justify-center"
               >
-                {isLoading ? <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin"></div> : <><LogIn size={20} /> লগইন করুন</>}
+                {isLoading ? <Loader2 size={24} className="animate-spin" /> : 'লগইন'}
               </button>
             </motion.form>
           )}
@@ -375,149 +378,188 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
           {authMode === 'register' && (
             <motion.form
               key="register"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
               onSubmit={handleSubmitSignup(onEmailRegister)}
-              className="space-y-3"
+              className="space-y-4"
             >
-              <div className="space-y-2">
-                <div className="relative group">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] group-focus-within:text-[var(--brand-primary)] transition-colors" size={18} />
-                  <input 
-                    {...registerSignup('username')}
-                    type="text" 
-                    placeholder="আপনার নাম (Username)"
-                    className="w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl py-4 pl-12 pr-4 text-[var(--text-main)] text-sm focus:border-[var(--brand-primary)] outline-none transition-all duration-300"
-                  />
+              {/* Username Field */}
+              <div className="relative group">
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
+                  <User size={20} />
                 </div>
-                {signupErrors.username && <p className="text-[10px] text-red-400 text-left pl-2">{signupErrors.username.message}</p>}
+                <input 
+                  {...registerSignup('username')}
+                  type="text" 
+                  placeholder="দয়া করে ব্যবহারকারী নাম দিন"
+                  className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-4 pl-12 pr-4 text-white text-sm focus:border-green-500/50 outline-none transition-all placeholder:text-white/40"
+                />
               </div>
 
-              <div className="space-y-2">
-                <div className="relative group">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] group-focus-within:text-[var(--brand-primary)] transition-colors" size={18} />
-                  <input 
-                    {...registerSignup('password', { onChange: (e) => checkPasswordStrength(e.target.value) })}
-                    type={showPassword ? "text" : "password"} 
-                    placeholder="পাসওয়ার্ড"
-                    className="w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl py-4 pl-12 pr-12 text-[var(--text-main)] text-sm focus:border-[var(--brand-primary)] outline-none transition-all duration-300"
-                  />
-                  <button 
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-white"
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
+              {/* Password Field */}
+              <div className="relative group">
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
+                  <Lock size={20} />
                 </div>
-                {/* Strength Meter */}
-                <div className="flex gap-1 mt-2">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className={`h-1 flex-1 rounded-full ${i <= passwordStrength ? (passwordStrength > 2 ? 'bg-green-500' : 'bg-[var(--brand-primary)]') : 'bg-[var(--bg-surface)]'}`} />
-                  ))}
-                </div>
-                {signupErrors.password && <p className="text-[10px] text-red-400 text-left pl-2">{signupErrors.password.message}</p>}
+                <input 
+                  {...registerSignup('password')}
+                  type={showPassword ? "text" : "password"} 
+                  placeholder="পাসওয়ার্ড"
+                  className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-4 pl-12 pr-12 text-white text-sm focus:border-green-500/50 outline-none transition-all placeholder:text-white/40"
+                />
+                <button 
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
               </div>
 
-              <div className="space-y-2">
-                <div className="relative group">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] group-focus-within:text-[var(--brand-primary)] transition-colors" size={18} />
-                  <input 
-                    {...registerSignup('confirmPassword')}
-                    type={showPassword ? "text" : "password"} 
-                    placeholder="পাসওয়ার্ড নিশ্চিত করুন"
-                    className="w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl py-4 pl-12 pr-12 text-[var(--text-main)] text-sm focus:border-[var(--brand-primary)] outline-none transition-all duration-300"
-                  />
-                  <button 
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-white"
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
+              {/* Confirm Password Field */}
+              <div className="relative group">
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
+                  <Lock size={20} />
                 </div>
-                {signupErrors.confirmPassword && <p className="text-[10px] text-red-400 text-left pl-2">{signupErrors.confirmPassword.message}</p>}
+                <input 
+                  {...registerSignup('confirmPassword')}
+                  type={showConfirmPassword ? "text" : "password"} 
+                  placeholder="পাসওয়ার্ড নিশ্চিত করুন"
+                  className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-4 pl-12 pr-12 text-white text-sm focus:border-green-500/50 outline-none transition-all placeholder:text-white/40"
+                />
+                <button 
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
+                >
+                  {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
               </div>
 
-              <button 
-                type="submit"
-                disabled={isLoading}
-                className="w-full bg-[var(--brand-primary)] py-4 rounded-2xl text-white font-black uppercase tracking-tight flex items-center justify-center gap-2 hover:opacity-90 transition-all duration-300 active:scale-[0.98] mt-4"
-              >
-                {isLoading ? <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin"></div> : <><UserPlus size={20} /> নিবন্ধন করুন</>}
-              </button>
+              {/* Mobile Number Field */}
+              <div className="relative group">
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
+                  <Smartphone size={20} />
+                </div>
+                <input 
+                  type="tel" 
+                  placeholder="মোবাইল নম্বর"
+                  className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-4 pl-12 pr-4 text-white text-sm focus:border-green-500/50 outline-none transition-all placeholder:text-white/40"
+                />
+              </div>
+
+              <div className="flex gap-4 pt-4">
+                <button 
+                  type="submit"
+                  disabled={isLoading}
+                  className="flex-1 bg-[#22c55e] py-4 rounded-full text-black font-black text-lg shadow-[0_0_20px_rgba(34,197,94,0.3)] hover:bg-[#16a34a] transition-all active:scale-95 flex items-center justify-center"
+                >
+                  {isLoading ? <Loader2 size={24} className="animate-spin" /> : 'নিবন্ধন'}
+                </button>
+                <button 
+                  type="reset"
+                  className="flex-1 bg-transparent border border-[#22c55e] py-4 rounded-full text-[#22c55e] font-black text-lg hover:bg-[#22c55e]/10 transition-all active:scale-95"
+                >
+                  রিসেট
+                </button>
+              </div>
             </motion.form>
           )}
           {authMode === 'forgot-password' && (
             <motion.form
               key="forgot-password"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
               onSubmit={handleSubmitReset(onPasswordReset)}
-              className="space-y-4"
+              className="space-y-6"
             >
               <div className="text-left mb-4">
-                <h3 className="text-white font-bold text-sm mb-1">পাসওয়ার্ড রিসেট করুন</h3>
-                <p className="text-gray-500 text-[10px]">আপনার ইমেইল এড্রেস দিন, আমরা আপনাকে একটি রিসেট লিঙ্ক পাঠাবো।</p>
+                <h3 className="text-white font-bold text-lg mb-2">পাসওয়ার্ড রিসেট করুন</h3>
+                <p className="text-white/60 text-sm">আপনার ইমেইল এড্রেস দিন, আমরা আপনাকে একটি রিসেট লিঙ্ক পাঠাবো।</p>
               </div>
 
               <div className="space-y-1">
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                <div className="relative group">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
+                    <Mail size={20} />
+                  </div>
                   <input 
                     {...registerReset('email')}
                     type="email" 
                     placeholder="ইমেইল এড্রেস"
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white text-sm focus:border-yellow-500 outline-none transition-all"
+                    className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-4 pl-12 pr-4 text-white text-sm focus:border-green-500/50 outline-none transition-all placeholder:text-white/40"
                   />
                 </div>
-                {resetErrors.email && <p className="text-[10px] text-red-400 text-left pl-2">{resetErrors.email.message}</p>}
+                {resetErrors.email && <p className="text-[10px] text-red-500 mt-1 ml-2 font-bold italic">! {resetErrors.email.message}</p>}
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex gap-4">
                 <button 
                   type="button"
                   onClick={() => setAuthMode('login')}
-                  className="flex-1 bg-white/5 py-4 rounded-2xl text-white font-black uppercase tracking-tight hover:bg-white/10 transition-all active:scale-95"
+                  className="flex-1 bg-transparent border border-[#333] py-4 rounded-full text-white font-bold hover:bg-white/5 transition-all active:scale-95"
                 >
                   ফিরে যান
                 </button>
                 <button 
                   type="submit"
                   disabled={isLoading}
-                  className="flex-[2] bg-yellow-500 py-4 rounded-2xl text-black font-black uppercase tracking-tight flex items-center justify-center gap-2 hover:bg-yellow-400 transition-all active:scale-95"
+                  className="flex-[2] bg-[#22c55e] py-4 rounded-full text-black font-black text-lg shadow-[0_0_20px_rgba(34,197,94,0.3)] hover:bg-[#16a34a] transition-all active:scale-95 flex items-center justify-center gap-2"
                 >
-                  {isLoading ? <Loader2 size={20} className="animate-spin" /> : 'লিঙ্ক পাঠান'}
+                  {isLoading ? <Loader2 size={24} className="animate-spin" /> : 'লিঙ্ক পাঠান'}
                 </button>
               </div>
             </motion.form>
           )}
         </AnimatePresence>
 
-        {/* Alternative Login Methods */}
-        <div className="mt-6 space-y-4">
-          <div className="flex items-center gap-4 my-4">
-            <div className="flex-1 h-[1px] bg-white/10"></div>
-            <span className="text-[10px] text-gray-500 font-bold uppercase">অথবা (Or)</span>
-            <div className="flex-1 h-[1px] bg-white/10"></div>
+        {/* Social Login Section */}
+        <div className="mt-12">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="flex-1 h-[1px] bg-[#333]"></div>
+            <span className="text-white text-sm font-medium">অথবা চালিয়ে যান</span>
+            <div className="flex-1 h-[1px] bg-[#333]"></div>
           </div>
 
-          <button 
-            onClick={onGoogleLogin}
-            disabled={isLoading}
-            className="w-full bg-white/5 border border-white/10 py-3.5 rounded-2xl flex items-center justify-center gap-3 hover:bg-white/10 transition-all active:scale-95"
-          >
-            <Chrome size={18} className="text-white" />
-            <span className="text-white font-bold text-sm">গুগল দিয়ে চালিয়ে যান</span>
-          </button>
+          <div className="space-y-4">
+            <button 
+              type="button"
+              className="w-full bg-[#1877F2] py-4 rounded-full text-white font-bold flex items-center justify-center gap-3 hover:bg-[#166fe5] transition-all active:scale-95"
+            >
+              <Facebook size={24} fill="currentColor" />
+              Facebook
+            </button>
+            <button 
+              onClick={onGoogleLogin}
+              disabled={isLoading}
+              className="w-full bg-white py-4 rounded-full text-black font-bold flex items-center justify-center gap-3 hover:bg-gray-100 transition-all active:scale-95"
+            >
+              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-6 h-6" />
+              Google
+            </button>
+          </div>
         </div>
 
-        <p className="mt-8 text-gray-600 text-[9px] font-bold uppercase tracking-widest leading-relaxed">
-          নিবন্ধন করার মাধ্যমে আপনি আমাদের <span className="text-teal-500">শর্তাবলী</span> মেনে নিচ্ছেন
-        </p>
-      </motion.div>
+        {/* Toggle Auth Mode */}
+        <div className="mt-12 text-center pb-8">
+          <button 
+            onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
+            className="text-white/60 text-sm font-medium"
+          >
+            {authMode === 'login' ? (
+              <>এখনও কোনও অ্যাকাউন্ট নেই? <span className="text-green-500 font-bold">সাইন আপ</span></>
+            ) : (
+              <>ইতিমধ্যে একটি অ্যাকাউন্ট আছে? <span className="text-green-500 font-bold">লগইন</span></>
+            )}
+          </button>
+        </div>
+      </div>
 
       {/* Success Popup */}
       <AnimatePresence>

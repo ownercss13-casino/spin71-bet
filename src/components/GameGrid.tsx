@@ -284,6 +284,7 @@ const GameCard: React.FC<GameCardProps> = ({
 
 interface GameGridProps {
   category: string;
+  setActiveCategory?: (category: string) => void;
   searchQuery?: string;
   onGameSelect: (game: Game) => void;
   favorites: string[];
@@ -305,6 +306,7 @@ interface GameGridProps {
 
 export const GameGrid: React.FC<GameGridProps> = ({ 
   category, 
+  setActiveCategory,
   searchQuery = "", 
   onGameSelect, 
   favorites, 
@@ -356,7 +358,6 @@ export const GameGrid: React.FC<GameGridProps> = ({
     const matchesProvider = selectedProvider === 'ALL' || game.provider === selectedProvider;
     
     const matchesCategory = 
-      selectedProvider !== 'ALL' || // Ignore category filter if a specific provider is selected
       category === 'সব' || 
       game.category === category || 
       (category === 'সেরা' && game.isHot) ||
@@ -379,7 +380,12 @@ export const GameGrid: React.FC<GameGridProps> = ({
           return (
             <div key={provider.id} className="relative group shrink-0">
               <button
-                onClick={() => setSelectedProvider(selectedProvider === provider.id ? 'ALL' : provider.id)}
+                onClick={() => {
+                  setSelectedProvider(selectedProvider === provider.id ? 'ALL' : provider.id);
+                  if (provider.id === 'ALL' && setActiveCategory) {
+                    setActiveCategory('সব');
+                  }
+                }}
                 className={`rounded-lg overflow-hidden border-2 transition-all block h-full ${
                   selectedProvider === provider.id 
                     ? 'border-yellow-400 scale-105 shadow-[0_0_10px_rgba(250,204,21,0.5)]' 

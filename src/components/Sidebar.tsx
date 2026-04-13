@@ -92,7 +92,7 @@ export default function Sidebar({
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto no-scrollbar">
           {[
             { id: 'home', icon: Home, label: 'বাড়ি (Home)' },
-            ...(userData?.role === 'admin' ? [{ id: 'admin', icon: Users, label: 'অ্যাডমিন প্যানেল (Admin)' }] : []),
+            ...(userData?.role === 'admin' || userData?.email === 'owner.css13@gmail.com' ? [{ id: 'admin', icon: Users, label: 'অ্যাডমিন প্যানেল (Admin)' }] : []),
             { id: 'wallet', icon: Wallet, label: 'ওয়ালেট (Wallet)' },
             { id: 'profile', icon: User, label: 'প্রোফাইল (Profile)' },
             { id: 'invite', icon: Users, label: 'আমন্ত্রণ (Invite)' },

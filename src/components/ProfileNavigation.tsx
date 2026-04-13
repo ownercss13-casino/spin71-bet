@@ -1,4 +1,5 @@
 import React from 'react';
+import { LayoutDashboard, User, Wallet, History, CreditCard, Link as LinkIcon, Shield, UserPlus } from 'lucide-react';
 
 interface ProfileNavigationProps {
   activeSubTab: string;
@@ -7,23 +8,30 @@ interface ProfileNavigationProps {
 
 export default function ProfileNavigation({ activeSubTab, handleSubTabChange }: ProfileNavigationProps) {
   const tabs = [
-    { id: 'overview', label: 'ড্যাশবোর্ড' },
-    { id: 'profile', label: 'প্রোফাইল' },
-    { id: 'withdraw', label: 'উত্তোলন' },
-    { id: 'history', label: 'লেনদেন ইতিহাস' },
-    { id: 'withdrawHistory', label: 'উত্তোলন ইতিহাস' },
-    { id: 'links', label: 'আমার লিংক' },
+    { id: 'dashboard', label: 'ড্যাশবোর্ড', icon: LayoutDashboard },
+    { id: 'profile', label: 'প্রোফাইল', icon: User },
+    { id: 'withdraw', label: 'উত্তোলন', icon: Wallet },
+    { id: 'history', label: 'লেনদেন', icon: History },
+    { id: 'withdrawHistory', label: 'উত্তোলন ইতিহাস', icon: CreditCard },
+    { id: 'invite', label: 'আমন্ত্রণ', icon: UserPlus },
+    { id: 'links', label: 'আমার লিংক', icon: LinkIcon },
+    { id: 'security', label: 'নিরাপত্তা', icon: Shield },
   ];
 
   return (
-    <div className="flex px-4 mt-4 gap-2 overflow-x-auto no-scrollbar pb-2 transition-colors duration-300">
+    <div className="flex px-4 mt-4 gap-3 overflow-x-auto no-scrollbar pb-4 transition-all duration-300">
       {tabs.map((tab) => (
         <button 
           key={tab.id}
           onClick={() => handleSubTabChange(tab.id)}
-          className={`flex-1 min-w-[80px] py-2 rounded-lg text-sm font-bold transition-all duration-300 ${activeSubTab === tab.id ? 'bg-yellow-500 text-black shadow-md' : 'bg-[var(--bg-surface)] text-[var(--text-muted)] border border-[var(--border-color)]'}`}
+          className={`flex flex-col items-center justify-center min-w-[90px] py-3 px-2 rounded-2xl text-[10px] font-black uppercase tracking-tighter transition-all duration-300 gap-1.5 ${
+            activeSubTab === tab.id 
+              ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-black shadow-[0_8px_20px_rgba(234,179,8,0.3)] scale-105' 
+              : 'bg-teal-900/40 text-teal-300 border border-teal-700/50 hover:bg-teal-800/60'
+          }`}
         >
-          {tab.label}
+          <tab.icon size={18} className={activeSubTab === tab.id ? 'text-black' : 'text-teal-400'} />
+          <span className="whitespace-nowrap">{tab.label}</span>
         </button>
       ))}
     </div>

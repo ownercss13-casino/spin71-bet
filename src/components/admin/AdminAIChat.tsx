@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bot, Send, X, Loader2, Sparkles, Terminal } from 'lucide-react';
-import { processAdminCommand } from '../services/geminiService';
+import { processAdminCommand } from '../../services/geminiService';
 
 interface Message {
   text: string;

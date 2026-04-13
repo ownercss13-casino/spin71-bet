@@ -57,6 +57,30 @@ export interface SavedItem {
   savedAt: any;
 }
 
+export interface UserActivity {
+  id?: string;
+  userId: string;
+  type: 'game_selection' | 'bet_placement' | 'session_start' | 'session_end' | 'page_view';
+  details?: any;
+  timestamp: any;
+}
+
+export const logUserActivity = async (type: UserActivity['type'], details?: any) => {
+  if (!auth.currentUser) return;
+  
+  const path = `users/${auth.currentUser.uid}/activities`;
+  try {
+    await addDoc(collection(db, path), {
+      userId: auth.currentUser.uid,
+      type,
+      details: details || {},
+      timestamp: serverTimestamp()
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, path);
+  }
+};
+
 export const saveItem = async (itemId: string, itemType: string) => {
   if (!auth.currentUser) throw new Error("User not authenticated");
   

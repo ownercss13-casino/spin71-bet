@@ -4,7 +4,7 @@ import { ArrowLeft, Wallet, Play, RotateCcw, Star, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 import Reel from './Reel';
-import { updateBalance, updateTurnover } from '../services/firebaseService';
+import { updateBalance, updateTurnover, logUserActivity } from '../services/firebaseService';
 import { auth } from '../firebase';
 
 interface SlotGameProps {
@@ -56,6 +56,7 @@ export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate, 
     // Update turnover in database
     if (auth.currentUser) {
       updateTurnover(auth.currentUser.uid, betAmount, referredBy);
+      logUserActivity('bet_placement', { gameId: game.id, gameName: game.name, amount: betAmount, type: 'spin' });
     }
 
     // Simulate spinning
@@ -112,6 +113,7 @@ export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate, 
       setLastWin(totalWin);
       setShowWin(true);
       onBalanceUpdate(userBalance + totalWin);
+      logUserActivity('bet_placement', { gameId: game.id, gameName: game.name, amount: betAmount, winAmount: totalWin, type: 'win' });
       setRecentWins(prev => [{
         amount: totalWin,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -121,7 +123,7 @@ export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate, 
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black flex flex-col max-w-md mx-auto font-sans overflow-hidden min-h-[100dvh] safe-top safe-bottom">
+    <div className="full-display-game flex flex-col font-sans safe-top safe-bottom">
       {isLoading && (
         <GameLoader 
           gameName={globalName || game.name} 

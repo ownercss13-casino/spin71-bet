@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { updateTurnover } from '../services/firebaseService';
+import { updateTurnover, logUserActivity } from '../services/firebaseService';
 import { auth } from '../firebase';
 import { useLiveAviator } from '../hooks/useLiveAviator';
 import GameLoader from './GameLoader';
@@ -172,6 +172,7 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
     // Update turnover in database
     if (auth.currentUser) {
       updateTurnover(auth.currentUser.uid, betAmount, referredBy);
+      logUserActivity('bet_placement', { gameId: 'aviator', amount: betAmount, type: 'place' });
     }
     showToast('বেট সফলভাবে প্লেস করা হয়েছে!', 'success');
   }, [gamePhase, userBalance, betAmount, isBetPlaced, onBalanceUpdate, showToast]);
@@ -183,6 +184,7 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
     setIsBetPlaced(false);
     setCashOutMultiplier(multiplier);
     onBalanceUpdate(userBalance + winAmount);
+    logUserActivity('bet_placement', { gameId: 'aviator', amount: betAmount, multiplier, winAmount, type: 'cashout' });
 
     setBetHistory(prev => [
       {
@@ -230,7 +232,7 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
 
   return (
     <div 
-      className="fixed inset-0 z-[100] bg-[#0b0b0b] flex flex-col max-w-md mx-auto font-sans overflow-hidden select-none min-h-[100dvh] safe-top safe-bottom"
+      className="full-display-game flex flex-col font-sans select-none safe-top safe-bottom"
       onContextMenu={(e) => e.preventDefault()}
       onCopy={(e) => e.preventDefault()}
       style={{ touchAction: 'none' }}
