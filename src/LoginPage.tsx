@@ -7,7 +7,8 @@ import {
   updateProfile,
   sendPasswordResetEmail
 } from 'firebase/auth';
-import { auth, googleProvider } from './firebase';
+import { auth, googleProvider, facebookProvider, db } from './firebase';
+import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { 
   Plane, 
   Play, 
@@ -39,12 +40,13 @@ import * as z from 'zod';
 
 // Validation Schemas
 const loginSchema = z.object({
-  username: z.string().min(3, 'নাম কমপক্ষে ৩ অক্ষরের হতে হবে (Min 3 chars)'),
+  username: z.string().min(3, 'নাম অথবা ফোন নম্বর দিন (Enter name or phone)'),
   password: z.string().min(6, 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে (Min 6 chars)'),
 });
 
 const registerSchema = z.object({
   username: z.string().min(3, 'নাম কমপক্ষে ৩ অক্ষরের হতে হবে (Min 3 chars)'),
+  phoneNumber: z.string().min(11, 'সঠিক মোবাইল নম্বর দিন (Invalid phone number)'),
   password: z.string().min(6, 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে (Min 6 chars)'),
   confirmPassword: z.string().min(6, 'পাসওয়ার্ড নিশ্চিত করুন'),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -85,17 +87,6 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
   const [acceptTerms, setAcceptTerms] = useState(true);
   const [passwordStrength, setPasswordStrength] = useState(0);
 
-  useEffect(() => {
-    if (rememberPassword) {
-      const savedUsername = localStorage.getItem('saved_username');
-      if (savedUsername && authMode === 'login') {
-        // We can't easily set form values here without access to the form methods, 
-        // but we can store it in a ref or state if needed.
-        // For now, we'll just ensure the preference is saved.
-      }
-    }
-  }, [rememberPassword, authMode]);
-
   const checkPasswordStrength = (password: string) => {
     let strength = 0;
     if (password.length > 6) strength += 1;
@@ -104,13 +95,27 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     if (/[^A-Za-z0-9]/.test(password)) strength += 1;
     setPasswordStrength(strength);
   };
+
   const { 
     register: registerLogin, 
     handleSubmit: handleSubmitLogin, 
+    setValue: setValueLogin,
     formState: { errors: loginErrors } 
   } = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema)
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      username: localStorage.getItem('remember_me') === 'true' ? localStorage.getItem('saved_username') || '' : ''
+    }
   });
+
+  useEffect(() => {
+    if (rememberPassword) {
+      const savedUsername = localStorage.getItem('saved_username');
+      if (savedUsername && authMode === 'login') {
+        setValueLogin('username', savedUsername);
+      }
+    }
+  }, [rememberPassword, authMode, setValueLogin]);
 
   const { 
     register: registerSignup, 
@@ -146,11 +151,11 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     }
 
     if (err.code === 'auth/email-already-in-use') {
-      msg = "এই ইমেইলটি ইতিমধ্যে ব্যবহার করা হয়েছে। (Email already in use.)";
+      msg = "এই ইউজারনেমটি ইতিমধ্যে ব্যবহার করা হয়েছে। (Username already in use.)";
     } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
       msg = "ইউজারনেম অথবা পাসওয়ার্ড ভুল। অনুগ্রহ করে সঠিক তথ্য দিন। (Invalid username or password.)";
     } else if (err.code === 'auth/invalid-email') {
-      msg = "ইমেইলটি সঠিক নয়। (Invalid email format.)";
+      msg = "সঠিক ইউজারনেম প্রদান করুন। (Please provide a valid username.)";
     } else if (err.code === 'auth/too-many-requests') {
       msg = "অনেকবার ভুল চেষ্টা করা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন। (Too many failed attempts. Try again later.)";
     } else if (err.code === 'auth/network-request-failed') {
@@ -168,17 +173,41 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
   };
 
   // Remove onOneClick function
+  const onFacebookLogin = async () => {
+    if (isLoading) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await signInWithPopup(auth, facebookProvider);
+      const facebookId = result.user.providerData.find(p => p.providerId === 'facebook.com')?.uid;
+      if (facebookId) localStorage.setItem('facebook_id', facebookId);
+      
+      showToast("ফেসবুক লগইন সফল হয়েছে (Facebook login successful)", "success");
+      onLoginSuccess();
+      onRegisterSuccess();
+    } catch (err) {
+      handleAuthError(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const onGoogleLogin = async () => {
     if (isLoading) return;
     setIsLoading(true);
     setError(null);
     try {
-      await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleProvider);
+      const googleId = result.user.providerData.find(p => p.providerId === 'google.com')?.uid;
+      if (googleId) localStorage.setItem('google_id', googleId);
+
       showToast("গুগল লগইন সফল হয়েছে", "success");
       onLoginSuccess();
       onRegisterSuccess();
     } catch (err) {
       handleAuthError(err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -186,9 +215,20 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     setIsLoading(true);
     setError(null);
     try {
-      // Since we are using username, we need to map it to a dummy email for Firebase Auth
-      // If the user entered an email address directly, use it
       let emailToUse = data.username;
+      
+      // If it looks like a phone number (11 digits), try to find the user
+      if (/^\d{11}$/.test(data.username)) {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('phoneNumber', '==', data.username), limit(1));
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+          const userData = querySnapshot.docs[0].data();
+          emailToUse = `${userData.username.toLowerCase().replace(/\s/g, '')}@spin71bet.com`;
+        }
+      }
+      
       if (!emailToUse.includes('@')) {
         emailToUse = `${data.username.toLowerCase().replace(/\s/g, '')}@spin71bet.com`;
       }
@@ -216,19 +256,22 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     setIsLoading(true);
     setError(null);
     try {
-      // Create user with a dummy email based on username since email is removed from form
+      // Create user with a dummy email based on username
       let emailToUse = data.username;
       if (!emailToUse.includes('@')) {
         emailToUse = `${data.username.toLowerCase().replace(/\s/g, '')}@spin71bet.com`;
       }
       const userCredential = await createUserWithEmailAndPassword(auth, emailToUse, data.password);
       
+      // Store pending data for App.tsx to pick up
+      localStorage.setItem('pending_username', data.username);
+      localStorage.setItem('pending_phone', data.phoneNumber);
+      
       // Update profile
       await updateProfile(userCredential.user, { displayName: data.username });
       
       // Immediately trigger success UI
       setIsLoading(false);
-      setShowSuccessPopup(true);
       onLoginSuccess();
       onRegisterSuccess();
       showToast("অ্যাকাউন্ট তৈরি সফল হয়েছে", "success");
@@ -273,9 +316,21 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       </div>
 
       <div className="w-full max-w-md px-6 -mt-8 relative z-10">
-        <h1 className="text-white text-2xl font-black text-center mb-8">
-          {authMode === 'login' ? 'লগইন' : 'নিবন্ধন'}
-        </h1>
+        {/* Auth Mode Toggle */}
+        <div className="flex bg-[#1a1a1a] p-1 rounded-2xl border border-[#333] mb-8">
+          <button 
+            onClick={() => setAuthMode('login')}
+            className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${authMode === 'login' ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'text-white/40 hover:text-white'}`}
+          >
+            লগইন
+          </button>
+          <button 
+            onClick={() => setAuthMode('register')}
+            className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${authMode === 'register' ? 'bg-green-600 text-white shadow-lg shadow-green-600/20' : 'text-white/40 hover:text-white'}`}
+          >
+            নিবন্ধন
+          </button>
+        </div>
 
         {/* Error Display */}
         {error && (
@@ -441,16 +496,20 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
               </div>
 
               {/* Mobile Number Field */}
-              <div className="relative group">
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
-                  <Smartphone size={20} />
+              <div className="space-y-1">
+                <div className="relative group">
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
+                    <Smartphone size={20} />
+                  </div>
+                  <input 
+                    {...registerSignup('phoneNumber')}
+                    type="tel" 
+                    placeholder="মোবাইল নম্বর"
+                    className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-4 pl-12 pr-4 text-white text-sm focus:border-green-500/50 outline-none transition-all placeholder:text-white/40"
+                  />
                 </div>
-                <input 
-                  type="tel" 
-                  placeholder="মোবাইল নম্বর"
-                  className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-4 pl-12 pr-4 text-white text-sm focus:border-green-500/50 outline-none transition-all placeholder:text-white/40"
-                />
+                {signupErrors.phoneNumber && <p className="text-[10px] text-red-500 mt-1 ml-2 font-bold italic">! {signupErrors.phoneNumber.message}</p>}
               </div>
 
               <div className="flex gap-4 pt-4">
@@ -529,8 +588,10 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
 
           <div className="space-y-4">
             <button 
+              onClick={onFacebookLogin}
+              disabled={isLoading}
               type="button"
-              className="w-full bg-[#1877F2] py-4 rounded-full text-white font-bold flex items-center justify-center gap-3 hover:bg-[#166fe5] transition-all active:scale-95"
+              className="w-full bg-[#1877F2] py-4 rounded-full text-white font-bold flex items-center justify-center gap-3 hover:bg-[#166fe5] transition-all active:scale-95 disabled:opacity-50"
             >
               <Facebook size={24} fill="currentColor" />
               Facebook

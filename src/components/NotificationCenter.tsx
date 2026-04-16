@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bell, X, Trash2, CheckCircle2, Info, Gift, AlertCircle, ChevronRight, Clock } from 'lucide-react';
-import { db } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { Notification, markNotificationAsRead, deleteNotification } from '../services/firebaseService';
 
@@ -28,6 +28,8 @@ export default function NotificationCenter({ isOpen, onClose, userData, onAction
         msgs.push({ id: doc.id, ...doc.data() } as Notification);
       });
       setNotifications(msgs);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
     });
 
     return () => unsubscribe();

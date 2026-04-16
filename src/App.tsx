@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp, runTransaction, increment, collection, query, where, getDocs, Timestamp, documentId } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp, runTransaction, increment, collection, query, where, getDocs, Timestamp, documentId, limit } from 'firebase/firestore';
 import { signInWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, auth, googleProvider, handleFirestoreError, OperationType } from './firebase';
@@ -48,6 +48,7 @@ import {
   Wallet,
   User,
   Star,
+  Trophy,
   Share2,
   Send,
   Fish,
@@ -60,19 +61,19 @@ import {
   Copy,
   Check,
   Download,
-  Trophy,
   Bell,
   Moon,
   Sun,
   ArrowDownLeft,
-  Zap
+  Zap,
+  Loader2
 } from "lucide-react";
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userData, setUserData] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'home' | 'profile' | 'invite' | 'deposit' | 'bonus' | 'admin' | 'wallet' | 'faq'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'profile' | 'invite' | 'deposit' | 'bonus' | 'admin' | 'wallet' | 'faq' | 'leaderboard'>('home');
   const [profileSubTab, setProfileSubTab] = useState<string>('dashboard');
 
   // URL Syncing
@@ -174,6 +175,7 @@ export default function App() {
 
   const handleGameSelect = async (game: Game | null) => {
     setSelectedGame(game);
+    setIframeError(false);
     if (game) {
       setIsGameLoading(true);
       logUserActivity('game_selection', { gameId: game.id, gameName: game.name });
@@ -236,13 +238,19 @@ export default function App() {
   const [globalLogos, setGlobalLogos] = useState<Record<string, string>>({});
   const [globalNames, setGlobalNames] = useState<Record<string, string>>({});
   const [globalUrls, setGlobalUrls] = useState<Record<string, string>>({});
+  const [globalImages, setGlobalImages] = useState<Record<string, string>>({});
   const [isGameLoading, setIsGameLoading] = useState(false);
+  const [iframeError, setIframeError] = useState(false);
 
   useEffect(() => {
     if (isGameLoading && selectedGame) {
-      // If it's an iframe game, the onLoad handler will set isGameLoading to false.
-      // For other games (Aviator, Slot, or placeholder), we simulate a loading time.
-      if (!globalUrls[selectedGame.id]) {
+      if (!globalUrls[selectedGame.id] && selectedGame.category !== 'স্লট' && selectedGame.provider !== 'CRASH' && selectedGame.id !== '5') {
+        const timer = setTimeout(() => {
+          setIsGameLoading(false);
+          setIframeError(true);
+        }, 3000);
+        return () => clearTimeout(timer);
+      } else if (!globalUrls[selectedGame.id]) {
         const timer = setTimeout(() => {
           setIsGameLoading(false);
         }, 3000);
@@ -251,6 +259,13 @@ export default function App() {
         const timer = setTimeout(() => {
           setIsGameLoading(false);
         }, 3000);
+        return () => clearTimeout(timer);
+      } else {
+        // It's an iframe game with a URL. Set a timeout to detect failure.
+        const timer = setTimeout(() => {
+          setIframeError(true);
+          setIsGameLoading(false);
+        }, 15000); // 15 seconds timeout
         return () => clearTimeout(timer);
       }
     }
@@ -289,12 +304,12 @@ export default function App() {
     const unsubscribe = onSnapshot(doc(db, path), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        if (data.allButtonName) {
-          setAllButtonName(data.allButtonName);
-        }
-        if (data.casinoName) {
-          setCasinoName(data.casinoName);
-        }
+        if (data.allButtonName) setAllButtonName(data.allButtonName);
+        if (data.casinoName) setCasinoName(data.casinoName);
+        if (data.noticeText) setNoticeText(data.noticeText);
+        if (data.telegramLink) setTelegramLink(data.telegramLink);
+        if (data.whatsappLink) setWhatsappLink(data.whatsappLink);
+        if (data.facebookLink) setFacebookLink(data.facebookLink);
       }
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, path);
@@ -386,6 +401,22 @@ export default function App() {
     return () => unsubscribe();
   }, [isLoggedIn]);
 
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const path = `global_images`;
+    const unsubscribe = onSnapshot(collection(db, path), (snapshot) => {
+      const images: Record<string, string> = {};
+      snapshot.forEach((doc) => {
+        images[doc.id] = doc.data().url;
+      });
+      setGlobalImages(images);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+    });
+
+    return () => unsubscribe();
+  }, [isLoggedIn]);
+
   const showToast = (message: string, type: ToastType = 'info') => {
     const id = Math.random().toString(36).substring(2, 9);
     setToasts(prev => [...prev, { id, message, type }]);
@@ -431,13 +462,18 @@ export default function App() {
   };
 
   const [isAuthInitialized, setIsAuthInitialized] = useState(false);
+  const [isDataLoading, setIsDataLoading] = useState(false);
 
   useEffect(() => {
     let unsubscribeDoc: (() => void) | null = null;
+    let ipCache: string | null = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       setIsAuthInitialized(true);
+      
       if (user) {
+        setIsLoggedIn(true);
+        setIsDataLoading(true);
         const firebaseUid = user.uid;
         
         try {
@@ -448,139 +484,149 @@ export default function App() {
           if (!userDoc.exists()) {
             console.log("User does not exist in Firestore, creating...");
             
-            // 1. Handle referral code query OUTSIDE transaction
+            // Parallelize metadata, referral, and IP checks
             const savedReferralCode = localStorage.getItem('referralCode');
-            let referredBy = null;
-            
-            // Security Checks: Device ID and IP
             let deviceId = localStorage.getItem('deviceId');
             if (!deviceId) {
               deviceId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
               localStorage.setItem('deviceId', deviceId);
             }
-            
-            // Non-blocking IP fetch
-            let userIp = 'unknown';
-            fetch('https://api.ipify.org?format=json')
-              .then(res => res.json())
-              .then(data => { userIp = data.ip; })
-              .catch(e => console.error('Failed to fetch IP', e));
 
+            const fetchIp = async () => {
+              if (ipCache) return ipCache;
+              try {
+                const res = await fetch('https://api.ipify.org?format=json');
+                const data = await res.json();
+                ipCache = data.ip;
+                return data.ip;
+              } catch {
+                return 'unknown';
+              }
+            };
+
+            const [userIp, metadataSnap] = await Promise.all([
+              fetchIp(),
+              getDoc(doc(db, 'metadata', 'users'))
+            ]);
+
+            // Referral check
+            let referredBy = null;
             if (savedReferralCode) {
               const usersRef = collection(db, 'users');
-              const q = query(usersRef, where('referralCode', '==', savedReferralCode));
+              const q = query(usersRef, where('referralCode', '==', savedReferralCode), limit(1));
               const agentSnapshot = await getDocs(q);
               if (!agentSnapshot.empty) {
                 const agentDoc = agentSnapshot.docs[0];
                 const agentData = agentDoc.data();
-                
-                // Prevent self-referral abuse
                 if (agentData.deviceId !== deviceId && agentData.ip !== userIp) {
                   referredBy = agentDoc.id;
-                } else {
-                  console.warn('Self-referral detected and blocked.');
                 }
               }
             }
 
-            // 2. Perform transaction to create user
-            try {
-              await runTransaction(db, async (transaction) => {
-                const metadataRef = doc(db, 'metadata', 'users');
-                const metadataDoc = await transaction.get(metadataRef);
-                
-                let nextId = 101;
-                if (metadataDoc.exists()) {
-                  nextId = (metadataDoc.data().userCount || 100) + 1;
-                }
-                
-                const username = `K71${nextId}`;
-                
-                const newUser: any = {
-                  username: username,
-                  numericId: nextId.toString(),
-                  referralCode: username,
-                  phoneNumber: 'Not Provided',
-                  password: user.isAnonymous ? 'anonymous-auth' : 'email-auth',
-                  balance: 0,
-                  turnover: 0,
-                  requiredTurnover: 1100,
-                  createdAt: serverTimestamp(),
-                  role: 'user',
-                  isGmailLinked: false,
-                  favorites: [],
-                  vipLevel: 0,
-                  vipProgress: 0,
-                  profilePictureUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
-                  deviceId: deviceId,
-                  ip: userIp
-                };
-                
-                if (referredBy) {
-                  newUser.referredBy = referredBy;
-                  const referralRef = doc(collection(db, 'users', referredBy, 'referrals'));
-                  transaction.set(referralRef, {
-                    referredUserId: firebaseUid,
-                    referredUsername: username,
-                    joinedAt: serverTimestamp(),
-                    earningsGenerated: 0,
-                    status: 'active'
-                  });
-                  const agentRef = doc(db, 'users', referredBy);
-                  transaction.update(agentRef, {
-                    referralCount: increment(1)
-                  });
-                }
-                
-                if (user.email) {
-                  newUser.gmail = user.email;
-                  newUser.isGmailLinked = true;
-                }
-                
-                transaction.set(userRef, newUser);
-                transaction.set(metadataRef, { userCount: nextId });
-              });
-              console.log("User created successfully in Firestore.");
-            } catch (transactionError) {
-              console.error("Transaction failed:", transactionError);
-              throw transactionError;
-            }
+            // Perform transaction to create user
+            await runTransaction(db, async (transaction) => {
+              const metadataRef = doc(db, 'metadata', 'users');
+              const currentMetadata = await transaction.get(metadataRef);
+              
+              let nextId = 101;
+              if (currentMetadata.exists()) {
+                nextId = (currentMetadata.data().userCount || 100) + 1;
+              }
+              
+              const pendingUsername = localStorage.getItem('pending_username');
+              const pendingPhone = localStorage.getItem('pending_phone');
+              const facebookId = localStorage.getItem('facebook_id');
+              const googleId = localStorage.getItem('google_id');
+              
+              const username = pendingUsername || user.displayName || `User${nextId}`;
+              
+              // Clean up local storage
+              if (pendingUsername) localStorage.removeItem('pending_username');
+              if (pendingPhone) localStorage.removeItem('pending_phone');
+              if (facebookId) localStorage.removeItem('facebook_id');
+              if (googleId) localStorage.removeItem('google_id');
+              
+              const newUser: any = {
+                username: username,
+                numericId: nextId.toString(),
+                referralCode: username,
+                phoneNumber: pendingPhone || 'Not Provided',
+                password: user.isAnonymous ? 'anonymous-auth' : 'email-auth',
+                balance: 0,
+                turnover: 0,
+                requiredTurnover: 1100,
+                createdAt: serverTimestamp(),
+                role: 'user',
+                isGmailLinked: false,
+                favorites: [],
+                vipLevel: 0,
+                vipProgress: 0,
+                profilePictureUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
+                deviceId: deviceId,
+                ip: userIp,
+                facebookId: facebookId || null,
+                googleId: googleId || null
+              };
+              
+              if (referredBy) {
+                newUser.referredBy = referredBy;
+                const referralRef = doc(collection(db, 'users', referredBy, 'referrals'));
+                transaction.set(referralRef, {
+                  referredUserId: firebaseUid,
+                  referredUsername: username,
+                  joinedAt: serverTimestamp(),
+                  earningsGenerated: 0,
+                  status: 'active'
+                });
+                const agentRef = doc(db, 'users', referredBy);
+                transaction.update(agentRef, {
+                  referralCount: increment(1)
+                });
+              }
+              
+              if (user.email) {
+                newUser.gmail = user.email;
+                newUser.isGmailLinked = true;
+              }
+              
+              transaction.set(userRef, newUser);
+              transaction.set(metadataRef, { userCount: nextId });
+            });
           }
           
           // Set up real-time listener
+          if (unsubscribeDoc) unsubscribeDoc();
           unsubscribeDoc = onSnapshot(doc(db, 'users', firebaseUid), (docSnap) => {
             if (docSnap.exists()) {
               const data = docSnap.data();
               
-              // Lazy migration for numericId
+              // Lazy migration for numericId if missing
               if (!data.numericId) {
-                const numericPart = data.username?.replace('K71', '');
-                if (numericPart && !isNaN(Number(numericPart))) {
-                  updateDoc(doc(db, 'users', firebaseUid), { numericId: numericPart });
-                } else {
-                  // Fallback: generate a random 8-digit ID if username doesn't follow pattern
-                  const randomId = Math.floor(10000000 + Math.random() * 90000000).toString();
-                  updateDoc(doc(db, 'users', firebaseUid), { numericId: randomId });
-                }
+                const numericPart = data.username?.replace(/[^0-9]/g, '');
+                const finalNumericId = numericPart || Math.floor(100000 + Math.random() * 900000).toString();
+                updateDoc(doc(db, 'users', firebaseUid), { numericId: finalNumericId });
               }
 
               setUserData({ ...data, id: firebaseUid });
               setBalance(data.balance || 0);
               setFavorites(data.favorites || []);
               setAviatorLogo(data.aviatorLogo || null);
+              setIsDataLoading(false);
+              
               if (justLoggedIn) {
                 showToast("লগইন সফল হয়েছে! (Login successful!)", "success");
                 setJustLoggedIn(false);
               }
-              setIsLoggedIn(true);
             }
           }, (error) => {
             handleFirestoreError(error, OperationType.GET, `users/${firebaseUid}`);
-            showToast("ডেটা লোড করতে ব্যর্থ হয়েছে। (Failed to load data.)", "error");
+            setIsDataLoading(false);
           });
         } catch (e) {
           console.error("Failed to fetch/create user data", e);
-          showToast("অ্যাকাউন্ট তৈরি বা লোড করতে সমস্যা হয়েছে। (Error loading account.)", "error");
+          showToast("অ্যাকাউন্ট লোড করতে সমস্যা হয়েছে। (Error loading account.)", "error");
+          setIsDataLoading(false);
         }
       } else {
         if (unsubscribeDoc) unsubscribeDoc();
@@ -588,6 +634,7 @@ export default function App() {
         setIsLoggedIn(false);
         setUserData(null);
         setFavorites([]);
+        setIsDataLoading(false);
       }
     });
 
@@ -853,11 +900,35 @@ export default function App() {
     );
   }
 
+  if (isDataLoading && !showRegistrationSuccess) {
+    return (
+      <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center justify-center p-6 text-center">
+        <div className="relative mb-8">
+          <div className="w-24 h-24 bg-yellow-500/10 rounded-full flex items-center justify-center animate-pulse">
+            <Loader2 size={48} className="text-yellow-500 animate-spin" />
+          </div>
+          <div className="absolute -inset-4 bg-yellow-500/5 blur-2xl rounded-full -z-10"></div>
+        </div>
+        <h2 className="text-2xl font-black text-white mb-2 italic uppercase tracking-tighter">অ্যাকাউন্ট প্রস্তুত হচ্ছে</h2>
+        <p className="text-yellow-500/60 text-sm font-bold uppercase tracking-widest">Loading your premium experience...</p>
+        
+        <div className="mt-12 w-48 h-1 bg-white/5 rounded-full overflow-hidden">
+          <motion.div 
+            initial={{ width: "0%" }}
+            animate={{ width: "100%" }}
+            transition={{ duration: 2, repeat: Infinity }}
+            className="h-full bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]"
+          />
+        </div>
+      </div>
+    );
+  }
+
   if (!isLoggedIn || showRegistrationSuccess) {
     return (
       <LoginPage 
         onRegisterSuccess={() => {
-          setShowRegistrationSuccess(true);
+          setShowRegistrationSuccess(false);
           showToast("অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে!", "success");
         }} 
         onContinue={() => setShowRegistrationSuccess(false)} 
@@ -904,6 +975,7 @@ export default function App() {
             globalNames={globalNames}
             globalUrls={globalUrls}
             globalOptions={globalOptions}
+            globalImages={globalImages}
             balance={balance}
             isRefreshing={isRefreshing}
             handleRefresh={handleRefresh}
@@ -930,16 +1002,19 @@ export default function App() {
             noticeText={noticeText}
             showToast={showToast}
             loading={isTabLoading}
+            isAdmin={userData?.role === 'admin'}
           />
         )}
 
       {/* Game Play Modal */}
       <AnimatePresence>
-        {isGameLoading && selectedGame && selectedGame.provider !== 'JILI' && (
+        {(isGameLoading || iframeError) && selectedGame && selectedGame.provider !== 'JILI' && (
           <GameLoader 
             gameName={globalNames[selectedGame.id] || selectedGame.name}
             provider={globalOptions[selectedGame.id] || selectedGame.provider}
             logo={globalLogos[selectedGame.id] || selectedGame.image}
+            hasError={iframeError}
+            onClose={() => handleGameSelect(null)}
           />
         )}
       </AnimatePresence>
@@ -1044,13 +1119,33 @@ export default function App() {
               </div>
             )}
             
-            <iframe 
-              src={globalUrls[selectedGame.id]} 
-              className={`w-full h-full border-none transition-opacity duration-500 ${isGameLoading || selectedGame.provider === 'JILI' ? 'opacity-0' : 'opacity-100'}`}
-              title={selectedGame.name}
-              allowFullScreen
-              onLoad={() => setIsGameLoading(false)}
-            />
+            {iframeError ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#050505] text-center p-6 z-50">
+                <AlertCircle size={48} className="text-red-500 mb-4" />
+                <h3 className="text-xl font-bold text-white mb-2">গেমটি লোড করা যাচ্ছে না</h3>
+                <p className="text-sm text-gray-400 mb-6 max-w-xs">
+                  দুঃখিত, গেমটি এই মুহূর্তে লোড করা সম্ভব হচ্ছে না। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন অথবা সাপোর্টে যোগাযোগ করুন।
+                </p>
+                <button 
+                  onClick={() => handleGameSelect(null)}
+                  className="bg-yellow-500 text-black font-bold px-6 py-3 rounded-xl hover:bg-yellow-400 transition-colors"
+                >
+                  ফিরে যান
+                </button>
+              </div>
+            ) : (
+              <iframe 
+                src={globalUrls[selectedGame.id]} 
+                className={`w-full h-full border-none transition-opacity duration-500 ${isGameLoading || selectedGame.provider === 'JILI' ? 'opacity-0' : 'opacity-100'}`}
+                title={selectedGame.name}
+                allowFullScreen
+                onLoad={() => setIsGameLoading(false)}
+                onError={() => {
+                  setIframeError(true);
+                  setIsGameLoading(false);
+                }}
+              />
+            )}
           </div>
         </div>
       ) : selectedGame && (selectedGame.id === '5' || selectedGame.provider === 'CRASH') ? (
@@ -1069,6 +1164,7 @@ export default function App() {
           showToast={showToast}
           referredBy={userData?.referredBy}
           globalName={globalNames[selectedGame.id]}
+          userData={userData}
         />
       ) : selectedGame && selectedGame.category === 'স্লট' ? (
         <SlotGame 
@@ -1081,6 +1177,7 @@ export default function App() {
             if (userData?.id) updateBalance(userData.id, newBalance);
           }}
           referredBy={userData?.referredBy}
+          userData={userData}
         />
       ) : selectedGame && (
         <div className="fixed inset-0 z-[100] bg-black flex flex-col max-w-md mx-auto min-h-[100dvh] safe-top safe-bottom">
@@ -1204,6 +1301,7 @@ export default function App() {
           minWithdraw={minWithdraw}
         />
       )}
+      {activeTab === 'leaderboard' && <LeaderboardView />}
       {activeTab === 'bonus' && (
         <BonusCenter 
           userData={userData} 
@@ -1216,7 +1314,18 @@ export default function App() {
         />
       )}
       {activeTab === 'invite' && <InviteView onTabChange={handleTabChange} userData={userData} showToast={showToast} />}
-      {activeTab === 'deposit' && <DepositView onTabChange={handleTabChange} balance={balance} onBalanceUpdate={handleBalanceUpdate} userData={userData} showToast={showToast} minDeposit={minDeposit} />}
+      {activeTab === 'deposit' && (
+        <DepositView 
+          onTabChange={handleTabChange} 
+          balance={balance} 
+          onBalanceUpdate={handleBalanceUpdate} 
+          userData={userData} 
+          showToast={showToast} 
+          minDeposit={minDeposit} 
+          globalImages={globalImages}
+          isAdmin={userData?.role === 'admin'}
+        />
+      )}
       {activeTab === 'wallet' && (
         <WalletView 
           balance={balance} 
@@ -1346,6 +1455,13 @@ export default function App() {
         >
           <Users size={20} />
           <span>প্রচার</span>
+        </div>
+        <div 
+          onClick={() => handleTabChange('leaderboard')}
+          className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${activeTab === 'leaderboard' ? 'text-teal-400' : 'hover:text-white'}`}
+        >
+          <Trophy size={20} />
+          <span>সেরা</span>
         </div>
         <div 
           onClick={() => handleTabChange('deposit')}

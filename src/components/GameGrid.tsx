@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Star, Plane as PlaneIcon, Info, Camera, Edit2, X } from 'lucide-react';
+import { Star, Plane as PlaneIcon, Info, Camera, Edit2, X, Upload } from 'lucide-react';
 import Skeleton from './Skeleton';
 import { GAME_IMAGES } from '../constants/gameAssets';
+import GlobalImage from './GlobalImage';
 
 export interface Game {
   id: string;
@@ -74,6 +75,26 @@ export const games: Game[] = [
   { id: 'bt_6', name: 'BT Slot 6', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt6/400/600', category: 'স্লট', bgColor: 'from-yellow-700 to-yellow-900' },
   { id: 'bt_7', name: 'BT Slot 7', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt7/400/600', category: 'স্লট', bgColor: 'from-pink-700 to-pink-900' },
   { id: 'bt_8', name: 'BT Slot 8', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt8/400/600', category: 'স্লট', bgColor: 'from-indigo-700 to-indigo-900' },
+
+  // EVOLUTION (Live Casino)
+  { id: 'evo_1', name: 'Crazy Time', provider: 'EVOLUTION', image: 'https://picsum.photos/seed/evo1/400/600', category: 'Live Casino', isHot: true, bgColor: 'from-purple-600 to-pink-600' },
+  { id: 'evo_2', name: 'Lightning Roulette', provider: 'EVOLUTION', image: 'https://picsum.photos/seed/evo2/400/600', category: 'Live Casino', isHot: true, bgColor: 'from-yellow-600 to-red-600' },
+  { id: 'evo_3', name: 'Monopoly Live', provider: 'EVOLUTION', image: 'https://picsum.photos/seed/evo3/400/600', category: 'Live Casino', bgColor: 'from-blue-600 to-blue-900' },
+  { id: 'evo_4', name: 'Baccarat', provider: 'EVOLUTION', image: 'https://picsum.photos/seed/evo4/400/600', category: 'Live Casino', bgColor: 'from-green-600 to-green-900' },
+
+  // Table Games
+  { id: 'table_1', name: 'Blackjack', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/table1/400/600', category: 'Table Games', bgColor: 'from-green-700 to-green-900' },
+  { id: 'table_2', name: 'Roulette', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/table2/400/600', category: 'Table Games', bgColor: 'from-red-700 to-red-900' },
+  { id: 'table_3', name: 'Baccarat', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/table3/400/600', category: 'Table Games', bgColor: 'from-blue-700 to-blue-900' },
+
+  // Fishing Games
+  { id: 'fish_1', name: 'Mega Fishing', provider: 'JILI', image: 'https://picsum.photos/seed/fish1/400/600', category: 'Fishing Games', isHot: true, bgColor: 'from-blue-400 to-blue-700' },
+  { id: 'fish_2', name: 'Jackpot Fishing', provider: 'JILI', image: 'https://picsum.photos/seed/fish2/400/600', category: 'Fishing Games', bgColor: 'from-cyan-500 to-blue-600' },
+  { id: 'fish_3', name: 'Happy Fishing', provider: 'JILI', image: 'https://picsum.photos/seed/fish3/400/600', category: 'Fishing Games', bgColor: 'from-teal-500 to-teal-800' },
+
+  // Lottery
+  { id: 'lottery_1', name: 'Keno', provider: 'SPRIBE', image: 'https://picsum.photos/seed/lottery1/400/600', category: 'Lottery', bgColor: 'from-yellow-500 to-orange-600' },
+  { id: 'lottery_2', name: 'Bingo', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/lottery2/400/600', category: 'Lottery', bgColor: 'from-pink-500 to-purple-600' },
 ];
 
 const PROVIDERS = [
@@ -158,25 +179,22 @@ const GameCard: React.FC<GameCardProps> = ({
         </div>
       )}
       
-      <img
-        src={displayImage}
-        loading="lazy"
-        onLoad={() => setImageLoaded(true)}
-        onError={() => setImageError(true)}
-        className={`w-full h-full object-cover transition-all duration-700 ${imageLoaded ? 'opacity-90 group-hover:opacity-100 group-hover:scale-110' : 'opacity-0'}`}
-        alt={game.name}
-        referrerPolicy="no-referrer"
-      />
-      
-      {/* Fallback for error */}
-      {imageError && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 to-teal-950 text-teal-500 p-4 text-center">
-          <div className="w-12 h-12 rounded-full bg-teal-900/50 flex items-center justify-center mb-2">
-            <Info size={24} />
-          </div>
-          <span className="text-[10px] font-bold uppercase tracking-widest">Preview Unavailable</span>
-        </div>
-      )}
+      <div className="absolute inset-0 z-0">
+        <GlobalImage 
+          imageKey={`game_logo_${game.id}`}
+          defaultUrl={game.image || `https://picsum.photos/seed/${game.id}/400/600`}
+          currentUrl={globalLogo}
+          alt={game.name}
+          showToast={showToast as any}
+          className="w-full h-full object-cover transition-all duration-700 opacity-90 group-hover:opacity-100 group-hover:scale-110"
+          isAdmin={true}
+          updateGlobalImage={async (url) => {
+            if (onLogoChange) {
+              onLogoChange(game.id, url);
+            }
+          }}
+        />
+      </div>
 
       {game.isHot && (
         <div className="absolute top-1.5 left-1.5 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded italic shadow-sm z-30">
@@ -199,27 +217,6 @@ const GameCard: React.FC<GameCardProps> = ({
       >
         <Star size={14} className={isFavorite ? "text-yellow-400 fill-yellow-400" : "text-gray-300"} />
       </div>
-      
-      {/* Change Logo Button */}
-      {onLogoChange && (
-        <div 
-          onClick={(e) => {
-            e.stopPropagation();
-            fileInputRef.current?.click();
-          }}
-          className="absolute bottom-12 left-1.5 bg-yellow-500 rounded-full p-2 shadow-lg z-30 hover:scale-110 active:scale-90 transition-all border border-yellow-300"
-          title="গেম লোগো পরিবর্তন করুন"
-        >
-          <Camera size={16} className="text-black" />
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileChange} 
-            className="hidden" 
-            accept="image/*" 
-          />
-        </div>
-      )}
 
       {isAviator && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -497,12 +494,37 @@ export const GameGrid: React.FC<GameGridProps> = ({
               {/* Logo URL */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-yellow-500 uppercase tracking-widest ml-1">লোগো/ছবি URL</label>
-                <input 
-                  type="text"
-                  value={editingGame.logo}
-                  onChange={(e) => setEditingGame({ ...editingGame, logo: e.target.value })}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-yellow-500 transition-all font-mono text-xs"
-                />
+                <div className="flex gap-2">
+                  <input 
+                    type="text"
+                    value={editingGame.logo}
+                    onChange={(e) => setEditingGame({ ...editingGame, logo: e.target.value })}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-yellow-500 transition-all font-mono text-xs"
+                    placeholder="URL অথবা গ্যালারি থেকে আপলোড করুন"
+                  />
+                  <button
+                    onClick={() => {
+                      const input = document.createElement('input');
+                      input.type = 'file';
+                      input.accept = 'image/*';
+                      input.onchange = (e: any) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setEditingGame({ ...editingGame, logo: reader.result as string });
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      };
+                      input.click();
+                    }}
+                    className="bg-yellow-500 text-black px-4 rounded-xl font-bold hover:bg-yellow-400 transition-colors flex items-center justify-center shrink-0"
+                    title="গ্যালারি থেকে আপলোড করুন"
+                  >
+                    <Upload size={18} />
+                  </button>
+                </div>
               </div>
 
               {/* Game URL */}

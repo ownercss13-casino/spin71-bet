@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth, handleFirestoreError, OperationType } from '../../firebase';
 import { collection, query, onSnapshot, doc, updateDoc, increment, deleteDoc, serverTimestamp, setDoc, orderBy, collectionGroup, where, limit } from 'firebase/firestore';
-import { Settings, Users, History, Activity, Gift, Image as ImageIcon, Check, X, Trash2, Plus, Bot, Sparkles, KeyRound, LayoutDashboard, Bell, AlertCircle, CheckCircle2, MessageCircle, ChevronLeft, ArrowDownLeft, Bug, Zap, Clock, Globe, User as UserIcon } from 'lucide-react';
+import { Settings, Users, History, Activity, Gift, Image as ImageIcon, Check, X, Trash2, Plus, Bot, Sparkles, KeyRound, LayoutDashboard, Bell, AlertCircle, CheckCircle2, MessageCircle, ChevronLeft, ArrowDownLeft, Bug, Zap, Clock, Globe, User as UserIcon, Search, Gamepad2, Copy, Edit } from 'lucide-react';
 import AdminAIChat from './AdminAIChat';
 import AdminChat from './AdminChat';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -20,12 +20,16 @@ interface User {
   deposit?: number;
   withdrawal?: number;
   betting?: number;
+  isFacebookLinked?: boolean;
+  facebookId?: string;
+  facebookEmail?: string;
+  facebookName?: string;
 }
 
 const UserDetailModal = ({ user, onClose, onUpdate, showToast }: { user: User, onClose: () => void, onUpdate: (userId: string, data: Partial<User>) => void, showToast: (msg: string, type: 'success' | 'error') => void }) => {
   const [formData, setFormData] = useState<Partial<User>>(user);
 
-  const fields: (keyof User)[] = ['username', 'password', 'email', 'phone', 'balance', 'deposit', 'withdrawal', 'betting', 'ipAddress', 'role'];
+  const fields: (keyof User)[] = ['username', 'password', 'email', 'phone', 'balance', 'deposit', 'withdrawal', 'betting', 'ipAddress', 'role', 'facebookId', 'facebookEmail', 'facebookName'];
 
   return (
     <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-2">
@@ -37,7 +41,7 @@ const UserDetailModal = ({ user, onClose, onUpdate, showToast }: { user: User, o
               <label className="text-[10px] text-gray-400 uppercase font-bold">{key}</label>
               <input
                 type={key === 'balance' || key === 'deposit' || key === 'withdrawal' || key === 'betting' ? 'number' : 'text'}
-                value={formData[key] || ''}
+                value={formData[key] === true ? 'true' : formData[key] === false ? 'false' : (formData[key] as string | number || '')}
                 onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
                 className="w-full bg-gray-800 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white"
               />
@@ -68,6 +72,7 @@ interface PromoCode {
   usedCount: number;
   isActive: boolean;
   turnoverMultiplier: number;
+  allowMultiUse?: boolean;
 }
 
 interface LogoRequest {
@@ -90,7 +95,7 @@ interface SystemAlert {
 }
 
 export default function AdminPanel({ showToast, onBack }: { showToast: (msg: string, type: 'success' | 'error') => void, onBack?: () => void }) {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'transactions' | 'withdrawals' | 'analytics' | 'promos' | 'requests' | 'games' | 'settings' | 'api_tokens' | 'chat' | 'errors'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'transactions' | 'withdrawals' | 'analytics' | 'promos' | 'requests' | 'games' | 'settings' | 'api_tokens' | 'chat' | 'errors' | 'activities'>('dashboard');
   const [showAIChat, setShowAIChat] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
@@ -100,6 +105,7 @@ export default function AdminPanel({ showToast, onBack }: { showToast: (msg: str
   const [requests, setRequests] = useState<LogoRequest[]>([]);
   const [alerts, setAlerts] = useState<SystemAlert[]>([]);
   const [systemErrors, setSystemErrors] = useState<any[]>([]);
+  const [errorFilter, setErrorFilter] = useState<'unresolved' | 'all'>('unresolved');
   const [loading, setLoading] = useState(true);
 
   // App Settings State
@@ -115,111 +121,43 @@ export default function AdminPanel({ showToast, onBack }: { showToast: (msg: str
     noticeText: ''
   });
 
-  const [globalGameNames, setGlobalGameNames] = useState<Record<string, string>>({});
-  const [globalGameLogos, setGlobalGameLogos] = useState<Record<string, string>>({});
-  const [globalGameUrls, setGlobalGameUrls] = useState<Record<string, string>>({});
-  const [globalGameOptions, setGlobalGameOptions] = useState<Record<string, string>>({});
-  const [editingGame, setEditingGame] = useState<string | null>(null);
-  const [editGameForm, setEditGameForm] = useState({ name: '', logo: '', url: '', provider: '' });
+  const [uiImages, setUiImages] = useState<Record<string, string>>({
+    hero_banner_host: '',
+    casino_logo: '',
+    app_banner: '',
+    payment_logo_nagad: '',
+    payment_logo_bkash: '',
+    payment_logo_rocket: '',
+    deposit_banner: ''
+  });
 
-  // Promo Form State
-  const [newPromo, setNewPromo] = useState({ code: '', amount: 500, maxUses: 100, turnover: 5 });
-
-  const [apiTokens, setApiTokens] = useState<any[]>([]);
-  const [newTokenName, setNewTokenName] = useState('');
-  const [newTokenExpiration, setNewTokenExpiration] = useState('');
-  const [showTokenForm, setShowTokenForm] = useState(false);
+  const [editingToken, setEditingToken] = useState<any | null>(null);
 
   useEffect(() => {
-    const settingsPath = `global_config/app_settings`;
-    const unsubscribeSettings = onSnapshot(doc(db, settingsPath), (docSnap) => {
+    const uiSettingsPath = `global_config/ui_settings`;
+    const unsubscribeUi = onSnapshot(doc(db, uiSettingsPath), (docSnap) => {
       if (docSnap.exists()) {
-        setAppSettings(docSnap.data() as any);
+        setUiImages(docSnap.data() as any);
       }
-    });
-
-    const tokensQuery = query(collection(db, 'api_tokens'));
-    const unsubscribeTokens = onSnapshot(tokensQuery, (snapshot) => {
-      setApiTokens(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-
-    const usersQuery = query(collection(db, 'users'));
-    const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
-      const usersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
-      setUsers(usersData);
-      setLoading(false);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'users');
-      showToast("ইউজার লোড করতে সমস্যা হয়েছে", "error");
+      handleFirestoreError(error, OperationType.GET, uiSettingsPath);
     });
-
-    const trxQuery = query(collectionGroup(db, 'transactions'));
-    const unsubscribeTrx = onSnapshot(trxQuery, (snapshot) => {
-      const trxData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
-      setTransactions(trxData);
-      
-      // Filter pending withdrawals for the withdrawals tab
-      const pendingWithdrawals = trxData.filter(t => t.type === 'withdraw' && (t as any).status === 'pending' || (t as any).status === 'প্রক্রিয়াধীন');
-      setWithdrawals(pendingWithdrawals);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'transactions');
-      showToast("ট্রানজেকশন লোড করতে সমস্যা হয়েছে", "error");
-    });
-
-    const promoQuery = query(collection(db, 'promo_codes'));
-    const unsubscribePromos = onSnapshot(promoQuery, (snapshot) => {
-      const promoData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PromoCode));
-      setPromos(promoData);
-    });
-
-    const requestQuery = query(collection(db, 'logo_requests'));
-    const unsubscribeRequests = onSnapshot(requestQuery, (snapshot) => {
-      const requestData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LogoRequest));
-      setRequests(requestData.filter(r => r.status === 'pending'));
-    });
-
-    const unsubscribeGameNames = onSnapshot(doc(db, 'global_config', 'game_names'), (docSnap) => {
-      if (docSnap.exists()) setGlobalGameNames(docSnap.data());
-    });
-    const unsubscribeGameLogos = onSnapshot(doc(db, 'global_config', 'game_logos'), (docSnap) => {
-      if (docSnap.exists()) setGlobalGameLogos(docSnap.data());
-    });
-    const unsubscribeGameUrls = onSnapshot(doc(db, 'global_config', 'game_urls'), (docSnap) => {
-      if (docSnap.exists()) setGlobalGameUrls(docSnap.data());
-    });
-    const unsubscribeGameOptions = onSnapshot(doc(db, 'global_config', 'game_options'), (docSnap) => {
-      if (docSnap.exists()) setGlobalGameOptions(docSnap.data());
-    });
-
-    const alertsQuery = query(collection(db, 'system_alerts'), orderBy('timestamp', 'desc'));
-    const unsubscribeAlerts = onSnapshot(alertsQuery, (snapshot) => {
-      setAlerts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SystemAlert)));
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'system_alerts');
-    });
-
-    const errorsQuery = query(collection(db, 'system_errors'), where('resolved', '==', false), orderBy('timestamp', 'desc'));
-    const unsubscribeErrors = onSnapshot(errorsQuery, (snapshot) => {
-      setSystemErrors(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'system_errors');
-    });
-
+    
+    // ... existing listeners
     return () => {
-      unsubscribeSettings();
-      unsubscribeUsers();
-      unsubscribeTrx();
-      unsubscribePromos();
-      unsubscribeRequests();
-      unsubscribeGameNames();
-      unsubscribeGameLogos();
-      unsubscribeGameUrls();
-      unsubscribeGameOptions();
-      unsubscribeTokens();
-      unsubscribeAlerts();
-      unsubscribeErrors();
+      // ... existing unsubs
+      unsubscribeUi();
     };
   }, []);
+
+  const handleUpdateUIImages = async () => {
+    try {
+      await updateGlobalUIImages(uiImages);
+      showToast("UI ইমেজ সেটিংস আপডেট হয়েছে", "success");
+    } catch (error) {
+      showToast("আপডেট করতে সমস্যা হয়েছে", "error");
+    }
+  };
 
   const handleUpdateUser = async (userId: string, data: Partial<User>) => {
     try {
@@ -282,11 +220,51 @@ export default function AdminPanel({ showToast, onBack }: { showToast: (msg: str
     }
   };
 
+  const [userSearch, setUserSearch] = useState('');
+  const filteredUsers = users.filter(u => 
+    u.username.toLowerCase().includes(userSearch.toLowerCase()) || 
+    u.id.toLowerCase().includes(userSearch.toLowerCase()) ||
+    (u.email && u.email.toLowerCase().includes(userSearch.toLowerCase())) ||
+    (u.phone && u.phone.toLowerCase().includes(userSearch.toLowerCase()))
+  );
+
   const analyticsData = users.slice(0, 10).map(u => ({ name: u.username, balance: u.balance }));
 
   const totalDeposits = transactions.filter(t => t.type === 'deposit').reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
   const totalWithdrawals = transactions.filter(t => t.type === 'withdraw').reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
   const totalBetting = transactions.filter(t => t.type === 'bet').reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+  const totalProfit = totalDeposits - totalWithdrawals;
+
+  const [activities, setActivities] = useState<any[]>([]);
+  const [activeUsersCount, setActiveUsersCount] = useState(0);
+
+  useEffect(() => {
+    const activitiesQuery = query(
+      collectionGroup(db, 'activities'),
+      orderBy('timestamp', 'desc'),
+      limit(100)
+    );
+    const unsubscribe = onSnapshot(activitiesQuery, (snapshot) => {
+      setActivities(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      
+      // Calculate active users in last 24h from the snapshot if possible, 
+      // or just keep the 24h filter for the count specifically.
+      // Actually, it's better to have a separate listener for the count to be accurate for 24h.
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const activeQuery = query(
+      collectionGroup(db, 'activities'),
+      where('timestamp', '>', new Date(Date.now() - 24 * 60 * 60 * 1000))
+    );
+    const unsubscribe = onSnapshot(activeQuery, (snapshot) => {
+      const uniqueUsers = new Set(snapshot.docs.map(doc => doc.data().userId));
+      setActiveUsersCount(uniqueUsers.size);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleMarkAlertAsRead = async (alertId: string) => {
     try {
@@ -338,6 +316,9 @@ export default function AdminPanel({ showToast, onBack }: { showToast: (msg: str
         <button onClick={() => setActiveTab('analytics')} className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 shrink-0 ${activeTab === 'analytics' ? 'bg-yellow-500 text-black' : 'bg-gray-800'}`}>
           <Activity size={20} /> অ্যানালিটিক্স
         </button>
+        <button onClick={() => setActiveTab('activities')} className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 shrink-0 ${activeTab === 'activities' ? 'bg-yellow-500 text-black' : 'bg-gray-800'}`}>
+          <Sparkles size={20} /> ইউজার অ্যাক্টিভিটি
+        </button>
         <button onClick={() => setActiveTab('games')} className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 shrink-0 ${activeTab === 'games' ? 'bg-yellow-500 text-black' : 'bg-gray-800'}`}>
           <Plus size={20} /> গেম সেটিংস
         </button>
@@ -371,22 +352,32 @@ export default function AdminPanel({ showToast, onBack }: { showToast: (msg: str
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="bg-gray-900 p-6 rounded-2xl border border-white/10">
                   <p className="text-gray-400 text-xs uppercase font-bold">Total Users</p>
                   <p className="text-2xl font-black mt-1">{users.length}</p>
                 </div>
                 <div className="bg-gray-900 p-6 rounded-2xl border border-white/10">
+                  <p className="text-gray-400 text-xs uppercase font-bold">Active Users (24h)</p>
+                  <p className="text-2xl font-black mt-1 text-teal-400">{activeUsersCount}</p>
+                </div>
+                <div className="bg-gray-900 p-6 rounded-2xl border border-white/10">
+                  <p className="text-gray-400 text-xs uppercase font-bold">Total Profit</p>
+                  <p className={`text-2xl font-black mt-1 ${totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    ৳{totalProfit.toLocaleString()}
+                  </p>
+                </div>
+                <div className="bg-gray-900 p-6 rounded-2xl border border-white/10">
                   <p className="text-gray-400 text-xs uppercase font-bold">Total Deposits</p>
-                  <p className="text-2xl font-black mt-1 text-green-400">৳{totalDeposits}</p>
+                  <p className="text-2xl font-black mt-1 text-green-400">৳{totalDeposits.toLocaleString()}</p>
                 </div>
                 <div className="bg-gray-900 p-6 rounded-2xl border border-white/10">
                   <p className="text-gray-400 text-xs uppercase font-bold">Total Withdrawals</p>
-                  <p className="text-2xl font-black mt-1 text-red-400">৳{totalWithdrawals}</p>
+                  <p className="text-2xl font-black mt-1 text-red-400">৳{totalWithdrawals.toLocaleString()}</p>
                 </div>
                 <div className="bg-gray-900 p-6 rounded-2xl border border-white/10">
                   <p className="text-gray-400 text-xs uppercase font-bold">Total Betting</p>
-                  <p className="text-2xl font-black mt-1 text-blue-400">৳{totalBetting}</p>
+                  <p className="text-2xl font-black mt-1 text-blue-400">৳{totalBetting.toLocaleString()}</p>
                 </div>
               </div>
 
@@ -511,19 +502,122 @@ export default function AdminPanel({ showToast, onBack }: { showToast: (msg: str
         </div>
       )}
 
+      {activeTab === 'transactions' && (
+        <div className="bg-gray-900 rounded-2xl p-6 border border-white/10">
+          <h2 className="text-xl font-bold mb-6">ট্রানজেকশন হিস্ট্রি (Transaction History)</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="text-[10px] text-gray-500 uppercase font-black tracking-widest border-b border-white/5">
+                  <th className="pb-4 px-2">ইউজার</th>
+                  <th className="pb-4 px-2">টাইপ</th>
+                  <th className="pb-4 px-2">পরিমাণ</th>
+                  <th className="pb-4 px-2">মেথড/স্ট্যাটাস</th>
+                  <th className="pb-4 px-2">সময়</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {transactions.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).map(trx => (
+                  <tr key={trx.id} className="hover:bg-white/5 transition-colors">
+                    <td className="py-4 px-2">
+                      <p className="text-xs font-bold text-white">{users.find(u => u.id === trx.userId)?.username || trx.userId?.slice(0, 8)}</p>
+                    </td>
+                    <td className="py-4 px-2">
+                      <span className={`text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-tighter ${
+                        trx.type === 'deposit' ? 'bg-green-500/20 text-green-500' :
+                        trx.type === 'withdraw' ? 'bg-red-500/20 text-red-500' :
+                        'bg-blue-500/20 text-blue-500'
+                      }`}>
+                        {trx.type}
+                      </span>
+                    </td>
+                    <td className="py-4 px-2">
+                      <p className={`font-black text-sm ${trx.type === 'deposit' ? 'text-green-400' : trx.type === 'withdraw' ? 'text-red-400' : 'text-blue-400'}`}>
+                        ৳{trx.amount?.toLocaleString()}
+                      </p>
+                    </td>
+                    <td className="py-4 px-2">
+                      <div className="flex flex-col">
+                        <p className="text-xs text-white">{(trx as any).method || 'N/A'}</p>
+                        <p className={`text-[10px] font-bold ${(trx as any).statusColor || 'text-gray-500'}`}>{(trx as any).status || 'সম্পন্ন'}</p>
+                      </div>
+                    </td>
+                    <td className="py-4 px-2">
+                      <p className="text-[10px] text-gray-500 font-bold">
+                        {trx.timestamp?.toDate?.().toLocaleString() || 'N/A'}
+                      </p>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
       {activeTab === 'users' && (
         <div className="bg-gray-900 rounded-2xl p-6 border border-white/10">
-          <h2 className="text-xl font-bold mb-4">ইউজার তালিকা</h2>
-          <div className="space-y-4">
-            {users.map(user => (
-              <div key={user.id} className="bg-gray-800 p-4 rounded-xl border border-white/10 flex items-center justify-between">
-                <div>
-                  <p className="font-bold">{user.username}</p>
-                  <p className="text-xs text-gray-400">{user.email || 'No Email'}</p>
-                </div>
-                <button onClick={() => setEditingUser(user)} className="bg-yellow-500 text-black px-4 py-2 rounded-lg font-bold text-xs">এডিট</button>
-              </div>
-            ))}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+            <h2 className="text-xl font-bold">ইউজার ম্যানেজমেন্ট ({users.length})</h2>
+            <div className="relative w-full md:w-64">
+              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+              <input 
+                type="text" 
+                placeholder="ইউজার খুঁজুন..." 
+                className="w-full bg-black/40 border border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm outline-none focus:border-yellow-500 transition-all"
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+              />
+            </div>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="text-[10px] text-gray-500 uppercase font-black tracking-widest border-b border-white/5">
+                  <th className="pb-4 px-2">ইউজার</th>
+                  <th className="pb-4 px-2">ব্যালেন্স</th>
+                  <th className="pb-4 px-2">রোল</th>
+                  <th className="pb-4 px-2">ফোন/ইমেইল</th>
+                  <th className="pb-4 px-2 text-right">অ্যাকশন</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {filteredUsers.map(user => (
+                  <tr key={user.id} className="hover:bg-white/5 transition-colors group">
+                    <td className="py-4 px-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-yellow-500/10 flex items-center justify-center text-yellow-500 font-bold text-xs">
+                          {user.username.slice(0, 2)}
+                        </div>
+                        <div>
+                          <p className="font-bold text-sm">{user.username}</p>
+                          <p className="text-[10px] text-gray-500">ID: {user.id.slice(0, 8)}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-4 px-2">
+                      <p className="font-black text-green-400 text-sm">৳{user.balance?.toLocaleString() || 0}</p>
+                    </td>
+                    <td className="py-4 px-2">
+                      <span className={`text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-tighter ${user.role === 'admin' ? 'bg-red-500/20 text-red-500' : 'bg-blue-500/20 text-blue-500'}`}>
+                        {user.role}
+                      </span>
+                    </td>
+                    <td className="py-4 px-2">
+                      <p className="text-xs text-gray-400">{user.phone || user.email || 'N/A'}</p>
+                    </td>
+                    <td className="py-4 px-2 text-right">
+                      <button 
+                        onClick={() => setEditingUser(user)} 
+                        className="bg-yellow-500 text-black px-4 py-1.5 rounded-lg font-bold text-[10px] uppercase hover:bg-yellow-400 transition-all active:scale-95"
+                      >
+                        এডিট
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
           {editingUser && <UserDetailModal user={editingUser} onClose={() => setEditingUser(null)} onUpdate={handleUpdateUser} showToast={showToast} />}
         </div>
@@ -572,8 +666,8 @@ export default function AdminPanel({ showToast, onBack }: { showToast: (msg: str
               <h2 className="text-xl font-bold flex items-center gap-2"><Plus size={20} className="text-yellow-500" /> নতুন প্রোমো কোড তৈরি করুন</h2>
               <button 
                 onClick={async () => {
-                  await createPromoCode("WELCOME500", 500, 100, 5);
-                  await createPromoCode("SPIN71", 1000, 50, 7);
+                  await createPromoCode("WELCOME500", 500, 100, 5, true);
+                  await createPromoCode("SPIN71", 1000, 50, 7, true);
                   showToast("ডিফল্ট প্রোমো কোডগুলো তৈরি হয়েছে", "success");
                 }}
                 className="text-xs bg-teal-600/20 text-teal-400 px-3 py-1.5 rounded-lg border border-teal-500/30 hover:bg-teal-600/30 transition-all"
@@ -603,12 +697,22 @@ export default function AdminPanel({ showToast, onBack }: { showToast: (msg: str
                 onChange={(e) => setNewPromo({...newPromo, maxUses: Number(e.target.value)})}
                 className="bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-yellow-500 outline-none"
               />
+              <div className="flex items-center gap-2 px-2">
+                <input 
+                  type="checkbox" 
+                  id="allowMultiUse"
+                  checked={newPromo.allowMultiUse}
+                  onChange={(e) => setNewPromo({...newPromo, allowMultiUse: e.target.checked})}
+                  className="w-4 h-4 accent-yellow-500"
+                />
+                <label htmlFor="allowMultiUse" className="text-xs text-gray-400 font-bold cursor-pointer">বারবার ব্যবহারযোগ্য</label>
+              </div>
               <button 
                 onClick={async () => {
                   if (!newPromo.code) return;
-                  await createPromoCode(newPromo.code, newPromo.amount, newPromo.maxUses, newPromo.turnover);
+                  await createPromoCode(newPromo.code, newPromo.amount, newPromo.maxUses, newPromo.turnover, newPromo.allowMultiUse);
                   showToast("প্রোমো কোড তৈরি হয়েছে", "success");
-                  setNewPromo({ code: '', amount: 500, maxUses: 100, turnover: 5 });
+                  setNewPromo({ code: '', amount: 500, maxUses: 100, turnover: 5, allowMultiUse: false });
                 }}
                 className="bg-yellow-500 text-black font-bold rounded-xl px-6 py-3 hover:bg-yellow-400 transition-all"
               >
@@ -624,7 +728,10 @@ export default function AdminPanel({ showToast, onBack }: { showToast: (msg: str
                 <div key={promo.id} className="flex items-center justify-between bg-gray-800 p-4 rounded-xl">
                   <div>
                     <p className="font-bold text-yellow-500">{promo.id}</p>
-                    <p className="text-xs text-gray-400">বোনাস: ৳{promo.amount} | ব্যবহার: {promo.usedCount}/{promo.maxUses}</p>
+                    <p className="text-xs text-gray-400">
+                      বোনাস: ৳{promo.amount} | ব্যবহার: {promo.usedCount}/{promo.maxUses}
+                      {promo.allowMultiUse && <span className="ml-2 text-[10px] bg-teal-500/20 text-teal-400 px-1.5 py-0.5 rounded">Multi-use</span>}
+                    </p>
                   </div>
                   <button 
                     onClick={async () => {
@@ -690,41 +797,121 @@ export default function AdminPanel({ showToast, onBack }: { showToast: (msg: str
 
       {activeTab === 'errors' && (
         <div className="bg-gray-900 rounded-2xl p-6 border border-white/10">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold flex items-center gap-2"><Bug size={20} className="text-red-500" /> সিস্টেম এরর লগ (System Error Logs)</h2>
-            <span className="text-xs bg-red-500/10 text-red-500 px-3 py-1 rounded-full font-bold">{systemErrors.length} Unresolved</span>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+            <div>
+              <h2 className="text-xl font-bold flex items-center gap-2"><Bug size={20} className="text-red-500" /> সিস্টেম এরর লগ (System Error Logs)</h2>
+              <p className="text-xs text-gray-500 mt-1">সিস্টেমের সকল এরর এবং বাগ এখানে দেখা যাবে</p>
+            </div>
+            <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
+              <button 
+                onClick={() => setErrorFilter('unresolved')}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${errorFilter === 'unresolved' ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'text-gray-500 hover:text-white'}`}
+              >
+                Unresolved ({systemErrors.filter(e => !e.resolved).length})
+              </button>
+              <button 
+                onClick={() => setErrorFilter('all')}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${errorFilter === 'all' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-white'}`}
+              >
+                All Logs
+              </button>
+            </div>
           </div>
           <div className="space-y-4">
             {systemErrors.length === 0 ? (
               <div className="text-center py-12 bg-black/20 rounded-2xl border border-dashed border-white/5">
                 <CheckCircle2 size={48} className="mx-auto text-green-500 mb-4 opacity-20" />
-                <p className="text-gray-500 font-bold">কোনো পেন্ডিং এরর নেই। সিস্টেম স্থিতিশীল।</p>
+                <p className="text-gray-500 font-bold">কোনো এরর পাওয়া যায়নি</p>
               </div>
             ) : (
               systemErrors.map(err => (
-                <div key={err.id} className="bg-gray-800/50 p-5 rounded-2xl border border-white/5 hover:border-red-500/30 transition-all group">
+                <div key={err.id} className={`bg-gray-800/50 p-5 rounded-2xl border transition-all group ${err.resolved ? 'border-green-500/20 opacity-60' : 'border-white/5 hover:border-red-500/30'}`}>
                   <div className="flex justify-between items-start gap-4">
                     <div className="space-y-2 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] bg-red-500 text-white px-2 py-0.5 rounded font-black uppercase tracking-tighter">Error</span>
-                        <p className="text-sm font-bold text-white">{err.message || 'Unknown Error'}</p>
+                        <span className={`text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-tighter ${err.resolved ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
+                          {err.resolved ? 'Resolved' : 'Error'}
+                        </span>
+                        <p className={`text-sm font-bold ${err.resolved ? 'text-gray-400' : 'text-white'}`}>{err.message || err.error || 'Unknown Error'}</p>
                       </div>
                       <div className="bg-black/40 p-3 rounded-lg font-mono text-[10px] text-red-400 overflow-x-auto whitespace-pre-wrap border border-red-500/10">
                         {err.stack || 'No stack trace available'}
                       </div>
                       <div className="flex flex-wrap gap-3 text-[10px] text-gray-500 font-bold uppercase tracking-widest">
-                        <span className="flex items-center gap-1"><UserIcon size={10} /> User: {err.userId || 'Guest'}</span>
+                        <span className="flex items-center gap-1"><Zap size={10} className="text-yellow-500" /> {err.operationType || 'Unknown Op'}</span>
+                        <span className="flex items-center gap-1"><LayoutDashboard size={10} className="text-blue-500" /> {err.path || 'No Path'}</span>
+                        <span className="flex items-center gap-1"><UserIcon size={10} /> User: {err.authInfo?.userId || err.userId || 'Guest'}</span>
                         <span className="flex items-center gap-1"><Clock size={10} /> {err.timestamp?.toDate?.().toLocaleString() || 'N/A'}</span>
                         <span className="flex items-center gap-1"><Globe size={10} /> IP: {err.ip || 'Unknown'}</span>
+                        {err.resolved && (
+                          <span className="flex items-center gap-1 text-green-500"><Check size={10} /> Resolved by: {err.resolvedBy || 'Admin'}</span>
+                        )}
                       </div>
                     </div>
-                    <button 
-                      onClick={() => handleResolveError(err.id)}
-                      className="shrink-0 bg-green-600/20 text-green-500 hover:bg-green-600 hover:text-white p-3 rounded-xl transition-all border border-green-500/20"
-                      title="Mark as Resolved"
-                    >
-                      <Check size={20} />
-                    </button>
+                    {!err.resolved && (
+                      <button 
+                        onClick={() => handleResolveError(err.id)}
+                        className="shrink-0 bg-green-600/20 text-green-500 hover:bg-green-600 hover:text-white p-3 rounded-xl transition-all border border-green-500/20"
+                        title="Mark as Resolved"
+                      >
+                        <Check size={20} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+      {activeTab === 'activities' && (
+        <div className="bg-gray-900 rounded-2xl p-6 border border-white/10">
+          <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+            <Sparkles size={24} className="text-yellow-500" /> সাম্প্রতিক ইউজার অ্যাক্টিভিটি (Recent User Activity)
+          </h2>
+          <div className="space-y-3">
+            {activities.length === 0 ? (
+              <p className="text-gray-500 text-center py-12">কোনো অ্যাক্টিভিটি পাওয়া যায়নি</p>
+            ) : (
+              activities.map(act => (
+                <div key={act.id} className="bg-black/40 p-4 rounded-xl border border-white/5 flex items-center justify-between group hover:border-yellow-500/30 transition-all">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      act.type === 'game_selection' ? 'bg-blue-500/20 text-blue-500' :
+                      act.type === 'bet_placement' ? 'bg-green-500/20 text-green-500' :
+                      act.type === 'session_start' ? 'bg-purple-500/20 text-purple-500' :
+                      'bg-gray-500/20 text-gray-500'
+                    }`}>
+                      {act.type === 'game_selection' ? <Gamepad2 size={20} /> :
+                       act.type === 'bet_placement' ? <Zap size={20} /> :
+                       act.type === 'session_start' ? <UserIcon size={20} /> :
+                       <Activity size={20} />}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-white">
+                        {users.find(u => u.id === act.userId)?.username || 'Unknown User'} 
+                        <span className="text-gray-500 font-normal ml-2">
+                          {act.type === 'game_selection' ? 'গেম সিলেক্ট করেছেন' :
+                           act.type === 'bet_placement' ? 'বেট ধরেছেন' :
+                           act.type === 'session_start' ? 'লগইন করেছেন' :
+                           act.type === 'session_end' ? 'লগআউট করেছেন' :
+                           'পেজ ভিজিট করেছেন'}
+                        </span>
+                      </p>
+                      <div className="flex items-center gap-3 mt-1">
+                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+                          {act.timestamp?.toDate?.().toLocaleString() || 'Just now'}
+                        </p>
+                        {act.details?.gameName && (
+                          <span className="text-[10px] bg-white/5 px-2 py-0.5 rounded text-yellow-500 font-bold">
+                            {act.details.gameName}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right opacity-0 group-hover:opacity-100 transition-opacity">
+                    <p className="text-[10px] text-gray-600 font-mono">UID: {act.userId?.slice(0, 8)}</p>
                   </div>
                 </div>
               ))
@@ -861,6 +1048,29 @@ export default function AdminPanel({ showToast, onBack }: { showToast: (msg: str
                 placeholder="e.g. SPIN71BET"
               />
             </div>
+            {Object.entries(uiImages).map(([key, value]) => (
+              <div key={key} className="space-y-2">
+                <label className="text-sm text-gray-400 font-bold capitalize">{key.replace(/_/g, ' ')}</label>
+                <input 
+                  type="text" 
+                  value={value}
+                  onChange={(e) => setUiImages({...uiImages, [key]: e.target.value})}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-yellow-500 outline-none"
+                  placeholder={`Enter ${key.replace(/_/g, ' ')} URL`}
+                />
+              </div>
+            ))}
+          </div>
+          <button 
+            onClick={handleUpdateUIImages}
+            className="w-full bg-teal-600 text-white font-black py-4 rounded-xl hover:bg-teal-500 transition-all shadow-lg shadow-teal-500/20"
+          >
+            UI ইমেজ সেটিংস সেভ করুন (Save UI Images)
+          </button>
+
+          <hr className="border-white/10" />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
             <div className="space-y-2">
               <label className="text-sm text-gray-400 font-bold">টেলিগ্রাম লিংক (Telegram Link)</label>
@@ -1047,11 +1257,30 @@ export default function AdminPanel({ showToast, onBack }: { showToast: (msg: str
                   <div key={token.id} className="bg-gray-800 p-4 rounded-lg flex items-center justify-between">
                     <div>
                       <p className="font-bold text-white">{token.name}</p>
-                      <p className="text-xs text-gray-400 font-mono mt-1">{token.token}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <p className="text-xs text-gray-400 font-mono">{token.token}</p>
+                        <button 
+                          onClick={() => {
+                            navigator.clipboard.writeText(token.token);
+                            showToast("টোকেন কপি করা হয়েছে", "success");
+                          }}
+                          className="p-1 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
+                          title="Copy to clipboard"
+                        >
+                          <Copy size={12} />
+                        </button>
+                      </div>
                       <p className="text-[10px] text-gray-500 mt-1">Status: <span className={token.status === 'active' ? 'text-green-400' : 'text-red-400'}>{token.status}</span></p>
                       <p className="text-[10px] text-gray-500 mt-1">Expires: {token.expirationDate}</p>
                     </div>
                     <div className="flex gap-2">
+                      <button 
+                        onClick={() => setEditingToken(token)}
+                        className="p-2 bg-yellow-600/20 text-yellow-500 rounded hover:bg-yellow-600 hover:text-white transition-colors"
+                        title="Edit Token"
+                      >
+                        <Edit size={16} />
+                      </button>
                       <button 
                         onClick={async () => {
                           try {
@@ -1084,6 +1313,72 @@ export default function AdminPanel({ showToast, onBack }: { showToast: (msg: str
                   </div>
                 ))
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingToken && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[110] p-4">
+          <div className="bg-gray-900 border border-white/10 p-6 rounded-2xl w-full max-w-md space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <Edit size={20} className="text-yellow-500" /> টোকেন এডিট করুন
+              </h3>
+              <button onClick={() => setEditingToken(null)} className="text-gray-400 hover:text-white">
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs text-gray-400 uppercase font-bold mb-1 block">টোকেনের নাম</label>
+                <input 
+                  type="text" 
+                  value={editingToken.name} 
+                  onChange={(e) => setEditingToken({ ...editingToken, name: e.target.value })}
+                  className="w-full bg-black border border-white/10 p-3 rounded-xl text-white outline-none focus:border-yellow-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 uppercase font-bold mb-1 block">এক্সপায়ারেশন তারিখ</label>
+                <input 
+                  type="date" 
+                  value={editingToken.expirationDate} 
+                  onChange={(e) => setEditingToken({ ...editingToken, expirationDate: e.target.value })}
+                  className="w-full bg-black border border-white/10 p-3 rounded-xl text-white outline-none focus:border-yellow-500"
+                />
+              </div>
+              
+              <div className="pt-4 flex gap-3">
+                <button 
+                  onClick={() => setEditingToken(null)}
+                  className="flex-1 bg-gray-800 text-white font-bold py-3 rounded-xl hover:bg-gray-700 transition-all"
+                >
+                  বাতিল
+                </button>
+                <button 
+                  onClick={async () => {
+                    if (!editingToken.name || !editingToken.expirationDate) {
+                      showToast("সবগুলো ফিল্ড পূরণ করুন", "error");
+                      return;
+                    }
+                    try {
+                      await updateDoc(doc(db, 'api_tokens', editingToken.id), {
+                        name: editingToken.name,
+                        expirationDate: editingToken.expirationDate
+                      });
+                      showToast("টোকেন আপডেট হয়েছে", "success");
+                      setEditingToken(null);
+                    } catch (e) {
+                      showToast("আপডেট করতে সমস্যা হয়েছে", "error");
+                    }
+                  }}
+                  className="flex-1 bg-yellow-500 text-black font-bold py-3 rounded-xl hover:bg-yellow-400 transition-all shadow-lg shadow-yellow-500/20"
+                >
+                  সেভ করুন
+                </button>
+              </div>
             </div>
           </div>
         </div>

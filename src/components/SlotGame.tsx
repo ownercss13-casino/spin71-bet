@@ -4,7 +4,7 @@ import { ArrowLeft, Wallet, Play, RotateCcw, Star, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 import Reel from './Reel';
-import { updateBalance, updateTurnover, logUserActivity } from '../services/firebaseService';
+import { updateBalance, updateTurnover, logUserActivity, updateLeaderboard } from '../services/firebaseService';
 import { auth } from '../firebase';
 
 interface SlotGameProps {
@@ -21,11 +21,12 @@ interface SlotGameProps {
   referredBy?: string | null;
   globalLogo?: string;
   globalName?: string;
+  userData?: any;
 }
 
 const SYMBOLS = ['🍒', '🍋', '🍇', '🔔', '💎', '7️⃣', '⭐', '🍀'];
 
-export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate, referredBy, globalLogo, globalName }: SlotGameProps) {
+export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate, referredBy, globalLogo, globalName, userData }: SlotGameProps) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -113,6 +114,16 @@ export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate, 
       setLastWin(totalWin);
       setShowWin(true);
       onBalanceUpdate(userBalance + totalWin);
+      
+      // Update leaderboard
+      if (userData?.id) {
+        const achievements = [];
+        if (totalWin >= betAmount * 10) achievements.push('Big Winner');
+        if (betAmount >= 1000) achievements.push('High Roller');
+        
+        updateLeaderboard(userData.id, userData.username, totalWin, achievements, userData.profilePictureUrl);
+      }
+      
       logUserActivity('bet_placement', { gameId: game.id, gameName: game.name, amount: betAmount, winAmount: totalWin, type: 'win' });
       setRecentWins(prev => [{
         amount: totalWin,

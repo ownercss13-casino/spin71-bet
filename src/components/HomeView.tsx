@@ -3,6 +3,7 @@ import { Clock, Trophy, Download, X, RefreshCw, ChevronRight, Play, Wallet, User
 import { motion } from 'motion/react';
 import { GAME_IMAGES } from '../constants/gameAssets';
 import { GameGrid } from "./GameGrid";
+import GlobalImage from './GlobalImage';
 
 interface HomeViewProps {
   userData: any;
@@ -14,6 +15,7 @@ interface HomeViewProps {
   globalNames: Record<string, string>;
   globalUrls: Record<string, string>;
   globalOptions: Record<string, string>;
+  globalImages?: Record<string, string>;
   balance: number;
   isRefreshing: boolean;
   handleRefresh: () => void;
@@ -40,6 +42,7 @@ interface HomeViewProps {
   facebookLink?: string;
   showToast: (msg: string, type?: any) => void;
   loading?: boolean;
+  isAdmin?: boolean;
 }
 
 export default function HomeView({ 
@@ -52,6 +55,7 @@ export default function HomeView({
   globalNames,
   globalUrls,
   globalOptions,
+  globalImages = {},
   balance,
   isRefreshing,
   handleRefresh,
@@ -77,7 +81,8 @@ export default function HomeView({
   whatsappLink,
   facebookLink,
   showToast,
-  loading
+  loading,
+  isAdmin = false
 }: HomeViewProps) {
   const [editingCasinoName, setEditingCasinoName] = React.useState(false);
   const [tempCasinoName, setTempCasinoName] = React.useState(casinoName || "SPIN71BET");
@@ -91,6 +96,18 @@ export default function HomeView({
             <X size={14} />
           </button>
           <div className="flex items-center gap-1">
+            <div className="w-6 h-6 rounded overflow-hidden">
+              <GlobalImage 
+                imageKey="app_logo" 
+                defaultUrl="https://picsum.photos/seed/app/100/100" 
+                currentUrl={globalImages?.app_logo}
+                updateGlobalImage={async (url) => {
+                  const { updateGlobalImage } = await import('../services/firebaseService');
+                  await updateGlobalImage('app_logo', url);
+                }}
+                isAdmin={isAdmin}
+              />
+            </div>
             <span className="bg-gradient-to-b from-yellow-400 to-yellow-600 text-black px-1 rounded text-[10px] font-bold border border-yellow-300">
               {casinoName}.com
             </span>
@@ -112,15 +129,29 @@ export default function HomeView({
           <button onClick={() => setIsSidebarOpen(true)} className="text-[var(--text-main)] opacity-90 hover:opacity-100 transition-opacity">
             <Menu size={24} />
           </button>
-          <div 
-            onClick={() => {
-              setTempCasinoName(casinoName || "SPIN71BET");
-              setEditingCasinoName(true);
-            }}
-            className="text-2xl font-black italic tracking-tighter bg-gradient-to-b from-yellow-200 via-yellow-400 to-yellow-600 text-transparent bg-clip-text drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] cursor-pointer"
-            title="নাম পরিবর্তন করতে ক্লিক করুন"
-          >
-            {casinoName}
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg overflow-hidden">
+              <GlobalImage 
+                imageKey="casino_logo" 
+                defaultUrl="https://picsum.photos/seed/casino/100/100" 
+                currentUrl={globalImages?.casino_logo}
+                updateGlobalImage={async (url) => {
+                  const { updateGlobalImage } = await import('../services/firebaseService');
+                  await updateGlobalImage('casino_logo', url);
+                }}
+                isAdmin={isAdmin}
+              />
+            </div>
+            <div 
+              onClick={() => {
+                setTempCasinoName(casinoName || "SPIN71BET");
+                setEditingCasinoName(true);
+              }}
+              className="text-2xl font-black italic tracking-tighter bg-gradient-to-b from-yellow-200 via-yellow-400 to-yellow-600 text-transparent bg-clip-text drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] cursor-pointer"
+              title="নাম পরিবর্তন করতে ক্লিক করুন"
+            >
+              {casinoName}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -198,20 +229,33 @@ export default function HomeView({
         <div className="relative h-48 bg-gradient-to-br from-[#0a1e1e] to-[#050f0f] rounded-3xl overflow-hidden border border-yellow-500/20 shadow-[0_0_30px_rgba(234,179,8,0.15)] group">
           {/* Animated Background Elements */}
           <div className="absolute inset-0 z-0">
-            <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
-            <div className="absolute -right-20 -top-20 w-80 h-80 bg-yellow-500/5 rounded-full blur-[100px] animate-pulse"></div>
-            <div className="absolute -left-20 -bottom-20 w-80 h-80 bg-teal-500/5 rounded-full blur-[100px] animate-pulse delay-700"></div>
+            <GlobalImage 
+              imageKey="hero_banner_bg"
+              defaultUrl="https://www.transparenttextures.com/patterns/carbon-fibre.png"
+              currentUrl={globalImages['hero_banner_bg']}
+              alt="Banner Background"
+              showToast={showToast}
+              className="w-full h-full object-cover opacity-30"
+              containerClassName="absolute inset-0 w-full h-full pointer-events-auto"
+              isAdmin={true}
+            />
+            <div className="absolute -right-20 -top-20 w-80 h-80 bg-yellow-500/5 rounded-full blur-[100px] animate-pulse pointer-events-none"></div>
+            <div className="absolute -left-20 -bottom-20 w-80 h-80 bg-teal-500/5 rounded-full blur-[100px] animate-pulse delay-700 pointer-events-none"></div>
           </div>
 
           {/* Character Image */}
           <div className="absolute right-0 bottom-0 w-[55%] h-full z-20 pointer-events-none">
-            <img 
-              src="https://picsum.photos/seed/casino_host/800/800" 
-              alt="Casino Host" 
+            <GlobalImage 
+              imageKey="hero_banner_host"
+              defaultUrl="https://picsum.photos/seed/casino_host/800/800"
+              currentUrl={globalImages['hero_banner_host']}
+              alt="Casino Host"
+              showToast={showToast}
               className="w-full h-full object-contain object-bottom transform scale-110 group-hover:scale-115 transition-transform duration-700 drop-shadow-[0_10px_30px_rgba(0,0,0,0.8)]"
-              referrerPolicy="no-referrer"
+              containerClassName="w-full h-full pointer-events-auto"
+              isAdmin={true}
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#050f0f]/80 via-transparent to-transparent"></div>
+            <div className="absolute inset-0 bg-gradient-to-t from-[#050f0f]/80 via-transparent to-transparent pointer-events-none"></div>
           </div>
 
           {/* Banner Content */}
@@ -240,9 +284,20 @@ export default function HomeView({
               </p>
             </div>
 
-            <button className="bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600 text-black text-xs font-black px-6 py-2.5 rounded-xl shadow-[0_10px_20px_rgba(234,179,8,0.3)] hover:scale-105 active:scale-95 transition-all border border-yellow-200 uppercase tracking-widest w-fit">
-              এখনই শুরু করুন
-            </button>
+            <div className="flex gap-2">
+              <button className="bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600 text-black text-xs font-black px-6 py-2.5 rounded-xl shadow-[0_10px_20px_rgba(234,179,8,0.3)] hover:scale-105 active:scale-95 transition-all border border-yellow-200 uppercase tracking-widest w-fit">
+                এখনই শুরু করুন
+              </button>
+              <button 
+                onClick={() => {
+                  showToast("ব্যানারটি সেভ করা হয়েছে!", "success");
+                }}
+                className="bg-white/10 backdrop-blur-md text-white text-xs font-black px-6 py-2.5 rounded-xl border border-white/20 hover:bg-white/20 transition-all uppercase tracking-widest flex items-center gap-2"
+              >
+                <Star size={14} className="fill-yellow-400 text-yellow-400" />
+                সেভ করুন
+              </button>
+            </div>
           </div>
 
           {/* Pagination Dots */}
@@ -351,14 +406,17 @@ export default function HomeView({
                   className="flex-shrink-0 w-24 group cursor-pointer"
                 >
                   <div className="relative aspect-[3/4] rounded-xl overflow-hidden border border-white/10 shadow-lg group-hover:border-teal-500/50 transition-all">
-                    <img 
-                      src={globalLogos[game.id === '1' ? 'aviator' : game.id] || game.image} 
-                      alt={game.name}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                      referrerPolicy="no-referrer"
+                    <GlobalImage 
+                      imageKey={game.id === '1' ? 'aviator' : game.id} 
+                      defaultUrl={game.image} 
+                      currentUrl={globalLogos[game.id === '1' ? 'aviator' : game.id]}
+                      updateGlobalImage={async (url) => {
+                        await updateGlobalGameLogo(game.id === '1' ? 'aviator' : game.id, url);
+                      }}
+                      isAdmin={isAdmin}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-40 transition-opacity"></div>
-                    <div className="absolute bottom-1 left-1 right-1">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-40 transition-opacity pointer-events-none"></div>
+                    <div className="absolute bottom-1 left-1 right-1 pointer-events-none">
                       <p className="text-[8px] font-black text-white truncate text-center uppercase tracking-tighter">{globalNames[game.id] || game.name}</p>
                     </div>
                   </div>
@@ -433,9 +491,10 @@ export default function HomeView({
           { id: 'সেরা', icon: Flame, label: 'সেরা' },
           { id: 'পছন্দ', icon: Star, label: 'পছন্দ' },
           { id: 'স্লট', icon: Gamepad2, label: 'স্লট' },
-          { id: 'লাইভ', icon: Tv, label: 'লাইভ' },
-          { id: 'টেবিল', icon: Club, label: 'টেবিল' },
-          { id: 'মাছ', icon: Fish, label: 'মাছ' },
+          { id: 'Live Casino', icon: Tv, label: 'Live Casino' },
+          { id: 'Table Games', icon: Club, label: 'Table Games' },
+          { id: 'Fishing Games', icon: Fish, label: 'Fishing Games' },
+          { id: 'Lottery', icon: Ticket, label: 'Lottery' },
         ].map((cat) => (
           <div 
             key={cat.id}
@@ -497,7 +556,7 @@ export default function HomeView({
           loading={loading}
           allButtonName={allButtonName}
           showToast={showToast}
-          isAdmin={userData?.role === 'admin'}
+          isAdmin={isAdmin}
           onAllButtonNameChange={async (newName) => {
             if (updateAllButtonName) {
               try {

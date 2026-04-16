@@ -1,33 +1,55 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, Wallet, CreditCard, Building2, Smartphone, ShieldCheck, History, ArrowRight, Copy, Check, AlertCircle, X, RefreshCw, ArrowDownLeft, Loader2, Headset } from 'lucide-react';
-
-import { updateUserProfile, addNotification, updateRequiredTurnoverOnDeposit, processDepositCommission } from '../services/firebaseService';
+import { ChevronLeft, ClipboardList, MessageCircle, Check, Copy, ShieldCheck, ArrowRight, Loader2, X } from 'lucide-react';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
+import { updateUserProfile, addNotification, updateRequiredTurnoverOnDeposit, processDepositCommission } from '../services/firebaseService';
+import { ToastType } from './Toast';
+import GlobalImage from './GlobalImage';
 
 const paymentMethods = [
-  { id: 'bkash', name: 'বিকাশ', icon: Smartphone, color: 'bg-[#e2136e]', bonus: '+5%' },
-  { id: 'nagad', name: 'নগদ', icon: CreditCard, color: 'bg-[#f7931e]', bonus: '+5%' },
-  { id: 'rocket', name: 'রকেট', icon: Building2, color: 'bg-[#8c1515]', bonus: '+2%' },
+  { 
+    id: 'nagad', 
+    name: 'NAGAD', 
+    label: 'নগদ',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Nagad_Logo.svg/1200px-Nagad_Logo.svg.png',
+    number: '01789527096'
+  },
+  { 
+    id: 'bkash', 
+    name: 'Bkash', 
+    label: 'বিকাশ',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/BKash_Logo.svg/1200px-BKash_Logo.svg.png',
+    number: '01860137045'
+  },
+  { 
+    id: 'rocket', 
+    name: 'Rocket', 
+    label: 'রকেট',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Rocket_logo.svg/1200px-Rocket_logo.svg.png',
+    number: '01860137045'
+  },
 ];
 
-const quickAmounts = [100, 200, 300, 500, 1200, 10000, 25000];
+const channels = [
+  { id: 'ch1', name: 'চ্যানেল ২ ১০' },
+  { id: 'ch2', name: 'চ্যানেল ২ ৬' },
+  { id: 'ch3', name: 'চ্যানেল ২ ৯' },
+];
 
-import Skeleton from './Skeleton';
-import { ToastType } from './Toast';
+const quickAmounts = [100, 200, 500, 800, 1000, 2000, 5000, 10000, 20000, 30000];
 
-export default function DepositView({ onTabChange, balance, onBalanceUpdate, userData, showToast, minDeposit = 100 }: { onTabChange: (tab: any) => void, balance: number, onBalanceUpdate: (amount: number) => void, userData: any, showToast: (msg: string, type?: ToastType) => void, minDeposit?: number }) {
+export default function DepositView({ onTabChange, balance, onBalanceUpdate, userData, showToast, minDeposit = 100, globalImages = {}, isAdmin = false }: { onTabChange: (tab: any) => void, balance: number, onBalanceUpdate: (amount: number) => void, userData: any, showToast: (msg: string, type?: ToastType) => void, minDeposit?: number, globalImages?: Record<string, string>, isAdmin?: boolean }) {
   const [step, setStep] = useState(1);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState('nagad');
+  const [selectedChannel, setSelectedChannel] = useState('ch1');
   const [amount, setAmount] = useState('');
+  const [selectedBonus, setSelectedBonus] = useState('none');
   const [trxId, setTrxId] = useState('');
   const [senderNumber, setSenderNumber] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
-  const [showSystemClosedPopup, setShowSystemClosedPopup] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [deposits, setDeposits] = useState<any[]>([]);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -40,78 +62,38 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const trxData = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data,
-          date: data.date instanceof Timestamp ? 
-                data.date.toDate().toLocaleString('en-GB', { 
-                  year: 'numeric', 
-                  month: '2-digit', 
-                  day: '2-digit', 
-                  hour: '2-digit', 
-                  minute: '2-digit' 
-                }).replace(/\//g, '-') : data.date
-        };
-      });
+      const trxData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
       setDeposits(trxData);
-      setIsLoadingHistory(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, path);
-      setIsLoadingHistory(false);
     });
 
     return () => unsubscribe();
   }, []);
 
   const handleNextStep = () => {
-    if (selectedMethod !== 'nagad' && selectedMethod !== 'bkash' && selectedMethod !== 'rocket') {
-      setShowSystemClosedPopup(true);
-      return;
-    }
-
     const depositAmount = parseFloat(amount);
-    if (isNaN(depositAmount) || depositAmount < minDeposit || depositAmount > 25000) {
-      showToast(`সর্বনিম্ন ডিপোজিট ${minDeposit} টাকা এবং সর্বোচ্চ ২৫,০০০ টাকা।`, 'warning');
+    if (isNaN(depositAmount) || depositAmount < minDeposit) {
+      showToast(`সর্বনিম্ন ডিপোজিট ${minDeposit} টাকা`, 'warning');
       return;
     }
-
     setStep(2);
   };
 
   const handleDeposit = async () => {
-    const depositAmount = parseFloat(amount);
-    if (isNaN(depositAmount) || depositAmount < minDeposit || depositAmount > 25000) {
-      showToast(`সর্বনিম্ন ডিপোজিট ${minDeposit} টাকা এবং সর্বোচ্চ ২৫,০০০ টাকা।`, 'warning');
-      return;
-    }
-
-    if (!trxId.trim()) {
-      showToast('দয়া করে ট্রানজেকশন আইডি (TrxID) দিন।', 'warning');
-      return;
-    }
-
-    if (!senderNumber.trim()) {
-      showToast('দয়া করে সেন্ডার নাম্বার দিন (যে নাম্বার থেকে টাকা পাঠিয়েছেন)।', 'warning');
-      return;
-    }
-
-    if (!auth.currentUser) {
-      showToast('You must be logged in to deposit.', 'error');
+    if (!trxId.trim() || !senderNumber.trim()) {
+      showToast('সবগুলো তথ্য পূরণ করুন', 'warning');
       return;
     }
 
     setIsSubmitting(true);
-    const path = `users/${auth.currentUser.uid}/transactions`;
     try {
-      let isFirstDeposit = false;
-      if (userData?.id && !userData.hasMadeDeposit) {
-        isFirstDeposit = true;
-        await updateUserProfile(userData.id, { hasMadeDeposit: true });
-      }
+      const depositAmount = parseFloat(amount);
+      const path = `users/${auth.currentUser?.uid}/transactions`;
       
-      const path = `users/${auth.currentUser.uid}/transactions`;
       await addDoc(collection(db, path), {
         type: 'deposit',
         amount: depositAmount,
@@ -120,382 +102,356 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
         number: senderNumber,
         status: 'pending',
         date: serverTimestamp(),
-        statusColor: 'bg-yellow-500/20 text-yellow-500'
+        bonusType: selectedBonus
       });
 
-      await addNotification(auth.currentUser.uid, {
+      await addNotification(auth.currentUser?.uid || '', {
         title: "ডিপোজিট রিকোয়েস্ট!",
-        message: `আপনার ৳ ${depositAmount} ডিপোজিট রিকোয়েস্টটি সফলভাবে জমা হয়েছে। এডমিন এপ্রুভ করলে ব্যালেন্স যোগ হবে।`,
+        message: `আপনার ৳ ${depositAmount} ডিপোজিট রিকোয়েস্টটি সফলভাবে জমা হয়েছে।`,
         type: "account"
       });
 
-      // Update required turnover and total deposit
-      await updateRequiredTurnoverOnDeposit(auth.currentUser.uid, depositAmount);
-
-      // Handle referral bonus for first deposit
-      if (isFirstDeposit && depositAmount >= 100 && userData?.referredBy) {
-        const referrerPath = `users/${userData.referredBy}`;
-        const bonusAmount = 50;
-        
-        // We use updateDoc directly here for simplicity, but in a real app this might be a transaction
-        // or handled by a cloud function when the deposit is actually approved.
-        // For this prototype, we'll award it upon request.
-        try {
-          const { updateDoc, increment, doc } = await import('firebase/firestore');
-          await updateDoc(doc(db, referrerPath), {
-            balance: increment(bonusAmount),
-            totalReferralEarnings: increment(bonusAmount)
-          });
-          
-          await addNotification(userData.referredBy, {
-            title: "রেফারেল বোনাস!",
-            message: `আপনার রেফার করা ইউজার প্রথম ডিপোজিট করায় আপনি ৳ ${bonusAmount} বোনাস পেয়েছেন।`,
-            type: "bonus"
-          });
-        } catch (e) {
-          console.error("Failed to award referral bonus", e);
-        }
-      }
-
-      // Process 3.2% commission for every deposit
-      if (userData?.referredBy) {
-        await processDepositCommission(auth.currentUser.uid, depositAmount);
-      }
-
-      showToast('ডিপোজিট রিকোয়েস্ট সফল হয়েছে! এডমিন এপ্রুভ করলে আপনার ব্যালেন্স আপডেট হবে।', 'success');
+      showToast('ডিপোজিট রিকোয়েস্ট সফল হয়েছে!', 'success');
       onTabChange('home');
     } catch (error) {
-      showToast('ডিপোজিট রিকোয়েস্ট ব্যর্থ হয়েছে। আবার চেষ্টা করুন।', 'error');
-      handleFirestoreError(error, OperationType.WRITE, path);
+      showToast('ডিপোজিট রিকোয়েস্ট ব্যর্থ হয়েছে', 'error');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  return (
-    <div className="flex-1 overflow-y-auto pb-24 bg-[var(--bg-main)] relative transition-colors duration-300">
-      {isSubmitting && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm max-w-md mx-auto">
-          <div className="flex flex-col items-center gap-3 bg-[var(--bg-surface)]/90 p-8 rounded-3xl border border-[var(--border-color)] shadow-2xl scale-110">
-            <RefreshCw size={48} className="text-yellow-500 animate-spin" />
-            <span className="text-[var(--text-main)] font-black italic uppercase tracking-tighter text-lg animate-pulse">Processing...</span>
-          </div>
-        </div>
-      )}
-      {/* Header */}
-      <div className="bg-[var(--bg-surface)] p-4 pt-6 rounded-b-3xl shadow-lg relative overflow-hidden transition-colors duration-300">
-        <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
-        <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-yellow-400/20 rounded-full blur-3xl"></div>
-        
-        <div className="flex justify-between items-center relative z-10 mb-6">
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={() => onTabChange('home')}
-              className="p-2 bg-black/20 hover:bg-black/40 rounded-full transition-colors text-white backdrop-blur-sm"
-            >
-              <ChevronLeft size={20} />
+  const isNextEnabled = amount !== '' && parseFloat(amount) >= minDeposit;
+
+  if (showHistory) {
+    return (
+      <div className="flex flex-col min-h-screen bg-white pb-24 font-sans">
+        <header className="bg-[#2d1b4d] text-white p-4 flex items-center justify-between sticky top-0 z-50">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setShowHistory(false)} className="p-1">
+              <ChevronLeft size={28} />
             </button>
-            <h2 className="text-2xl font-black italic tracking-tighter text-white drop-shadow-md">
-              SPIN71 <span className="text-yellow-400">DEPOSIT</span>
-            </h2>
+            <h1 className="text-xl font-medium">ডিপোজিট ইতিহাস</h1>
           </div>
-          <button onClick={() => setShowHistory(!showHistory)} className={`p-2 rounded-full transition-colors backdrop-blur-sm ${showHistory ? 'bg-yellow-500 text-black' : 'bg-black/30 hover:bg-black/50 text-white'}`}>
-            <History size={20} />
+        </header>
+        <main className="p-4 space-y-3">
+          {deposits.length > 0 ? deposits.map(d => (
+            <div key={d.id} className="p-4 border rounded-xl flex justify-between items-center">
+              <div>
+                <p className="font-bold text-gray-800 uppercase">{d.method}</p>
+                <p className="text-xs text-gray-500">{d.trxId}</p>
+              </div>
+              <div className="text-right">
+                <p className="font-bold text-green-600">৳{d.amount}</p>
+                <p className={`text-xs ${d.status === 'approved' ? 'text-green-500' : d.status === 'rejected' ? 'text-red-500' : 'text-yellow-500'}`}>
+                  {d.status === 'approved' ? 'সফল' : d.status === 'rejected' ? 'বাতিল' : 'পেন্ডিং'}
+                </p>
+              </div>
+            </div>
+          )) : (
+            <div className="text-center py-20 text-gray-400">কোনো ইতিহাস পাওয়া যায়নি</div>
+          )}
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col min-h-screen bg-white pb-24 font-sans">
+      {/* Header */}
+      <header className="bg-[#2d1b4d] text-white p-4 flex items-center justify-between sticky top-0 z-50">
+        <div className="flex items-center gap-4">
+          <button onClick={() => step === 2 ? setStep(1) : onTabChange('home')} className="p-1">
+            <ChevronLeft size={28} />
+          </button>
+          <h1 className="text-xl font-medium">{step === 1 ? 'জমা দিন' : 'পেমেন্ট সম্পন্ন করুন'}</h1>
+        </div>
+        <div className="flex items-center gap-4">
+          <button onClick={() => setShowHistory(true)} className="p-1">
+            <ClipboardList size={24} />
+          </button>
+          <button onClick={() => window.open('https://t.me/spin71_bot', '_blank')} className="p-1">
+            <MessageCircle size={24} />
           </button>
         </div>
+      </header>
 
-        {/* Current Balance Card */}
-        <div className="bg-[var(--bg-card)]/50 backdrop-blur-sm rounded-2xl p-4 border border-[var(--border-color)] relative z-10 flex justify-between items-center transition-colors duration-300">
-          <div>
-            <p className="text-[var(--text-muted)] text-sm mb-1">বর্তমান ব্যালেন্স</p>
-            <p className="text-3xl font-black text-[var(--text-main)]">৳ {balance.toLocaleString()}</p>
-          </div>
-          <div className="w-12 h-12 rounded-full bg-yellow-500/20 flex items-center justify-center border border-yellow-500/50">
-            <Wallet size={24} className="text-yellow-400" />
-          </div>
-        </div>
-      </div>
-
-      <div className="p-4 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {showHistory ? (
-          <div className="space-y-4">
-            <h4 className="text-[var(--text-main)] font-bold flex items-center gap-2">
-              <History size={18} className="text-[var(--brand-primary)]" />
-              ডিপোজিটের ইতিহাস
-            </h4>
-            
-            {isLoadingHistory ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i}>
-                    <Skeleton className="h-20 w-full" />
-                  </div>
-                ))}
-              </div>
-            ) : deposits.length > 0 ? (
-              <div className="space-y-3">
-                {deposits.map((trx) => (
-                  <div key={trx.id} className="bg-[var(--bg-card)] p-4 rounded-2xl border border-[var(--border-color)] flex items-center justify-between transition-colors duration-300">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center">
-                        <ArrowDownLeft size={18} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-[var(--text-main)] uppercase">{trx.method}</p>
-                        <p className="text-[10px] text-[var(--text-muted)]">{trx.date}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-green-400">+৳{Math.abs(trx.amount).toLocaleString()}</p>
-                      <p className={`text-[10px] mt-0.5 ${trx.statusColor || 'text-yellow-500'}`}>{trx.status}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="bg-[var(--bg-card)] p-8 rounded-2xl border border-[var(--border-color)] text-center transition-colors duration-300">
-                <History size={32} className="text-[var(--text-muted)] opacity-50 mx-auto mb-2" />
-                <p className="text-[var(--text-muted)] text-sm">কোনো ডিপোজিটের ইতিহাস নেই</p>
-              </div>
-            )}
-          </div>
-        ) : step === 1 ? (
+      <main className="flex-1 overflow-y-auto">
+        {step === 1 ? (
           <>
-            {/* Payment Methods */}
-            <div>
-              <h3 className="text-[var(--text-main)] font-bold mb-3 flex items-center gap-2">
-                <CreditCard size={18} className="text-[var(--brand-primary)]" />
-                পেমেন্ট মেথড নির্বাচন করুন
-              </h3>
-              <div className="grid grid-cols-3 gap-3">
-                {paymentMethods.map(method => (
+            {/* Deposit Mode */}
+            <section className="p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-2 h-2 rounded-full bg-orange-500"></div>
+                <h2 className="text-gray-800 font-bold text-base">আমানতের মোড</h2>
+              </div>
+              <div className="flex gap-4">
+                {paymentMethods.map((method) => (
                   <button
                     key={method.id}
-                    onClick={() => {
-                      if (method.id !== 'nagad' && method.id !== 'bkash' && method.id !== 'rocket') {
-                        setShowSystemClosedPopup(true);
-                        return;
-                      }
-                      setSelectedMethod(method.id);
-                    }}
-                    className={`relative flex flex-col items-center gap-2 p-3 rounded-xl border transition-all duration-300 ${
-                      selectedMethod === method.id 
-                        ? 'bg-[var(--bg-card)] border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.2)]' 
-                        : 'bg-[var(--bg-card)] border-[var(--border-color)] hover:border-[var(--text-muted)]'
+                    onClick={() => setSelectedMethod(method.id)}
+                    className={`relative w-[110px] h-[110px] flex flex-col items-center justify-center rounded-xl border-2 transition-all ${
+                      selectedMethod === method.id ? 'border-red-500' : 'border-gray-100'
                     }`}
                   >
-                    {method.bonus && (
-                      <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-[var(--bg-card)] animate-pulse">
-                        {method.bonus}
-                      </span>
-                    )}
-                    <div className={`w-10 h-10 rounded-full ${method.color} flex items-center justify-center shadow-lg`}>
-                      <method.icon size={20} className="text-white" />
+                    <div className="w-12 h-12 mb-2 flex items-center justify-center">
+                      <GlobalImage 
+                        imageKey={`payment_logo_${method.id}`}
+                        defaultUrl={method.logo}
+                        currentUrl={globalImages[`payment_logo_${method.id}`]}
+                        alt={method.name}
+                        showToast={showToast}
+                        className="max-w-full max-h-full object-contain"
+                        isAdmin={isAdmin}
+                      />
                     </div>
-                    <span className="text-xs font-medium text-[var(--text-muted)]">{method.name}</span>
+                    <span className={`text-xs font-bold ${selectedMethod === method.id ? 'text-red-500' : 'text-gray-800'}`}>
+                      {method.label}
+                    </span>
+                    <span className={`text-[10px] font-bold mt-0.5 ${selectedMethod === method.id ? 'text-red-500' : 'text-gray-400'}`}>
+                      {method.name}
+                    </span>
                     {selectedMethod === method.id && (
-                      <div className="absolute inset-0 border-2 border-yellow-400 rounded-xl pointer-events-none"></div>
+                      <div className="absolute bottom-0 right-0 bg-red-500 text-white p-0.5 rounded-tl-lg">
+                        <Check size={12} strokeWidth={4} />
+                      </div>
                     )}
                   </button>
                 ))}
               </div>
-            </div>
+              <p className="text-red-500 text-[13px] mt-4 leading-tight font-medium">
+                আপনাকে trxid পূরণ করতে হবে। আপনি যদি রিচার্জটি পূরণ না করেন তবে রিচার্জটি জমা হবে না
+              </p>
+            </section>
 
-            {/* Amount Selection */}
-            <div className="bg-[var(--bg-card)] p-4 rounded-2xl border border-[var(--border-color)] transition-colors duration-300">
-              <h3 className="text-[var(--text-main)] font-bold mb-3 text-sm">জমার পরিমাণ (৳)</h3>
-              <div className="relative mb-4">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] font-bold text-xl">৳</span>
-                <input 
-                  type="number" 
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] rounded-xl py-4 pl-10 pr-4 text-[var(--text-main)] font-black text-2xl focus:outline-none focus:border-yellow-400 transition-colors"
-                  placeholder="100 - 25000"
-                />
+            <div className="h-2 bg-gray-50"></div>
+
+            {/* Payment Channel */}
+            <section className="p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-2 h-2 rounded-full bg-teal-400"></div>
+                <h2 className="text-gray-800 font-bold text-base">পেমেন্ট চ্যানেল</h2>
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                {quickAmounts.map(amt => (
+              <div className="grid grid-cols-3 gap-3">
+                {channels.map((channel) => (
+                  <button
+                    key={channel.id}
+                    onClick={() => setSelectedChannel(channel.id)}
+                    className={`py-4 px-1 rounded-xl border-2 text-[13px] font-bold transition-all ${
+                      selectedChannel === channel.id ? 'border-red-500 text-red-500' : 'border-gray-100 text-gray-800'
+                    }`}
+                  >
+                    {channel.name}
+                  </button>
+                ))}
+              </div>
+              <p className="text-red-500 text-[13px] mt-4 leading-tight font-medium">
+                আপনাকে trxid পূরণ করতে হবে। আপনি যদি রিচার্জটি পূরণ না করেন তবে রিচার্জটি জমা হবে না
+              </p>
+            </section>
+
+            <div className="h-2 bg-gray-50"></div>
+
+            {/* Deposit Amount */}
+            <section className="p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-2 h-2 rounded-full bg-rose-400"></div>
+                <h2 className="text-gray-800 font-bold text-base">জমা পরিমাণ</h2>
+              </div>
+              <div className="grid grid-cols-5 gap-2 mb-4">
+                {quickAmounts.map((amt) => (
                   <button
                     key={amt}
                     onClick={() => setAmount(amt.toString())}
-                    className={`py-2.5 rounded-lg font-bold text-sm transition-colors ${
-                      amount === amt.toString()
-                        ? 'bg-yellow-500 text-black'
-                        : 'bg-[var(--bg-surface)] text-[var(--text-muted)] hover:bg-black/10'
+                    className={`py-2 rounded-lg border text-[13px] font-bold transition-all ${
+                      amount === amt.toString() ? 'border-red-500 text-red-500' : 'border-gray-200 text-gray-600'
                     }`}
                   >
                     {amt.toLocaleString()}
                   </button>
                 ))}
               </div>
-            </div>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-800 font-bold text-lg">৳</span>
+                <input
+                  type="text"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="100 - 30,000"
+                  className="w-full bg-gray-50 border border-gray-100 rounded-xl py-4 pl-10 pr-4 text-gray-800 font-bold text-lg focus:outline-none placeholder:text-gray-400 placeholder:font-medium"
+                />
+              </div>
+            </section>
 
-            {/* Next Button */}
-            <button 
-              onClick={handleNextStep}
-              className="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-black font-black text-lg py-4 rounded-xl shadow-[0_0_20px_rgba(250,204,21,0.4)] transition-all active:scale-95 flex items-center justify-center gap-2"
-            >
-              কনফার্ম করুন <ArrowRight size={20} />
-            </button>
+            <div className="h-2 bg-gray-50"></div>
 
-            {/* Support Button */}
-            <div className="mt-4">
+            {/* Activities */}
+            <section className="p-4 space-y-4">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-2 h-2 rounded-full bg-blue-400"></div>
+                <h2 className="text-gray-800 font-bold text-base">কার্যক্রম</h2>
+              </div>
+              
               <button 
-                onClick={() => window.open('https://t.me/spin71_bot', '_blank')}
-                className="w-full bg-blue-600/20 border border-blue-500/30 text-blue-400 font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-600/30 transition-all"
+                onClick={() => setSelectedBonus('daily8')}
+                className={`w-full p-4 rounded-xl border-2 flex items-center justify-between transition-all ${
+                  selectedBonus === 'daily8' ? 'border-red-500' : 'border-gray-100'
+                }`}
               >
-                <Headset size={18} /> পেমেন্ট করতে সমস্যা হলে এখানে ক্লিক করুন
+                <div className="flex items-center gap-3">
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                    selectedBonus === 'daily8' ? 'border-red-500' : 'border-gray-300'
+                  }`}>
+                    {selectedBonus === 'daily8' && <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>}
+                  </div>
+                  <span className="text-gray-400 font-bold text-sm">ডেইলি ৮% ফার্স্ট ডিপোজিট বোনাস (1/1)</span>
+                </div>
+                <span className="text-gray-400 font-bold text-sm">≥ ৳ 100.00</span>
               </button>
-            </div>
+
+              <button 
+                onClick={() => setSelectedBonus('none')}
+                className={`w-full p-4 rounded-xl border-2 flex items-center gap-3 transition-all ${
+                  selectedBonus === 'none' ? 'border-red-500' : 'border-gray-100'
+                }`}
+              >
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                  selectedBonus === 'none' ? 'border-red-500' : 'border-gray-300'
+                }`}>
+                  {selectedBonus === 'none' && <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>}
+                </div>
+                <span className="text-gray-800 font-bold text-sm">কোনও প্রচারে অংশ নেওয়া যায় না</span>
+              </button>
+            </section>
           </>
         ) : (
-          <>
-            {/* Step 2: Dynamic Instructions & Form */}
-            <div className="flex items-center gap-3 mb-2">
-              <button 
-                onClick={() => setStep(1)}
-                className="p-2 bg-[var(--bg-card)] hover:bg-black/10 rounded-full transition-colors text-[var(--text-main)] border border-[var(--border-color)]"
-              >
-                <ChevronLeft size={18} />
-              </button>
-              <h3 className="text-[var(--text-main)] font-bold text-lg">পেমেন্ট সম্পন্ন করুন</h3>
-            </div>
-
-            {['nagad', 'bkash', 'rocket'].includes(selectedMethod) && (() => {
-              const isBkash = selectedMethod === 'bkash';
-              const isNagad = selectedMethod === 'nagad';
-              const theme = isBkash ? {
-                bg: 'bg-rose-500',
-                bgHover: 'hover:bg-rose-600',
-                text: 'text-rose-400',
-                border: 'border-rose-500',
-                lightBg: 'bg-rose-500/10',
-                lightBorder: 'border-rose-500/30',
-                number: '01860137045',
-                name: 'বিকাশ'
-              } : isNagad ? {
-                bg: 'bg-orange-500',
-                bgHover: 'hover:bg-orange-600',
-                text: 'text-orange-400',
-                border: 'border-orange-500',
-                lightBg: 'bg-orange-500/10',
-                lightBorder: 'border-orange-500/30',
-                number: '01789527096',
-                name: 'নগদ'
-              } : {
-                bg: 'bg-purple-600',
-                bgHover: 'hover:bg-purple-700',
-                text: 'text-purple-400',
-                border: 'border-purple-600',
-                lightBg: 'bg-purple-600/10',
-                lightBorder: 'border-purple-600/30',
-                number: '01912345678', // Placeholder for Rocket
-                name: 'রকেট'
-              };
-
-              return (
-                <div className="bg-[var(--bg-card)] p-4 rounded-2xl border border-[var(--border-color)] space-y-4 transition-colors duration-300">
-                  <div className="flex justify-between items-center bg-black/30 p-3 rounded-xl border border-white/5">
-                    <span className="text-gray-400 text-sm">পরিমাণ:</span>
-                    <span className="text-yellow-400 font-black text-xl">৳ {amount}</span>
+          <div className="min-h-screen bg-white font-sans relative">
+            {/* Header Section */}
+            <div className="bg-[#005a3c] text-white p-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="text-2xl font-black">BDT {amount}.00</h2>
+                  <p className="text-sm font-medium mt-1">কম বা বেশি ক্যাশআউট করবেন না</p>
+                </div>
+                <div className="text-right">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="bg-white text-[#005a3c] px-2 py-0.5 rounded text-[10px] font-black italic">PAY</span>
+                    <span className="text-sm font-bold tracking-widest uppercase">Service</span>
                   </div>
-
-                  <div className={`${theme.lightBg} border ${theme.lightBorder} p-4 rounded-xl`}>
-                    <p className={`${theme.text} text-sm font-bold mb-2`}>{theme.name} সেন্ড মানি (Send Money)</p>
-                    <div className="flex items-center justify-between bg-black/50 p-3 rounded-lg border border-white/10">
-                      <span className="text-white font-mono text-lg tracking-wider">{theme.number}</span>
-                      <button 
-                        onClick={() => {
-                          navigator.clipboard.writeText(theme.number);
-                          setIsCopied(true);
-                          setTimeout(() => setIsCopied(false), 2000);
-                        }}
-                        className={`${theme.bg} ${theme.bgHover} text-white px-3 py-1.5 rounded text-xs font-bold transition-colors flex items-center gap-1`}
-                      >
-                        {isCopied ? <Check size={14} /> : <Copy size={14} />}
-                        {isCopied ? 'কপি হয়েছে' : 'কপি করুন'}
-                      </button>
-                    </div>
-                    <p className="text-xs text-gray-400 mt-2">উপরের নাম্বারে সেন্ড মানি করার পর নিচের তথ্যগুলো পূরণ করুন।</p>
-                  </div>
-
-                  {/* TrxID Input */}
-                  <div>
-                    <h3 className="text-[var(--text-main)] font-bold mb-2 text-sm">ট্রানজেকশন আইডি (TrxID)</h3>
-                    <input 
-                      type="text" 
-                      value={trxId}
-                      onChange={(e) => setTrxId(e.target.value)}
-                      className={`w-full bg-[var(--bg-input)] border border-[var(--border-color)] rounded-xl py-3 px-4 text-[var(--text-main)] font-mono focus:outline-none focus:${theme.border} transition-colors`}
-                      placeholder="যেমন: 8A7B6C5D4E"
-                    />
-                  </div>
-
-                  {/* Sender Number Input */}
-                  <div>
-                    <h3 className="text-[var(--text-main)] font-bold mb-2 text-sm">সেন্ডার নাম্বার (যে নাম্বার থেকে টাকা পাঠিয়েছেন)</h3>
-                    <input 
-                      type="tel" 
-                      value={senderNumber}
-                      onChange={(e) => setSenderNumber(e.target.value)}
-                      className={`w-full bg-[var(--bg-input)] border border-[var(--border-color)] rounded-xl py-3 px-4 text-[var(--text-main)] font-mono focus:outline-none focus:${theme.border} transition-colors`}
-                      placeholder="01XXXXXXXXX"
-                    />
-                  </div>
-
-                  <div className="mt-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-xl flex items-start gap-3">
-                    <ShieldCheck size={20} className="text-blue-400 shrink-0 mt-0.5" />
-                    <p className="text-xs text-blue-200 leading-relaxed">
-                      আপনার লেনদেন 100% সুরক্ষিত। জমা করার পর সাধারণত ১-৫ মিনিটের মধ্যে ব্যালেন্স যোগ হয়।
-                    </p>
+                  <div className="flex bg-white/20 rounded p-0.5 text-[10px] font-bold">
+                    <button className="px-2 py-1">EN</button>
+                    <button className="px-2 py-1 bg-white text-black rounded shadow-sm">বাং</button>
                   </div>
                 </div>
-              );
-            })()}
-
-            {/* Submit Button */}
-            <button 
-              onClick={handleDeposit}
-              className="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-black font-black text-lg py-4 rounded-xl shadow-[0_0_20px_rgba(250,204,21,0.4)] transition-all active:scale-95 flex items-center justify-center gap-2"
-            >
-              জমা করুন <ArrowRight size={20} />
-            </button>
-
-            {/* Support Button */}
-            <div className="mt-4">
-              <button 
-                onClick={() => window.open('https://t.me/spin71_bot', '_blank')}
-                className="w-full bg-blue-600/20 border border-blue-500/30 text-blue-400 font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-600/30 transition-all"
-              >
-                <Headset size={18} /> পেমেন্ট করতে সমস্যা হলে এখানে ক্লিক করুন
-              </button>
+              </div>
             </div>
-          </>
-        )}
-      </div>
 
-      {/* System Closed Popup */}
-      {showSystemClosedPopup && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-6 animate-in fade-in duration-300">
-          <div className="bg-teal-900 p-8 rounded-3xl text-center relative shadow-2xl border-2 border-red-500 max-w-sm w-full animate-in zoom-in duration-300">
-            <button onClick={() => setShowSystemClosedPopup(false)} className="absolute top-4 right-4 text-teal-300 hover:text-white">
-              <X size={24} />
-            </button>
-            <div className="w-20 h-20 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(239,68,68,0.4)]">
-              <AlertCircle size={40} className="text-white" />
-            </div>
-            <h3 className="text-2xl font-black mb-2 text-white italic">সিস্টেম বন্ধ!</h3>
-            <p className="text-teal-200 text-lg mb-6">এই পেমেন্ট সিস্টেমটি আপাতত বন্ধ আছে।</p>
+            {/* Close Button */}
             <button 
-              onClick={() => setShowSystemClosedPopup(false)}
-              className="w-full bg-red-500 text-white font-black py-3 rounded-xl hover:bg-red-400 transition-colors"
+              onClick={() => setStep(1)}
+              className="absolute top-[85px] left-4 w-10 h-10 bg-black rounded-full flex items-center justify-center text-white shadow-lg z-10"
             >
-              বন্ধ করুন
+              <X size={24} strokeWidth={3} />
             </button>
+
+            <div className="p-6 pt-12 space-y-6">
+              {/* Warning Message */}
+              <p className="text-[#ff4d4d] text-center font-bold text-lg leading-tight">
+                আপনি যদি টাকার পরিমাণ পরিবর্তন করেন (BDT {amount}.00), আপনি ক্রেডিট পেতে সক্ষম হবেন না।
+              </p>
+
+              {/* Deposit Banner */}
+              <div className="bg-[#ff4d4d] rounded-xl p-4 flex items-center gap-4 shadow-md">
+                <div className="w-16 h-16 bg-white rounded-full p-2 flex items-center justify-center border-2 border-[#005a3c]">
+                  <GlobalImage 
+                    imageKey={`payment_logo_${selectedMethod}`}
+                    defaultUrl={paymentMethods.find(m => m.id === selectedMethod)?.logo || ''}
+                    currentUrl={globalImages[`payment_logo_${selectedMethod}`]}
+                    alt="Logo"
+                    showToast={showToast}
+                    className="w-full h-full object-contain"
+                    isAdmin={isAdmin}
+                  />
+                </div>
+                <span className="text-white text-2xl font-black italic uppercase tracking-tight">
+                  {amount} Deposit
+                </span>
+              </div>
+
+              {/* Wallet No Section */}
+              <div className="space-y-2">
+                <label className="block text-lg font-black text-gray-900">Wallet No<span className="text-purple-600">*</span></label>
+                <p className="text-gray-900 font-bold text-base">এই {selectedMethod === 'nagad' ? 'NAGAD' : 'BKASH'} নাম্বারে শুধুমাত্র ক্যাশআউট গ্রহণ করা হয়</p>
+                <div className="bg-[#f2f2f2] rounded-xl p-4 flex justify-between items-center border border-gray-100">
+                  <span className="text-2xl font-black text-gray-800 tracking-wider">
+                    {paymentMethods.find(m => m.id === selectedMethod)?.number}
+                  </span>
+                  <button 
+                    onClick={() => {
+                      const num = paymentMethods.find(m => m.id === selectedMethod)?.number || '';
+                      navigator.clipboard.writeText(num);
+                      setIsCopied(true);
+                      setTimeout(() => setIsCopied(false), 2000);
+                    }}
+                    className="text-[#005a3c] p-1"
+                  >
+                    <ClipboardList size={32} />
+                  </button>
+                </div>
+              </div>
+
+              {/* TrxID Section */}
+              <div className="space-y-4">
+                <label className="block text-lg font-black text-gray-900">
+                  ক্যাশআউটের TrxID নাম্বারটি লিখুন <span className="text-[#ff4d4d]">(প্রয়োজন)</span>
+                </label>
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    value={trxId}
+                    onChange={(e) => setTrxId(e.target.value)}
+                    placeholder="TrxID অবশ্যই পূরণ করতে হবে!"
+                    className="w-full p-5 bg-white border-2 border-red-500 rounded-xl focus:outline-none text-xl font-bold placeholder:text-gray-300"
+                  />
+                </div>
+              </div>
+
+              {/* Confirm Button */}
+              <div className="flex justify-center pt-4">
+                <button 
+                  disabled={isSubmitting}
+                  onClick={handleDeposit}
+                  className="w-48 py-3 border-2 border-black rounded-xl bg-white text-black font-black text-xl hover:bg-gray-50 transition-colors active:scale-95 flex items-center justify-center"
+                >
+                  {isSubmitting ? <Loader2 className="animate-spin" /> : 'নিশ্চিত'}
+                </button>
+              </div>
+
+              {/* Footer Warning Section */}
+              <div className="space-y-2 pt-4">
+                <h4 className="text-lg font-black text-gray-900">সতর্কতাঃ</h4>
+                <p className="text-[#ff4d4d] font-bold text-sm">লেনদেন আইডি সঠিকভাবে পূরণ করতে হবে, অন্যথায় স্কোর ব্যর্থ হবে!!</p>
+                <p className="text-gray-400 text-sm leading-relaxed font-medium">
+                  অনুগ্রহ করে নিশ্চিত হয়ে নিন যে আপনি {selectedMethod === 'nagad' ? 'NAGAD' : 'BKASH'} deposit ওয়ালেট নাম্বারে ক্যাশ আউট করছেন। এই নাম্বারের অন্য কোন ওয়ালেট থেকে ক্যাশ আউট করলে সেই টাকা পাওয়ার কোন সম্ভাবনা নাই
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </main>
+
+      {/* Footer Button */}
+      <footer className="fixed bottom-0 left-0 right-0 p-4 bg-[#f5f5f5] border-t border-gray-200 z-50">
+        <button 
+          disabled={isSubmitting || (step === 1 && !isNextEnabled)}
+          onClick={step === 1 ? handleNextStep : handleDeposit}
+          className={`w-full py-4 font-bold text-lg rounded-lg transition-all flex items-center justify-center gap-2 ${
+            isSubmitting ? 'bg-gray-400 cursor-not-allowed' :
+            (step === 1 ? (isNextEnabled ? 'bg-red-500 text-white' : 'bg-[#cccccc] text-white') : 'bg-red-500 text-white')
+          }`}
+        >
+          {isSubmitting ? <Loader2 className="animate-spin" /> : (step === 1 ? 'পরবর্তী' : 'জমা সম্পন্ন করুন')}
+        </button>
+      </footer>
     </div>
   );
 }

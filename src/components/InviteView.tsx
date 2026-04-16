@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { collection, query, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { 
   Copy, 
   HelpCircle, 
@@ -46,6 +46,8 @@ export default function InviteView({ onTabChange, userData, showToast, initialSu
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setReferralsList(list);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, `users/${userData.id}/referrals`);
     });
     
     return () => unsubscribe();

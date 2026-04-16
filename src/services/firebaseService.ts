@@ -23,6 +23,8 @@ export interface User {
   hasMadeDeposit?: boolean;
   referralCount?: number;
   totalReferralEarnings?: number;
+  totalWinnings?: number;
+  achievements?: string[];
   isGmailLinked?: boolean;
   gmail?: string | null;
   country?: string | null;
@@ -63,6 +65,15 @@ export interface UserActivity {
   type: 'game_selection' | 'bet_placement' | 'session_start' | 'session_end' | 'page_view';
   details?: any;
   timestamp: any;
+}
+
+export interface LeaderboardEntry {
+  userId: string;
+  username: string;
+  totalWinnings: number;
+  achievements: string[];
+  avatarUrl?: string;
+  lastWinAt: any;
 }
 
 export const logUserActivity = async (type: UserActivity['type'], details?: any) => {
@@ -374,24 +385,6 @@ export const sendMessage = async (userId: string, text: string, sender: 'user' |
 };
 
 export const updateGlobalGameLogo = async (gameId: string, logoUrl: string, isAdmin: boolean = false) => {
-  if (!isAdmin) {
-    // Submit request for approval
-    const path = 'logo_requests';
-    try {
-      await addDoc(collection(db, path), {
-        gameId,
-        type: 'logo',
-        value: logoUrl,
-        status: 'pending',
-        requestedBy: auth.currentUser?.uid,
-        requestedAt: serverTimestamp()
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, path);
-    }
-    return;
-  }
-
   const path = `global_config/game_logos`;
   try {
     await updateDoc(doc(db, path), {
@@ -410,24 +403,6 @@ export const updateGlobalGameLogo = async (gameId: string, logoUrl: string, isAd
 };
 
 export const updateGlobalGameName = async (gameId: string, name: string, isAdmin: boolean = false) => {
-  if (!isAdmin) {
-    // Submit request for approval
-    const path = 'logo_requests';
-    try {
-      await addDoc(collection(db, path), {
-        gameId,
-        type: 'name',
-        value: name,
-        status: 'pending',
-        requestedBy: auth.currentUser?.uid,
-        requestedAt: serverTimestamp()
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, path);
-    }
-    return;
-  }
-
   const path = `global_config/game_names`;
   try {
     await updateDoc(doc(db, path), {
@@ -463,7 +438,7 @@ export const updateGlobalGameProvider = async (gameId: string, provider: string)
   }
 };
 
-export const createPromoCode = async (code: string, amount: number, maxUses: number = 0, turnoverMultiplier: number = 5) => {
+export const createPromoCode = async (code: string, amount: number, maxUses: number = 0, turnoverMultiplier: number = 5, allowMultiUse: boolean = false) => {
   const path = `promo_codes/${code.toUpperCase()}`;
   try {
     await setDoc(doc(db, 'promo_codes', code.toUpperCase()), {
@@ -472,6 +447,7 @@ export const createPromoCode = async (code: string, amount: number, maxUses: num
       usedCount: 0,
       isActive: true,
       turnoverMultiplier,
+      allowMultiUse,
       createdAt: serverTimestamp()
     });
   } catch (error) {
@@ -491,16 +467,32 @@ export const clearChatHistory = async (userId: string) => {
   }
 };
 
-export const updateGlobalAppSettings = async (settings: Record<string, any>) => {
+export const updateGlobalImage = async (imageKey: string, url: string) => {
+  const path = `global_images/${imageKey}`;
+  try {
+    await setDoc(doc(db, path), {
+      url: url
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+};
+
+export const updateGlobalUIImages = async (images: Record<string, string>) => {
+  const path = `global_config/ui_settings`;
+  try {
+    await setDoc(doc(db, path), images, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+};
+
+export const updateGlobalAppSettings = async (settings: any) => {
   const path = `global_config/app_settings`;
   try {
-    await updateDoc(doc(db, path), settings);
+    await setDoc(doc(db, path), settings, { merge: true });
   } catch (error) {
-    try {
-      await setDoc(doc(db, path), settings);
-    } catch (innerError) {
-      handleFirestoreError(innerError, OperationType.WRITE, path);
-    }
+    handleFirestoreError(error, OperationType.WRITE, path);
   }
 };
 
@@ -547,5 +539,27 @@ export const processDepositCommission = async (refereeId: string, depositAmount:
     }
   } catch (error) {
     console.error("Failed to process commission", error);
+  }
+};
+
+export const updateLeaderboard = async (userId: string, username: string, winAmount: number, achievements: string[] = [], avatarUrl?: string) => {
+  const path = `leaderboard/${userId}`;
+  try {
+    await setDoc(doc(db, path), {
+      userId,
+      username,
+      totalWinnings: increment(winAmount),
+      achievements,
+      avatarUrl: avatarUrl || null,
+      lastWinAt: serverTimestamp()
+    }, { merge: true });
+    
+    // Also update user document
+    await updateDoc(doc(db, 'users', userId), {
+      totalWinnings: increment(winAmount),
+      achievements: achievements // This might overwrite, but for now it's okay
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
   }
 };

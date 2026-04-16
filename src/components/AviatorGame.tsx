@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { updateTurnover, logUserActivity } from '../services/firebaseService';
+import { updateTurnover, logUserActivity, updateLeaderboard } from '../services/firebaseService';
 import { auth } from '../firebase';
 import { useLiveAviator } from '../hooks/useLiveAviator';
 import GameLoader from './GameLoader';
@@ -16,9 +16,10 @@ interface AviatorGameProps {
   showToast: (msg: string, type?: any) => void;
   referredBy?: string | null;
   globalName?: string;
+  userData?: any;
 }
 
-export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, logo, onLogoChange, showToast, referredBy, globalName }: AviatorGameProps) {
+export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, logo, onLogoChange, showToast, referredBy, globalName, userData }: AviatorGameProps) {
   const [isLoading, setIsLoading] = useState(true);
   const IS_BETTING_DISABLED = false;
 
@@ -184,6 +185,16 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
     setIsBetPlaced(false);
     setCashOutMultiplier(multiplier);
     onBalanceUpdate(userBalance + winAmount);
+    
+    // Update leaderboard
+    if (userData?.id) {
+      const achievements = [];
+      if (multiplier >= 10) achievements.push('Big Winner');
+      if (betAmount >= 1000) achievements.push('High Roller');
+      if (multiplier >= 50) achievements.push('Pro Player');
+      
+      updateLeaderboard(userData.id, userData.username, winAmount, achievements, userData.profilePictureUrl);
+    }
     logUserActivity('bet_placement', { gameId: 'aviator', amount: betAmount, multiplier, winAmount, type: 'cashout' });
 
     setBetHistory(prev => [

@@ -85,6 +85,17 @@
         "totalReferralEarnings": {
           "type": "number",
           "description": "Total earnings from referrals"
+        },
+        "totalWinnings": {
+          "type": "number",
+          "description": "Total amount won in games"
+        },
+        "achievements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of user achievements (e.g., 'Big Winner', 'High Roller')"
         }
       },
       "required": ["username", "phoneNumber", "password", "balance", "role"]
@@ -343,9 +354,42 @@
         "timestamp": { "type": "string", "format": "date-time" }
       },
       "required": ["title", "message", "type", "read", "timestamp"]
+    },
+    "PromoCode": {
+      "title": "PromoCode",
+      "description": "Promotional code for bonuses",
+      "type": "object",
+      "properties": {
+        "amount": { "type": "number" },
+        "maxUses": { "type": "integer" },
+        "usedCount": { "type": "integer" },
+        "isActive": { "type": "boolean" },
+        "turnoverMultiplier": { "type": "number" },
+        "allowMultiUse": { "type": "boolean", "description": "Whether a user can use this code multiple times" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["amount", "maxUses", "usedCount", "isActive"]
+    },
+    "LeaderboardEntry": {
+      "title": "LeaderboardEntry",
+      "description": "An entry in the global leaderboard",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "totalWinnings": { "type": "number" },
+        "achievements": { "type": "array", "items": { "type": "string" } },
+        "avatarUrl": { "type": "string" },
+        "lastWinAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "username", "totalWinnings"]
     }
   },
   "firestore": {
+    "/leaderboard/{entryId}": {
+      "schema": "LeaderboardEntry",
+      "description": "Global leaderboard entries"
+    },
     "/users/{userId}": {
       "schema": "User",
       "description": "User document stored by their unique UID"
@@ -381,6 +425,10 @@
     "/global_config/{configId}": {
       "schema": "GlobalConfig",
       "description": "Global configuration settings accessible to all users"
+    },
+    "/promo_codes/{promoId}": {
+      "schema": "PromoCode",
+      "description": "Collection of promotional codes"
     },
     "/api_tokens/{tokenId}": {
       "schema": "ApiToken",

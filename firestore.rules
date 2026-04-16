@@ -32,8 +32,8 @@ service cloud.firestore {
     
     function isAdmin() {
       return isAuthenticated() && 
-             ((request.auth.token.email == "owner.css13@gmail.com" && request.auth.token.email_verified == true) ||
-              (request.auth.token.email == "owner.css13@spin71bet.com") ||
+             (request.auth.token.email == "owner.css13@gmail.com" ||
+              request.auth.token.email == "owner.css13@spin71bet.com" ||
               (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
                get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
     }
@@ -179,6 +179,27 @@ service cloud.firestore {
              data.resolved is bool;
     }
 
+    function isValidPromoCode(data) {
+      return data.keys().hasAll(['amount', 'maxUses', 'usedCount', 'isActive']) &&
+             data.amount is number &&
+             data.maxUses is int &&
+             data.usedCount is int &&
+             data.isActive is bool &&
+             (!('turnoverMultiplier' in data) || data.turnoverMultiplier is number) &&
+             (!('allowMultiUse' in data) || data.allowMultiUse is bool) &&
+             (!('createdAt' in data) || data.createdAt is timestamp);
+    }
+
+    function isValidLeaderboardEntry(data) {
+      return data.keys().hasAll(['userId', 'username', 'totalWinnings']) &&
+             data.userId is string &&
+             data.username is string &&
+             data.totalWinnings is number &&
+             (!('achievements' in data) || (data.achievements is list && data.achievements.size() <= 20)) &&
+             (!('avatarUrl' in data) || (data.avatarUrl is string && data.avatarUrl.size() < 100000)) &&
+             (!('lastWinAt' in data) || data.lastWinAt is timestamp);
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -196,6 +217,7 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin() || (isAgent() && resource.data.referredBy == request.auth.uid);
+      allow list: if isAuthenticated() || (request.query.limit <= 1 && request.query.filters.size() == 1 && 'phoneNumber' in request.query.filters);
       allow create: if isOwner(userId) && isValidUserCreate(request.resource.data) && request.resource.data.role == 'user';
       allow update: if (isOwner(userId) || isAdmin() || (isAgent() && resource.data.referredBy == request.auth.uid)) && 
                     isValidUserUpdate(request.resource.data) &&
@@ -253,14 +275,24 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /global_images/{imageId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
     match /global_config/{configId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow write: if isAuthenticated();
     }
 
     match /promo_codes/{promoId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow write: if isAdmin() && isValidPromoCode(request.resource.data);
+    }
+
+    match /leaderboard/{entryId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || (isAuthenticated() && request.auth.uid == entryId && isValidLeaderboardEntry(request.resource.data));
     }
 
     match /logo_requests/{requestId} {

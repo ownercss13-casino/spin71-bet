@@ -144,11 +144,21 @@ function AdminTab({ showToast }: { showToast: (msg: string, type?: any) => void 
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubLogos = onSnapshot(doc(db, 'global_config', 'game_logos'), (d) => d.exists() && setGameLogos(d.data()));
-    const unsubNames = onSnapshot(doc(db, 'global_config', 'game_names'), (d) => d.exists() && setGameNames(d.data()));
-    const unsubUrls = onSnapshot(doc(db, 'global_config', 'game_urls'), (d) => d.exists() && setGameUrls(d.data()));
-    const unsubOptions = onSnapshot(doc(db, 'global_config', 'game_options'), (d) => d.exists() && setGameOptions(d.data()));
-    const unsubUi = onSnapshot(doc(db, 'global_config', 'ui_settings'), (d) => d.exists() && setUiSettings(d.data()));
+    const unsubLogos = onSnapshot(doc(db, 'global_config', 'game_logos'), (d) => d.exists() && setGameLogos(d.data()), (error) => {
+      handleFirestoreError(error, OperationType.GET, 'global_config/game_logos');
+    });
+    const unsubNames = onSnapshot(doc(db, 'global_config', 'game_names'), (d) => d.exists() && setGameNames(d.data()), (error) => {
+      handleFirestoreError(error, OperationType.GET, 'global_config/game_names');
+    });
+    const unsubUrls = onSnapshot(doc(db, 'global_config', 'game_urls'), (d) => d.exists() && setGameUrls(d.data()), (error) => {
+      handleFirestoreError(error, OperationType.GET, 'global_config/game_urls');
+    });
+    const unsubOptions = onSnapshot(doc(db, 'global_config', 'game_options'), (d) => d.exists() && setGameOptions(d.data()), (error) => {
+      handleFirestoreError(error, OperationType.GET, 'global_config/game_options');
+    });
+    const unsubUi = onSnapshot(doc(db, 'global_config', 'ui_settings'), (d) => d.exists() && setUiSettings(d.data()), (error) => {
+      handleFirestoreError(error, OperationType.GET, 'global_config/ui_settings');
+    });
 
     setLoading(false);
     return () => {
@@ -241,6 +251,96 @@ function AdminTab({ showToast }: { showToast: (msg: string, type?: any) => void 
                 className="flex-1 bg-[#0d1525] border border-teal-900/30 rounded-xl py-2.5 px-4 text-sm focus:border-teal-500 outline-none"
               />
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Global Images */}
+      <div className="bg-[#111827] p-6 rounded-2xl border border-teal-900/30 space-y-6">
+        <h4 className="text-lg font-bold flex items-center gap-2 text-teal-400">
+          <Activity size={20} /> গ্লোবাল ইমেজ সেটিংস
+        </h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {[
+            { id: 'hero_banner_host', label: 'হিরো ব্যানার ইমেজ' },
+            { id: 'casino_logo', label: 'কেসিনো লোগো' },
+            { id: 'app_banner', label: 'অ্যাপ ডাউনলোড ব্যানার' },
+            { id: 'payment_logo_nagad', label: 'নগদ লোগো' },
+            { id: 'payment_logo_bkash', label: 'বিকাশ লোগো' },
+            { id: 'payment_logo_rocket', label: 'রকেট লোগো' },
+            { id: 'deposit_banner', label: 'ডিপোজিট পেজ ব্যানার' },
+          ].map((img) => (
+            <div key={img.id} className="space-y-2">
+              <label className="text-xs font-bold text-gray-500 uppercase">{img.label} URL</label>
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  defaultValue={uiSettings[img.id] || ''} 
+                  onBlur={async (e) => {
+                    try {
+                      const { updateGlobalImage } = await import('../services/firebaseService');
+                      await updateGlobalImage(img.id, e.target.value);
+                      showToast("ইমেজ আপডেট সফল হয়েছে", "success");
+                    } catch (err) {
+                      showToast("ইমেজ আপডেট ব্যর্থ হয়েছে", "error");
+                    }
+                  }}
+                  className="flex-1 bg-[#0d1525] border border-teal-900/30 rounded-xl py-2.5 px-4 text-sm focus:border-teal-500 outline-none"
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Social & Notice Settings */}
+      <div className="bg-[#111827] p-6 rounded-2xl border border-teal-900/30 space-y-6">
+        <h4 className="text-lg font-bold flex items-center gap-2 text-teal-400">
+          <Users size={20} /> সোশ্যাল ও নোটিশ সেটিংস
+        </h4>
+        <div className="grid grid-cols-1 gap-6">
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-gray-500 uppercase">নোটিশ টেক্সট (Notice Text)</label>
+            <textarea 
+              defaultValue={uiSettings.noticeText || ''} 
+              onBlur={async (e) => {
+                try {
+                  const { db } = await import('../firebase');
+                  const { doc, setDoc } = await import('firebase/firestore');
+                  await setDoc(doc(db, 'global_config', 'ui_settings'), { noticeText: e.target.value }, { merge: true });
+                  showToast("নোটিশ আপডেট সফল হয়েছে", "success");
+                } catch (err) {
+                  showToast("নোটিশ আপডেট ব্যর্থ হয়েছে", "error");
+                }
+              }}
+              className="w-full bg-[#0d1525] border border-teal-900/30 rounded-xl py-2.5 px-4 text-sm focus:border-teal-500 outline-none h-20 resize-none"
+            />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { id: 'telegramLink', label: 'Telegram Link' },
+              { id: 'whatsappLink', label: 'WhatsApp Link' },
+              { id: 'facebookLink', label: 'Facebook Link' },
+            ].map((link) => (
+              <div key={link.id} className="space-y-2">
+                <label className="text-xs font-bold text-gray-500 uppercase">{link.label}</label>
+                <input 
+                  type="text" 
+                  defaultValue={uiSettings[link.id] || ''} 
+                  onBlur={async (e) => {
+                    try {
+                      const { db } = await import('../firebase');
+                      const { doc, setDoc } = await import('firebase/firestore');
+                      await setDoc(doc(db, 'global_config', 'ui_settings'), { [link.id]: e.target.value }, { merge: true });
+                      showToast("লিঙ্ক আপডেট সফল হয়েছে", "success");
+                    } catch (err) {
+                      showToast("লিঙ্ক আপডেট ব্যর্থ হয়েছে", "error");
+                    }
+                  }}
+                  className="w-full bg-[#0d1525] border border-teal-900/30 rounded-xl py-2.5 px-4 text-sm focus:border-teal-500 outline-none"
+                />
+              </div>
+            ))}
           </div>
         </div>
       </div>

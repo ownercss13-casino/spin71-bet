@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Send, X, MessageCircle, User, Loader2, Trash2 } from 'lucide-react';
-import { db } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { sendMessage, clearChatHistory } from '../services/firebaseService';
 import { getAIResponse } from '../services/geminiService';
@@ -61,7 +61,7 @@ export default function SupportChat({
       });
       setChatHistory(messages);
     }, (error) => {
-      console.error("Failed to fetch chat:", error);
+      handleFirestoreError(error, OperationType.LIST, path);
     });
 
     return () => unsubscribe();

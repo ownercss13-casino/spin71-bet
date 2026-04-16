@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Loader2, Crown, Sparkles, Star, Zap, Trophy, Coins, RefreshCw } from 'lucide-react';
+import { Loader2, Crown, Sparkles, Star, Zap, Trophy, Coins, RefreshCw, AlertCircle } from 'lucide-react';
 
 interface GameLoaderProps {
   gameName?: string;
   provider?: string;
   logo?: string;
+  hasError?: boolean;
+  onClose?: () => void;
 }
 
-export default function GameLoader({ gameName, provider, logo }: GameLoaderProps) {
+export default function GameLoader({ gameName, provider, logo, hasError = false, onClose }: GameLoaderProps) {
   const [progress, setProgress] = useState(0);
   const [luckFactor, setLuckFactor] = useState(70);
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
@@ -19,10 +21,15 @@ export default function GameLoader({ gameName, provider, logo }: GameLoaderProps
     "গেমটি লোড হচ্ছে, ধৈর্য ধরুন। (Game is loading, please wait.)",
     "আমরা ফেয়ার প্লে নিশ্চিত করি। (We ensure fair play.)",
     "আপনার ব্যালেন্স সুরক্ষিত আছে। (Your balance is secure.)",
-    "নতুন নতুন বোনাস চেক করতে ভুলবেন না। (Don't forget to check new bonuses.)"
+    "নতুন নতুন বোনাস চেক করতে ভুলবেন পণ্ডিত। (Don't forget to check new bonuses.)"
   ];
 
   useEffect(() => {
+    if (hasError) {
+      setProgress(100);
+      return;
+    }
+
     const duration = 3000; // 3 seconds
     const interval = 50; // Update every 50ms
     const steps = duration / interval;
@@ -52,7 +59,7 @@ export default function GameLoader({ gameName, provider, logo }: GameLoaderProps
       clearInterval(timer);
       clearInterval(tipTimer);
     };
-  }, []);
+  }, [hasError]);
 
   return (
     <div className="fixed inset-0 z-[110] bg-[#050505] flex flex-col items-center justify-center p-6 text-center overflow-hidden">
@@ -178,63 +185,87 @@ export default function GameLoader({ gameName, provider, logo }: GameLoaderProps
           </div>
         </motion.div>
 
-        {/* Progress Section */}
-        <div className="w-full space-y-6">
-          <div className="flex justify-between items-end px-2">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <RefreshCw size={18} className="animate-spin text-yellow-500" />
-                <div className="absolute inset-0 blur-md bg-yellow-500/40 animate-pulse"></div>
+        {/* Progress Section / Error Section */}
+        {hasError ? (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full flex flex-col items-center bg-red-500/10 border border-red-500/20 rounded-3xl p-6 backdrop-blur-md"
+          >
+            <AlertCircle size={48} className="text-red-500 mb-4 animate-pulse" />
+            <h3 className="text-xl font-black text-white mb-2 tracking-tight">গেমটি লোড করা যাচ্ছে না</h3>
+            <p className="text-xs text-red-200/60 text-center mb-6 max-w-[250px] leading-relaxed">
+              দুঃখিত, গেমটি এই মুহূর্তে লোড করা সম্ভব হচ্ছে না। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন অথবা সাপোর্টে যোগাযোগ করুন।
+            </p>
+            {onClose && (
+              <button 
+                onClick={onClose}
+                className="bg-gradient-to-r from-red-600 to-red-500 text-white font-bold px-8 py-3 rounded-xl hover:from-red-500 hover:to-red-400 transition-all shadow-[0_0_20px_rgba(239,68,68,0.4)] active:scale-95"
+              >
+                ফিরে যান
+              </button>
+            )}
+          </motion.div>
+        ) : (
+          <div className="w-full space-y-6">
+            <div className="flex justify-between items-end px-2">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <RefreshCw size={18} className="animate-spin text-yellow-500" />
+                  <div className="absolute inset-0 blur-md bg-yellow-500/40 animate-pulse"></div>
+                </div>
+                <div className="flex flex-col items-start">
+                  <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">
+                    {progress < 30 ? 'Connecting...' : progress < 60 ? 'Loading Assets...' : progress < 90 ? 'Optimizing...' : 'Ready!'}
+                  </span>
+                  <AnimatePresence mode="wait">
+                    <motion.span 
+                      key={currentTipIndex}
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -5 }}
+                      className="text-yellow-500/40 text-[8px] font-bold uppercase tracking-widest mt-1"
+                    >
+                      {tips[currentTipIndex]}
+                    </motion.span>
+                  </AnimatePresence>
+                </div>
               </div>
-              <div className="flex flex-col items-start">
-                <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">
-                  {progress < 30 ? 'Connecting...' : progress < 60 ? 'Loading Assets...' : progress < 90 ? 'Optimizing...' : 'Ready!'}
-                </span>
-                <AnimatePresence mode="wait">
-                  <motion.span 
-                    key={currentTipIndex}
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -5 }}
-                    className="text-yellow-500/40 text-[8px] font-bold uppercase tracking-widest mt-1"
-                  >
-                    {tips[currentTipIndex]}
-                  </motion.span>
-                </AnimatePresence>
+              <div className="flex flex-col items-end">
+                <span className="text-yellow-500 font-black text-3xl font-mono leading-none drop-shadow-[0_0_10px_rgba(234,179,8,0.3)]">{Math.round(progress)}%</span>
               </div>
             </div>
-            <div className="flex flex-col items-end">
-              <span className="text-yellow-500 font-black text-3xl font-mono leading-none drop-shadow-[0_0_10px_rgba(234,179,8,0.3)]">{Math.round(progress)}%</span>
+            
+            <div className="w-full h-4 bg-black/80 rounded-full overflow-hidden border border-white/10 shadow-[inset_0_4px_8px_rgba(0,0,0,0.8)] relative p-[3px]">
+              <motion.div 
+                className="h-full bg-gradient-to-r from-yellow-800 via-yellow-400 to-yellow-200 rounded-full relative overflow-hidden"
+                style={{ width: `${progress}%` }}
+              >
+                {/* Shimmer inside progress bar */}
+                <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.5)_50%,transparent_75%,transparent_100%)] bg-[length:60px_60px] animate-[shimmer_1s_linear_infinite]"></div>
+                
+                {/* Glow head */}
+                <div className="absolute right-0 top-0 bottom-0 w-8 bg-white blur-xl opacity-60"></div>
+              </motion.div>
             </div>
           </div>
-          
-          <div className="w-full h-4 bg-black/80 rounded-full overflow-hidden border border-white/10 shadow-[inset_0_4px_8px_rgba(0,0,0,0.8)] relative p-[3px]">
-            <motion.div 
-              className="h-full bg-gradient-to-r from-yellow-800 via-yellow-400 to-yellow-200 rounded-full relative overflow-hidden"
-              style={{ width: `${progress}%` }}
-            >
-              {/* Shimmer inside progress bar */}
-              <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.5)_50%,transparent_75%,transparent_100%)] bg-[length:60px_60px] animate-[shimmer_1s_linear_infinite]"></div>
-              
-              {/* Glow head */}
-              <div className="absolute right-0 top-0 bottom-0 w-8 bg-white blur-xl opacity-60"></div>
-            </motion.div>
-          </div>
-        </div>
+        )}
 
         {/* Bottom Message */}
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1, delay: 1 }}
-          className="mt-16 flex items-center gap-4 bg-yellow-500/5 px-6 py-3 rounded-2xl border border-yellow-500/10 backdrop-blur-sm"
-        >
-          <Trophy size={20} className="text-yellow-500 animate-bounce" />
-          <p className="text-[10px] text-yellow-200/60 font-black uppercase tracking-[0.2em] leading-relaxed">
-            Big wins are waiting for you.<br/>Good luck, Player!
-          </p>
-          <Trophy size={20} className="text-yellow-500 animate-bounce" />
-        </motion.div>
+        {!hasError && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 1, delay: 1 }}
+            className="mt-16 flex items-center gap-4 bg-yellow-500/5 px-6 py-3 rounded-2xl border border-yellow-500/10 backdrop-blur-sm"
+          >
+            <Trophy size={20} className="text-yellow-500 animate-bounce" />
+            <p className="text-[10px] text-yellow-200/60 font-black uppercase tracking-[0.2em] leading-relaxed">
+              Big wins are waiting for you.<br/>Good luck, Player!
+            </p>
+            <Trophy size={20} className="text-yellow-500 animate-bounce" />
+          </motion.div>
+        )}
       </div>
 
       <style>{`

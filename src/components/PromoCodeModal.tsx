@@ -60,7 +60,7 @@ export default function PromoCodeModal({ isOpen, onClose, showToast, isAdmin }: 
           const usageRef = doc(db, `users/${userId}/used_promos/${promoCode}`);
           const usageDoc = await transaction.get(usageRef);
           
-          if (usageDoc.exists()) {
+          if (usageDoc.exists() && !promoData.allowMultiUse) {
             throw new Error("আপনি ইতিমধ্যে এই প্রোমো কোডটি ব্যবহার করেছেন (Already used)");
           }
           
@@ -222,8 +222,8 @@ export default function PromoCodeModal({ isOpen, onClose, showToast, isAdmin }: 
                           onClick={async () => {
                             setIsLoading(true);
                             try {
-                              await createPromoCode("WELCOME500", 500, 100, 5);
-                              await createPromoCode("SPIN71", 1000, 50, 7);
+                        await createPromoCode("WELCOME500", 500, 100, 5, true);
+                        await createPromoCode("SPIN71", 1000, 50, 7, true);
                               showToast("ডিফল্ট প্রোমো কোডগুলো তৈরি হয়েছে", "success");
                               setError(null);
                             } catch (e) {
