@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
 import { Edit2, Check, X, Loader2, Upload } from 'lucide-react';
-import { updateGlobalImage } from '../services/firebaseService';
 
 interface GlobalImageProps {
   imageKey: string;
@@ -54,11 +53,12 @@ export default function GlobalImage({
     try {
       if (customUpdate) {
         await customUpdate(newUrl);
+        showToast?.("ছবিটি সফলভাবে আপলোড করা হয়েছে", "success");
       } else {
-        const { updateGlobalImage: defaultUpdate } = await import('../services/firebaseService');
-        await defaultUpdate(imageKey, newUrl);
+        // Local save simulation
+        console.log(`Saving image ${imageKey} locally:`, newUrl);
+        showToast?.("ছবিটি আপডেট করা হয়েছে (লোকাল)", "success");
       }
-      showToast?.("ছবি সফলভাবে আপডেট করা হয়েছে", "success");
       setIsEditing(false);
     } catch (error) {
       showToast?.("ছবি আপডেট করতে সমস্যা হয়েছে", "error");
@@ -80,14 +80,15 @@ export default function GlobalImage({
       {isAdmin && (
         <button 
           onClick={(e) => {
+            e.preventDefault();
             e.stopPropagation();
             setNewUrl(currentUrl || defaultUrl);
             setIsEditing(true);
           }}
-          className="absolute top-2 right-2 p-2 bg-black/60 text-white rounded-full opacity-80 hover:opacity-100 transition-opacity z-50 hover:bg-black/80 shadow-lg border border-white/20"
+          className="absolute top-2 right-2 p-1.5 bg-yellow-500 text-black rounded-full z-[100] shadow-md border border-white/20 flex items-center justify-center hover:scale-110 transition-transform active:scale-95"
           title="ছবি পরিবর্তন করুন"
         >
-          <Edit2 size={16} />
+          <Edit2 size={12} className="fill-black" />
         </button>
       )}
 

@@ -21,9 +21,9 @@ import {
   ArrowDownUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { db, auth, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, where, orderBy, onSnapshot, Timestamp, limit } from 'firebase/firestore';
 import Skeleton from './Skeleton';
+import { db } from '../services/firebase';
+import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 
 interface Transaction {
   id: string;
@@ -31,7 +31,7 @@ interface Transaction {
   amount: number;
   method?: string;
   status: 'pending' | 'completed' | 'failed' | 'approved' | 'rejected';
-  date: any;
+  date: string;
   trxId?: string;
   statusColor?: string;
 }
@@ -52,49 +52,35 @@ export default function WalletView({ balance, userData, onTabChange, onSubTabCha
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
-    if (!auth.currentUser) return;
-
-    const path = `users/${auth.currentUser.uid}/transactions`;
-    let q = query(
-      collection(db, path),
-      orderBy('date', 'desc'),
-      limit(20)
-    );
-
-    if (filter !== 'all') {
-      q = query(
-        collection(db, path),
-        where('type', '==', filter),
-        orderBy('date', 'desc'),
-        limit(20)
-      );
-    }
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const trxData = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
+    const fetchTransactions = async () => {
+      setIsLoading(true);
+      if (!userData?.id) return;
+      
+      try {
+        const transRef = collection(db, 'users', userData.id, 'transactions');
+        let q = query(transRef, orderBy('createdAt', 'desc'), limit(50));
+        
+        if (filter !== 'all') {
+          q = query(transRef, where('type', '==', filter), orderBy('createdAt', 'desc'), limit(50));
+        }
+        
+        const querySnapshot = await getDocs(q);
+        const data = querySnapshot.docs.map(doc => ({
           id: doc.id,
-          ...data,
-          date: data.date instanceof Timestamp ? 
-                data.date.toDate().toLocaleString('en-GB', { 
-                  year: 'numeric', 
-                  month: '2-digit', 
-                  day: '2-digit', 
-                  hour: '2-digit', 
-                  minute: '2-digit' 
-                }).replace(/\//g, '-') : data.date
-        } as Transaction;
-      });
-      setTransactions(trxData);
+          ...doc.data(),
+          date: doc.data().createdAt ? new Date(doc.data().createdAt).toLocaleString() : 'Just now'
+        })) as Transaction[];
+        
+        setTransactions(data);
+      } catch (err) {
+        console.error("Error fetching transactions from Firestore:", err);
+      }
       setIsLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, path);
-      setIsLoading(false);
-    });
+    };
 
-    return () => unsubscribe();
-  }, [filter]);
+    fetchTransactions();
+  }, [filter, userData?.id]);
+
 
   const handleRefresh = () => {
     setIsRefreshing(true);

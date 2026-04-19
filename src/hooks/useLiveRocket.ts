@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 
-export interface GameSession {
+export interface RocketSession {
   gameId: string;
   multiplier: number;
   status: 'waiting' | 'running' | 'crashed';
@@ -8,21 +8,20 @@ export interface GameSession {
   startTime: number;
   lastUpdate: number;
   history: number[];
-  isForced?: boolean;
 }
 
-export function useLiveAviator() {
-  const [session, setSession] = useState<GameSession>({
-    gameId: 'aviator',
+export function useLiveRocket() {
+  const [session, setSession] = useState<RocketSession>({
+    gameId: 'rocket',
     multiplier: 1.00,
     status: 'waiting',
     crashPoint: 2.00,
     startTime: Date.now(),
     lastUpdate: Date.now(),
-    history: [1.2, 5.4, 1.0, 2.3, 11.5, 3.2, 1.8, 1.1, 4.5, 2.0]
+    history: [2.5, 1.2, 4.8, 1.1, 15.2, 3.4, 1.9, 1.05, 5.2, 2.1]
   });
   
-  const sessionRef = useRef<GameSession>(session);
+  const sessionRef = useRef<RocketSession>(session);
 
   useEffect(() => {
     sessionRef.current = session;
@@ -35,8 +34,9 @@ export function useLiveAviator() {
       
       if (current.status === 'waiting') {
         const diff = (now - current.startTime) / 1000;
-        if (diff >= 8) {
-          const crashPoint = Number((1 + Math.pow(Math.random(), 3) * 50).toFixed(2));
+        if (diff >= 6) { // 6 seconds waiting time between rounds
+          // Generate crash point with exponential distribution for "house edge" feel
+          const crashPoint = Number((1 + Math.pow(Math.random(), 2.8) * 40).toFixed(2));
           setSession({
             ...current,
             status: 'running',
@@ -50,8 +50,8 @@ export function useLiveAviator() {
         const startTime = current.startTime;
         const elapsed = (now - startTime) / 1000;
         
-        // Growth curve matching component logic
-        const nextMultiplier = Number(Math.pow(1.06, elapsed).toFixed(2));
+        // Slightly different growth curve for Rocket: 1.08^t (faster than Aviator's 1.06)
+        const nextMultiplier = Number(Math.pow(1.08, elapsed).toFixed(2));
         
         if (nextMultiplier >= current.crashPoint) {
           setSession({
@@ -70,7 +70,7 @@ export function useLiveAviator() {
         }
       } else if (current.status === 'crashed') {
         const diff = (now - current.startTime) / 1000;
-        if (diff >= 4) {
+        if (diff >= 4) { // 4 seconds crash display
           setSession(prev => ({
             ...prev,
             status: 'waiting',
@@ -86,9 +86,5 @@ export function useLiveAviator() {
     return () => clearInterval(interval);
   }, []);
 
-  const updateSession = async (updates: Partial<GameSession>) => {
-    setSession(prev => ({ ...prev, ...updates }));
-  };
-
-  return { session, updateSession, isController: true };
+  return { session };
 }

@@ -1,9 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Send, X, MessageCircle, User, Loader2, Trash2 } from 'lucide-react';
-import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { sendMessage, clearChatHistory } from '../services/firebaseService';
 import { getAIResponse } from '../services/geminiService';
 
 interface Message {
@@ -35,36 +32,20 @@ export default function SupportChat({
   const [chatError, setChatError] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Fetch chat history from server
+  // Fetch chat history from server (Firebase disconnected)
   useEffect(() => {
+    // Local session chat could be implemented here
     if (!userData?.id || !isOpen) return;
     
-    const path = `users/${userData.id}/chat`;
-    const q = query(collection(db, path), orderBy('timestamp', 'asc'));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const messages: Message[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        let timeString = "";
-        if (data.timestamp) {
-          const date = data.timestamp.toDate();
-          timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        }
-        messages.push({
-          id: doc.id,
-          text: data.text,
-          sender: data.sender,
-          time: timeString,
-          timestamp: data.timestamp
-        });
-      });
-      setChatHistory(messages);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, path);
-    });
-
-    return () => unsubscribe();
+    // For now, start with a welcome message if history is empty
+    if (chatHistory.length === 0) {
+      setChatHistory([{
+        id: '1',
+        text: 'হ্যালো! আমি আপনাকে কীভাবে সাহায্য করতে পারি?',
+        sender: 'agent',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }]);
+    }
   }, [userData?.id, isOpen]);
 
   useEffect(() => {
@@ -81,23 +62,36 @@ export default function SupportChat({
     setChatMessage("");
     setChatError(null);
 
+    const userMsg: Message = {
+      id: Date.now().toString(),
+      text,
+      sender: 'user',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    setChatHistory(prev => [...prev, userMsg]);
+
     try {
-      await sendMessage(userData.id, text, 'user');
-      
       // Get AI response
-      const aiResponse = await getAIResponse(text, userData);
-      await sendMessage(userData.id, aiResponse, 'agent');
+      const aiResponseText = await getAIResponse(text, userData);
+      
+      const aiMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        text: aiResponseText,
+        sender: 'agent',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      
+      setChatHistory(prev => [...prev, aiMsg]);
       
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "মেসেজ পাঠানো সম্ভব হয়নি।");
+      setChatError("মেসেজ পাঠানো সম্ভব হয়নি। (AI and Firebase are disconnected)");
     }
   };
 
   const clearChat = async () => {
     if (window.confirm("আপনি কি নিশ্চিত যে আপনি চ্যাট হিস্ট্রি মুছে ফেলতে চান?")) {
-      if (userData?.id) {
-        await clearChatHistory(userData.id);
-      }
+      setChatHistory([]);
     }
   };
 

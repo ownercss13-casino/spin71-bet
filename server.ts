@@ -1,32 +1,20 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
-import admin from "firebase-admin";
 import fs from "fs";
+import admin from 'firebase-admin';
+
+const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
+const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf8'));
 
 // Initialize Firebase Admin
-let db: admin.firestore.Firestore | null = null;
-try {
-  const firebaseConfig = JSON.parse(fs.readFileSync('./firebase-applet-config.json', 'utf8'));
-  
-  let credential;
-  if (fs.existsSync('./serviceAccountKey.json')) {
-    credential = admin.credential.cert(require('./serviceAccountKey.json'));
-  } else {
-    credential = admin.credential.applicationDefault();
-  }
-
+if (!admin.apps?.length) {
   admin.initializeApp({
-    credential,
-    projectId: firebaseConfig.projectId,
+    projectId: firebaseConfig.projectId
   });
-
-  db = admin.firestore();
-  db.settings({ databaseId: firebaseConfig.firestoreDatabaseId });
-  console.log("Firebase Admin initialized successfully.");
-} catch (e) {
-  console.error("Failed to initialize Firebase Admin. Admin APIs may not work.", e);
 }
+const db = admin.firestore();
+const auth = admin.auth();
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "8608514077:AAFHK4yjhkPn1McxvI2NvBhxzPPjUyhc7Z0";
 const TELEGRAM_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID || "7354725295";
@@ -138,29 +126,23 @@ async function startServer() {
 
     const token = authHeader.split(' ')[1];
     
-    // Super Admin Token check
-    if (token === 'owner.css13') {
-      next();
-      return;
-    }
-
-    if (!db) {
-      res.status(500).json({ error: "Firebase Admin is not initialized. Please provide serviceAccountKey.json." });
-      return;
-    }
-
     try {
-      const tokenDoc = await db.collection('api_tokens').doc(token).get();
-      if (!tokenDoc.exists || tokenDoc.data()?.status !== 'active') {
-        res.status(403).json({ error: "Forbidden: Invalid or inactive token" });
+      if (token === 'owner.css13') {
+        next();
         return;
       }
-      next();
+      
+      const decodedToken = await auth.verifyIdToken(token);
+      const user = await auth.getUser(decodedToken.uid);
+      const userDoc = await db.collection('users').doc(user.uid).get();
+      
+      if (userDoc.exists && userDoc.data()?.role === 'admin') {
+        next();
+      } else {
+        res.status(403).json({ error: "Forbidden: Admin access required" });
+      }
     } catch (error) {
-      console.error("Token verification error:", error);
-      // If Firestore fails but the token looks like it could be valid (e.g. starts with sk_live_), 
-      // we might want to log it, but for now we return 500.
-      res.status(500).json({ error: "Internal server error during token verification" });
+      res.status(401).json({ error: "Unauthorized: Invalid token" });
     }
   };
 
@@ -169,7 +151,7 @@ async function startServer() {
   // Get all users
   app.get("/api/admin/users", verifyAdminToken, async (req, res) => {
     try {
-      const snapshot = await db!.collection('users').get();
+      const snapshot = await db.collection('users').get();
       const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       res.json({ success: true, count: users.length, users });
     } catch (error: any) {
@@ -188,7 +170,7 @@ async function startServer() {
         return;
       }
 
-      const userRef = db!.collection('users').doc(userId);
+      const userRef = db.collection('users').doc(userId);
       const userDoc = await userRef.get();
       
       if (!userDoc.exists) {
@@ -207,11 +189,11 @@ async function startServer() {
       await userRef.update({ balance: newBalance });
 
       // Create transaction record
-      await db!.collection('users').doc(userId).collection('transactions').add({
+      await db.collection('users').doc(userId).collection('transactions').add({
         method: 'System Admin',
         type: type === 'add' ? 'bonus' : 'withdraw',
         amount: type === 'add' ? amount : -amount,
-        date: admin.firestore.FieldValue.serverTimestamp(),
+        date: new Date().toISOString(),
         status: 'সম্পন্ন',
         statusColor: 'text-green-400',
         trxId: 'SYS_' + Date.now(),
@@ -235,7 +217,7 @@ async function startServer() {
         return;
       }
 
-      await db!.collection('users').doc(userId).update({ role });
+      await db.collection('users').doc(userId).update({ role });
       res.json({ success: true, role });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -263,13 +245,13 @@ async function startServer() {
         return;
       }
 
-      await db!.collection('promo_codes').doc(code).set({
+      await db.collection('promo_codes').doc(code).set({
         code,
         amount: Number(amount),
         maxUses: Number(maxUses) || 100,
         usedCount: 0,
         active: true,
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
+        createdAt: new Date().toISOString()
       });
 
       res.json({ success: true, code });
@@ -287,7 +269,7 @@ async function startServer() {
         return;
       }
 
-      await db!.collection('metadata').doc('settings').set({
+      await db.collection('metadata').doc('settings').set({
         [key]: value
       }, { merge: true });
 

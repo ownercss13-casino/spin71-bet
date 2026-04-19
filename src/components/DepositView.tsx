@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ClipboardList, MessageCircle, Check, Copy, ShieldCheck, ArrowRight, Loader2, X } from 'lucide-react';
-import { db, auth, handleFirestoreError, OperationType } from '../firebase';
-import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
-import { updateUserProfile, addNotification, updateRequiredTurnoverOnDeposit, processDepositCommission } from '../services/firebaseService';
 import { ToastType } from './Toast';
 import GlobalImage from './GlobalImage';
 
@@ -38,7 +35,29 @@ const channels = [
 
 const quickAmounts = [100, 200, 500, 800, 1000, 2000, 5000, 10000, 20000, 30000];
 
-export default function DepositView({ onTabChange, balance, onBalanceUpdate, userData, showToast, minDeposit = 100, globalImages = {}, isAdmin = false }: { onTabChange: (tab: any) => void, balance: number, onBalanceUpdate: (amount: number) => void, userData: any, showToast: (msg: string, type?: ToastType) => void, minDeposit?: number, globalImages?: Record<string, string>, isAdmin?: boolean }) {
+export default function DepositView({ 
+  onTabChange, 
+  balance, 
+  onBalanceUpdate, 
+  userData, 
+  showToast, 
+  minDeposit = 100, 
+  globalImages = {}, 
+  isAdmin = false,
+  onUpdateGlobalImage,
+  onDepositSuccess
+}: { 
+  onTabChange: (tab: any) => void, 
+  balance: number, 
+  onBalanceUpdate: (amount: number) => void, 
+  userData: any, 
+  showToast: (msg: string, type?: ToastType) => void, 
+  minDeposit?: number, 
+  globalImages?: Record<string, string>, 
+  isAdmin?: boolean,
+  onUpdateGlobalImage?: (key: string, url: string) => Promise<void>,
+  onDepositSuccess?: (amount: number) => void
+}) {
   const [step, setStep] = useState(1);
   const [selectedMethod, setSelectedMethod] = useState('nagad');
   const [selectedChannel, setSelectedChannel] = useState('ch1');
@@ -52,26 +71,7 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
   const [deposits, setDeposits] = useState<any[]>([]);
 
   useEffect(() => {
-    if (!auth.currentUser) return;
-
-    const path = `users/${auth.currentUser.uid}/transactions`;
-    const q = query(
-      collection(db, path),
-      where('type', '==', 'deposit'),
-      orderBy('date', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const trxData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setDeposits(trxData);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, path);
-    });
-
-    return () => unsubscribe();
+    // History fetching removed (Firebase disconnected)
   }, []);
 
   const handleNextStep = () => {
@@ -83,6 +83,17 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
     setStep(2);
   };
 
+  const [newAccountNumber, setNewAccountNumber] = useState(paymentMethods.find(m => m.id === selectedMethod)?.number || '');
+
+  useEffect(() => {
+    const globalNum = globalImages[`payment_number_${selectedMethod}`];
+    if (globalNum) {
+      setNewAccountNumber(globalNum);
+    } else {
+      setNewAccountNumber(paymentMethods.find(m => m.id === selectedMethod)?.number || '');
+    }
+  }, [selectedMethod, globalImages]);
+
   const handleDeposit = async () => {
     if (!trxId.trim() || !senderNumber.trim()) {
       showToast('সবগুলো তথ্য পূরণ করুন', 'warning');
@@ -90,34 +101,14 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
     }
 
     setIsSubmitting(true);
-    try {
-      const depositAmount = parseFloat(amount);
-      const path = `users/${auth.currentUser?.uid}/transactions`;
-      
-      await addDoc(collection(db, path), {
-        type: 'deposit',
-        amount: depositAmount,
-        method: selectedMethod,
-        trxId: trxId,
-        number: senderNumber,
-        status: 'pending',
-        date: serverTimestamp(),
-        bonusType: selectedBonus
-      });
-
-      await addNotification(auth.currentUser?.uid || '', {
-        title: "ডিপোজিট রিকোয়েস্ট!",
-        message: `আপনার ৳ ${depositAmount} ডিপোজিট রিকোয়েস্টটি সফলভাবে জমা হয়েছে।`,
-        type: "account"
-      });
-
-      showToast('ডিপোজিট রিকোয়েস্ট সফল হয়েছে!', 'success');
-      onTabChange('home');
-    } catch (error) {
-      showToast('ডিপোজিট রিকোয়েস্ট ব্যর্থ হয়েছে', 'error');
-    } finally {
+    setTimeout(() => {
       setIsSubmitting(false);
-    }
+      showToast('ডিপোজিট রিকোয়েস্ট সফল হয়েছে!', 'success');
+      if (onDepositSuccess) {
+        onDepositSuccess(parseFloat(amount));
+      }
+      onTabChange('home');
+    }, 1500);
   };
 
   const isNextEnabled = amount !== '' && parseFloat(amount) >= minDeposit;
@@ -186,12 +177,19 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
               </div>
               <div className="flex gap-4">
                 {paymentMethods.map((method) => (
-                  <button
+                  <div
                     key={method.id}
                     onClick={() => setSelectedMethod(method.id)}
-                    className={`relative w-[110px] h-[110px] flex flex-col items-center justify-center rounded-xl border-2 transition-all ${
+                    className={`relative w-[110px] h-[110px] flex flex-col items-center justify-center rounded-xl border-2 transition-all cursor-pointer ${
                       selectedMethod === method.id ? 'border-red-500' : 'border-gray-100'
                     }`}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        setSelectedMethod(method.id);
+                      }
+                    }}
                   >
                     <div className="w-12 h-12 mb-2 flex items-center justify-center">
                       <GlobalImage 
@@ -202,6 +200,7 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
                         showToast={showToast}
                         className="max-w-full max-h-full object-contain"
                         isAdmin={isAdmin}
+                        updateGlobalImage={(url) => onUpdateGlobalImage ? onUpdateGlobalImage(`payment_logo_${method.id}`, url) : Promise.resolve()}
                       />
                     </div>
                     <span className={`text-xs font-bold ${selectedMethod === method.id ? 'text-red-500' : 'text-gray-800'}`}>
@@ -215,7 +214,7 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
                         <Check size={12} strokeWidth={4} />
                       </div>
                     )}
-                  </button>
+                  </div>
                 ))}
               </div>
               <p className="text-red-500 text-[13px] mt-4 leading-tight font-medium">
@@ -383,12 +382,11 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
                 <p className="text-gray-900 font-bold text-base">এই {selectedMethod === 'nagad' ? 'NAGAD' : 'BKASH'} নাম্বারে শুধুমাত্র ক্যাশআউট গ্রহণ করা হয়</p>
                 <div className="bg-[#f2f2f2] rounded-xl p-4 flex justify-between items-center border border-gray-100">
                   <span className="text-2xl font-black text-gray-800 tracking-wider">
-                    {paymentMethods.find(m => m.id === selectedMethod)?.number}
+                    {newAccountNumber}
                   </span>
                   <button 
                     onClick={() => {
-                      const num = paymentMethods.find(m => m.id === selectedMethod)?.number || '';
-                      navigator.clipboard.writeText(num);
+                      navigator.clipboard.writeText(newAccountNumber);
                       setIsCopied(true);
                       setTimeout(() => setIsCopied(false), 2000);
                     }}
@@ -399,10 +397,10 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
                 </div>
               </div>
 
-              {/* TrxID Section */}
+              {/* TrxID & Sender Number Section */}
               <div className="space-y-4">
                 <label className="block text-lg font-black text-gray-900">
-                  ক্যাশআউটের TrxID নাম্বারটি লিখুন <span className="text-[#ff4d4d]">(প্রয়োজন)</span>
+                  ক্যাশআউটের তথ্য <span className="text-[#ff4d4d]">(প্রয়োজন)</span>
                 </label>
                 <div className="relative">
                   <input 
@@ -410,6 +408,15 @@ export default function DepositView({ onTabChange, balance, onBalanceUpdate, use
                     value={trxId}
                     onChange={(e) => setTrxId(e.target.value)}
                     placeholder="TrxID অবশ্যই পূরণ করতে হবে!"
+                    className="w-full p-5 bg-white border-2 border-red-500 rounded-xl focus:outline-none text-xl font-bold placeholder:text-gray-300"
+                  />
+                </div>
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    value={senderNumber}
+                    onChange={(e) => setSenderNumber(e.target.value)}
+                    placeholder="আপনার সেন্ডার নাম্বার (Sender Number)"
                     className="w-full p-5 bg-white border-2 border-red-500 rounded-xl focus:outline-none text-xl font-bold placeholder:text-gray-300"
                   />
                 </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { collection, query, onSnapshot } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { QRCodeSVG } from 'qrcode.react';
+import { motion } from 'motion/react';
 import { 
   Copy, 
   HelpCircle, 
@@ -28,35 +28,37 @@ import {
   Calendar,
   ChevronDown,
   Plane,
-  Info
+  Info,
+  Download
 } from "lucide-react";
 import { ToastType } from './Toast';
 
-export default function InviteView({ onTabChange, userData, showToast, initialSubTab = 'overview' }: { onTabChange: (tab: any) => void, userData?: any, showToast: (msg: string, type?: ToastType) => void, initialSubTab?: string }) {
+export default function InviteView({ 
+  onTabChange, 
+  userData, 
+  showToast, 
+  initialSubTab = 'overview',
+  casinoName
+}: { 
+  onTabChange: (tab: any) => void, 
+  userData?: any, 
+  showToast: (msg: string, type?: ToastType) => void, 
+  initialSubTab?: string,
+  casinoName?: string
+}) {
   const [activeTab, setActiveTab] = useState(initialSubTab);
   const [incomeCalculatorValue, setIncomeCalculatorValue] = useState(1);
   const [referralsList, setReferralsList] = useState<any[]>([]);
   
   useEffect(() => {
-    if (!userData?.id) return;
-    
-    const referralsRef = collection(db, 'users', userData.id, 'referrals');
-    const q = query(referralsRef);
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setReferralsList(list);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, `users/${userData.id}/referrals`);
-    });
-    
-    return () => unsubscribe();
+    // Referrals direct fetch from Firebase removed
   }, [userData?.id]);
   
   const currentReferrals = userData?.referralCount || 0;
   const totalEarned = userData?.totalReferralEarnings || 0;
   const referralCode = userData?.referralCode || (userData?.id ? userData.id.substring(0, 6).toUpperCase() : 'SPIN71');
   const referralLink = `${window.location.origin}/?ref=${referralCode}`;
+  const displayCasinoName = casinoName || "SPIN71 BET";
 
   const tabs = [
     { id: 'overview', name: 'Overview' },
@@ -69,6 +71,60 @@ export default function InviteView({ onTabChange, userData, showToast, initialSu
   const copyToClipboard = (text: string, msg: string) => {
     navigator.clipboard.writeText(text);
     showToast(msg, "success");
+  };
+
+  const shareReferral = (platform: string) => {
+    const text = `Join ${displayCasinoName} and get a ৳507 welcome bonus! Use my referral link: ${referralLink}`;
+    const url = encodeURIComponent(referralLink);
+    const shareText = encodeURIComponent(text);
+
+    let shareUrl = "";
+    switch (platform) {
+      case 'facebook':
+        shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
+        break;
+      case 'twitter':
+        shareUrl = `https://twitter.com/intent/tweet?text=${shareText}`;
+        break;
+      case 'telegram':
+        shareUrl = `https://t.me/share/url?url=${url}&text=${shareText}`;
+        break;
+      case 'whatsapp':
+        shareUrl = `https://wa.me/?text=${shareText}%20${url}`;
+        break;
+      default:
+        if (navigator.share) {
+          navigator.share({
+            title: `${displayCasinoName} Referral`,
+            text: text,
+            url: referralLink,
+          }).catch(console.error);
+          return;
+        }
+    }
+    if (shareUrl) window.open(shareUrl, '_blank');
+  };
+
+  const downloadQRCode = () => {
+    const svg = document.getElementById('referral-qr');
+    if (svg) {
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      const img = new Image();
+      img.onload = () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx?.drawImage(img, 0, 0);
+        const pngFile = canvas.toDataURL("image/png");
+        const downloadLink = document.createElement("a");
+        downloadLink.download = `referral-qr-${referralCode}.png`;
+        downloadLink.href = `${pngFile}`;
+        downloadLink.click();
+      };
+      img.src = "data:image/svg+xml;base64," + btoa(svgData);
+      showToast("QR Code ডাউনলোড শুরু হয়েছে", "success");
+    }
   };
 
   const EmptyState = () => (
@@ -127,29 +183,37 @@ export default function InviteView({ onTabChange, userData, showToast, initialSu
             <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
               <p className="text-xs font-bold text-indigo-900 mb-3">Share to your friends</p>
               <div className="flex gap-4 items-start mb-4">
-                <div className="flex flex-col items-center gap-1">
-                  <div className="w-16 h-16 bg-white border border-gray-200 p-1 rounded flex items-center justify-center">
-                    <QrCode size={56} className="text-black" />
+                <div className="flex flex-col items-center gap-1 group cursor-pointer" onClick={downloadQRCode}>
+                  <div className="w-16 h-16 bg-white border border-gray-200 p-1 rounded flex items-center justify-center relative shadow-sm group-hover:border-indigo-300 transition-colors">
+                    <QRCodeSVG 
+                      id="referral-qr"
+                      value={referralLink} 
+                      size={56} 
+                      level="H"
+                      includeMargin={false}
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded">
+                      <Download size={16} className="text-white" />
+                    </div>
                   </div>
                   <span className="text-[8px] bg-indigo-900 text-white px-1 rounded">Save invite code</span>
                 </div>
                 <div className="flex-1 space-y-3">
-                  <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded p-1.5">
+                  <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded p-1.5 focus-within:border-indigo-300 transition-colors">
                     <span className="text-[10px] text-gray-500 truncate flex-1">{referralLink}</span>
                     <button 
-                      onClick={() => copyToClipboard(referralLink, "Link copied!")}
-                      className="p-1 bg-indigo-900 rounded text-white"
+                      onClick={() => copyToClipboard(referralLink, "Referral link copied!")}
+                      className="p-1 bg-indigo-900 rounded text-white hover:bg-indigo-800 transition-colors active:scale-90"
                     >
                       <Copy size={12} />
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center text-white"><Facebook size={16} /></button>
-                    <button className="w-8 h-8 rounded bg-black flex items-center justify-center text-white"><XIcon size={16} /></button>
-                    <button className="w-8 h-8 rounded bg-blue-400 flex items-center justify-center text-white"><Send size={16} /></button>
-                    <button className="w-8 h-8 rounded bg-green-500 flex items-center justify-center text-white"><MessageCircle size={16} /></button>
-                    <button className="w-8 h-8 rounded bg-green-600 flex items-center justify-center text-white"><LineIcon size={16} /></button>
-                    <button className="w-8 h-8 rounded bg-blue-500 flex items-center justify-center text-white"><Share2 size={16} /></button>
+                    <button onClick={() => shareReferral('facebook')} className="w-8 h-8 rounded bg-[#1877F2] flex items-center justify-center text-white hover:scale-110 transition-transform active:scale-90"><Facebook size={16} fill="currentColor" /></button>
+                    <button onClick={() => shareReferral('twitter')} className="w-8 h-8 rounded bg-black flex items-center justify-center text-white hover:scale-110 transition-transform active:scale-90"><XIcon size={16} /></button>
+                    <button onClick={() => shareReferral('telegram')} className="w-8 h-8 rounded bg-[#0088cc] flex items-center justify-center text-white hover:scale-110 transition-transform active:scale-90"><Send size={16} /></button>
+                    <button onClick={() => shareReferral('whatsapp')} className="w-8 h-8 rounded bg-[#25D366] flex items-center justify-center text-white hover:scale-110 transition-transform active:scale-90"><MessageCircle size={16} /></button>
+                    <button onClick={() => shareReferral('native')} className="w-8 h-8 rounded bg-gray-600 flex items-center justify-center text-white hover:scale-110 transition-transform active:scale-90"><Share2 size={16} /></button>
                   </div>
                 </div>
               </div>
@@ -219,7 +283,7 @@ export default function InviteView({ onTabChange, userData, showToast, initialSu
             {/* Commission Details */}
             <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 space-y-4">
               <div className="text-center space-y-1">
-                <h3 className="text-indigo-900 font-bold text-lg">VIPTAKA এর নতুন রেফারেল প্রোগ্রাম</h3>
+                <h3 className="text-indigo-900 font-bold text-lg">{displayCasinoName} এর নতুন রেফারেল প্রোগ্রাম</h3>
                 <p className="text-indigo-800 text-sm">এজেন্টের ৪টি সুপার কমিশন উপভোগ করুন</p>
               </div>
               
@@ -275,21 +339,45 @@ export default function InviteView({ onTabChange, userData, showToast, initialSu
             {/* Leaderboard */}
             <div className="space-y-4">
               <h3 className="text-center font-bold text-indigo-900 text-2xl">Leaderboard</h3>
-              <div className="bg-gradient-to-b from-blue-400 to-purple-600 rounded-2xl p-4 shadow-lg">
-                <h4 className="text-white font-bold text-center mb-4">Who received the rewards</h4>
-                <div className="space-y-2">
-                  {[
-                    { name: 'ro******1', amount: '৳ 308.00' },
-                    { name: 'md**********0', amount: '৳ 308.00' },
-                    { name: 'mi******6', amount: '৳ 308.00' },
-                    { name: '18*******2', amount: '৳ 308.00' }
-                  ].map((item, i) => (
-                    <div key={i} className="bg-white/90 rounded-full px-4 py-2 flex justify-between items-center text-xs font-bold text-gray-700">
-                      <span className="w-1/3">{item.name}</span>
-                      <span className="w-1/3 text-center text-gray-400">Received</span>
-                      <span className="w-1/3 text-right text-indigo-900">{item.amount}</span>
-                    </div>
-                  ))}
+              <div className="bg-gradient-to-b from-blue-400 to-purple-600 rounded-2xl p-4 shadow-lg overflow-hidden relative">
+                <h4 className="text-white font-bold text-center mb-4 relative z-10 pb-2 border-b border-white/10">Who received the rewards</h4>
+                <div className="relative h-[200px] overflow-hidden" style={{ maskImage: 'linear-gradient(to bottom, transparent, black 10%, black 90%, transparent)', WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 10%, black 90%, transparent)' }}>
+                  <motion.div 
+                    initial={{ y: 0 }}
+                    animate={{ y: "-50%" }}
+                    transition={{ 
+                      duration: 15, 
+                      repeat: Infinity, 
+                      ease: "linear" 
+                    }}
+                    className="flex flex-col gap-2 pt-2"
+                  >
+                    {[
+                      { name: 'ro******1', amount: '৳ 308.00' },
+                      { name: 'md**********0', amount: '৳ 507.00' },
+                      { name: 'mi******6', amount: '৳ 1,000.00' },
+                      { name: '18*******2', amount: '৳ 2,500.00' },
+                      { name: 'ab******4', amount: '৳ 1,500.00' },
+                      { name: 'sh******9', amount: '৳ 2,100.00' },
+                      { name: 'ka******7', amount: '৳ 5,500.00' },
+                      { name: 'ta******3', amount: '৳ 10,000.00' },
+                      // duplicate for seamless loop
+                      { name: 'ro******1', amount: '৳ 308.00' },
+                      { name: 'md**********0', amount: '৳ 507.00' },
+                      { name: 'mi******6', amount: '৳ 1,000.00' },
+                      { name: '18*******2', amount: '৳ 2,500.00' },
+                      { name: 'ab******4', amount: '৳ 1,500.00' },
+                      { name: 'sh******9', amount: '৳ 2,100.00' },
+                      { name: 'ka******7', amount: '৳ 5,500.00' },
+                      { name: 'ta******3', amount: '৳ 10,000.00' }
+                    ].map((item, i) => (
+                      <div key={i} className="bg-white/90 rounded-full px-4 py-2 flex justify-between items-center text-xs font-bold text-gray-700 mx-1 shrink-0">
+                        <span className="w-1/3 truncate">{item.name}</span>
+                        <span className="w-1/3 text-center text-gray-400">Received</span>
+                        <span className="w-1/3 text-right text-indigo-900">{item.amount}</span>
+                      </div>
+                    ))}
+                  </motion.div>
                 </div>
               </div>
             </div>
@@ -317,7 +405,7 @@ export default function InviteView({ onTabChange, userData, showToast, initialSu
             <div className="text-center py-4">
               <h3 className="text-indigo-900 font-black text-2xl">এজেন্ট ৪ সুপার কমিশন</h3>
               <div className="mt-4 bg-gray-100 rounded-xl p-4 border border-gray-200">
-                <p className="text-indigo-900 font-bold">VIPTAKA এর এজেন্ট হন এখনই</p>
+                <p className="text-indigo-900 font-bold">{displayCasinoName} এর এজেন্ট হন এখনই</p>
               </div>
             </div>
           </div>

@@ -77,10 +77,21 @@ const ParallaxCard: React.FC<{ img: typeof CASINO_IMAGES[0], index: number }> = 
 export const CasinoGallery: React.FC<CasinoGalleryProps> = ({ onClose }) => {
   return (
     <div className="fixed inset-0 z-[100] bg-black flex flex-col overflow-y-auto no-scrollbar">
-      {/* Animated Background Gradient */}
-      <div className="fixed inset-0 bg-gradient-to-br from-teal-900/20 via-black to-red-900/10 pointer-events-none" />
+      {/* Background Video */}
+      <div className="fixed inset-0 z-0 bg-black pointer-events-none overflow-hidden h-screen w-screen">
+        <video 
+          autoPlay 
+          loop 
+          muted 
+          playsInline
+          className="absolute min-w-full min-h-full object-cover opacity-30 select-none scale-110 blur-sm pointer-events-none"
+        >
+          <source src={GAME_IMAGES.CASINO_VIDEO_URL} type="video/mp4" />
+        </video>
+        <div className="absolute inset-0 bg-gradient-to-br from-teal-900/60 via-black/80 to-red-900/60 mix-blend-multiply" />
+      </div>
 
-      <div className="flex justify-between items-center p-6 sticky top-0 bg-black/80 backdrop-blur-md z-50 border-b border-white/5">
+      <div className="flex justify-between items-center p-6 sticky top-0 bg-black/40 backdrop-blur-xl z-50 border-b border-white/5">
         <div className="flex flex-col">
           <h2 className="text-2xl font-black text-yellow-500 italic tracking-tighter leading-none">REAL CASINO</h2>
           <span className="text-[10px] text-teal-400 font-bold tracking-[0.2em] uppercase mt-1">Assets Preview Gallery</span>

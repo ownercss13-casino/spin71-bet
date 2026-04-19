@@ -1,9 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bell, X, Trash2, CheckCircle2, Info, Gift, AlertCircle, ChevronRight, Clock } from 'lucide-react';
-import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { Notification, markNotificationAsRead, deleteNotification } from '../services/firebaseService';
+
+export interface Notification {
+  id?: string;
+  title: string;
+  message: string;
+  type: 'bonus' | 'promotion' | 'account' | 'info';
+  read: boolean;
+  createdAt: any;
+  actionUrl?: string;
+}
 
 interface NotificationCenterProps {
   isOpen: boolean;
@@ -17,39 +24,39 @@ export default function NotificationCenter({ isOpen, onClose, userData, onAction
   const [activeFilter, setActiveFilter] = useState<'all' | 'unread'>('all');
 
   useEffect(() => {
-    if (!userData?.id || !isOpen) return;
-
-    const path = `users/${userData.id}/notifications`;
-    const q = query(collection(db, path), orderBy('createdAt', 'desc'));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const msgs: Notification[] = [];
-      snapshot.forEach((doc) => {
-        msgs.push({ id: doc.id, ...doc.data() } as Notification);
-      });
-      setNotifications(msgs);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, path);
-    });
-
-    return () => unsubscribe();
-  }, [userData?.id, isOpen]);
+    // Mock notifications
+    const mockNotifications: Notification[] = [
+      {
+        id: 'n1',
+        title: 'বোনাস আপডেট',
+        message: 'আপনি ৫0৭ টাকা ওয়েলকাম বোনাস পেয়েছেন!',
+        type: 'bonus',
+        read: false,
+        createdAt: new Date(Date.now() - 3600000)
+      },
+      {
+        id: 'n2',
+        title: 'নতুন গেম রিলিজ',
+        message: 'এভিয়েটর গেম এখন লাইভ! এখনই খেলুন।',
+        type: 'promotion',
+        read: true,
+        createdAt: new Date(Date.now() - 86400000)
+      }
+    ];
+    setNotifications(mockNotifications);
+  }, [isOpen]);
 
   const filteredNotifications = activeFilter === 'all' 
     ? notifications 
     : notifications.filter(n => !n.read);
 
-  const handleMarkAsRead = async (id: string) => {
-    if (userData?.id) {
-      await markNotificationAsRead(userData.id, id);
-    }
+  const handleMarkAsRead = (id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   };
 
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
+  const handleDelete = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (userData?.id) {
-      await deleteNotification(userData.id, id);
-    }
+    setNotifications(prev => prev.filter(n => n.id !== id));
   };
 
   const getIcon = (type: string) => {
@@ -61,9 +68,8 @@ export default function NotificationCenter({ isOpen, onClose, userData, onAction
     }
   };
 
-  const formatTime = (timestamp: any) => {
-    if (!timestamp) return "";
-    const date = timestamp.toDate();
+  const formatTime = (date: any) => {
+    if (!date) return "";
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const mins = Math.floor(diff / 60000);

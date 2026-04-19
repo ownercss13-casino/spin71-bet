@@ -2,445 +2,86 @@
   "entities": {
     "User": {
       "title": "User",
-      "description": "User profile and account information",
+      "description": "User profile and balance information",
       "type": "object",
       "properties": {
-        "username": {
-          "type": "string",
-          "description": "User's unique username"
-        },
-        "phoneNumber": {
-          "type": "string",
-          "description": "User's registered phone number"
-        },
-        "password": {
-          "type": "string",
-          "description": "User's hashed password"
-        },
-        "gmail": {
-          "type": "string",
-          "description": "User's linked Gmail address"
-        },
-        "balance": {
-          "type": "number",
-          "description": "User's current account balance"
-        },
-        "isGmailLinked": {
-          "type": "boolean",
-          "description": "Whether the user has linked their Gmail"
-        },
-        "favorites": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "List of favorite game IDs"
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Account creation timestamp"
-        },
-        "profilePictureUrl": {
-          "type": "string",
-          "description": "URL or base64 string of the user's profile picture"
-        },
-        "claimedBonuses": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "List of claimed bonus IDs"
-        },
-        "lastDailyBonusClaimedAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Timestamp of the last daily bonus claim"
-        },
-        "hasClaimedWelcomeBonus": {
-          "type": "boolean",
-          "description": "Whether the user has claimed the welcome bonus"
-        },
-        "hasMadeDeposit": {
-          "type": "boolean",
-          "description": "Whether the user has made at least one deposit"
-        },
-        "role": {
-          "type": "string",
-          "enum": ["user", "agent", "admin"],
-          "description": "User's role in the system"
-        },
-        "agentBalance": {
-          "type": "number",
-          "description": "Balance available for the agent to distribute to their players"
-        },
-        "referredBy": {
-          "type": "string",
-          "description": "UID of the agent who referred this user"
-        },
-        "referralCount": {
-          "type": "number",
-          "description": "Total number of successful referrals"
-        },
-        "totalReferralEarnings": {
-          "type": "number",
-          "description": "Total earnings from referrals"
-        },
-        "totalWinnings": {
-          "type": "number",
-          "description": "Total amount won in games"
-        },
-        "achievements": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "List of user achievements (e.g., 'Big Winner', 'High Roller')"
-        }
+        "username": { "type": "string", "description": "Display name" },
+        "phoneNumber": { "type": "string", "description": "Verified phone number" },
+        "balance": { "type": "number", "description": "Current coins" },
+        "role": { "type": "string", "enum": ["user", "agent", "admin"] },
+        "referredBy": { "type": "string", "description": "UID of referrer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["username", "phoneNumber", "password", "balance", "role"]
+      "required": ["username", "balance", "role"]
     },
-    "Referral": {
-      "title": "Referral",
-      "description": "Information about a user referral",
+    "GameSettings": {
+      "title": "Game Settings",
+      "description": "Global configuration for games",
       "type": "object",
       "properties": {
-        "referredUserId": {
-          "type": "string",
-          "description": "UID of the user who was referred"
-        },
-        "referredUsername": {
-          "type": "string",
-          "description": "Username of the referred user"
-        },
-        "joinedAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "When the user joined via the referral"
-        },
-        "earningsGenerated": {
-          "type": "number",
-          "description": "Total earnings generated for the agent by this user"
-        },
-        "status": {
-          "type": "string",
-          "enum": ["active", "inactive"],
-          "description": "Current status of the referred user"
-        }
-      },
-      "required": ["referredUserId", "referredUsername", "joinedAt", "earningsGenerated", "status"]
+        "game_id": { "type": "string" },
+        "name": { "type": "string" },
+        "logo_url": { "type": "string" },
+        "game_url": { "type": "string" },
+        "options": { "type": "string" },
+        "category": { "type": "string" },
+        "image_url": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
     },
     "Transaction": {
       "title": "Transaction",
-      "description": "A financial transaction (deposit, withdrawal, bonus, or bet)",
-      "type": "object",
-      "properties": {
-        "trxId": {
-          "type": "string",
-          "description": "Unique transaction identifier"
-        },
-        "method": {
-          "type": "string",
-          "description": "Payment method (e.g., bKash, Nagad, Rocket, Wallet, System)"
-        },
-        "type": {
-          "type": "string",
-          "enum": ["deposit", "withdraw", "bonus", "bet"],
-          "description": "Type of transaction"
-        },
-        "amount": {
-          "type": "number",
-          "description": "Transaction amount (positive for deposits/bonuses, negative for withdrawals/bets)"
-        },
-        "date": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Timestamp of the transaction"
-        },
-        "status": {
-          "type": "string",
-          "enum": ["সম্পন্ন", "প্রক্রিয়াধীন", "ব্যর্থ"],
-          "description": "Status of the transaction in Bengali"
-        },
-        "statusColor": {
-          "type": "string",
-          "description": "Tailwind color class for the status"
-        }
-      },
-      "required": ["trxId", "method", "type", "amount", "date", "status", "statusColor"]
-    },
-    "SavedItem": {
-      "title": "SavedItem",
-      "description": "Items saved by the user",
-      "type": "object",
-      "properties": {
-        "userId": {
-          "type": "string",
-          "description": "ID of the user who saved the item"
-        },
-        "itemId": {
-          "type": "string",
-          "description": "ID of the saved item"
-        },
-        "itemType": {
-          "type": "string",
-          "description": "Type of the saved item (e.g., game, product)"
-        },
-        "savedAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Timestamp when the item was saved"
-        }
-      },
-      "required": ["userId", "itemId", "itemType", "savedAt"]
-    },
-    "Metadata": {
-      "title": "Metadata",
-      "description": "System-wide metadata and counters",
-      "type": "object",
-      "properties": {
-        "userCount": {
-          "type": "integer",
-          "description": "Total number of users registered"
-        }
-      }
-    },
-    "GameSession": {
-      "title": "GameSession",
-      "description": "Shared state for a live game session",
-      "type": "object",
-      "properties": {
-        "gameId": { "type": "string" },
-        "multiplier": { "type": "number" },
-        "status": { "type": "string", "enum": ["waiting", "running", "crashed"] },
-        "crashPoint": { "type": "number" },
-        "startTime": { "type": "string", "format": "date-time" },
-        "lastUpdate": { "type": "string", "format": "date-time" },
-        "history": { "type": "array", "items": { "type": "number" } }
-      },
-      "required": ["gameId", "multiplier", "status", "lastUpdate"]
-    },
-    "Notification": {
-      "title": "Notification",
-      "description": "In-app notification for the user",
-      "type": "object",
-      "properties": {
-        "title": {
-          "type": "string",
-          "description": "Notification title"
-        },
-        "message": {
-          "type": "string",
-          "description": "Notification message body"
-        },
-        "type": {
-          "type": "string",
-          "enum": ["bonus", "promotion", "account", "system"],
-          "description": "Type of notification"
-        },
-        "read": {
-          "type": "boolean",
-          "description": "Whether the notification has been read"
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "When the notification was created"
-        },
-        "actionUrl": {
-          "type": "string",
-          "description": "Optional URL to navigate to when clicked"
-        }
-      },
-      "required": ["title", "message", "type", "read", "createdAt"]
-    },
-    "GlobalConfig": {
-      "title": "GlobalConfig",
-      "description": "Global system-wide configuration settings",
-      "type": "object",
-      "properties": {
-        "game_logos": {
-          "type": "object",
-          "description": "Map of game IDs to their global logo URLs"
-        },
-        "game_names": {
-          "type": "object",
-          "description": "Map of game IDs to their global names"
-        }
-      }
-    },
-    "ApiToken": {
-      "title": "ApiToken",
-      "description": "API token for external system access",
-      "type": "object",
-      "properties": {
-        "token": {
-          "type": "string",
-          "description": "The actual API token string"
-        },
-        "name": {
-          "type": "string",
-          "description": "Name of the API token"
-        },
-        "expirationDate": {
-          "type": "string",
-          "format": "date",
-          "description": "Expiration date of the token"
-        },
-        "status": {
-          "type": "string",
-          "enum": ["active", "inactive"],
-          "description": "Status of the token"
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Creation timestamp"
-        }
-      },
-      "required": ["token", "name", "expirationDate", "status", "createdAt"]
-    },
-    "UserActivity": {
-      "title": "UserActivity",
-      "description": "Log of user activity for analysis",
-      "type": "object",
-      "properties": {
-        "userId": {
-          "type": "string",
-          "description": "ID of the user performing the activity"
-        },
-        "type": {
-          "type": "string",
-          "enum": ["game_selection", "bet_placement", "session_start", "session_end", "page_view"],
-          "description": "Type of activity"
-        },
-        "details": {
-          "type": "object",
-          "description": "Additional details about the activity (e.g., gameId, betAmount)"
-        },
-        "timestamp": {
-          "type": "string",
-          "format": "date-time",
-          "description": "When the activity occurred"
-        }
-      },
-      "required": ["userId", "type", "timestamp"]
-    },
-    "SystemError": {
-      "title": "SystemError",
-      "description": "Log of a system error for AI analysis and fixing",
-      "type": "object",
-      "properties": {
-        "error": { "type": "string" },
-        "operationType": { "type": "string" },
-        "path": { "type": "string" },
-        "timestamp": { "type": "string", "format": "date-time" },
-        "resolved": { "type": "boolean" },
-        "authInfo": { "type": "object" },
-        "userAgent": { "type": "string" },
-        "url": { "type": "string" }
-      },
-      "required": ["error", "operationType", "timestamp", "resolved"]
-    },
-    "SystemAlert": {
-      "title": "SystemAlert",
-      "description": "Alert message for administrators",
-      "type": "object",
-      "properties": {
-        "title": { "type": "string" },
-        "message": { "type": "string" },
-        "type": { "type": "string", "enum": ["info", "warning", "error", "success"] },
-        "read": { "type": "boolean" },
-        "timestamp": { "type": "string", "format": "date-time" }
-      },
-      "required": ["title", "message", "type", "read", "timestamp"]
-    },
-    "PromoCode": {
-      "title": "PromoCode",
-      "description": "Promotional code for bonuses",
-      "type": "object",
-      "properties": {
-        "amount": { "type": "number" },
-        "maxUses": { "type": "integer" },
-        "usedCount": { "type": "integer" },
-        "isActive": { "type": "boolean" },
-        "turnoverMultiplier": { "type": "number" },
-        "allowMultiUse": { "type": "boolean", "description": "Whether a user can use this code multiple times" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["amount", "maxUses", "usedCount", "isActive"]
-    },
-    "LeaderboardEntry": {
-      "title": "LeaderboardEntry",
-      "description": "An entry in the global leaderboard",
+      "description": "Deposit, withdraw, or bonus history",
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
-        "username": { "type": "string" },
-        "totalWinnings": { "type": "number" },
-        "achievements": { "type": "array", "items": { "type": "string" } },
-        "avatarUrl": { "type": "string" },
-        "lastWinAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["userId", "username", "totalWinnings"]
+        "type": { "type": "string", "enum": ["deposit", "withdraw", "bonus"] },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "completed", "rejected"] },
+        "method": { "type": "string" },
+        "trxId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "firestore": {
-    "/leaderboard/{entryId}": {
-      "schema": "LeaderboardEntry",
-      "description": "Global leaderboard entries"
-    },
     "/users/{userId}": {
       "schema": "User",
-      "description": "User document stored by their unique UID"
+      "description": "User profiles"
     },
-    "/users/{userId}/savedItems/{savedItemId}": {
-      "schema": "SavedItem",
-      "description": "Collection of items saved by a specific user"
+    "/game_settings/{gameId}": {
+      "schema": "GameSettings",
+      "description": "Global game configuration"
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Global transaction history for admins"
     },
     "/users/{userId}/transactions/{transactionId}": {
       "schema": "Transaction",
-      "description": "Financial history for a specific user"
+      "description": "User personal transaction history"
     },
-    "/users/{userId}/referrals/{referralId}": {
-      "schema": "Referral",
-      "description": "Collection of users referred by this agent"
+    "/promo_codes/{code}": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string" },
+          "amount": { "type": "number" },
+          "maxUses": { "type": "number" },
+          "usedCount": { "type": "number" },
+          "active": { "type": "boolean" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "description": "Promotional codes"
     },
-    "/users/{userId}/notifications/{notificationId}": {
-      "schema": "Notification",
-      "description": "Collection of notifications for a specific user"
-    },
-    "/users/{userId}/activities/{activityId}": {
-      "schema": "UserActivity",
-      "description": "Collection of activities for a specific user"
-    },
-    "/metadata/users": {
-      "schema": "Metadata",
-      "description": "Document containing the user counter"
-    },
-    "/game_sessions/{gameId}": {
-      "schema": "GameSession",
-      "description": "Shared state for a specific game (e.g., aviator)"
-    },
-    "/global_config/{configId}": {
-      "schema": "GlobalConfig",
-      "description": "Global configuration settings accessible to all users"
-    },
-    "/promo_codes/{promoId}": {
-      "schema": "PromoCode",
-      "description": "Collection of promotional codes"
-    },
-    "/api_tokens/{tokenId}": {
-      "schema": "ApiToken",
-      "description": "Collection of API tokens for admin access"
-    },
-    "/system_errors/{errorId}": {
-      "schema": "SystemError",
-      "description": "Collection of system errors for AI analysis"
-    },
-    "/system_alerts/{alertId}": {
-      "schema": "SystemAlert",
-      "description": "Collection of system alerts for administrators"
+    "/metadata/settings": {
+      "schema": {
+        "type": "object",
+        "description": "Global application settings"
+      },
+      "description": "App settings"
     }
   }
 }

@@ -1,9 +1,50 @@
-import React from 'react';
-import { Clock, Trophy, Download, X, RefreshCw, ChevronRight, Play, Wallet, Users, Star, TrendingUp, History, User, Menu, Bell, Search, Volume2, Flame, Gamepad2, Hexagon, Tv, Club, Fish, Ticket, ChevronLeft, Mail } from 'lucide-react';
-import { motion } from 'motion/react';
+import React, { useState, useEffect } from 'react';
+import { Clock, Trophy, Download, X, RefreshCw, ChevronRight, Play, Wallet, Users, Star, TrendingUp, History, User, Menu, Bell, Search, Volume2, Flame, Gamepad2, Hexagon, Tv, Club, Fish, Ticket, ChevronLeft, Mail, Sparkles, Zap } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { GAME_IMAGES } from '../constants/gameAssets';
-import { GameGrid } from "./GameGrid";
+import { GameGrid, games } from "./GameGrid";
 import GlobalImage from './GlobalImage';
+import Skeleton from './Skeleton';
+
+function WinAnimation({ gameId }: { gameId: string }) {
+  const [wins, setWins] = useState<{ id: number; amount: string; x: number; y: number }[]>([]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (Math.random() > 0.7) {
+        const id = Date.now();
+        const amount = `+৳ ${(Math.floor(Math.random() * 5000) + 1000).toLocaleString()}`;
+        const x = Math.random() * 60 + 20; // 20% to 80%
+        const y = Math.random() * 60 + 20;
+        setWins(prev => [...prev.slice(-4), { id, amount, x, y }]);
+        setTimeout(() => {
+          setWins(prev => prev.filter(w => w.id !== id));
+        }, 3000);
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="absolute inset-0 pointer-events-none z-30 overflow-hidden">
+      <AnimatePresence>
+        {wins.map(win => (
+          <motion.div
+            key={win.id}
+            initial={{ opacity: 0, y: 20, scale: 0.5, x: `${win.x}%`, top: `${win.y}%` }}
+            animate={{ opacity: 1, y: -100, scale: 1.5 }}
+            exit={{ opacity: 0, scale: 2 }}
+            transition={{ duration: 2.5, ease: "easeOut" }}
+            className="absolute text-yellow-400 font-black text-xl italic drop-shadow-[0_2px_4px_rgba(0,0,0,1)] flex items-center gap-1"
+          >
+            <Sparkles size={20} className="fill-yellow-400" />
+            {win.amount}
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 interface HomeViewProps {
   userData: any;
@@ -32,6 +73,7 @@ interface HomeViewProps {
   updateGlobalGameName: (gameId: string, name: string) => Promise<void>;
   updateGlobalGameUrl: (gameId: string, url: string) => Promise<void>;
   updateGlobalGameOption: (gameId: string, option: string) => Promise<void>;
+  updateGlobalImage?: (imageKey: string, url: string) => Promise<void>;
   allButtonName?: string;
   updateAllButtonName?: (newName: string) => void;
   casinoName?: string;
@@ -72,9 +114,10 @@ export default function HomeView({
   updateGlobalGameName,
   updateGlobalGameUrl,
   updateGlobalGameOption,
+  updateGlobalImage,
   allButtonName,
   updateAllButtonName,
-  casinoName = "SPIN71BET",
+  casinoName = "SPIN71 BET",
   updateCasinoName,
   noticeText = "আমাদের গেম উপভোগ করুন এবং বড় জয় নিশ্চিত করুন!",
   telegramLink,
@@ -85,7 +128,7 @@ export default function HomeView({
   isAdmin = false
 }: HomeViewProps) {
   const [editingCasinoName, setEditingCasinoName] = React.useState(false);
-  const [tempCasinoName, setTempCasinoName] = React.useState(casinoName || "SPIN71BET");
+  const [tempCasinoName, setTempCasinoName] = React.useState(casinoName || "SPIN71 BET");
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -102,8 +145,7 @@ export default function HomeView({
                 defaultUrl="https://picsum.photos/seed/app/100/100" 
                 currentUrl={globalImages?.app_logo}
                 updateGlobalImage={async (url) => {
-                  const { updateGlobalImage } = await import('../services/firebaseService');
-                  await updateGlobalImage('app_logo', url);
+                  if (updateGlobalImage) await updateGlobalImage('app_logo', url);
                 }}
                 isAdmin={isAdmin}
               />
@@ -136,15 +178,14 @@ export default function HomeView({
                 defaultUrl="https://picsum.photos/seed/casino/100/100" 
                 currentUrl={globalImages?.casino_logo}
                 updateGlobalImage={async (url) => {
-                  const { updateGlobalImage } = await import('../services/firebaseService');
-                  await updateGlobalImage('casino_logo', url);
+                  if (updateGlobalImage) await updateGlobalImage('casino_logo', url);
                 }}
                 isAdmin={isAdmin}
               />
             </div>
             <div 
               onClick={() => {
-                setTempCasinoName(casinoName || "SPIN71BET");
+                setTempCasinoName(casinoName || "SPIN71 BET");
                 setEditingCasinoName(true);
               }}
               className="text-2xl font-black italic tracking-tighter bg-gradient-to-b from-yellow-200 via-yellow-400 to-yellow-600 text-transparent bg-clip-text drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] cursor-pointer"
@@ -204,108 +245,225 @@ export default function HomeView({
       {/* User Info Bar */}
       <div className="bg-[var(--bg-surface)]/50 px-4 py-2 flex items-center justify-between border-b border-[var(--border-color)] backdrop-blur-sm sticky top-[52px] z-30 transition-colors duration-300">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-400 to-yellow-600 p-0.5 shadow-lg overflow-hidden">
-            <div className="w-full h-full bg-[var(--bg-main)] rounded-full flex items-center justify-center border-2 border-white overflow-hidden transition-colors duration-300">
-              {userData?.profilePictureUrl ? (
-                <img src={userData.profilePictureUrl} alt="Profile" className="w-full h-full object-cover" />
-              ) : (
-                <User size={14} className="text-white" />
-              )}
-            </div>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-wider leading-none">স্বাগতম (Welcome)</span>
-            <span className="text-xs font-black text-[var(--text-main)] tracking-tight">{userData?.username || 'Player_SPIN71'}</span>
-          </div>
+          {loading ? (
+            <>
+              <Skeleton className="w-8 h-8 rounded-full" />
+              <div className="flex flex-col gap-1">
+                <Skeleton className="h-2 w-16" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-400 to-yellow-600 p-0.5 shadow-lg overflow-hidden">
+                <div className="w-full h-full bg-[var(--bg-main)] rounded-full flex items-center justify-center border-2 border-white overflow-hidden transition-colors duration-300">
+                  {userData?.profilePictureUrl ? (
+                    <img src={userData.profilePictureUrl} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <User size={14} className="text-white" />
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-wider leading-none">স্বাগতম (Welcome)</span>
+                <span className="text-xs font-black text-[var(--text-main)] tracking-tight">{userData?.username || 'Player_SPIN71'}</span>
+              </div>
+            </>
+          )}
         </div>
-        <div className="flex flex-col items-end">
-          <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-wider leading-none">আইডি (ID)</span>
-          <span className="text-xs font-mono text-yellow-400 font-bold">{userData?.numericId || userData?.id?.substring(0, 8) || '84729104'}</span>
+        <div className="flex flex-col items-end gap-1">
+          {loading ? (
+            <>
+              <Skeleton className="h-2 w-12" />
+              <Skeleton className="h-3 w-20" />
+            </>
+          ) : (
+            <>
+              <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-wider leading-none">আইডি (ID)</span>
+              <span className="text-xs font-mono text-yellow-400 font-bold">{userData?.numericId || userData?.id?.substring(0, 8) || '84729104'}</span>
+            </>
+          )}
         </div>
       </div>
 
       {/* Hero Banner Section */}
       <div className="p-2">
-        <div className="relative h-48 bg-gradient-to-br from-[#0a1e1e] to-[#050f0f] rounded-3xl overflow-hidden border border-yellow-500/20 shadow-[0_0_30px_rgba(234,179,8,0.15)] group">
-          {/* Animated Background Elements */}
-          <div className="absolute inset-0 z-0">
-            <GlobalImage 
-              imageKey="hero_banner_bg"
-              defaultUrl="https://www.transparenttextures.com/patterns/carbon-fibre.png"
-              currentUrl={globalImages['hero_banner_bg']}
-              alt="Banner Background"
-              showToast={showToast}
-              className="w-full h-full object-cover opacity-30"
-              containerClassName="absolute inset-0 w-full h-full pointer-events-auto"
-              isAdmin={true}
-            />
-            <div className="absolute -right-20 -top-20 w-80 h-80 bg-yellow-500/5 rounded-full blur-[100px] animate-pulse pointer-events-none"></div>
-            <div className="absolute -left-20 -bottom-20 w-80 h-80 bg-teal-500/5 rounded-full blur-[100px] animate-pulse delay-700 pointer-events-none"></div>
-          </div>
-
-          {/* Character Image */}
-          <div className="absolute right-0 bottom-0 w-[55%] h-full z-20 pointer-events-none">
+        {loading ? (
+          <Skeleton className="w-full h-[220px] rounded-3xl" />
+        ) : (
+          <div className="relative h-[220px] rounded-3xl overflow-hidden border border-yellow-500/20 shadow-[0_0_30px_rgba(234,179,8,0.15)] group bg-[#050f0f]">
+            {/* Main Banner Image */}
             <GlobalImage 
               imageKey="hero_banner_host"
-              defaultUrl="https://picsum.photos/seed/casino_host/800/800"
+              defaultUrl="https://picsum.photos/seed/casino_banner/800/400"
               currentUrl={globalImages['hero_banner_host']}
-              alt="Casino Host"
+              alt="Promo Banner"
               showToast={showToast}
-              className="w-full h-full object-contain object-bottom transform scale-110 group-hover:scale-115 transition-transform duration-700 drop-shadow-[0_10px_30px_rgba(0,0,0,0.8)]"
-              containerClassName="w-full h-full pointer-events-auto"
-              isAdmin={true}
+              updateGlobalImage={async (url) => {
+                if (updateGlobalImage) await updateGlobalImage('hero_banner_host', url);
+              }}
+              className="w-full h-full object-fill hover:scale-105 transition-transform duration-700"
+              containerClassName="absolute inset-0 w-full h-full pointer-events-auto"
+              isAdmin={isAdmin}
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#050f0f]/80 via-transparent to-transparent pointer-events-none"></div>
+            
+            {/* Simple Pagination Dots (Decorative) */}
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2 z-40 pointer-events-none">
+              <div className="w-6 h-1.5 rounded-full bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]"></div>
+              <div className="w-1.5 h-1.5 rounded-full bg-white/40 backdrop-blur"></div>
+              <div className="w-1.5 h-1.5 rounded-full bg-white/40 backdrop-blur"></div>
+            </div>
           </div>
+        )}
+      </div>
 
-          {/* Banner Content */}
-          <div className="z-30 pl-6 w-[60%] relative h-full flex flex-col justify-center">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="bg-yellow-500 text-black text-[10px] font-black px-2 py-0.5 rounded italic shadow-lg border border-yellow-300 uppercase tracking-tighter">
-                999BD EXCLUSIVE
-              </div>
-            </div>
-            
-            <h2 className="text-2xl font-black leading-none text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] mb-2">
-              বন্ধুদের আমন্ত্রণ জানান <br/>
-              <span className="text-yellow-400 italic text-3xl">৳ ৯৯৯</span> জিততে!
-            </h2>
-            
-            <div className="flex items-center gap-2 mb-4">
-              <div className="flex -space-x-2">
-                {[1,2,3].map(i => (
-                  <div key={i} className="w-6 h-6 rounded-full border-2 border-[#050f0f] bg-gray-800 overflow-hidden">
-                    <img src={`https://picsum.photos/seed/user${i}/50/50`} alt="user" className="w-full h-full object-cover" />
-                  </div>
-                ))}
-              </div>
-              <p className="text-[10px] text-yellow-100/80 font-bold">
-                +৫০০ জন আজ জয়ী হয়েছেন
-              </p>
-            </div>
+      {/* Featured Games Section */}
+      <div className="px-2 mt-4 space-y-3">
+        <div className="flex items-center justify-between px-2">
+          <div className="flex items-center gap-2">
+             <div className="p-1.5 bg-yellow-500/20 rounded-lg text-yellow-500">
+               <Flame size={18} fill="currentColor" />
+             </div>
+             <h3 className="text-white font-black text-sm uppercase italic tracking-tighter">স্পেশাল গেম (Featured Games)</h3>
+          </div>
+          <div className="flex items-center gap-1.5 px-3 py-1 bg-yellow-500/10 border border-yellow-500/20 rounded-full">
+            <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(234,179,8,0.8)]"></div>
+            <span className="text-[10px] font-black text-yellow-500 uppercase">PROMOTED</span>
+          </div>
+        </div>
 
-            <div className="flex gap-2">
-              <button className="bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600 text-black text-xs font-black px-6 py-2.5 rounded-xl shadow-[0_10px_20px_rgba(234,179,8,0.3)] hover:scale-105 active:scale-95 transition-all border border-yellow-200 uppercase tracking-widest w-fit">
-                এখনই শুরু করুন
-              </button>
-              <button 
+        <div className="grid grid-cols-1 gap-4">
+          {loading ? (
+            <>
+              <Skeleton className="w-full h-36 rounded-2xl" />
+              <Skeleton className="w-full h-36 rounded-2xl" />
+            </>
+          ) : (
+            <>
+              {/* Aviator Promo Banner */}
+              <motion.div 
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => {
-                  showToast("ব্যানারটি সেভ করা হয়েছে!", "success");
+                  const game = games.find(g => g.id === '5');
+                  if (game) handleGameSelect(game);
                 }}
-                className="bg-white/10 backdrop-blur-md text-white text-xs font-black px-6 py-2.5 rounded-xl border border-white/20 hover:bg-white/20 transition-all uppercase tracking-widest flex items-center gap-2"
+                className="relative h-36 bg-gradient-to-br from-red-900 to-red-950 rounded-2xl overflow-hidden border border-red-500/30 group cursor-pointer shadow-lg shadow-red-900/20"
               >
-                <Star size={14} className="fill-yellow-400 text-yellow-400" />
-                সেভ করুন
-              </button>
-            </div>
-          </div>
+                <WinAnimation gameId="5" />
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+                
+                <div className="relative z-10 flex h-full">
+                  <div className="w-[60%] p-5 flex flex-col justify-center">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="text-yellow-400 font-black text-[10px] flex items-center gap-0.5">
+                        <Star size={10} fill="currentColor" /> 5.0
+                      </div>
+                    </div>
+                    <h4 className="text-2xl font-black text-white italic leading-tight mb-2 tracking-tighter uppercase drop-shadow-lg">
+                      AVIATOR <br/>
+                      <span className="text-red-400">CRASH GAME</span>
+                    </h4>
+                    <div className="flex items-center gap-2">
+                       <div className="flex items-center gap-1 px-3 py-1 bg-white/10 rounded-full backdrop-blur-md border border-white/5">
+                         <Users size={12} className="text-white/60" />
+                         <span className="text-[9px] font-bold text-white">৩,৫০০+ খেলোয়াড়</span>
+                       </div>
+                       <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white shadow-lg animate-bounce">
+                         <Play size={14} fill="currentColor" className="ml-0.5" />
+                       </div>
+                    </div>
+                  </div>
+                  
+                  <div className="w-[40%] relative">
+                    <div className="absolute inset-0 bg-gradient-to-l from-red-600/20 to-transparent"></div>
+                    <div className="absolute inset-0 flex items-center justify-center p-4">
+                      <motion.img 
+                        animate={{ 
+                          y: [0, -10, 0],
+                          rotate: [0, 2, -2, 0]
+                        }}
+                        transition={{ 
+                          duration: 4, 
+                          repeat: Infinity,
+                          ease: "easeInOut"
+                        }}
+                        src={globalLogos['aviator'] || GAME_IMAGES.AVIATOR_LOGO} 
+                        alt="Aviator" 
+                        className="w-full h-full object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]"
+                      />
+                    </div>
+                  </div>
+                </div>
+                {/* Red Pulsing Aura */}
+                <div className="absolute top-1/2 left-0 w-32 h-32 bg-red-600/20 rounded-full blur-3xl -translate-y-1/2 -translate-x-1/2"></div>
+              </motion.div>
 
-          {/* Pagination Dots */}
-          <div className="absolute bottom-3 left-6 flex gap-2 z-40">
-            <div className="w-6 h-1.5 rounded-full bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]"></div>
-            <div className="w-1.5 h-1.5 rounded-full bg-white/20"></div>
-            <div className="w-1.5 h-1.5 rounded-full bg-white/20"></div>
-          </div>
+              {/* Space Rocket Promo Banner */}
+              <motion.div 
+                initial={{ opacity: 0, x: 20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  const game = games.find(g => g.id === 'rocket_1');
+                  if (game) handleGameSelect(game);
+                }}
+                className="relative h-36 bg-gradient-to-br from-indigo-900 to-[#0c0a2e] rounded-2xl overflow-hidden border border-indigo-500/30 group cursor-pointer shadow-lg shadow-indigo-900/20"
+              >
+                <WinAnimation gameId="rocket_1" />
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+                
+                <div className="relative z-10 flex h-full">
+                  <div className="w-[60%] p-5 flex flex-col justify-center">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="text-teal-400 font-black text-[10px] flex items-center gap-0.5">
+                        <Zap size={10} fill="currentColor" /> X10000
+                      </div>
+                    </div>
+                    <h4 className="text-2xl font-black text-white italic leading-tight mb-2 tracking-tighter uppercase drop-shadow-lg">
+                      SPACE ROCKET <br/>
+                      <span className="text-teal-400">MEGA MULTIPLIER</span>
+                    </h4>
+                    <div className="flex items-center gap-2">
+                       <div className="flex items-center gap-1 px-3 py-1 bg-white/10 rounded-full backdrop-blur-md border border-white/5">
+                         <Users size={12} className="text-white/60" />
+                         <span className="text-[9px] font-bold text-white">১,২০০+ খেলোয়াড়</span>
+                       </div>
+                       <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white shadow-lg animate-pulse">
+                         <Play size={14} fill="currentColor" className="ml-0.5" />
+                       </div>
+                    </div>
+                  </div>
+                  
+                  <div className="w-[40%] relative">
+                    <div className="absolute inset-0 bg-gradient-to-l from-teal-500/20 to-transparent"></div>
+                    <div className="absolute inset-0 flex items-center justify-center p-4">
+                      <motion.div
+                        animate={{ 
+                          y: [0, -15, 0],
+                          scale: [1, 1.05, 1],
+                          filter: ["drop-shadow(0 0 10px rgba(45, 212, 191, 0.4))", "drop-shadow(0 0 25px rgba(45, 212, 191, 0.8))", "drop-shadow(0 0 10px rgba(45, 212, 191, 0.4))"]
+                        }}
+                        transition={{ 
+                          duration: 3, 
+                          repeat: Infinity,
+                          ease: "easeInOut"
+                        }}
+                        className="w-full h-full flex items-center justify-center"
+                      >
+                        <Zap size={60} className="text-teal-400 fill-teal-400 opacity-80" />
+                      </motion.div>
+                    </div>
+                  </div>
+                </div>
+                {/* Indigo Glow */}
+                <div className="absolute bottom-0 right-0 w-48 h-48 bg-teal-500/10 rounded-full blur-[80px] group-hover:bg-teal-500/20 transition-all"></div>
+              </motion.div>
+            </>
+          )}
         </div>
       </div>
 
@@ -318,33 +476,48 @@ export default function HomeView({
           </div>
           
           <div className="h-24 overflow-hidden relative">
-            <div className="animate-scroll-vertical space-y-2">
-              {[
-                { user: 'Pl***82', amount: '৳ ৫,৪০০', game: 'Super Ace' },
-                { user: 'Ka***12', amount: '৳ ১২,০০০', game: 'Fortune Gems' },
-                { user: 'Ab***09', amount: '৳ ২,৫০০', game: 'Aviator' },
-                { user: 'Ro***44', amount: '৳ ৪৫,০০০', game: 'Money Coming' },
-                { user: 'Sa***77', amount: '৳ ৮,৯০০', game: 'Boxing King' },
-                { user: 'Mi***21', amount: '৳ ৩,২০০', game: 'Crazy 777' },
-                { user: 'Ju***55', amount: '৳ ১৫,৬০০', game: 'Roma X' },
-              ].map((win, i) => (
-                <div key={i} className="flex items-center justify-between bg-white/5 p-2 rounded-xl border border-white/5">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-yellow-500/10 flex items-center justify-center text-yellow-500 border border-yellow-500/20">
-                      <User size={14} />
+            {loading ? (
+              <div className="space-y-2">
+                <Skeleton className="w-full h-12 rounded-xl" />
+                <Skeleton className="w-full h-12 rounded-xl" />
+              </div>
+            ) : (
+              <div className="animate-[scroll-vertical_15s_linear_infinite] hover:animate-none space-y-2">
+                {[
+                  { user: 'Pl***82', amount: '৳ ৫,৪০০', game: 'Super Ace' },
+                  { user: 'Ka***12', amount: '৳ ১২,০০০', game: 'Fortune Gems' },
+                  { user: 'Ab***09', amount: '৳ ২,৫০০', game: 'Aviator' },
+                  { user: 'Ro***44', amount: '৳ ৪৫,০০০', game: 'Money Coming' },
+                  { user: 'Sa***77', amount: '৳ ৮,৯০০', game: 'Boxing King' },
+                  { user: 'Mi***21', amount: '৳ ৩,২০০', game: 'Crazy 777' },
+                  { user: 'Ju***55', amount: '৳ ১৫,৬০০', game: 'Roma X' },
+                  // Duplicate for seamless scroll
+                  { user: 'Pl***82', amount: '৳ ৫,৪০০', game: 'Super Ace' },
+                  { user: 'Ka***12', amount: '৳ ১২,০০০', game: 'Fortune Gems' },
+                  { user: 'Ab***09', amount: '৳ ২,৫০০', game: 'Aviator' },
+                  { user: 'Ro***44', amount: '৳ ৪৫,০০০', game: 'Money Coming' },
+                  { user: 'Sa***77', amount: '৳ ৮,৯০০', game: 'Boxing King' },
+                  { user: 'Mi***21', amount: '৳ ৩,২০০', game: 'Crazy 777' },
+                  { user: 'Ju***55', amount: '৳ ১৫,৬০০', game: 'Roma X' },
+                ].map((win, i) => (
+                  <div key={i} className="flex items-center justify-between bg-white/5 p-2 rounded-xl border border-white/5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-yellow-500/10 flex items-center justify-center text-yellow-500 border border-yellow-500/20">
+                        <User size={14} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black text-white">{win.user}</p>
+                        <p className="text-[8px] text-slate-400 font-bold uppercase">{win.game}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-[10px] font-black text-white">{win.user}</p>
-                      <p className="text-[8px] text-slate-400 font-bold uppercase">{win.game}</p>
+                    <div className="text-right">
+                      <p className="text-xs font-black text-green-400 italic">{win.amount}</p>
+                      <p className="text-[8px] text-slate-500 font-bold uppercase">জয়ী</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs font-black text-green-400 italic">{win.amount}</p>
-                    <p className="text-[8px] text-slate-500 font-bold uppercase">জয়ী</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -559,57 +732,27 @@ export default function HomeView({
           isAdmin={isAdmin}
           onAllButtonNameChange={async (newName) => {
             if (updateAllButtonName) {
-              try {
-                await updateAllButtonName(newName);
-                showToast("ALL বাটনের নাম সফলভাবে আপডেট করা হয়েছে", "success");
-              } catch (err) {
-                console.error("Failed to update all button name:", err);
-                showToast("নাম আপডেট করতে সমস্যা হয়েছে", "error");
-              }
+              await updateAllButtonName(newName);
             }
           }}
           onGameLogoChange={async (gameId, newLogo) => {
-            if (userData?.id) {
-              try {
-                await updateGlobalGameLogo(gameId, newLogo);
-                showToast("গেম কভার সফলভাবে আপডেট করা হয়েছে এবং সবার জন্য সেভ হয়েছে", "success");
-              } catch (err) {
-                console.error("Failed to update global logo:", err);
-                showToast("কভার আপডেট করতে সমস্যা হয়েছে", "error");
-              }
+            if (updateGlobalGameLogo) {
+              await updateGlobalGameLogo(gameId, newLogo);
             }
           }}
           onGameNameChange={async (gameId, newName) => {
-            if (userData?.id) {
-              try {
-                await updateGlobalGameName(gameId, newName);
-                showToast("গেমের নাম সফলভাবে আপডেট করা হয়েছে এবং সবার জন্য সেভ হয়েছে", "success");
-              } catch (err) {
-                console.error("Failed to update global name:", err);
-                showToast("নাম আপডেট করতে সমস্যা হয়েছে", "error");
-              }
+            if (updateGlobalGameName) {
+              await updateGlobalGameName(gameId, newName);
             }
           }}
           onGameUrlChange={async (gameId, newUrl) => {
-            if (userData?.id) {
-              try {
-                await updateGlobalGameUrl(gameId, newUrl);
-                showToast("গেম URL সফলভাবে আপডেট করা হয়েছে এবং সবার জন্য সেভ হয়েছে", "success");
-              } catch (err) {
-                console.error("Failed to update global url:", err);
-                showToast("URL আপডেট করতে সমস্যা হয়েছে", "error");
-              }
+            if (updateGlobalGameUrl) {
+              await updateGlobalGameUrl(gameId, newUrl);
             }
           }}
           onGameOptionChange={async (gameId, newOption) => {
-            if (userData?.id) {
-              try {
-                await updateGlobalGameOption(gameId, newOption);
-                showToast("গেম অপশন সফলভাবে আপডেট করা হয়েছে এবং সবার জন্য সেভ হয়েছে", "success");
-              } catch (err) {
-                console.error("Failed to update global option:", err);
-                showToast("অপশন আপডেট করতে সমস্যা হয়েছে", "error");
-              }
+            if (updateGlobalGameOption) {
+              await updateGlobalGameOption(gameId, newOption);
             }
           }}
         />
@@ -637,12 +780,7 @@ export default function HomeView({
               <button
                 onClick={async () => {
                   if (updateCasinoName) {
-                    try {
-                      await updateCasinoName(tempCasinoName);
-                      showToast("ক্যাসিনোর নাম সফলভাবে আপডেট করা হয়েছে", "success");
-                    } catch (error) {
-                      showToast("নাম আপডেট করতে সমস্যা হয়েছে", "error");
-                    }
+                    await updateCasinoName(tempCasinoName);
                   }
                   setEditingCasinoName(false);
                 }}

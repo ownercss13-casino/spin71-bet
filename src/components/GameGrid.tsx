@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Star, Plane as PlaneIcon, Info, Camera, Edit2, X, Upload } from 'lucide-react';
 import Skeleton from './Skeleton';
 import { GAME_IMAGES } from '../constants/gameAssets';
+import { GAME_LOGO_URLS } from '../constants/gameLogos';
 import GlobalImage from './GlobalImage';
 
 export interface Game {
@@ -19,9 +21,9 @@ export interface Game {
 
 export const games: Game[] = [
   // JILI (12)
-  { id: 'jili_1', name: 'Super Ace', provider: 'JILI', image: 'https://picsum.photos/seed/jili1/400/600', category: 'স্লট', isHot: true, bgColor: 'from-yellow-600 to-green-600' },
-  { id: 'jili_2', name: 'Golden Empire', provider: 'JILI', image: 'https://picsum.photos/seed/jili2/400/600', category: 'স্লট', isHot: true, bgColor: 'from-yellow-500 to-yellow-700' },
-  { id: 'jili_3', name: 'Fortune Gems', provider: 'JILI', image: 'https://picsum.photos/seed/jili3/400/600', category: 'স্লট', isHot: true, bgColor: 'from-red-500 to-red-800' },
+  { id: 'jili_1', name: 'Super Ace', provider: 'JILI', image: GAME_LOGO_URLS['jili_1'] || 'https://picsum.photos/seed/jili1/400/600', category: 'স্লট', isHot: true, bgColor: 'from-yellow-600 to-green-600' },
+  { id: 'jili_2', name: 'Golden Empire', provider: 'JILI', image: GAME_LOGO_URLS['jili_2'] || 'https://picsum.photos/seed/jili2/400/600', category: 'স্লট', isHot: true, bgColor: 'from-yellow-500 to-yellow-700' },
+  { id: 'jili_3', name: 'Fortune Gems', provider: 'JILI', image: GAME_LOGO_URLS['jili_3'] || 'https://picsum.photos/seed/jili3/400/600', category: 'স্লট', isHot: true, bgColor: 'from-red-500 to-red-800' },
   { id: 'jili_4', name: 'Boxing King', provider: 'JILI', image: 'https://picsum.photos/seed/jili4/400/600', category: 'স্লট', isHot: true, bgColor: 'from-orange-500 to-red-600' },
   { id: 'jili_5', name: 'Money Coming', provider: 'JILI', image: 'https://picsum.photos/seed/jili5/400/600', category: 'স্লট', isHot: true, bgColor: 'from-green-500 to-green-800' },
   { id: 'jili_6', name: 'Charge Buffalo', provider: 'JILI', image: 'https://picsum.photos/seed/jili6/400/600', category: 'স্লট', bgColor: 'from-yellow-600 to-orange-800' },
@@ -31,6 +33,16 @@ export const games: Game[] = [
   { id: 'jili_10', name: 'Seven Seven Seven', provider: 'JILI', image: 'https://picsum.photos/seed/jili10/400/600', category: 'স্লট', bgColor: 'from-red-500 to-red-700' },
   { id: 'jili_11', name: 'Roma X', provider: 'JILI', image: 'https://picsum.photos/seed/jili11/400/600', category: 'স্লট', bgColor: 'from-orange-600 to-red-800' },
   { id: 'jili_12', name: 'Jungle King', provider: 'JILI', image: 'https://picsum.photos/seed/jili12/400/600', category: 'স্লট', bgColor: 'from-green-600 to-green-900' },
+  { id: 'jili_13', name: 'Crazy Hunter', provider: 'JILI', image: 'https://picsum.photos/seed/jili13/400/600', category: 'স্লট', bgColor: 'from-red-500 to-red-800' },
+  { id: 'jili_14', name: 'Gem Party', provider: 'JILI', image: 'https://picsum.photos/seed/jili14/400/600', category: 'স্লট', isHot: true, bgColor: 'from-purple-400 to-purple-700' },
+  { id: 'jili_15', name: 'Dragon Quest', provider: 'JILI', image: 'https://picsum.photos/seed/jili15/400/600', category: 'স্লট', bgColor: 'from-blue-600 to-blue-900' },
+  { id: 'jili_16', name: 'Happy Taxi', provider: 'JILI', image: 'https://picsum.photos/seed/jili16/400/600', category: 'স্লট', bgColor: 'from-yellow-500 to-yellow-800' },
+  { id: 'jili_17', name: 'Super Rich', provider: 'JILI', image: 'https://picsum.photos/seed/jili17/400/600', category: 'স্লট', isHot: true, bgColor: 'from-green-400 to-green-700' },
+  { id: 'jili_18', name: 'Wild Ace', provider: 'JILI', image: 'https://picsum.photos/seed/jili18/400/600', category: 'স্লট', bgColor: 'from-orange-500 to-red-700' },
+  { id: 'jili_19', name: 'Bao Boon Chin', provider: 'JILI', image: 'https://picsum.photos/seed/jili19/400/600', category: 'স্লট', bgColor: 'from-red-600 to-red-900' },
+  { id: 'jili_20', name: 'Night City', provider: 'JILI', image: 'https://picsum.photos/seed/jili20/400/600', category: 'স্লট', bgColor: 'from-indigo-600 to-indigo-900' },
+  { id: 'jili_21', name: 'SevenSevenSeven 2', provider: 'JILI', image: 'https://picsum.photos/seed/jili21/400/600', category: 'স্লট', bgColor: 'from-red-700 to-yellow-700' },
+  { id: 'jili_22', name: 'Agent Ace', provider: 'JILI', image: 'https://picsum.photos/seed/jili22/400/600', category: 'স্লট', isHot: true, bgColor: 'from-gray-700 to-blue-900' },
 
   // PG (12)
   { id: 'pg_1', name: 'Mahjong Ways', provider: 'PG', image: 'https://picsum.photos/seed/pg1/400/600', category: 'স্লট', isHot: true, bgColor: 'from-red-600 to-red-900' },
@@ -45,6 +57,16 @@ export const games: Game[] = [
   { id: 'pg_10', name: 'Double Fortune', provider: 'PG', image: 'https://picsum.photos/seed/pg10/400/600', category: 'স্লট', bgColor: 'from-red-500 to-red-800' },
   { id: 'pg_11', name: 'Dragon Hatch', provider: 'PG', image: 'https://picsum.photos/seed/pg11/400/600', category: 'স্লট', bgColor: 'from-green-600 to-green-900' },
   { id: 'pg_12', name: 'Medusa', provider: 'PG', image: 'https://picsum.photos/seed/pg12/400/600', category: 'স্লট', bgColor: 'from-blue-600 to-blue-900' },
+  { id: 'pg_13', name: 'Heist Stakes', provider: 'PG', image: 'https://picsum.photos/seed/pg13/400/600', category: 'স্লট', isHot: true, bgColor: 'from-gray-600 to-gray-900' },
+  { id: 'pg_14', name: 'Candy Burst', provider: 'PG', image: 'https://picsum.photos/seed/pg14/400/600', category: 'স্লট', bgColor: 'from-pink-400 to-pink-700' },
+  { id: 'pg_15', name: 'Phoenix Rises', provider: 'PG', image: 'https://picsum.photos/seed/pg15/400/600', category: 'স্লট', isHot: true, bgColor: 'from-orange-500 to-red-700' },
+  { id: 'pg_16', name: 'Circus Delight', provider: 'PG', image: 'https://picsum.photos/seed/pg16/400/600', category: 'স্লট', bgColor: 'from-purple-500 to-purple-800' },
+  { id: 'pg_17', name: 'Mahjong Ways 3', provider: 'PG', image: 'https://picsum.photos/seed/pg17/400/600', category: 'স্লট', isHot: true, bgColor: 'from-red-600 to-red-900' },
+  { id: 'pg_18', name: 'Fortune Gods', provider: 'PG', image: 'https://picsum.photos/seed/pg18/400/600', category: 'স্লট', bgColor: 'from-yellow-400 to-yellow-700' },
+  { id: 'pg_19', name: 'Gem Saviour', provider: 'PG', image: 'https://picsum.photos/seed/pg19/400/600', category: 'স্লট', bgColor: 'from-blue-400 to-blue-700' },
+  { id: 'pg_20', name: 'Hood vs Wolf', provider: 'PG', image: 'https://picsum.photos/seed/pg20/400/600', category: 'স্লট', bgColor: 'from-red-400 to-gray-800' },
+  { id: 'pg_21', name: 'Bikini Paradise', provider: 'PG', image: 'https://picsum.photos/seed/pg21/400/600', category: 'স্লট', bgColor: 'from-teal-400 to-blue-600' },
+  { id: 'pg_22', name: 'Ways of Qilin', provider: 'PG', image: 'https://picsum.photos/seed/pg22/400/600', category: 'স্লট', isHot: true, bgColor: 'from-green-500 to-green-800' },
 
   // JBD (8)
   { id: 'jbd_1', name: 'Open Sesame', provider: 'JBD', image: 'https://picsum.photos/seed/jbd1/400/600', category: 'স্লট', bgColor: 'from-purple-500 to-purple-800' },
@@ -55,9 +77,20 @@ export const games: Game[] = [
   { id: 'jbd_6', name: 'Dragon Ball', provider: 'JBD', image: 'https://picsum.photos/seed/jbd6/400/600', category: 'স্লট', bgColor: 'from-orange-500 to-orange-800' },
   { id: 'jbd_7', name: 'Wealth God', provider: 'JBD', image: 'https://picsum.photos/seed/jbd7/400/600', category: 'স্লট', bgColor: 'from-yellow-600 to-yellow-900' },
   { id: 'jbd_8', name: 'Prosperity', provider: 'JBD', image: 'https://picsum.photos/seed/jbd8/400/600', category: 'স্লট', bgColor: 'from-blue-500 to-blue-800' },
+  { id: 'jbd_9', name: 'Wukong', provider: 'JBD', image: 'https://picsum.photos/seed/jbd9/400/600', category: 'স্লট', isHot: true, bgColor: 'from-orange-600 to-red-800' },
+  { id: 'jbd_10', name: 'Caishen', provider: 'JBD', image: 'https://picsum.photos/seed/jbd10/400/600', category: 'স্লট', bgColor: 'from-red-500 to-red-800' },
+  { id: 'jbd_11', name: 'Fruit King', provider: 'JBD', image: 'https://picsum.photos/seed/jbd11/400/600', category: 'স্লট', bgColor: 'from-green-500 to-green-800' },
+  { id: 'jbd_12', name: 'Ocean World', provider: 'JBD', image: 'https://picsum.photos/seed/jbd12/400/600', category: 'স্লট', bgColor: 'from-blue-400 to-blue-700' },
+  { id: 'jbd_13', name: 'Super Joker', provider: 'JBD', image: 'https://picsum.photos/seed/jbd13/400/600', category: 'স্লট', bgColor: 'from-purple-500 to-purple-800' },
+  { id: 'jbd_14', name: 'Diamond Fever', provider: 'JBD', image: 'https://picsum.photos/seed/jbd14/400/600', category: 'স্লট', isHot: true, bgColor: 'from-teal-400 to-teal-700' },
+  { id: 'jbd_15', name: 'Viking Age', provider: 'JBD', image: 'https://picsum.photos/seed/jbd15/400/600', category: 'স্লট', bgColor: 'from-gray-600 to-gray-900' },
+  { id: 'jbd_16', name: 'Egyptian Gold', provider: 'JBD', image: 'https://picsum.photos/seed/jbd16/400/600', category: 'স্লট', bgColor: 'from-yellow-400 to-yellow-700' },
+  { id: 'jbd_17', name: 'Mystic Lake', provider: 'JBD', image: 'https://picsum.photos/seed/jbd17/400/600', category: 'স্লট', bgColor: 'from-blue-600 to-blue-900' },
+  { id: 'jbd_18', name: 'Wild West', provider: 'JBD', image: 'https://picsum.photos/seed/jbd18/400/600', category: 'স্লট', isHot: true, bgColor: 'from-brown-600 to-orange-800' },
 
   // SPRIBE (8)
   { id: '5', name: 'Aviator', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe1/400/600', category: 'ক্র্যাশ', isHot: true, isVIP: true, bgColor: 'from-gray-800 to-red-900' },
+  { id: 'rocket_1', name: 'Space Rocket', provider: 'SPRIBE', image: 'https://picsum.photos/seed/rocket1/400/600', category: 'ক্র্যাশ', isHot: true, bgColor: 'from-blue-900 to-indigo-950' },
   { id: 'spribe_2', name: 'Mines', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe2/400/600', category: 'মিনি গেম', bgColor: 'from-blue-600 to-blue-900' },
   { id: 'spribe_3', name: 'Dice', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe3/400/600', category: 'মিনি গেম', bgColor: 'from-purple-500 to-purple-800' },
   { id: 'spribe_4', name: 'Mini Roulette', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe4/400/600', category: 'মিনি গেম', bgColor: 'from-green-600 to-green-900' },
@@ -65,6 +98,16 @@ export const games: Game[] = [
   { id: 'spribe_6', name: 'Plinko', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe6/400/600', category: 'মিনি গেম', bgColor: 'from-pink-500 to-pink-800' },
   { id: 'spribe_7', name: 'Goal', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe7/400/600', category: 'মিনি গেম', bgColor: 'from-green-500 to-green-800' },
   { id: 'spribe_8', name: 'Keno', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe8/400/600', category: 'মিনি গেম', bgColor: 'from-yellow-600 to-yellow-900' },
+  { id: 'spribe_9', name: 'Balloon', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe9/400/600', category: 'মিনি গেম', isHot: true, bgColor: 'from-blue-400 to-blue-700' },
+  { id: 'spribe_10', name: 'Coin Field', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe10/400/600', category: 'মিনি গেম', bgColor: 'from-yellow-500 to-yellow-800' },
+  { id: 'spribe_11', name: 'Scratch', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe11/400/600', category: 'মিনি গেম', bgColor: 'from-orange-500 to-orange-800' },
+  { id: 'spribe_12', name: 'Lucky Plane', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe12/400/600', category: 'ক্র্যাশ', bgColor: 'from-red-600 to-red-900' },
+  { id: 'spribe_13', name: 'Turbo Mines', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe13/400/600', category: 'মিনি গেম', isHot: true, bgColor: 'from-blue-600 to-indigo-900' },
+  { id: 'spribe_14', name: 'Neon Dice', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe14/400/600', category: 'মিনি গেম', bgColor: 'from-purple-400 to-purple-700' },
+  { id: 'spribe_15', name: 'Space Hunt', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe15/400/600', category: 'ক্র্যাশ', bgColor: 'from-indigo-700 to-black' },
+  { id: 'spribe_16', name: 'Speed Roll', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe16/400/600', category: 'মিনি গেম', bgColor: 'from-teal-500 to-teal-800' },
+  { id: 'spribe_17', name: 'Tower', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe17/400/600', category: 'মিনি গেম', bgColor: 'from-green-600 to-green-900' },
+  { id: 'spribe_18', name: 'Crystal', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe18/400/600', category: 'মিনি গেম', bgColor: 'from-cyan-400 to-blue-600' },
 
   // BT GAME (8)
   { id: 'bt_1', name: 'BT Slot 1', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt1/400/600', category: 'স্লট', bgColor: 'from-gray-700 to-gray-900' },
@@ -75,26 +118,76 @@ export const games: Game[] = [
   { id: 'bt_6', name: 'BT Slot 6', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt6/400/600', category: 'স্লট', bgColor: 'from-yellow-700 to-yellow-900' },
   { id: 'bt_7', name: 'BT Slot 7', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt7/400/600', category: 'স্লট', bgColor: 'from-pink-700 to-pink-900' },
   { id: 'bt_8', name: 'BT Slot 8', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt8/400/600', category: 'স্লট', bgColor: 'from-indigo-700 to-indigo-900' },
+  { id: 'bt_9', name: 'Golden Luck', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt9/400/600', category: 'স্লট', bgColor: 'from-yellow-400 to-yellow-700' },
+  { id: 'bt_10', name: 'Wild Safari', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt10/400/600', category: 'স্লট', bgColor: 'from-green-600 to-green-900' },
+  { id: 'bt_11', name: 'Thunder Strike', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt11/400/600', category: 'স্লট', isHot: true, bgColor: 'from-blue-500 to-blue-800' },
+  { id: 'bt_12', name: 'Royal Gems', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt12/400/600', category: 'স্লট', bgColor: 'from-purple-600 to-purple-900' },
+  { id: 'bt_13', name: 'Ocean Treasure', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt13/400/600', category: 'স্লট', bgColor: 'from-blue-400 to-blue-700' },
+  { id: 'bt_14', name: 'Magic Forest', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt14/400/600', category: 'স্লট', bgColor: 'from-teal-500 to-teal-800' },
+  { id: 'bt_15', name: 'Fire Dragon', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt15/400/600', category: 'স্লট', isHot: true, bgColor: 'from-red-500 to-red-800' },
+  { id: 'bt_16', name: 'Frozen King', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt16/400/600', category: 'স্লট', bgColor: 'from-cyan-600 to-white/10' },
+  { id: 'bt_17', name: 'Night Owl', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt17/400/600', category: 'স্লট', bgColor: 'from-gray-800 to-black' },
+  { id: 'bt_18', name: 'Phoenix Wing', provider: 'BT GAME', image: 'https://picsum.photos/seed/bt18/400/600', category: 'স্লট', bgColor: 'from-orange-500 to-red-700' },
 
   // EVOLUTION (Live Casino)
   { id: 'evo_1', name: 'Crazy Time', provider: 'EVOLUTION', image: 'https://picsum.photos/seed/evo1/400/600', category: 'Live Casino', isHot: true, bgColor: 'from-purple-600 to-pink-600' },
   { id: 'evo_2', name: 'Lightning Roulette', provider: 'EVOLUTION', image: 'https://picsum.photos/seed/evo2/400/600', category: 'Live Casino', isHot: true, bgColor: 'from-yellow-600 to-red-600' },
   { id: 'evo_3', name: 'Monopoly Live', provider: 'EVOLUTION', image: 'https://picsum.photos/seed/evo3/400/600', category: 'Live Casino', bgColor: 'from-blue-600 to-blue-900' },
   { id: 'evo_4', name: 'Baccarat', provider: 'EVOLUTION', image: 'https://picsum.photos/seed/evo4/400/600', category: 'Live Casino', bgColor: 'from-green-600 to-green-900' },
+  { id: 'evo_5', name: 'Mega Ball', provider: 'EVOLUTION', image: 'https://picsum.photos/seed/evo5/400/600', category: 'Live Casino', isHot: true, bgColor: 'from-blue-500 to-blue-800' },
+  { id: 'evo_6', name: 'Super Sic Bo', provider: 'EVOLUTION', image: 'https://picsum.photos/seed/evo6/400/600', category: 'Live Casino', bgColor: 'from-red-600 to-red-900' },
+  { id: 'evo_7', name: 'Dream Catcher', provider: 'EVOLUTION', image: 'https://picsum.photos/seed/evo7/400/600', category: 'Live Casino', isHot: true, bgColor: 'from-yellow-400 to-yellow-700' },
+  { id: 'evo_8', name: 'Lightning Dice', provider: 'EVOLUTION', image: 'https://picsum.photos/seed/evo8/400/600', category: 'Live Casino', bgColor: 'from-orange-500 to-orange-800' },
+  { id: 'evo_9', name: 'Fan Tan', provider: 'EVOLUTION', image: 'https://picsum.photos/seed/evo9/400/600', category: 'Live Casino', bgColor: 'from-green-700 to-green-900' },
+  { id: 'evo_10', name: 'Craps', provider: 'EVOLUTION', image: 'https://picsum.photos/seed/evo10/400/600', category: 'Live Casino', bgColor: 'from-gray-700 to-black' },
+  { id: 'evo_11', name: 'Dragon Tiger Live', provider: 'EVOLUTION', image: 'https://picsum.photos/seed/evo11/400/600', category: 'Live Casino', bgColor: 'from-red-700 to-red-900' },
+  { id: 'evo_12', name: 'Mega Roulette', provider: 'EVOLUTION', image: 'https://picsum.photos/seed/evo12/400/600', category: 'Live Casino', isHot: true, bgColor: 'from-blue-600 to-indigo-800' },
+  { id: 'evo_13', name: 'Blackjack Party', provider: 'EVOLUTION', image: 'https://picsum.photos/seed/evo13/400/600', category: 'Live Casino', bgColor: 'from-purple-500 to-purple-800' },
+  { id: 'evo_14', name: 'Double Ball', provider: 'EVOLUTION', image: 'https://picsum.photos/seed/evo14/400/600', category: 'Live Casino', bgColor: 'from-yellow-600 to-yellow-900' },
 
   // Table Games
   { id: 'table_1', name: 'Blackjack', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/table1/400/600', category: 'Table Games', bgColor: 'from-green-700 to-green-900' },
   { id: 'table_2', name: 'Roulette', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/table2/400/600', category: 'Table Games', bgColor: 'from-red-700 to-red-900' },
   { id: 'table_3', name: 'Baccarat', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/table3/400/600', category: 'Table Games', bgColor: 'from-blue-700 to-blue-900' },
+  { id: 'table_4', name: 'Andar Bahar', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/table4/400/600', category: 'Table Games', isHot: true, bgColor: 'from-yellow-600 to-yellow-900' },
+  { id: 'table_5', name: 'Teen Patti', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/table5/400/600', category: 'Table Games', isHot: true, bgColor: 'from-red-600 to-red-900' },
+  { id: 'table_6', name: 'European Roulette', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/table6/400/600', category: 'Table Games', bgColor: 'from-green-600 to-green-900' },
+  { id: 'table_7', name: 'Multihand Blackjack', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/table7/400/600', category: 'Table Games', bgColor: 'from-blue-600 to-blue-950' },
+  { id: 'table_8', name: 'Poker', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/table8/400/600', category: 'Table Games', bgColor: 'from-gray-700 to-black' },
+  { id: 'table_9', name: 'Speed Baccarat', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/table9/400/600', category: 'Table Games', bgColor: 'from-teal-500 to-teal-800' },
+  { id: 'table_10', name: 'Dragon Tiger', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/table10/400/600', category: 'Table Games', bgColor: 'from-orange-600 to-red-800' },
+  { id: 'table_11', name: 'Sic Bo', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/table11/400/600', category: 'Table Games', bgColor: 'from-yellow-500 to-orange-600' },
+  { id: 'table_12', name: 'Jackpot Cards', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/table12/400/600', category: 'Table Games', bgColor: 'from-blue-400 to-indigo-900' },
+  { id: 'table_13', name: 'Super 6', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/table13/400/600', category: 'Table Games', bgColor: 'from-purple-500 to-purple-800' },
 
   // Fishing Games
   { id: 'fish_1', name: 'Mega Fishing', provider: 'JILI', image: 'https://picsum.photos/seed/fish1/400/600', category: 'Fishing Games', isHot: true, bgColor: 'from-blue-400 to-blue-700' },
   { id: 'fish_2', name: 'Jackpot Fishing', provider: 'JILI', image: 'https://picsum.photos/seed/fish2/400/600', category: 'Fishing Games', bgColor: 'from-cyan-500 to-blue-600' },
   { id: 'fish_3', name: 'Happy Fishing', provider: 'JILI', image: 'https://picsum.photos/seed/fish3/400/600', category: 'Fishing Games', bgColor: 'from-teal-500 to-teal-800' },
+  { id: 'fish_4', name: 'Dinosaur Tycoon', provider: 'JILI', image: 'https://picsum.photos/seed/fish4/400/600', category: 'Fishing Games', isHot: true, bgColor: 'from-green-600 to-green-900' },
+  { id: 'fish_5', name: 'Boom Legend', provider: 'JILI', image: 'https://picsum.photos/seed/fish5/400/600', category: 'Fishing Games', bgColor: 'from-orange-600 to-red-900' },
+  { id: 'fish_6', name: 'Royal Fishing', provider: 'JILI', image: 'https://picsum.photos/seed/fish6/400/600', category: 'Fishing Games', bgColor: 'from-blue-600 to-blue-900' },
+  { id: 'fish_7', name: 'Ocean King', provider: 'JILI', image: 'https://picsum.photos/seed/fish7/400/600', category: 'Fishing Games', isHot: true, bgColor: 'from-cyan-500 to-cyan-800' },
+  { id: 'fish_8', name: 'Shark Hunter', provider: 'JILI', image: 'https://picsum.photos/seed/fish8/400/600', category: 'Fishing Games', bgColor: 'from-blue-700 to-black' },
+  { id: 'fish_9', name: 'Golden Shark', provider: 'JILI', image: 'https://picsum.photos/seed/fish9/400/600', category: 'Fishing Games', bgColor: 'from-yellow-500 to-yellow-800' },
+  { id: 'fish_10', name: 'All-star Fishing', provider: 'JILI', image: 'https://picsum.photos/seed/fish10/400/600', category: 'Fishing Games', bgColor: 'from-purple-500 to-purple-800' },
+  { id: 'fish_11', name: 'Fishermans Life', provider: 'JILI', image: 'https://picsum.photos/seed/fish11/400/600', category: 'Fishing Games', bgColor: 'from-teal-400 to-teal-700' },
+  { id: 'fish_12', name: 'Deep Sea Hunter', provider: 'JILI', image: 'https://picsum.photos/seed/fish12/400/600', category: 'Fishing Games', bgColor: 'from-blue-900 to-black' },
+  { id: 'fish_13', name: 'Bombing Fishing', provider: 'JILI', image: 'https://picsum.photos/seed/fish13/400/600', category: 'Fishing Games', bgColor: 'from-red-500 to-red-800' },
 
   // Lottery
   { id: 'lottery_1', name: 'Keno', provider: 'SPRIBE', image: 'https://picsum.photos/seed/lottery1/400/600', category: 'Lottery', bgColor: 'from-yellow-500 to-orange-600' },
   { id: 'lottery_2', name: 'Bingo', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/lottery2/400/600', category: 'Lottery', bgColor: 'from-pink-500 to-purple-600' },
+  { id: 'lottery_3', name: 'Luck 5', provider: 'SPRIBE', image: 'https://picsum.photos/seed/lottery3/400/600', category: 'Lottery', bgColor: 'from-teal-500 to-teal-800' },
+  { id: 'lottery_4', name: 'Fortune 6', provider: 'SPRIBE', image: 'https://picsum.photos/seed/lottery4/400/600', category: 'Lottery', bgColor: 'from-yellow-500 to-yellow-800' },
+  { id: 'lottery_5', name: 'Classic Bingo', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/lottery5/400/600', category: 'Lottery', isHot: true, bgColor: 'from-purple-600 to-purple-900' },
+  { id: 'lottery_6', name: 'Speedy Lotto', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/lottery6/400/600', category: 'Lottery', bgColor: 'from-blue-600 to-blue-900' },
+  { id: 'lottery_7', name: 'Golden Ball', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/lottery7/400/600', category: 'Lottery', bgColor: 'from-yellow-600 to-yellow-900' },
+  { id: 'lottery_8', name: 'Color Game', provider: 'JILI', image: 'https://picsum.photos/seed/lottery8/400/600', category: 'Lottery', isHot: true, bgColor: 'from-red-500 to-orange-600' },
+  { id: 'lottery_9', name: 'Instant Win', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/lottery9/400/600', category: 'Lottery', bgColor: 'from-green-600 to-green-900' },
+  { id: 'lottery_10', name: 'Power Lotto', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/lottery10/400/600', category: 'Lottery', bgColor: 'from-blue-500 to-blue-800' },
+  { id: 'lottery_11', name: 'Mega Millions', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/lottery11/400/600', category: 'Lottery', isHot: true, bgColor: 'from-indigo-600 to-indigo-900' },
+  { id: 'lottery_12', name: 'Daily Draw', provider: 'SPRIBE', image: 'https://picsum.photos/seed/lottery12/400/600', category: 'Lottery', bgColor: 'from-teal-600 to-teal-900' },
 ];
 
 const PROVIDERS = [
@@ -196,27 +289,23 @@ const GameCard: React.FC<GameCardProps> = ({
         />
       </div>
 
-      {game.isHot && (
-        <div className="absolute top-1.5 left-1.5 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded italic shadow-sm z-30">
-          HOT
-        </div>
-      )}
-      {game.isVIP && (
-        <div className="absolute top-1.5 left-1.5 bg-gradient-to-r from-yellow-400 via-yellow-200 to-yellow-500 text-black text-[9px] font-black px-1.5 py-0.5 rounded italic shadow-[0_0_10px_rgba(234,179,8,0.5)] z-30 border border-yellow-600 animate-pulse">
-          VIP
-        </div>
-      )}
-      {isAviator && !game.isVIP && (
-        <div className="absolute top-1.5 left-1.5 bg-gradient-to-r from-yellow-400 via-yellow-200 to-yellow-500 text-black text-[9px] font-black px-1.5 py-0.5 rounded italic shadow-[0_0_10px_rgba(234,179,8,0.5)] z-30 border border-yellow-600 animate-pulse">
-          VIP
-        </div>
-      )}
-      <div 
+      <motion.div 
         onClick={(e) => onToggleFavorite(e, game.id)}
-        className="absolute top-1.5 right-1.5 bg-black/40 rounded-full p-1.5 backdrop-blur-sm z-30 group-hover:bg-black/60 transition-all hover:scale-110 active:scale-90"
+        className="absolute top-1.5 right-1.5 bg-black/40 rounded-full p-1.5 backdrop-blur-sm z-30 cursor-pointer group-hover:bg-black/60"
+        whileTap={{ scale: 0.8 }}
+        whileHover={{ scale: 1.1 }}
       >
-        <Star size={14} className={isFavorite ? "text-yellow-400 fill-yellow-400" : "text-gray-300"} />
-      </div>
+        <motion.div
+          initial={false}
+          animate={{
+            scale: isFavorite ? [1, 1.4, 1] : [1, 0.8, 1],
+            rotate: isFavorite ? [0, 15, -15, 0] : 0,
+          }}
+          transition={{ duration: 0.4, ease: "easeInOut" }}
+        >
+          <Star size={14} className={isFavorite ? "text-yellow-400 fill-yellow-400 drop-shadow-[0_0_5px_rgba(250,204,21,0.6)]" : "text-gray-300"} />
+        </motion.div>
+      </motion.div>
 
       {isAviator && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -248,10 +337,10 @@ const GameCard: React.FC<GameCardProps> = ({
               <circle cx="110" cy="40" r="3" fill="#333" stroke="#fff" strokeWidth="1" />
             </svg>
             <div className="absolute -top-1 -right-1 bg-red-600 text-white text-[7px] font-bold px-1 rounded-sm animate-pulse">REAL</div>
-            <div className="absolute -bottom-1 -left-1 bg-yellow-500 text-black text-[7px] font-black px-1 rounded-sm border border-yellow-600">VIP</div>
           </div>
         </div>
       )}
+
       {/* Change Name/Details Button */}
       <div 
         onClick={(e) => {
@@ -368,14 +457,14 @@ export const GameGrid: React.FC<GameGridProps> = ({
   return (
     <div className="flex flex-col gap-4">
       {/* Provider Filter */}
-      <div className="flex overflow-x-auto gap-3 pb-2 no-scrollbar">
+      <div className="flex overflow-x-auto gap-3 pb-2 no-scrollbar snap-x snap-mandatory scroll-smooth">
         {PROVIDERS.map(provider => {
           const isAll = provider.id === 'ALL';
           const displayName = isAll ? (allButtonName || 'ALL') : provider.name;
           const displayLogo = isAll ? `https://placehold.co/100x40/111827/ffffff?text=${encodeURIComponent(displayName)}` : provider.logo;
 
           return (
-            <div key={provider.id} className="relative group shrink-0">
+            <div key={provider.id} className="relative group shrink-0 snap-start">
               <button
                 onClick={() => {
                   setSelectedProvider(selectedProvider === provider.id ? 'ALL' : provider.id);

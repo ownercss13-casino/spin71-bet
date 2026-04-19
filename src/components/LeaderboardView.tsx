@@ -1,28 +1,38 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Trophy, Medal, Crown, Star, TrendingUp, User, Award } from 'lucide-react';
-import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
-import { LeaderboardEntry } from '../services/firebaseService';
+
+export interface LeaderboardEntry {
+  userId: string;
+  username: string;
+  totalWinnings: number;
+  achievements: string[];
+  avatarUrl?: string;
+}
 
 export default function LeaderboardView() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const leaderboardRef = collection(db, 'leaderboard');
-    const q = query(leaderboardRef, orderBy('totalWinnings', 'desc'), limit(20));
+    // Mock data for leaderboard
+    const mockEntries: LeaderboardEntry[] = [
+      { userId: '1', username: 'Winner01', totalWinnings: 50000, achievements: ['Big Winner', 'High Roller'] },
+      { userId: '2', username: 'PlayerPro', totalWinnings: 35000, achievements: ['Pro Player'] },
+      { userId: '3', username: 'SpinMaster', totalWinnings: 28000, achievements: ['High Roller'] },
+      { userId: '4', username: 'LuckyBoy', totalWinnings: 21000, achievements: ['Big Winner'] },
+      { userId: '5', username: 'Aisha78', totalWinnings: 15400, achievements: [] },
+      { userId: '6', username: 'Rahim_Bet', totalWinnings: 12000, achievements: [] },
+      { userId: '7', username: 'KingSlot', totalWinnings: 9800, achievements: [] },
+      { userId: '8', username: 'DemoUser', totalWinnings: 5000, achievements: [] },
+    ];
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => doc.data() as LeaderboardEntry);
-      setEntries(data);
+    const timer = setTimeout(() => {
+      setEntries(mockEntries);
       setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'leaderboard');
-      setLoading(false);
-    });
+    }, 1000);
 
-    return () => unsubscribe();
+    return () => clearTimeout(timer);
   }, []);
 
   const getRankIcon = (index: number) => {

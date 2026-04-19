@@ -236,16 +236,20 @@ export default function GameLoader({ gameName, provider, logo, hasError = false,
               </div>
             </div>
             
-            <div className="w-full h-4 bg-black/80 rounded-full overflow-hidden border border-white/10 shadow-[inset_0_4px_8px_rgba(0,0,0,0.8)] relative p-[3px]">
+            <div className="w-full h-5 bg-black/80 rounded-full overflow-hidden border border-white/10 shadow-[inset_0_4px_8px_rgba(0,0,0,0.8)] relative p-[4px]">
               <motion.div 
-                className="h-full bg-gradient-to-r from-yellow-800 via-yellow-400 to-yellow-200 rounded-full relative overflow-hidden"
-                style={{ width: `${progress}%` }}
+                className="h-full bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-200 rounded-full relative"
+                initial={{ width: 0 }}
+                animate={{ width: `${progress}%` }}
+                transition={{ type: "spring", bounce: 0, duration: 0.5 }}
               >
-                {/* Shimmer inside progress bar */}
-                <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.5)_50%,transparent_75%,transparent_100%)] bg-[length:60px_60px] animate-[shimmer_1s_linear_infinite]"></div>
+                {/* Internal Shimmer */}
+                <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_25%,rgba(255,255,255,0.4)_50%,transparent_75%)] bg-[length:40px_100%] animate-[shimmer_1s_infinite]"></div>
                 
-                {/* Glow head */}
-                <div className="absolute right-0 top-0 bottom-0 w-8 bg-white blur-xl opacity-60"></div>
+                {/* Particle Trail at the end of progress */}
+                {progress > 0 && progress < 100 && (
+                  <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full blur-md shadow-[0_0_15px_#fff]"></div>
+                )}
               </motion.div>
             </div>
           </div>

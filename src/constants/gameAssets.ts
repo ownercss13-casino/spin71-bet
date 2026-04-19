@@ -15,4 +15,6 @@ export const GAME_IMAGES = {
   MEGA_BALL: "https://picsum.photos/seed/bingo/400/600",
   SIC_BO: "https://picsum.photos/seed/dice/400/600",
   KONG_INVASION: "https://picsum.photos/seed/gorilla/400/600",
+  CASINO_VIDEO_URL: "https://assets.mixkit.co/videos/preview/mixkit-luxury-casino-interior-with-roulette-table-31411-large.mp4",
+  SLOT_VIDEO_URL: "https://assets.mixkit.co/videos/preview/mixkit-slot-machine-close-up-in-a-casino-39855-large.mp4"
 };

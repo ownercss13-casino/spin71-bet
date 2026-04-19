@@ -64,7 +64,10 @@ export default function InviteTab({ userData, showToast, onBack }: InviteTabProp
               <UserPlus size={32} />
             </div>
             <h2 className="text-3xl font-black text-white italic tracking-tight">বন্ধুদের আমন্ত্রণ</h2>
-            <p className="text-teal-400 text-xs font-bold uppercase tracking-widest mt-2">Invite Friends & Earn Rewards</p>
+            <div className="bg-yellow-500/10 border border-yellow-500/20 px-3 py-1 rounded-lg mt-3 inline-block">
+               <p className="text-yellow-500 text-sm font-bold">প্রতি রেফারে ৩০৮ টাকা বোনাস!</p>
+            </div>
+            <p className="text-teal-400 text-xs font-bold uppercase tracking-widest mt-2">{`Invite Friends & Earn ৳308 Bonus!`}</p>
           </div>
           <button 
             onClick={onBack}

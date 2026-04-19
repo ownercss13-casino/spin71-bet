@@ -1,326 +1,112 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ===============================================================
-    // Assumed Data Model
-    // ===============================================================
-    //
-    // Collection: users
-    // Document ID: userId (Firebase Auth UID)
-    // Fields:
-    //   - username: string (required, 3-20 chars)
-    //   - phoneNumber: string (required, 10-15 chars)
-    //   - password: string (required, hashed)
-    //   - gmail: string (optional, email format)
-    //   - balance: number (required, >= 0)
-    //   - isGmailLinked: bool (optional)
-    //   - createdAt: timestamp (required)
-    //   - profilePictureUrl: string (optional, < 100000 chars)
-    //
-    // ===============================================================
-
-    // ===============================================================
-    // Helper Functions
-    // ===============================================================
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
     
-    function isAdmin() {
-      return isAuthenticated() && 
-             (request.auth.token.email == "owner.css13@gmail.com" ||
-              request.auth.token.email == "owner.css13@spin71bet.com" ||
-              (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
     }
 
-    function isAgent() {
-      return isAuthenticated() && 
-             (isAdmin() || 
-              (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'agent'));
+    // --- Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isAdmin() { 
+      return isSignedIn() && (
+        request.auth.token.email == 'owner.css13@gmail.com' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      ); 
+    }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+
+    // --- Entities Validation ---
+    
+    function isValidUser(data) {
+      return data.username is string && data.username.size() >= 3 && data.username.size() <= 32 &&
+             data.balance is number && data.balance >= 0 &&
+             data.role in ['user', 'agent', 'admin'] &&
+             (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() >= 10)) &&
+             (!('referredBy' in data) || (data.referredBy is string && isValidId(data.referredBy))) &&
+             (!('lastDailyBonusClaimedAt' in data) || data.lastDailyBonusClaimedAt is string) &&
+             (!('hasClaimedWelcomeBonus' in data) || data.hasClaimedWelcomeBonus is bool);
     }
 
-    function isValidEmail(email) {
-      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
-    }
-
-    function isValidUserCreate(data) {
-      return data.keys().hasAll(['username', 'phoneNumber']) &&
-             data.username is string && data.username.size() >= 3 && data.username.size() <= 50 &&
-             data.phoneNumber is string && data.phoneNumber.size() >= 10 && data.phoneNumber.size() <= 25 &&
-             (!('password' in data) || data.password is string) &&
-             (!('balance' in data) || (data.balance is number && data.balance >= 0)) &&
-             (!('turnover' in data) || (data.turnover is number && data.turnover >= 0)) &&
-             (!('totalDeposit' in data) || (data.totalDeposit is number && data.totalDeposit >= 0)) &&
-             (!('createdAt' in data) || data.createdAt is timestamp) &&
-             (!('role' in data) || data.role in ['user', 'agent', 'admin']) &&
-             (!('agentBalance' in data) || (data.agentBalance is number && data.agentBalance >= 0)) &&
-             (!('referredBy' in data) || (data.referredBy is string)) &&
-             (!('gmail' in data) || (data.gmail is string && isValidEmail(data.gmail))) &&
-             (!('isGmailLinked' in data) || data.isGmailLinked is bool) &&
-             (!('favorites' in data) || (data.favorites is list && data.favorites.size() <= 100)) &&
-             (!('claimedBonuses' in data) || (data.claimedBonuses is list && data.claimedBonuses.size() <= 100)) &&
-             (!('lastDailyBonusClaimedAt' in data) || (data.lastDailyBonusClaimedAt is timestamp)) &&
-             (!('hasClaimedWelcomeBonus' in data) || (data.hasClaimedWelcomeBonus is bool)) &&
-             (!('hasMadeDeposit' in data) || (data.hasMadeDeposit is bool)) &&
-             (!('referralCount' in data) || (data.referralCount is number)) &&
-             (!('totalReferralEarnings' in data) || (data.totalReferralEarnings is number)) &&
-             (!('vipLevel' in data) || (data.vipLevel is number)) &&
-             (!('vipProgress' in data) || (data.vipProgress is number)) &&
-             (!('aviatorLogo' in data) || (data.aviatorLogo is string)) &&
-             (!('country' in data) || (data.country is string || data.country == null)) &&
-             (!('profilePictureUrl' in data) || (data.profilePictureUrl is string && data.profilePictureUrl.size() < 100000));
-    }
-
-    function isValidUserUpdate(data) {
-      return (!('username' in data) || (data.username is string && data.username.size() >= 3 && data.username.size() <= 50)) &&
-             (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() >= 10 && data.phoneNumber.size() <= 25)) &&
-             (!('password' in data) || data.password is string) &&
-             (!('balance' in data) || (data.balance is number && data.balance >= 0)) &&
-             (!('turnover' in data) || (data.turnover is number && data.turnover >= 0)) &&
-             (!('totalDeposit' in data) || (data.totalDeposit is number && data.totalDeposit >= 0)) &&
-             (!('role' in data) || data.role in ['user', 'agent', 'admin']) &&
-             (!('agentBalance' in data) || (data.agentBalance is number && data.agentBalance >= 0)) &&
-             (!('referredBy' in data) || (data.referredBy is string)) &&
-             (!('gmail' in data) || (data.gmail is string && isValidEmail(data.gmail))) &&
-             (!('isGmailLinked' in data) || data.isGmailLinked is bool) &&
-             (!('favorites' in data) || (data.favorites is list && data.favorites.size() <= 100)) &&
-             (!('claimedBonuses' in data) || (data.claimedBonuses is list && data.claimedBonuses.size() <= 100)) &&
-             (!('lastDailyBonusClaimedAt' in data) || (data.lastDailyBonusClaimedAt is timestamp)) &&
-             (!('hasClaimedWelcomeBonus' in data) || (data.hasClaimedWelcomeBonus is bool)) &&
-             (!('hasMadeDeposit' in data) || (data.hasMadeDeposit is bool)) &&
-             (!('referralCount' in data) || (data.referralCount is number)) &&
-             (!('totalReferralEarnings' in data) || (data.totalReferralEarnings is number)) &&
-             (!('vipLevel' in data) || (data.vipLevel is number)) &&
-             (!('vipProgress' in data) || (data.vipProgress is number)) &&
-             (!('aviatorLogo' in data) || (data.aviatorLogo is string)) &&
-             (!('country' in data) || (data.country is string || data.country == null)) &&
-             (!('profilePictureUrl' in data) || (data.profilePictureUrl is string && data.profilePictureUrl.size() < 100000)) &&
-             (!('email' in data) || (data.email is string && isValidEmail(data.email))) &&
-             (!('ipAddress' in data) || (data.ipAddress is string)) &&
-             (!('withdrawal' in data) || (data.withdrawal is number && data.withdrawal >= 0)) &&
-             (!('betting' in data) || (data.betting is number && data.betting >= 0));
-    }
-
-    function isValidSavedItem(data) {
-      return data.keys().hasAll(['userId', 'itemId', 'itemType', 'savedAt']) &&
-             data.userId is string && data.userId == request.auth.uid &&
-             data.itemId is string && data.itemId.size() > 0 && data.itemId.size() < 100 &&
-             data.itemType is string && data.itemType.size() > 0 && data.itemType.size() < 50 &&
-             data.savedAt is timestamp;
+    function isValidGameSettings(data) {
+      return (!('game_id' in data) || data.game_id is string) &&
+             (!('name' in data) || (data.name is string && data.name.size() <= 100)) &&
+             (!('logo_url' in data) || data.logo_url is string) &&
+             (!('game_url' in data) || data.game_url is string) &&
+             (!('provider_option' in data) || data.provider_option is string) &&
+             (!('updatedAt' in data) || data.updatedAt is string);
     }
 
     function isValidTransaction(data) {
-      return data.keys().hasAll(['method', 'type', 'amount', 'date', 'status']) &&
-             (!('trxId' in data) || (data.trxId is string && data.trxId.size() < 100)) &&
-             data.method is string && data.method.size() > 0 && data.method.size() < 50 &&
-             data.type in ['deposit', 'withdraw', 'bonus', 'bet'] &&
-             (data.amount is number || data.amount is string) &&
-             data.date is timestamp &&
-             data.status in ['সম্পন্ন', 'প্রক্রিয়াধীন', 'ব্যর্থ', 'pending', 'approved', 'rejected'] &&
-             (!('statusColor' in data) || (data.statusColor is string && data.statusColor.size() < 100));
-    }
-
-    function isValidReferral(data) {
-      return data.keys().hasAll(['referredUserId', 'referredUsername', 'joinedAt', 'earningsGenerated', 'status']) &&
-             data.referredUserId is string &&
-             data.referredUsername is string &&
-             data.joinedAt is timestamp &&
-             data.earningsGenerated is number &&
-             data.status in ['active', 'inactive'];
-    }
-
-    function isValidChatMessage(data) {
-      return data.keys().hasAll(['text', 'sender', 'timestamp']) &&
-             data.text is string && data.text.size() > 0 && data.text.size() < 1000 &&
-             data.sender in ['user', 'agent'] &&
-             (data.timestamp is timestamp || data.timestamp == null); // Allow null if not yet set by serverTimestamp
-    }
-
-    function isValidGameSession(data) {
-      return data.keys().hasAll(['gameId', 'multiplier', 'status', 'lastUpdate']) &&
-             data.gameId is string &&
-             data.multiplier is number &&
-             data.status in ['waiting', 'running', 'crashed'] &&
-             (!('crashPoint' in data) || data.crashPoint is number) &&
-             (!('startTime' in data) || data.startTime is timestamp) &&
-             data.lastUpdate is timestamp &&
-             (!('history' in data) || (data.history is list && data.history.size() <= 50));
-    }
-
-    function isValidNotification(data) {
-      return data.keys().hasAll(['title', 'message', 'type', 'read', 'createdAt']) &&
-             data.title is string && data.title.size() > 0 && data.title.size() < 100 &&
-             data.message is string && data.message.size() > 0 && data.message.size() < 1000 &&
-             data.type in ['bonus', 'promotion', 'account', 'system'] &&
-             data.read is bool &&
-             data.createdAt is timestamp &&
-             (!('actionUrl' in data) || (data.actionUrl is string && data.actionUrl.size() < 200));
-    }
-
-    function isValidUserActivity(data) {
-      return data.keys().hasAll(['userId', 'type', 'timestamp']) &&
-             data.userId is string && data.userId == request.auth.uid &&
-             data.type in ['game_selection', 'bet_placement', 'session_start', 'session_end', 'page_view'] &&
-             (data.timestamp is timestamp || data.timestamp == null) &&
-             (!('details' in data) || data.details is map);
-    }
-
-    function isValidSystemError(data) {
-      return data.keys().hasAll(['error', 'operationType', 'timestamp', 'resolved']) &&
-             data.error is string &&
-             data.operationType is string &&
-             data.timestamp is timestamp &&
-             data.resolved is bool;
-    }
-
-    function isValidPromoCode(data) {
-      return data.keys().hasAll(['amount', 'maxUses', 'usedCount', 'isActive']) &&
+      return data.userId is string && isValidId(data.userId) &&
+             data.type in ['deposit', 'withdraw', 'bonus'] &&
              data.amount is number &&
-             data.maxUses is int &&
-             data.usedCount is int &&
-             data.isActive is bool &&
-             (!('turnoverMultiplier' in data) || data.turnoverMultiplier is number) &&
-             (!('allowMultiUse' in data) || data.allowMultiUse is bool) &&
-             (!('createdAt' in data) || data.createdAt is timestamp);
+             data.status in ['pending', 'completed', 'rejected'] &&
+             data.createdAt is timestamp;
     }
 
-    function isValidLeaderboardEntry(data) {
-      return data.keys().hasAll(['userId', 'username', 'totalWinnings']) &&
-             data.userId is string &&
-             data.username is string &&
-             data.totalWinnings is number &&
-             (!('achievements' in data) || (data.achievements is list && data.achievements.size() <= 20)) &&
-             (!('avatarUrl' in data) || (data.avatarUrl is string && data.avatarUrl.size() < 100000)) &&
-             (!('lastWinAt' in data) || data.lastWinAt is timestamp);
+    // --- Match Rules ---
+
+    // User Profiles
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin(); // Only admins can list all users
+      
+      allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && 
+                    incoming().balance == 507 && // Initial bonus enforcement
+                    incoming().role == 'user';
+      
+      allow update: if isSignedIn() && (
+        // Admin update
+        isAdmin() ||
+        // Self update (limited fields)
+        (isOwner(userId) && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['username', 'phoneNumber', 'updatedAt', 'balance', 'lastDailyBonusClaimedAt', 'hasClaimedWelcomeBonus']) &&
+         isValidUser(incoming()))
+      );
     }
 
-    // ===============================================================
-    // Rules
-    // ===============================================================
-    match /{path=**}/transactions/{transactionId} {
-      allow read: if isAdmin() || (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid));
-      allow create: if isAuthenticated() && isValidTransaction(request.resource.data);
-      allow update: if isAdmin() && isValidTransaction(request.resource.data);
+    // Admin List (System Managed)
+    match /admins/{userId} {
+      allow read: if isSignedIn();
     }
 
+    // Game Settings (Public Read, All User Write)
+    match /game_settings/{gameId} {
+      allow read: if true;
+      allow write: if isSignedIn() && isValidGameSettings(incoming());
+    }
+
+    // Global Metadata
+    match /metadata/{docId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // Global Images (Collection based to avoid 1MB limit)
+    match /global_images/{imageKey} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // Transactions (Subcollection)
     match /users/{userId}/transactions/{transactionId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && isValidTransaction(request.resource.data);
-      allow update: if isAdmin() && isValidTransaction(request.resource.data);
-    }
-
-    match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin() || (isAgent() && resource.data.referredBy == request.auth.uid);
-      allow list: if isAuthenticated() || (request.query.limit <= 1 && request.query.filters.size() == 1 && 'phoneNumber' in request.query.filters);
-      allow create: if isOwner(userId) && isValidUserCreate(request.resource.data) && request.resource.data.role == 'user';
-      allow update: if (isOwner(userId) || isAdmin() || (isAgent() && resource.data.referredBy == request.auth.uid)) && 
-                    isValidUserUpdate(request.resource.data) &&
-                    (!('createdAt' in request.resource.data) || request.resource.data.createdAt == resource.data.createdAt) &&
-                    (isAdmin() || !('role' in request.resource.data) || request.resource.data.role == resource.data.role) &&
-                    (isOwner(userId) || isAdmin() || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['balance']));
-
-      match /savedItems/{savedItemId} {
-        allow read, write: if isOwner(userId) && isValidSavedItem(request.resource.data);
-      }
-
-      match /referrals/{referralId} {
-        allow read: if isOwner(userId) || isAdmin() || isAgent();
-        allow create, update: if (isAdmin() || isAgent()) && isValidReferral(request.resource.data);
-      }
-
-      match /chat/{messageId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow create: if (isOwner(userId) || isAdmin()) && isValidChatMessage(request.resource.data);
-        allow delete: if isOwner(userId) || isAdmin();
-      }
-
-      match /used_promos/{promoId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow create: if isOwner(userId) && request.resource.data.keys().hasAll(['claimedAt', 'amount']);
-      }
-
-      match /notifications/{notificationId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow create: if (isOwner(userId) || isAdmin()) && isValidNotification(request.resource.data);
-        allow update: if (isOwner(userId) || isAdmin()) && isValidNotification(request.resource.data);
-        allow delete: if isOwner(userId) || isAdmin();
-      }
-
-      match /activities/{activityId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow create: if isOwner(userId) && isValidUserActivity(request.resource.data);
-      }
-    }
-
-    match /metadata/users {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && 
-                    request.resource.data.keys().hasOnly(['userCount']) &&
-                    request.resource.data.userCount is int &&
-                    (request.resource.data.userCount >= 1 || request.resource.data.userCount == 100);
-      allow update: if isAuthenticated() && 
-                    request.resource.data.keys().hasOnly(['userCount']) &&
-                    request.resource.data.userCount is int &&
-                    request.resource.data.userCount == resource.data.userCount + 1;
-    }
-
-    match /metadata/settings {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
-
-    match /global_images/{imageId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
-    }
-
-    match /global_config/{configId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
-    }
-
-    match /promo_codes/{promoId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin() && isValidPromoCode(request.resource.data);
-    }
-
-    match /leaderboard/{entryId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin() || (isAuthenticated() && request.auth.uid == entryId && isValidLeaderboardEntry(request.resource.data));
-    }
-
-    match /logo_requests/{requestId} {
-      allow read: if isAdmin();
-      allow create: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidTransaction(incoming()) && 
+                    incoming().userId == userId &&
+                    incoming().status == 'pending' &&
+                    incoming().createdAt == request.time;
       allow update: if isAdmin();
     }
 
-    match /game_sessions/{gameId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && isValidGameSession(request.resource.data);
-    }
-
-    match /api_tokens/{tokenId} {
-      allow get: if true;
-      allow list: if isAdmin();
-      allow write: if isAdmin();
-    }
-
-    match /system_alerts/{alertId} {
-      allow read: if isAdmin() || isAuthenticated();
-      allow write: if isAdmin();
-    }
-
-    match /system_errors/{errorId} {
-      allow read: if isAdmin();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAdmin();
+    // Global Transactions (Admins)
+    match /transactions/{transactionId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read, write: if isAdmin();
     }
   }
 }

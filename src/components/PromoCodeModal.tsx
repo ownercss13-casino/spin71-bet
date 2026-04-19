@@ -1,9 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Gift, Check, AlertCircle, Loader2 } from 'lucide-react';
-import { db, auth, handleFirestoreError, OperationType } from '../firebase';
-import { doc, collection, serverTimestamp, runTransaction } from 'firebase/firestore';
-import { createPromoCode } from '../services/firebaseService';
 
 interface PromoCodeModalProps {
   isOpen: boolean;
@@ -19,115 +16,30 @@ export default function PromoCodeModal({ isOpen, onClose, showToast, isAdmin }: 
   const [success, setSuccess] = useState(false);
   const [bonusAmount, setBonusAmount] = useState(0);
 
+  const createPromoCode = async (code: string, amount: number, maxUses?: number, expireDays?: number, active?: boolean) => {
+    console.log(`Mock: Created promo code ${code} for ${amount}. Max uses: ${maxUses}, Expire in: ${expireDays} days. Active: ${active}`);
+    showToast(`প্রোমো কোড ${code} তৈরি হয়েছে (লোকাল)`, 'success');
+  };
+
   const handleClaim = async () => {
-    if (!code.trim() || !auth.currentUser || isLoading) return;
+    if (!code.trim() || isLoading) return;
     setIsLoading(true);
     setError(null);
     
     try {
       const promoCode = code.trim().toUpperCase();
-      const userId = auth.currentUser.uid;
-      let claimedAmount = 0;
-      let isAdminGranted = false;
       
-      // Check for Admin Code
-      const adminCode = (import.meta as any).env?.VITE_ADMIN_CODE?.toUpperCase() || "ADMIN123";
-      if (promoCode === adminCode && auth.currentUser.email === 'owner.css13@gmail.com') {
-        const { updateDoc } = await import('firebase/firestore');
-        const userRef = doc(db, 'users', userId);
-        await updateDoc(userRef, { role: 'admin' });
-        isAdminGranted = true;
-      } else {
-        await runTransaction(db, async (transaction) => {
-          const promoRef = doc(db, 'promo_codes', promoCode);
-          const promoDoc = await transaction.get(promoRef);
-          
-          if (!promoDoc.exists()) {
-            throw new Error("ভুল প্রোমো কোড (Invalid promo code)");
-          }
-          
-          const promoData = promoDoc.data();
-          
-          if (!promoData.isActive) {
-            throw new Error("এই প্রোমো কোডটি আর সক্রিয় নেই (Promo code is inactive)");
-          }
-          
-          if (promoData.maxUses > 0 && promoData.usedCount >= promoData.maxUses) {
-            throw new Error("এই প্রোমো কোডটির ব্যবহারের সীমা শেষ (Usage limit reached)");
-          }
-          
-          // Check if user already used it
-          const usageRef = doc(db, `users/${userId}/used_promos/${promoCode}`);
-          const usageDoc = await transaction.get(usageRef);
-          
-          if (usageDoc.exists() && !promoData.allowMultiUse) {
-            throw new Error("আপনি ইতিমধ্যে এই প্রোমো কোডটি ব্যবহার করেছেন (Already used)");
-          }
-          
-          // Apply bonus
-          claimedAmount = promoData.amount || 0;
-          const requiredTurnover = claimedAmount * (promoData.turnoverMultiplier || 5);
-          
-          const userRef = doc(db, 'users', userId);
-          const userDoc = await transaction.get(userRef);
-          
-          if (!userDoc.exists()) {
-            throw new Error("User not found");
-          }
-          
-          const currentBalance = userDoc.data().balance || 0;
-          const currentTurnover = userDoc.data().requiredTurnover || 0;
-          
-          transaction.update(userRef, {
-            balance: currentBalance + claimedAmount,
-            requiredTurnover: currentTurnover + requiredTurnover
-          });
-          
-          transaction.update(promoRef, {
-            usedCount: (promoData.usedCount || 0) + 1
-          });
-          
-          transaction.set(usageRef, {
-            claimedAt: serverTimestamp(),
-            amount: claimedAmount
-          });
-          
-          // Add transaction record
-          const trxRef = doc(collection(db, `users/${userId}/transactions`));
-          transaction.set(trxRef, {
-            type: 'bonus',
-            amount: claimedAmount,
-            method: 'Promo Code',
-            status: 'সম্পন্ন',
-            date: serverTimestamp(),
-            trxId: `PROMO-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
-            statusColor: 'bg-green-500/20 text-green-500'
-          });
-        });
-      }
-      
-      if (isAdminGranted) {
-        showToast("অ্যাডমিন অ্যাক্সেস সফলভাবে দেওয়া হয়েছে!", "success");
-        onClose();
-        setCode('');
-      } else {
-        setBonusAmount(claimedAmount);
+      // Mock logic
+      if (promoCode === 'WELCOME100') {
+        setBonusAmount(100);
         setSuccess(true);
         showToast("প্রোমো কোড সফলভাবে ব্যবহার করা হয়েছে!", "success");
-        
-        setTimeout(() => {
-          onClose();
-          setSuccess(false);
-          setCode('');
-        }, 3000);
+      } else {
+        throw new Error("ভুল প্রোমো কোড (Invalid promo code)");
       }
-      
     } catch (err: any) {
-      console.error(err);
-      setError(err.message || "প্রোমো কোড ক্লেইম করতে সমস্যা হয়েছে");
-      if (err.message && !err.message.includes("ভুল") && !err.message.includes("সক্রিয়") && !err.message.includes("সীমা") && !err.message.includes("ইতিমধ্যে")) {
-         handleFirestoreError(err, OperationType.WRITE, 'promo_codes');
-      }
+      setError(err.message);
+      showToast(err.message, "error");
     } finally {
       setIsLoading(false);
     }

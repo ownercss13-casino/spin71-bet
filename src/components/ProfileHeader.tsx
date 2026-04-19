@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Camera, Copy, ChevronLeft } from 'lucide-react';
+import { User, Camera, Copy, ChevronLeft, Share2 } from 'lucide-react';
 
 interface ProfileHeaderProps {
   userData: any;
@@ -7,21 +7,34 @@ interface ProfileHeaderProps {
   fileInputRef: React.RefObject<HTMLInputElement>;
   handleProfilePicChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onBack: () => void;
+  onShareProgress?: () => void;
 }
 
-export default function ProfileHeader({ userData, profilePic, fileInputRef, handleProfilePicChange, onBack }: ProfileHeaderProps) {
+export default function ProfileHeader({ userData, profilePic, fileInputRef, handleProfilePicChange, onBack, onShareProgress }: ProfileHeaderProps) {
   const profileData = userData;
 
   return (
     <div className="bg-gradient-to-b from-[var(--bg-surface)] to-[var(--bg-main)] p-4 pt-6 rounded-b-3xl shadow-md transition-colors duration-300">
-      <div className="flex items-center gap-4 mb-6">
-        <button 
-          onClick={onBack}
-          className="p-2 bg-black/20 hover:bg-black/30 rounded-full transition-colors text-[var(--text-main)]"
-        >
-          <ChevronLeft size={24} />
-        </button>
-        <h1 className="text-xl font-bold text-[var(--text-main)]">আমার প্রোফাইল</h1>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={onBack}
+            className="p-2 bg-black/20 hover:bg-black/30 rounded-full transition-colors text-[var(--text-main)]"
+          >
+            <ChevronLeft size={24} />
+          </button>
+          <h1 className="text-xl font-bold text-[var(--text-main)]">আমার প্রোফাইল</h1>
+        </div>
+        
+        {onShareProgress && (
+          <button
+            onClick={onShareProgress}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-teal-500 to-teal-400 text-black font-bold text-sm rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all"
+          >
+            <Share2 size={16} />
+            <span className="hidden sm:inline">প্রগ্রেস শেয়ার</span>
+          </button>
+        )}
       </div>
       <div className="flex items-center gap-6">
         <div className="relative">

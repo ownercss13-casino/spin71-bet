@@ -4,8 +4,6 @@ import { ArrowLeft, Wallet, Play, RotateCcw, Star, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 import Reel from './Reel';
-import { updateBalance, updateTurnover, logUserActivity, updateLeaderboard } from '../services/firebaseService';
-import { auth } from '../firebase';
 
 interface SlotGameProps {
   game: {
@@ -54,11 +52,7 @@ export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate, 
     setWinAmount(0);
     setShowWin(false);
 
-    // Update turnover in database
-    if (auth.currentUser) {
-      updateTurnover(auth.currentUser.uid, betAmount, referredBy);
-      logUserActivity('bet_placement', { gameId: game.id, gameName: game.name, amount: betAmount, type: 'spin' });
-    }
+    // Activity logs removed (Firebase disconnected)
 
     // Simulate spinning
     const spinDuration = 2000;
@@ -115,16 +109,7 @@ export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate, 
       setShowWin(true);
       onBalanceUpdate(userBalance + totalWin);
       
-      // Update leaderboard
-      if (userData?.id) {
-        const achievements = [];
-        if (totalWin >= betAmount * 10) achievements.push('Big Winner');
-        if (betAmount >= 1000) achievements.push('High Roller');
-        
-        updateLeaderboard(userData.id, userData.username, totalWin, achievements, userData.profilePictureUrl);
-      }
-      
-      logUserActivity('bet_placement', { gameId: game.id, gameName: game.name, amount: betAmount, winAmount: totalWin, type: 'win' });
+      // Leaderboard and activity logs removed (Firebase disconnected)
       setRecentWins(prev => [{
         amount: totalWin,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })

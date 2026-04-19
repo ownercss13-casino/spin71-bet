@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Gift, X, Calendar, Star, AlertCircle, RefreshCw } from 'lucide-react';
-import { claimDailyBonus, claimWelcomeBonus } from '../services/firebaseService';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../services/firebase';
 
 import { ToastType } from './Toast';
 
@@ -17,6 +18,7 @@ export default function BonusCenter({
   balance: number, 
   onBalanceUpdate: (newBalance: number) => void, 
   onTabChange: (tab: any) => void, 
+  onLogout: () => void,
   showToast: (msg: string, type?: ToastType) => void, 
   welcomeBonus?: number,
   onOpenPromoModal?: () => void
@@ -27,45 +29,64 @@ export default function BonusCenter({
   const [showErrorPopup, setShowErrorPopup] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const lastClaimed = userData?.lastDailyBonusClaimedAt?.toDate();
-  const canClaimDaily = !lastClaimed || (new Date().getTime() - lastClaimed.getTime() > 24 * 60 * 60 * 1000);
+  const parseClaimDate = (dateVal: any) => {
+    if (!dateVal) return null;
+    if (typeof dateVal === 'string') return new Date(dateVal);
+    if (dateVal.toDate && typeof dateVal.toDate === 'function') return dateVal.toDate();
+    if (dateVal.seconds) return new Date(dateVal.seconds * 1000);
+    return new Date(dateVal);
+  };
+
+  const lastClaimed = userData?.lastDailyBonusClaimedAt;
+  const lastClaimedDate = parseClaimDate(lastClaimed);
+  const now = new Date();
+  const canClaimDaily = !lastClaimedDate || (now.getTime() - lastClaimedDate.getTime() > 24 * 60 * 60 * 1000);
   
   const hasClaimedWelcome = userData?.hasClaimedWelcomeBonus;
-  const hasMadeDeposit = userData?.hasMadeDeposit;
+  const hasMadeDeposit = (userData?.totalDeposits || 0) > 0;
 
   const handleClaimDaily = async () => {
-    if (userData?.id && canClaimDaily) {
+    if (canClaimDaily && userData?.id) {
       setIsClaiming(true);
-      setTimeout(async () => {
-        try {
-          await claimDailyBonus(userData.id, balance);
-          onBalanceUpdate(balance + 6.77);
-          setPopupMessage("আপনি ৬.৭৭ টাকা ডেইলি বোনাস পেয়েছেন!");
-          setShowPopup(true);
-        } catch (error) {
-          console.error("Error claiming daily bonus:", error);
-        } finally {
-          setIsClaiming(false);
-        }
-      }, 500);
+      try {
+        const claimTime = new Date().toISOString();
+        const userRef = doc(db, 'users', userData.id);
+        await updateDoc(userRef, {
+          balance: balance + 6.77,
+          lastDailyBonusClaimedAt: claimTime
+        });
+        
+        onBalanceUpdate(balance + 6.77);
+        setPopupMessage("আপনি ৬.৭৭ টাকা ডেইলি বোনাস পেয়েছেন!");
+        setShowPopup(true);
+      } catch (err) {
+        console.error("Error claiming daily bonus:", err);
+        showToast("বোনাস ক্লেইম করতে সমস্যা হয়েছে", "error");
+      } finally {
+        setIsClaiming(false);
+      }
     }
   };
 
   const handleClaimWelcome = async () => {
-    if (userData?.id && !hasClaimedWelcome) {
+    if (!hasClaimedWelcome && userData?.id) {
       setIsClaiming(true);
-      setTimeout(async () => {
-        try {
-          await claimWelcomeBonus(userData.id, balance, welcomeBonus);
-          onBalanceUpdate(balance + welcomeBonus);
-          setPopupMessage(`আপনি ${welcomeBonus} টাকা ওয়েলকাম বোনাস পেয়েছেন!`);
-          setShowPopup(true);
-        } catch (error) {
-          console.error("Error claiming welcome bonus:", error);
-        } finally {
-          setIsClaiming(false);
-        }
-      }, 500);
+      try {
+        const userRef = doc(db, 'users', userData.id);
+        await updateDoc(userRef, {
+          balance: balance + welcomeBonus,
+          hasClaimedWelcomeBonus: true
+        });
+
+        onBalanceUpdate(balance + welcomeBonus);
+        setPopupMessage(`আপনি ${welcomeBonus} টাকা ওয়েলকাম বোনাস পেয়েছেন!`);
+        setShowPopup(true);
+      } catch (err) {
+        console.error("Error claiming welcome bonus:", err);
+        showToast("বোনাস ক্লেইম করতে সমস্যা হয়েছে", "error");
+      } finally {
+        setIsClaiming(false);
+      }
     }
   };
 
@@ -126,9 +147,9 @@ export default function BonusCenter({
             >
               {canClaimDaily ? '৬.৭৭ টাকা ক্লেইম করুন' : 'ইতিমধ্যে ক্লেইম করা হয়েছে'}
             </button>
-            {!canClaimDaily && lastClaimed && (
+            {!canClaimDaily && lastClaimedDate && (
               <p className="text-center text-[10px] text-[var(--text-muted)] mt-2">
-                পরবর্তী ক্লেইম: {new Date(lastClaimed.getTime() + 24 * 60 * 60 * 1000).toLocaleString()}
+                পরবর্তী ক্লেইম: {new Date(lastClaimedDate.getTime() + 24 * 60 * 60 * 1000).toLocaleString()}
               </p>
             )}
           </div>

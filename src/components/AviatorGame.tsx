@@ -1,6 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { updateTurnover, logUserActivity, updateLeaderboard } from '../services/firebaseService';
-import { auth } from '../firebase';
 import { useLiveAviator } from '../hooks/useLiveAviator';
 import GameLoader from './GameLoader';
 import { ArrowLeft, Wallet, Play, X, History, Users, TrendingUp } from 'lucide-react';
@@ -32,13 +30,20 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
   const [isFlying, setIsFlying] = useState(false);
   const [hasCrashed, setHasCrashed] = useState(false);
   const [betAmount, setBetAmount] = useState(100);
+  const [betAmount2, setBetAmount2] = useState(100);
   const [betError, setBetError] = useState<string | null>(null);
   const [isBetPlaced, setIsBetPlaced] = useState(false);
+  const [isBetPlaced2, setIsBetPlaced2] = useState(false);
   const [isCashedOut, setIsCashedOut] = useState(false);
+  const [isCashedOut2, setIsCashedOut2] = useState(false);
   const [isAutoBet, setIsAutoBet] = useState(false);
+  const [isAutoBet2, setIsAutoBet2] = useState(false);
   const [isAutoCashOut, setIsAutoCashOut] = useState(false);
+  const [isAutoCashOut2, setIsAutoCashOut2] = useState(false);
   const [autoCashOutValue, setAutoCashOutValue] = useState(2.00);
+  const [autoCashOutValue2, setAutoCashOutValue2] = useState(2.00);
   const [cashOutMultiplier, setCashOutMultiplier] = useState(0);
+  const [cashOutMultiplier2, setCashOutMultiplier2] = useState(0);
   const [history, setHistory] = useState<number[]>([]);
   const [showFullHistory, setShowFullHistory] = useState(false);
   const [gamePhase, setGamePhase] = useState<'betting' | 'flying' | 'crashed'>('betting');
@@ -69,21 +74,27 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
       setHasCrashed(false);
       
       // Calculate countdown based on startTime
-      const now = new Date();
-      const startTime = session.startTime?.toDate?.() || now;
-      const diff = Math.max(0, 5 - Math.floor((now.getTime() - startTime.getTime()) / 1000));
+      const now = Date.now();
+      const startTime = session.startTime || now;
+      const diff = Math.max(0, 8 - Math.floor((now - startTime) / 1000));
       setBettingCountdown(diff);
       
       // Reset for new round
       if (gamePhase !== 'betting') {
         setIsCashedOut(false);
+        setIsCashedOut2(false);
         setCashOutMultiplier(0);
+        setCashOutMultiplier2(0);
         setIsBetPlaced(false);
+        setIsBetPlaced2(false);
       }
     } else if (session.status === 'running') {
       setGamePhase('flying');
       setIsFlying(true);
       setHasCrashed(false);
+      
+      // Initial sync from session
+      setMultiplier(session.multiplier);
     } else if (session.status === 'crashed') {
       setGamePhase('crashed');
       setIsFlying(false);
@@ -91,6 +102,31 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
       setMultiplier(session.multiplier); // Ensure it shows the crash point
     }
   }, [session, gamePhase]);
+
+  // Local multiplier calculation for smooth animation
+  useEffect(() => {
+    if (gamePhase !== 'flying' || !isFlying || !session || hasCrashed) return;
+
+    const interval = setInterval(() => {
+      const now = new Date();
+      const startTimeTimestamp = session.startTime;
+      const startTime = (startTimeTimestamp && typeof startTimeTimestamp === 'number') 
+        ? new Date(startTimeTimestamp) 
+        : now;
+      const elapsed = (now.getTime() - startTime.getTime()) / 1000;
+      
+      // Aviator multiplier formula: 1.00 * e^(0.1 * t)
+      // Matching the controller's 1.06^elapsed
+      const currentMultiplier = Number(Math.pow(1.06, elapsed).toFixed(2));
+      
+      // Don't go beyond crash point if we know it (though usually we don't until it crashes)
+      if (session.status === 'running') {
+        setMultiplier(currentMultiplier);
+      }
+    }, 50); // Update every 50ms for smooth animation
+
+    return () => clearInterval(interval);
+  }, [gamePhase, isFlying, session, hasCrashed]);
 
   useEffect(() => {
     multiplierRef.current = multiplier;
@@ -143,7 +179,11 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
     }
   }, [gamePhase, isFlying]);
 
-  const placeBet = React.useCallback(() => {
+  const placeBet = React.useCallback((isSecond = false) => {
+    const amount = isSecond ? betAmount2 : betAmount;
+    const isPlaced = isSecond ? isBetPlaced2 : isBetPlaced;
+    const setIsPlaced = isSecond ? setIsBetPlaced2 : setIsBetPlaced;
+
     if (IS_BETTING_DISABLED) {
       showToast('বেটিং সাময়িকভাবে বন্ধ আছে!', 'info');
       return;
@@ -152,94 +192,87 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
       showToast('বেটিং সময় শেষ!', 'error');
       return;
     }
-    if (betAmount <= 0) {
+    if (amount <= 0) {
       showToast('সঠিক বেট অ্যামাউন্ট দিন!', 'error');
       return;
     }
-    if (userBalance < betAmount) {
+    if (userBalance < amount) {
       showToast('পর্যাপ্ত ব্যালেন্স নেই!', 'error');
       return;
     }
-    if (isBetPlaced) {
+    if (isPlaced) {
       showToast('বেট ইতিমধ্যেই প্লেস করা হয়েছে!', 'info');
       return;
     }
 
-    onBalanceUpdate(userBalance - betAmount);
-    setIsBetPlaced(true);
+    onBalanceUpdate(userBalance - amount);
+    setIsPlaced(true);
     setJustPlacedBet(true);
     setTimeout(() => setJustPlacedBet(false), 1000);
 
-    // Update turnover in database
-    if (auth.currentUser) {
-      updateTurnover(auth.currentUser.uid, betAmount, referredBy);
-      logUserActivity('bet_placement', { gameId: 'aviator', amount: betAmount, type: 'place' });
-    }
     showToast('বেট সফলভাবে প্লেস করা হয়েছে!', 'success');
-  }, [gamePhase, userBalance, betAmount, isBetPlaced, onBalanceUpdate, showToast]);
+  }, [gamePhase, userBalance, betAmount, betAmount2, isBetPlaced, isBetPlaced2, onBalanceUpdate, showToast]);
 
-  const cashOut = React.useCallback(() => {
-    if (!isBetPlaced || isCashedOut || hasCrashed || gamePhase !== 'flying') return;
-    const winAmount = betAmount * multiplier;
-    setIsCashedOut(true);
-    setIsBetPlaced(false);
-    setCashOutMultiplier(multiplier);
-    onBalanceUpdate(userBalance + winAmount);
+  const cashOut = React.useCallback((isSecond = false) => {
+    const isPlaced = isSecond ? isBetPlaced2 : isBetPlaced;
+    const isCashed = isSecond ? isCashedOut2 : isCashedOut;
+    const setIsCashed = isSecond ? setIsCashedOut2 : setIsCashedOut;
+    const setIsPlaced = isSecond ? setIsBetPlaced2 : setIsBetPlaced;
+    const amount = isSecond ? betAmount2 : betAmount;
+    const setMult = isSecond ? setCashOutMultiplier2 : setCashOutMultiplier;
+
+    if (!isPlaced || isCashed || hasCrashed || gamePhase !== 'flying') return;
     
-    // Update leaderboard
-    if (userData?.id) {
-      const achievements = [];
-      if (multiplier >= 10) achievements.push('Big Winner');
-      if (betAmount >= 1000) achievements.push('High Roller');
-      if (multiplier >= 50) achievements.push('Pro Player');
-      
-      updateLeaderboard(userData.id, userData.username, winAmount, achievements, userData.profilePictureUrl);
-    }
-    logUserActivity('bet_placement', { gameId: 'aviator', amount: betAmount, multiplier, winAmount, type: 'cashout' });
-
+    const winAmount = amount * multiplier;
+    setIsCashed(true);
+    setIsPlaced(false);
+    setMult(multiplier);
+    onBalanceUpdate(userBalance + winAmount);
+    showToast(`আপনি ৳ ${winAmount.toFixed(2)} জিতেছেন! (${multiplier.toFixed(2)}x)`, 'success');
+    
     setBetHistory(prev => [
       {
         multiplier: multiplier,
-        amount: betAmount,
+        amount: amount,
         win: winAmount,
         isWin: true
       },
       ...prev.slice(0, 9)
     ]);
 
-    // Auto-hide cashout popup after 2 seconds
     setTimeout(() => {
-      setIsCashedOut(false);
+      setIsCashed(false);
     }, 2000);
-  }, [isBetPlaced, isCashedOut, hasCrashed, gamePhase, betAmount, multiplier, onBalanceUpdate, userBalance]);
+  }, [isBetPlaced, isBetPlaced2, isCashedOut, isCashedOut2, hasCrashed, gamePhase, betAmount, betAmount2, multiplier, onBalanceUpdate, userBalance]);
 
+  // Auto Bet and Cashout logic
   useEffect(() => {
-    if (gamePhase === 'betting' && isAutoBet && !isBetPlaced) {
-      placeBet();
-    }
-  }, [gamePhase, isAutoBet, isBetPlaced, placeBet]);
+    if (gamePhase === 'betting' && isAutoBet && !isBetPlaced) placeBet(false);
+    if (gamePhase === 'betting' && isAutoBet2 && !isBetPlaced2) placeBet(true);
+  }, [gamePhase, isAutoBet, isAutoBet2, isBetPlaced, isBetPlaced2, placeBet]);
 
   useEffect(() => {
     if (isAutoCashOut && isBetPlaced && !isCashedOut && isFlying && multiplier >= autoCashOutValue) {
-      cashOut();
+      cashOut(false);
     }
-  }, [multiplier, isAutoCashOut, isBetPlaced, isCashedOut, isFlying, autoCashOutValue, cashOut]);
+    if (isAutoCashOut2 && isBetPlaced2 && !isCashedOut2 && isFlying && multiplier >= autoCashOutValue2) {
+      cashOut(true);
+    }
+  }, [multiplier, isAutoCashOut, isAutoCashOut2, isBetPlaced, isBetPlaced2, isCashedOut, isCashedOut2, isFlying, autoCashOutValue, autoCashOutValue2, cashOut]);
 
-  // Handle crash for bet history
+  // Handle crash for bet history reset
   useEffect(() => {
-    if (gamePhase === 'crashed' && isBetPlaced && !isCashedOut) {
-      setBetHistory(prev => [
-        {
-          multiplier: multiplier,
-          amount: betAmount,
-          win: 0,
-          isWin: false
-        },
-        ...prev.slice(0, 9)
-      ]);
-      setIsBetPlaced(false);
+    if (gamePhase === 'crashed') {
+      if (isBetPlaced && !isCashedOut) {
+        setBetHistory(prev => [{ multiplier, amount: betAmount, win: 0, isWin: false }, ...prev.slice(0, 9)]);
+        setIsBetPlaced(false);
+      }
+      if (isBetPlaced2 && !isCashedOut2) {
+        setBetHistory(prev => [{ multiplier, amount: betAmount2, win: 0, isWin: false }, ...prev.slice(0, 9)]);
+        setIsBetPlaced2(false);
+      }
     }
-  }, [gamePhase, isBetPlaced, isCashedOut, multiplier, betAmount]);
+  }, [gamePhase, isBetPlaced, isBetPlaced2, isCashedOut, isCashedOut2, multiplier, betAmount, betAmount2]);
 
   return (
     <div 
@@ -412,6 +445,36 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
           backgroundSize: '40px 40px'
         }}></div>
 
+        {/* Decorative Clouds */}
+        {gamePhase === 'flying' && !hasCrashed && (
+          <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+            <motion.div
+              initial={{ x: '120%' }}
+              animate={{ x: '-50%' }}
+              transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+              className="absolute top-[20%] opacity-20"
+            >
+              <div className="w-48 h-12 bg-white rounded-full blur-2xl"></div>
+            </motion.div>
+            <motion.div
+              initial={{ x: '150%' }}
+              animate={{ x: '-60%' }}
+              transition={{ duration: 20, repeat: Infinity, ease: "linear", delay: 5 }}
+              className="absolute top-[50%] opacity-10"
+            >
+              <div className="w-64 h-16 bg-white rounded-full blur-3xl"></div>
+            </motion.div>
+            <motion.div
+              initial={{ x: '130%' }}
+              animate={{ x: '-40%' }}
+              transition={{ duration: 12, repeat: Infinity, ease: "linear", delay: 2 }}
+              className="absolute top-[70%] opacity-15"
+            >
+              <div className="w-40 h-10 bg-white rounded-full blur-xl"></div>
+            </motion.div>
+          </div>
+        )}
+
         {/* Speed Lines */}
         {gamePhase === 'flying' && !hasCrashed && (
           <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
@@ -471,9 +534,6 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
                 {!hasCrashed ? (
                   <div className="relative">
                     <motion.h1 
-                      key={multiplier.toFixed(2)}
-                      initial={{ scale: 1.05 }}
-                      animate={{ scale: 1 }}
                       className={`text-7xl md:text-8xl font-black italic tracking-tighter drop-shadow-[0_0_40px_rgba(255,255,255,0.4)] transition-colors duration-300 ${isFlying ? 'text-white' : 'text-gray-400'}`}
                     >
                       {multiplier.toFixed(2)}x
@@ -617,6 +677,27 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
                       {/* Propeller Hub */}
                       <circle cx="110" cy="40" r="3" fill="#333" stroke="#fff" strokeWidth="1" />
                       
+                      {/* Rotating Propeller */}
+                      {!hasCrashed && (
+                        <motion.g
+                          animate={{ rotate: [0, 360] }}
+                          transition={{ 
+                            duration: Math.max(0.05, 0.2 - (multiplier - 1) * 0.05), 
+                            repeat: Infinity, 
+                            ease: "linear" 
+                          }}
+                          style={{ originX: '110px', originY: '40px' }}
+                        >
+                          <path 
+                            d="M110,25 L110,55 M95,40 L125,40" 
+                            stroke="#fff" 
+                            strokeWidth="2" 
+                            opacity="0.6" 
+                            strokeLinecap="round"
+                          />
+                        </motion.g>
+                      )}
+                      
                       {/* Speed Lines on Plane */}
                       <line x1="20" y1="38" x2="40" y2="38" stroke="#fff" strokeWidth="1" opacity="0.5" />
                       <line x1="25" y1="42" x2="45" y2="42" stroke="#fff" strokeWidth="1" opacity="0.5" />
@@ -688,90 +769,76 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
         {/* First Bet Panel */}
         <div className="space-y-4">
           {/* Auto Controls Row */}
-          <div className="flex gap-3">
+          <div className="flex gap-2">
             <button 
               onClick={() => setIsAutoBet(!isAutoBet)}
-              className={`flex-1 py-2 rounded-xl border text-[10px] font-black tracking-widest transition-all duration-300 ${
+              className={`flex-1 py-1.5 rounded-lg text-[9px] font-black tracking-widest transition-all duration-300 border ${
                 isAutoBet 
-                  ? 'bg-blue-500/20 border-blue-500 text-blue-400 shadow-[inset_0_0_10px_rgba(59,130,246,0.2)]' 
-                  : 'bg-black/40 border-white/5 text-gray-500 hover:border-white/10'
+                  ? 'bg-blue-500/20 border-blue-500 text-blue-400' 
+                  : 'bg-black/40 border-white/5 text-gray-500'
               }`}
             >
               AUTO BET
             </button>
-            <div className={`flex-[1.5] flex items-center gap-3 px-3 py-2 rounded-xl border transition-all duration-300 ${
+            <div className={`flex-[1.5] flex items-center justify-between px-2 py-1.5 rounded-lg border transition-all duration-300 ${
               isAutoCashOut 
-                ? 'bg-orange-500/20 border-orange-500 shadow-[inset_0_0_10px_rgba(249,115,22,0.2)]' 
+                ? 'bg-orange-500/20 border-orange-500' 
                 : 'bg-black/40 border-white/5'
             }`}>
               <button 
                 onClick={() => setIsAutoCashOut(!isAutoCashOut)}
-                className={`text-[10px] font-black tracking-widest transition-colors ${isAutoCashOut ? 'text-orange-400' : 'text-gray-500'}`}
+                className={`text-[9px] font-black tracking-widest ${isAutoCashOut ? 'text-orange-400' : 'text-gray-500'}`}
               >
-                AUTO CASHOUT
+                AUTO CASH OUT
               </button>
-              <div className="flex-1 flex items-center justify-end gap-1.5">
+              <div className="flex items-center gap-1">
                 <input 
                   type="number" 
                   step="0.1"
                   min="1.1"
                   value={autoCashOutValue}
                   onChange={(e) => setAutoCashOutValue(parseFloat(e.target.value) || 1.1)}
-                  className="bg-transparent text-white text-xs font-black w-12 text-right outline-none focus:text-orange-400 transition-colors"
+                  className="bg-transparent text-white text-[10px] font-black w-8 text-right outline-none"
                 />
-                <span className="text-gray-500 text-[10px] font-bold">x</span>
+                <span className="text-gray-500 text-[9px] font-bold">x</span>
               </div>
             </div>
           </div>
 
-          <div className="flex gap-3 h-32">
+          <div className="flex gap-2 h-20">
             {/* Bet Amount Selector */}
-            <div className="flex-1 bg-black/60 rounded-2xl border border-white/5 p-3 flex flex-col justify-between shadow-inner">
+            <div className="flex-[2] bg-black/60 rounded-lg border border-white/5 p-2 flex flex-col justify-between">
               <div className="flex items-center justify-between w-full">
-                 <motion.button 
-                   whileTap={{ scale: 0.8 }}
-                   onClick={() => setBetAmount(prev => Math.max(1, prev - 10))} 
+                 <button 
+                   onClick={() => setBetAmount(prev => Math.max(1, prev - 10))}
                    disabled={isBetPlaced || gamePhase !== 'betting'}
-                   className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-white hover:bg-white/10 disabled:opacity-20 transition-colors"
-                 >
-                   -
-                 </motion.button>
-                 <div className="flex flex-col items-center">
-                   <span className="text-[8px] text-gray-500 font-black uppercase tracking-[0.2em] mb-1">Amount</span>
-                   <div className="flex items-center gap-1">
-                     <span className="text-xs font-black text-white/40">৳</span>
-                     <input 
-                       type="number"
-                       value={betAmount === 0 ? '' : betAmount}
-                       onChange={(e) => {
-                         const val = parseInt(e.target.value) || 0;
-                         setBetAmount(val);
-                       }}
-                       disabled={isBetPlaced || gamePhase !== 'betting'}
-                       className="bg-transparent text-lg font-black text-white w-20 outline-none text-center disabled:text-white/50"
-                     />
-                   </div>
+                   className="w-6 h-6 rounded bg-white/5 flex items-center justify-center text-white text-[10px] disabled:opacity-20"
+                 >-</button>
+                 <div className="flex items-center gap-0.5">
+                   <span className="text-[10px] font-bold text-white/40">৳</span>
+                   <input 
+                     type="number"
+                     value={betAmount === 0 ? '' : betAmount}
+                     onChange={(e) => setBetAmount(parseInt(e.target.value) || 0)}
+                     disabled={isBetPlaced || gamePhase !== 'betting'}
+                     className="bg-transparent text-xs font-black text-white w-14 outline-none text-center"
+                   />
                  </div>
-                 <motion.button 
-                   whileTap={{ scale: 0.8 }}
+                 <button 
                    onClick={() => setBetAmount(prev => prev + 10)} 
                    disabled={isBetPlaced || gamePhase !== 'betting'}
-                   className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-white hover:bg-white/10 disabled:opacity-20 transition-colors"
-                 >
-                   +
-                 </motion.button>
+                   className="w-6 h-6 rounded bg-white/5 flex items-center justify-center text-white text-[10px] disabled:opacity-20"
+                 >+</button>
               </div>
               
-              <div className="grid grid-cols-3 gap-1.5 w-full">
+              <div className="grid grid-cols-3 gap-1 w-full">
                 {[10, 50, 100, 200, 500, 1000].map(val => (
                   <button 
                     key={val} 
                     disabled={isBetPlaced || gamePhase !== 'betting'}
                     onClick={() => setBetAmount(val)}
-                    className={`text-[10px] font-black py-2 rounded-lg transition-all ${
-                      betAmount === val 
-                        ? 'bg-white/20 text-white border border-white/20' 
-                        : 'bg-white/5 text-gray-500 hover:text-gray-300'
+                    className={`text-[8px] font-bold py-1 rounded transition-all ${
+                      betAmount === val ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-500'
                     } disabled:opacity-10`}
                   >
                     {val >= 1000 ? `${val/1000}k` : val}
@@ -790,7 +857,7 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={cashOut}
+                    onClick={() => cashOut(false)}
                     className="w-full h-full bg-gradient-to-b from-orange-400 to-orange-600 rounded-2xl shadow-[0_8px_25px_rgba(249,115,22,0.4)] flex flex-col items-center justify-center p-4 border-t border-white/20"
                   >
                     <span className="text-black font-black text-sm tracking-widest mb-1">CASH OUT</span>
@@ -805,7 +872,7 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     disabled={isBetPlaced || gamePhase !== 'betting' || !!betError}
-                    onClick={placeBet}
+                    onClick={() => placeBet(false)}
                     className={`w-full h-full rounded-2xl flex flex-col items-center justify-center p-4 transition-all duration-300 border-t ${
                       isBetPlaced 
                         ? 'bg-blue-900/40 border-blue-500/30 text-blue-400' 
@@ -833,64 +900,166 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
         </div>
       </div>
 
-      {/* Second Bet Panel (Multi) - Disabled as per request */}
+      {/* Second Bet Panel (Multi) */}
         {showSecondBet && (
-          <div className="relative pt-3 border-t border-white/5 opacity-50 grayscale pointer-events-none">
-            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[1px] rounded-xl">
-              <div className="bg-red-600/80 px-3 py-1 rounded-full border border-red-400 shadow-lg transform -rotate-12">
-                <span className="text-white font-black text-[10px] uppercase tracking-widest">Closed / বন্ধ</span>
-              </div>
-            </div>
-            
+          <div className="relative pt-3 border-t border-white/5">
             <div className="flex gap-2 mb-3">
-              <button className="flex-1 py-1.5 rounded-lg border border-white/10 bg-black/40 text-gray-500 text-[9px] font-bold">
+              <button 
+                onClick={() => setIsAutoBet2(!isAutoBet2)}
+                className={`flex-1 py-1.5 rounded-lg text-[9px] font-black tracking-widest transition-all duration-300 border ${
+                  isAutoBet2 
+                    ? 'bg-blue-500/20 border-blue-500 text-blue-400' 
+                    : 'bg-black/40 border-white/5 text-gray-500'
+                }`}
+              >
                 AUTO BET
               </button>
-              <div className="flex-[1.5] flex items-center gap-2 px-2 py-1 rounded-lg border border-white/10 bg-black/40">
-                <button className="text-[9px] font-bold text-gray-500">AUTO CASHOUT</button>
-                <div className="flex-1 flex items-center justify-end gap-1">
-                  <span className="text-white text-[10px] font-bold">2.00</span>
-                  <span className="text-gray-500 text-[9px]">x</span>
+              <div className={`flex-[1.5] flex items-center justify-between px-2 py-1.5 rounded-lg border transition-all duration-300 ${
+                isAutoCashOut2 
+                  ? 'bg-orange-500/20 border-orange-500' 
+                  : 'bg-black/40 border-white/5'
+              }`}>
+                <button 
+                  onClick={() => setIsAutoCashOut2(!isAutoCashOut2)}
+                  className={`text-[9px] font-black tracking-widest ${isAutoCashOut2 ? 'text-orange-400' : 'text-gray-500'}`}
+                >
+                  AUTO CASH OUT
+                </button>
+                <div className="flex items-center gap-1">
+                  <input 
+                    type="number" 
+                    step="0.1"
+                    min="1.1"
+                    value={autoCashOutValue2}
+                    onChange={(e) => setAutoCashOutValue2(parseFloat(e.target.value) || 1.1)}
+                    className="bg-transparent text-white text-[10px] font-black w-8 text-right outline-none"
+                  />
+                  <span className="text-gray-500 text-[9px] font-bold">x</span>
                 </div>
               </div>
             </div>
 
-            <div className="flex gap-2">
-              <div className="flex-1 bg-black/40 rounded-xl border border-white/10 p-2 flex flex-col items-center">
-                <div className="flex items-center justify-between w-full mb-2">
-                  <button className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-white">-</button>
-                  <div className="flex flex-col items-center">
-                    <span className="text-[8px] text-gray-500 font-bold uppercase tracking-widest">Amount</span>
-                    <span className="text-sm font-black text-white">৳ 100</span>
-                  </div>
-                  <button className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-white">+</button>
+            <div className="flex gap-2 h-20">
+              <div className="flex-[2] bg-black/60 rounded-lg border border-white/5 p-2 flex flex-col justify-between">
+                <div className="flex items-center justify-between w-full">
+                   <button 
+                     onClick={() => setBetAmount2(prev => Math.max(1, prev - 10))}
+                     disabled={isBetPlaced2 || gamePhase !== 'betting'}
+                     className="w-6 h-6 rounded bg-white/5 flex items-center justify-center text-white text-[10px] disabled:opacity-20"
+                   >-</button>
+                   <div className="flex items-center gap-0.5">
+                     <span className="text-[10px] font-bold text-white/40">৳</span>
+                     <input 
+                       type="number"
+                       value={betAmount2 === 0 ? '' : betAmount2}
+                       onChange={(e) => setBetAmount2(parseInt(e.target.value) || 0)}
+                       disabled={isBetPlaced2 || gamePhase !== 'betting'}
+                       className="bg-transparent text-xs font-black text-white w-14 outline-none text-center"
+                     />
+                   </div>
+                   <button 
+                     onClick={() => setBetAmount2(prev => prev + 10)} 
+                     disabled={isBetPlaced2 || gamePhase !== 'betting'}
+                     className="w-6 h-6 rounded bg-white/5 flex items-center justify-center text-white text-[10px] disabled:opacity-20"
+                   >+</button>
                 </div>
-                <div className="grid grid-cols-3 gap-1 w-full opacity-30">
-                  {[1, 10, 100, 500, 1000, 10000].map(val => (
-                    <button key={val} className="text-[9px] font-bold py-1.5 rounded bg-gray-800/50 border border-white/5 text-gray-400">
+                
+                <div className="grid grid-cols-3 gap-1 w-full">
+                  {[10, 50, 100, 200, 500, 1000].map(val => (
+                    <button 
+                      key={val} 
+                      disabled={isBetPlaced2 || gamePhase !== 'betting'}
+                      onClick={() => setBetAmount2(val)}
+                      className={`text-[8px] font-bold py-1 rounded transition-all ${
+                        betAmount2 === val ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-500'
+                      } disabled:opacity-10`}
+                    >
                       {val >= 1000 ? `${val/1000}k` : val}
                     </button>
                   ))}
                 </div>
               </div>
-              <div className="flex-1 flex gap-2">
-                <button className="flex-1 h-full rounded-xl bg-gray-800 text-gray-500 flex flex-col items-center justify-center p-2">
-                  <span className="font-black text-lg leading-none italic">BET</span>
-                  <span className="font-bold text-sm mt-1">৳ 100</span>
-                </button>
+
+              <div className="flex-1">
+                <AnimatePresence mode="wait">
+                  {isBetPlaced2 && !isCashedOut2 && !hasCrashed && gamePhase === 'flying' ? (
+                    <motion.button 
+                      key="cashout2"
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => cashOut(true)}
+                      className="w-full h-full bg-gradient-to-b from-orange-400 to-orange-600 rounded-2xl shadow-[0_8px_25px_rgba(249,115,22,0.4)] flex flex-col items-center justify-center p-4 border-t border-white/20"
+                    >
+                      <span className="text-black font-black text-[10px] tracking-widest leading-none">CASH OUT</span>
+                      <div className="flex items-baseline gap-0.5 mt-1">
+                        <span className="text-black font-black text-lg">{(betAmount2 * multiplier).toFixed(2)}</span>
+                      </div>
+                    </motion.button>
+                  ) : (
+                    <motion.button 
+                      key="bet2"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      disabled={isBetPlaced2 || gamePhase !== 'betting'}
+                      onClick={() => placeBet(true)}
+                      className={`w-full h-full rounded-2xl flex flex-col items-center justify-center p-4 transition-all duration-300 border-t ${
+                        isBetPlaced2 
+                          ? 'bg-blue-900/40 border-blue-500/30 text-blue-400' 
+                          : gamePhase === 'betting' 
+                            ? 'bg-gradient-to-b from-green-400 to-green-600 border-white/20 shadow-[0_8px_25px_rgba(34,197,94,0.4)] active:scale-95' 
+                            : 'bg-gray-800 border-white/5 text-gray-500'
+                      }`}
+                    >
+                      <span className={`font-black text-sm tracking-tighter mb-1 ${
+                        isBetPlaced2 ? 'text-blue-400' : 'text-black'
+                      }`}>
+                        {isBetPlaced2 ? 'WAITING' : (gamePhase === 'betting' ? 'BET' : 'FLYING')}
+                      </span>
+                      <div className="flex items-center gap-0.5 opacity-70">
+                        <span className="text-[8px] font-bold">৳</span>
+                        <span className="font-black text-xs">{betAmount2}</span>
+                      </div>
+                    </motion.button>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
           </div>
         )}
 
         {/* Cashed Out Message Overlay */}
-        {isCashedOut && (
-          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 z-40 bg-green-500/90 backdrop-blur-md px-6 py-3 rounded-2xl border border-green-400 shadow-2xl animate-in zoom-in duration-300">
-            <div className="text-center">
-              <p className="text-black text-[10px] font-black uppercase tracking-widest">You Cashed Out At</p>
-              <h2 className="text-black font-black text-3xl italic">{cashOutMultiplier.toFixed(2)}x</h2>
-              <p className="text-black font-bold text-sm">Win: ৳ {(betAmount * cashOutMultiplier).toFixed(2)}</p>
-            </div>
+        {(isCashedOut || isCashedOut2) && (
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] pointer-events-none">
+            {isCashedOut && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.5, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.5, y: -20 }}
+                className="bg-green-500/90 backdrop-blur-md px-6 py-3 rounded-2xl border border-green-400 shadow-[0_15px_40px_rgba(0,0,0,0.5)] mb-4"
+              >
+                <div className="text-center">
+                  <p className="text-black text-[10px] font-black uppercase tracking-widest">Bet 1 Cashed Out</p>
+                  <h2 className="text-black font-black text-3xl italic">{cashOutMultiplier.toFixed(2)}x</h2>
+                  <p className="text-black font-bold text-sm">৳ {(betAmount * cashOutMultiplier).toFixed(2)}</p>
+                </div>
+              </motion.div>
+            )}
+            {isCashedOut2 && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.5, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.5, y: -20 }}
+                className="bg-green-500/90 backdrop-blur-md px-6 py-3 rounded-2xl border border-green-400 shadow-[0_15px_40px_rgba(0,0,0,0.5)]"
+              >
+                <div className="text-center">
+                  <p className="text-black text-[10px] font-black uppercase tracking-widest">Bet 2 Cashed Out</p>
+                  <h2 className="text-black font-black text-3xl italic">{cashOutMultiplier2.toFixed(2)}x</h2>
+                  <p className="text-black font-bold text-sm">৳ {(betAmount2 * cashOutMultiplier2).toFixed(2)}</p>
+                </div>
+              </motion.div>
+            )}
           </div>
         )}
 
