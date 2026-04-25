@@ -110,3 +110,23 @@ body {
     overflow: hidden;
   }
 }
+
+@layer base {
+  button:not([disabled]), 
+  [role="button"]:not([disabled]),
+  .btn-click:not([disabled]) {
+    @apply transition-all duration-300 cursor-pointer;
+  }
+  
+  button:not([disabled]):hover, 
+  [role="button"]:not([disabled]):hover,
+  .btn-click:not([disabled]):hover {
+    @apply scale-[1.04] opacity-90 brightness-110 shadow-lg;
+  }
+
+  button:not([disabled]):active, 
+  [role="button"]:not([disabled]):active,
+  .btn-click:not([disabled]):active {
+    @apply scale-[0.96] opacity-100 brightness-95 shadow-inner;
+  }
+}

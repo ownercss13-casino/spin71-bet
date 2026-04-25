@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { QRCodeSVG } from 'qrcode.react';
 import { motion } from 'motion/react';
+import { db } from "../services/firebase";
+import { collection, query, where, getDocs, orderBy, limit } from "firebase/firestore";
 import { 
   Copy, 
   HelpCircle, 
@@ -29,43 +31,123 @@ import {
   ChevronDown,
   Plane,
   Info,
-  Download
+  Download,
+  Loader2
 } from "lucide-react";
-import { ToastType } from './Toast';
+import { ToastType } from '../components/ui/Toast';
 
 export default function InviteView({ 
   onTabChange, 
   userData, 
   showToast, 
-  initialSubTab = 'overview',
-  casinoName
+  initialSubTab,
+  casinoName,
+  onUpdateUser,
+  onAddTransaction,
+  onBack
 }: { 
   onTabChange: (tab: any) => void, 
   userData?: any, 
   showToast: (msg: string, type?: ToastType) => void, 
   initialSubTab?: string,
-  casinoName?: string
+  casinoName?: string,
+  onUpdateUser?: (updates: any) => Promise<void>,
+  onAddTransaction?: (transaction: any) => Promise<void>,
+  onBack: () => void
 }) {
   const [activeTab, setActiveTab] = useState(initialSubTab);
   const [incomeCalculatorValue, setIncomeCalculatorValue] = useState(1);
   const [referralsList, setReferralsList] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   
   useEffect(() => {
-    // Referrals direct fetch from Firebase removed
+    if (userData?.id) {
+      const fetchReferrals = async () => {
+        setIsLoading(true);
+        try {
+          const q = query(
+            collection(db, 'users'), 
+            where('referredBy', '==', userData.id),
+            limit(50)
+          );
+          const querySnapshot = await getDocs(q);
+          const list = querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          setReferralsList(list);
+        } catch (error) {
+          console.error("Error fetching referrals:", error);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      
+      fetchReferrals();
+    }
   }, [userData?.id]);
   
   const currentReferrals = userData?.referralCount || 0;
   const totalEarned = userData?.totalReferralEarnings || 0;
-  const referralCode = userData?.referralCode || (userData?.id ? userData.id.substring(0, 6).toUpperCase() : 'SPIN71');
+  const referralCode = userData?.referralCode || (userData?.id ? userData.id.substring(0, 6).toUpperCase() : 'BETAIG');
   const referralLink = `${window.location.origin}/?ref=${referralCode}`;
-  const displayCasinoName = casinoName || "SPIN71 BET";
+  const displayCasinoName = casinoName || "NAGAD BET";
+
+  const [isClaiming, setIsClaiming] = useState<number | null>(null);
+
+  const handleClaimReward = async (tier: any, index: number) => {
+    if (!userData?.id || !onUpdateUser || !onAddTransaction) return;
+    
+    const validCount = userData.validReferralCount || 0;
+    if (validCount < tier.count) {
+      showToast(`আপনার অন্তত ${tier.count} জন সঠিক রেফারেল প্রয়োজন।`, "warning");
+      return;
+    }
+
+    // Check if already claimed (this should be tracked in a 'claimedRewards' list in userData)
+    const claimedRewards = userData.claimedRewards || [];
+    if (claimedRewards.includes(tier.count)) {
+      showToast("এই পুরস্কারটি আপনি ইতিমধ্যে গ্রহণ করেছেন।", "info");
+      return;
+    }
+
+    setIsClaiming(index);
+    try {
+      const rewardAmount = parseFloat(tier.reward.replace(/,/g, ''));
+      
+      // Update balance
+      await onUpdateUser({
+        balance: (userData.balance || 0) + rewardAmount,
+        totalReferralEarnings: (userData.totalReferralEarnings || 0) + rewardAmount,
+        claimedRewards: [...claimedRewards, tier.count]
+      });
+
+      // Add transaction record
+      await onAddTransaction({
+        trxId: `REF-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+        type: 'bonus',
+        amount: rewardAmount,
+        method: 'Referral Reward',
+        status: 'completed',
+        statusColor: 'text-green-500',
+        date: new Date().toLocaleString()
+      });
+
+      showToast(`অভিনন্দন! আপনি ৳${rewardAmount.toLocaleString()} পুরস্কার পেয়েছেন।`, "success");
+    } catch (error) {
+      console.error("Error claiming reward:", error);
+      showToast("পুরস্কার গ্রহণ করতে সমস্যা হয়েছে।", "error");
+    } finally {
+      setIsClaiming(null);
+    }
+  };
 
   const tabs = [
-    { id: 'overview', name: 'Overview' },
-    { id: 'rewards', name: 'Rewards' },
-    { id: 'incomes', name: 'Incomes' },
-    { id: 'records', name: 'Records' },
-    { id: 'invited', name: 'Invited List' }
+    { id: 'overview', name: 'ওভারভিউ' },
+    { id: 'rewards', name: 'পুরস্কার' },
+    { id: 'incomes', name: 'আয়' },
+    { id: 'records', name: 'রেকর্ড' },
+    { id: 'invited', name: 'আমন্ত্রিত তালিকা' }
   ];
 
   const copyToClipboard = (text: string, msg: string) => {
@@ -153,7 +235,7 @@ export default function InviteView({
         >
           <ChevronLeft size={24} />
         </button>
-        <h2 className="text-white text-lg font-medium flex-1 text-center mr-8">Invite Friends</h2>
+        <h2 className="text-white text-lg font-medium flex-1 text-center mr-8">বন্ধুদের আমন্ত্রণ জানান</h2>
       </div>
 
       {/* Tab Navigation */}
@@ -181,7 +263,7 @@ export default function InviteView({
           <div className="p-4 space-y-4 animate-in fade-in duration-500">
             {/* Share Section */}
             <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <p className="text-xs font-bold text-indigo-900 mb-3">Share to your friends</p>
+              <p className="text-xs font-bold text-indigo-900 mb-3">বন্ধুদের সাথে শেয়ার করুন (Share to friends)</p>
               <div className="flex gap-4 items-start mb-4">
                 <div className="flex flex-col items-center gap-1 group cursor-pointer" onClick={downloadQRCode}>
                   <div className="w-16 h-16 bg-white border border-gray-200 p-1 rounded flex items-center justify-center relative shadow-sm group-hover:border-indigo-300 transition-colors">
@@ -196,13 +278,13 @@ export default function InviteView({
                       <Download size={16} className="text-white" />
                     </div>
                   </div>
-                  <span className="text-[8px] bg-indigo-900 text-white px-1 rounded">Save invite code</span>
+                  <span className="text-[8px] bg-indigo-900 text-white px-1 rounded">কিউআর কোড সেভ করুন</span>
                 </div>
                 <div className="flex-1 space-y-3">
                   <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded p-1.5 focus-within:border-indigo-300 transition-colors">
                     <span className="text-[10px] text-gray-500 truncate flex-1">{referralLink}</span>
                     <button 
-                      onClick={() => copyToClipboard(referralLink, "Referral link copied!")}
+                      onClick={() => copyToClipboard(referralLink, "লিঙ্ক কপি করা হয়েছে!")}
                       className="p-1 bg-indigo-900 rounded text-white hover:bg-indigo-800 transition-colors active:scale-90"
                     >
                       <Copy size={12} />
@@ -229,11 +311,11 @@ export default function InviteView({
                 </div>
                 <div className="bg-purple-500 rounded-lg p-3 text-white">
                   <p className="text-[10px] font-medium text-center opacity-90">Registers</p>
-                  <p className="text-lg font-bold text-center">{currentReferrals}</p>
+                  <p className="text-lg font-bold text-center">{userData?.referralCount || 0}</p>
                 </div>
                 <div className="bg-blue-500 rounded-lg p-3 text-white">
                   <p className="text-[10px] font-medium text-center opacity-90">Valid Referral</p>
-                  <p className="text-lg font-bold text-center">0</p>
+                  <p className="text-lg font-bold text-center">{userData?.validReferralCount || 0}</p>
                 </div>
               </div>
             </div>
@@ -303,29 +385,77 @@ export default function InviteView({
               </div>
 
               {/* Hierarchy Diagram */}
-              <div className="py-6 flex flex-col items-center">
-                <div className="w-12 h-12 rounded-full bg-yellow-500 border-2 border-white shadow-md flex items-center justify-center mb-2">
-                  <User size={24} className="text-white" />
-                </div>
-                <p className="text-[10px] font-bold text-indigo-900 mb-4">আপনি</p>
-                
-                <div className="w-full h-px bg-indigo-200 relative">
-                  <div className="absolute -top-1 left-1/4 w-2 h-2 rounded-full bg-indigo-300"></div>
-                  <div className="absolute -top-1 right-1/4 w-2 h-2 rounded-full bg-indigo-300"></div>
-                </div>
-                
-                <div className="flex justify-around w-full mt-4">
-                  <div className="flex flex-col items-center">
-                    <div className="w-10 h-10 rounded-full bg-gray-200 border border-white shadow-sm flex items-center justify-center">
-                      <User size={20} className="text-gray-500" />
-                    </div>
-                    <p className="text-[8px] font-bold text-gray-600">স্তর ১</p>
+              <div className="py-8 flex flex-col items-center bg-indigo-50/50 rounded-[30px] border border-indigo-100">
+                <div className="flex flex-col items-center relative mb-12">
+                  <div className="w-16 h-16 rounded-[24px] bg-indigo-600 border-4 border-white shadow-xl flex items-center justify-center mb-2 z-10 relative">
+                    <User size={32} className="text-white" />
+                    <div className="absolute -top-2 -right-2 bg-yellow-400 text-black text-[8px] font-black px-2 py-0.5 rounded-full border-2 border-white shadow-sm">ADMIN</div>
                   </div>
-                  <div className="flex flex-col items-center">
-                    <div className="w-10 h-10 rounded-full bg-gray-200 border border-white shadow-sm flex items-center justify-center">
-                      <User size={20} className="text-gray-500" />
+                  <p className="text-[11px] font-black text-indigo-900 uppercase tracking-widest">আপনি (You)</p>
+                  
+                  {/* Connecting lines from you to level 1 */}
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 w-[220px] h-10 border-x-2 border-t-2 border-indigo-200 rounded-t-3xl mt-2"></div>
+                </div>
+                
+                <div className="flex justify-between w-full max-w-[320px] relative px-4">
+                  {/* Level 1 Nodes */}
+                  <div className="flex flex-col items-center relative group">
+                    <div className="w-12 h-12 rounded-[18px] bg-white border-2 border-blue-400 shadow-md flex items-center justify-center mb-2 z-10 hover:scale-110 transition-transform">
+                      <Users size={20} className="text-blue-500" />
                     </div>
-                    <p className="text-[8px] font-bold text-gray-600">স্তর ১</p>
+                    <p className="text-[9px] font-black text-blue-600 uppercase">স্তর ১ (L1)</p>
+                    
+                    {/* Level 2 connection line */}
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-[80px] h-8 border-x-2 border-t-2 border-blue-100 rounded-t-2xl mt-4"></div>
+                    
+                    <div className="flex justify-around w-full mt-10 gap-4">
+                      {/* Level 2 Nodes */}
+                      <div className="flex flex-col items-center">
+                        <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 shadow-sm flex items-center justify-center mb-1">
+                          <User size={14} className="text-blue-300" />
+                        </div>
+                        <p className="text-[7px] font-bold text-gray-400">L2</p>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 shadow-sm flex items-center justify-center mb-1">
+                          <User size={14} className="text-blue-300" />
+                        </div>
+                        <p className="text-[7px] font-bold text-gray-400">L2</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-center relative group">
+                    <div className="w-12 h-12 rounded-[18px] bg-white border-2 border-purple-400 shadow-md flex items-center justify-center mb-2 z-10 hover:scale-110 transition-transform">
+                      <Users size={20} className="text-purple-500" />
+                    </div>
+                    <p className="text-[9px] font-black text-purple-600 uppercase">স্তর ১ (L1)</p>
+                    
+                    {/* Level 2 connection line (Deep) */}
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-[80px] h-8 border-x-2 border-t-2 border-purple-100 rounded-t-2xl mt-4"></div>
+                    
+                    <div className="flex justify-around w-full mt-10 gap-4">
+                      {/* Level 2 Nodes showing Level 3 below one */}
+                      <div className="flex flex-col items-center relative">
+                        <div className="w-8 h-8 rounded-xl bg-purple-50 border border-purple-200 shadow-sm flex items-center justify-center mb-1">
+                          <User size={14} className="text-purple-300" />
+                        </div>
+                        <p className="text-[7px] font-bold text-gray-400">L2</p>
+                        
+                        {/* Level 3 tiny indicator */}
+                        <div className="w-px h-6 bg-purple-100 mt-1"></div>
+                        <div className="w-6 h-6 rounded-lg bg-green-50 border border-green-200 flex items-center justify-center shadow-sm">
+                          <User size={10} className="text-green-300" />
+                        </div>
+                        <p className="text-[6px] font-black text-green-500 uppercase mt-0.5">L3</p>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <div className="w-8 h-8 rounded-xl bg-purple-50 border border-purple-200 shadow-sm flex items-center justify-center mb-1">
+                          <User size={14} className="text-purple-300" />
+                        </div>
+                        <p className="text-[7px] font-bold text-gray-400">L2</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -435,8 +565,30 @@ export default function InviteView({
                   </p>
                 </div>
                 <div className="flex flex-col items-center gap-1">
-                  <span className="text-[10px] font-bold text-indigo-900">0 <span className="text-gray-400">/ {tier.count}</span></span>
-                  <button className="bg-blue-200 text-white text-[10px] font-bold px-3 py-1 rounded shadow-sm cursor-not-allowed">Available</button>
+                  <span className="text-[10px] font-bold text-indigo-900">
+                    {userData?.validReferralCount || 0} <span className="text-gray-400">/ {tier.count}</span>
+                  </span>
+                  <button 
+                    onClick={() => handleClaimReward(tier, i)}
+                    disabled={isClaiming !== null || (userData?.claimedRewards || []).includes(tier.count)}
+                    className={`text-[10px] font-bold px-3 py-1 rounded shadow-sm transition-all ${
+                      (userData?.claimedRewards || []).includes(tier.count)
+                        ? 'bg-gray-400 text-white cursor-not-allowed'
+                        : (userData?.validReferralCount || 0) >= tier.count
+                          ? 'bg-green-500 text-white hover:bg-green-600 active:scale-95'
+                          : 'bg-blue-200 text-white cursor-not-allowed'
+                    }`}
+                  >
+                    {isClaiming === i ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (userData?.claimedRewards || []).includes(tier.count) ? (
+                      'Claimed'
+                    ) : (userData?.validReferralCount || 0) >= tier.count ? (
+                      'Claim'
+                    ) : (
+                      'Available'
+                    )}
+                  </button>
                 </div>
               </div>
             ))}
@@ -446,15 +598,15 @@ export default function InviteView({
         {activeTab === 'incomes' && (
           <div className="p-4 space-y-4 animate-in fade-in duration-500">
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <p className="text-center text-gray-500 text-sm mb-4">Total Income <span className="text-indigo-900 font-bold">৳ 2.76</span></p>
+              <p className="text-center text-gray-500 text-sm mb-4">মোট আয় (Total Income) <span className="text-indigo-900 font-bold">৳ {totalEarned.toLocaleString()}</span></p>
               <div className="space-y-3">
-                <IncomeItem label="Invitation Rewards" value="৳ 0.00" />
-                <IncomeItem label="Achievement Rewards" value="৳ 0.00" />
-                <IncomeItem label="Deposit Rebate" value="৳ 0.00" />
-                <IncomeItem label="Betting Rebate" value="৳ 2.76" />
-                <IncomeItem label="Registers" value="10" isCurrency={false} />
-                <IncomeItem label="Valid Referral" value="0" isCurrency={false} />
-                <IncomeItem label="Depositors" value="0" isCurrency={false} />
+                <IncomeItem label="আমন্ত্রণ পুরস্কার" value="৳ 0.00" />
+                <IncomeItem label="পুরস্কার অর্জন" value="৳ 0.00" />
+                <IncomeItem label="ডিপোজিট রিবেট" value={`৳ ${(userData?.totalReferralEarnings || 0).toLocaleString()}`} />
+                <IncomeItem label="বেটিং রিবেট" value="৳ 0.00" />
+                <IncomeItem label="নিবন্ধন" value={`${userData?.referralCount || 0}`} isCurrency={false} />
+                <IncomeItem label="সঠিক রেফারেল" value={`${userData?.validReferralCount || 0}`} isCurrency={false} />
+                <IncomeItem label="ডিপোজিটর" value={`${userData?.validReferralCount || 0}`} isCurrency={false} />
               </div>
             </div>
 
@@ -550,17 +702,29 @@ export default function InviteView({
             </div>
 
             <div className="flex-1 flex flex-col">
-              {referralsList.length > 0 ? (
+              {isLoading ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-2">
+                  <Loader2 size={32} className="text-blue-500 animate-spin" />
+                  <p className="text-xs font-bold text-gray-400">লোড হচ্ছে...</p>
+                </div>
+              ) : referralsList.length > 0 ? (
                 <div className="space-y-2 mt-4">
                   {referralsList.map((ref, idx) => (
                     <div key={idx} className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex justify-between items-center">
-                      <div>
-                        <p className="font-bold text-indigo-900 text-sm">{ref.referredUsername || 'Unknown'}</p>
-                        <p className="text-[10px] text-gray-500">{ref.joinedAt ? new Date(ref.joinedAt.seconds * 1000).toLocaleDateString() : 'N/A'}</p>
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-400">
+                          <User size={16} />
+                        </div>
+                        <div>
+                          <p className="font-bold text-indigo-900 text-sm whitespace-nowrap overflow-hidden text-ellipsis max-w-[120px]">{ref.username || 'Anonymous'}</p>
+                          <p className="text-[10px] text-gray-500 italic">
+                             {ref.createdAt ? (typeof ref.createdAt === 'string' ? new Date(ref.createdAt).toLocaleDateString() : new Date(ref.createdAt.seconds * 1000).toLocaleDateString()) : 'N/A'}
+                          </p>
+                        </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs font-bold text-green-500">৳ {ref.earningsGenerated || 0}</p>
-                        <p className="text-[10px] text-gray-400">{ref.status}</p>
+                        <p className="text-xs font-bold text-green-500">৳ {ref.totalWinnings || 0}</p>
+                        <p className="text-[10px] text-gray-400 uppercase tracking-tighter">{ref.role || 'Player'}</p>
                       </div>
                     </div>
                   ))}

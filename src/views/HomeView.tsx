@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Clock, Trophy, Download, X, RefreshCw, ChevronRight, Play, Wallet, Users, Star, TrendingUp, History, User, Menu, Bell, Search, Volume2, Flame, Gamepad2, Hexagon, Tv, Club, Fish, Ticket, ChevronLeft, Mail, Sparkles, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GAME_IMAGES } from '../constants/gameAssets';
-import { GameGrid, games } from "./GameGrid";
-import GlobalImage from './GlobalImage';
-import Skeleton from './Skeleton';
+import { GameGrid, games } from "../components/ui/GameGrid";
+import GlobalImage from '../components/ui/GlobalImage';
+import Skeleton from '../components/ui/Skeleton';
+import MarketTicker from '../components/ui/MarketTicker';
 
 function WinAnimation({ gameId }: { gameId: string }) {
   const [wins, setWins] = useState<{ id: number; amount: string; x: number; y: number }[]>([]);
@@ -85,6 +86,7 @@ interface HomeViewProps {
   showToast: (msg: string, type?: any) => void;
   loading?: boolean;
   isAdmin?: boolean;
+  onNavigate?: (tab: string, subTab?: string) => void;
 }
 
 export default function HomeView({ 
@@ -117,7 +119,7 @@ export default function HomeView({
   updateGlobalImage,
   allButtonName,
   updateAllButtonName,
-  casinoName = "SPIN71 BET",
+  casinoName = "NAGAD BET",
   updateCasinoName,
   noticeText = "আমাদের গেম উপভোগ করুন এবং বড় জয় নিশ্চিত করুন!",
   telegramLink,
@@ -125,46 +127,14 @@ export default function HomeView({
   facebookLink,
   showToast,
   loading,
-  isAdmin = false
+  isAdmin = false,
+  onNavigate
 }: HomeViewProps) {
   const [editingCasinoName, setEditingCasinoName] = React.useState(false);
-  const [tempCasinoName, setTempCasinoName] = React.useState(casinoName || "SPIN71 BET");
+  const [tempCasinoName, setTempCasinoName] = React.useState(casinoName || "NAGAD BET");
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {/* Top App Download Banner */}
-      <div className="bg-[var(--bg-surface)] px-2 py-1.5 flex items-center justify-between text-xs transition-colors duration-300">
-        <div className="flex items-center gap-2">
-          <button className="text-[var(--text-muted)]">
-            <X size={14} />
-          </button>
-          <div className="flex items-center gap-1">
-            <div className="w-6 h-6 rounded overflow-hidden">
-              <GlobalImage 
-                imageKey="app_logo" 
-                defaultUrl="https://picsum.photos/seed/app/100/100" 
-                currentUrl={globalImages?.app_logo}
-                updateGlobalImage={async (url) => {
-                  if (updateGlobalImage) await updateGlobalImage('app_logo', url);
-                }}
-                isAdmin={isAdmin}
-              />
-            </div>
-            <span className="bg-gradient-to-b from-yellow-400 to-yellow-600 text-black px-1 rounded text-[10px] font-bold border border-yellow-300">
-              {casinoName}.com
-            </span>
-            <span className="text-[var(--text-main)] opacity-90">দৈনিক বিনামূল্যের অ্যাপ বোনাস</span>
-          </div>
-        </div>
-        <button 
-          onClick={() => window.open('#', '_blank')}
-          className="bg-[var(--bg-main)] border border-[var(--border-color)] px-3 py-1 rounded text-[10px] font-medium text-[var(--text-main)] shadow-sm flex items-center gap-1 transition-colors duration-300"
-        >
-          <Download size={10} />
-          ডাউনলোড করুন
-        </button>
-      </div>
-
       {/* Main Header */}
       <header className="flex items-center justify-between px-3 py-2 sticky top-0 z-40 bg-[var(--bg-main)] shadow-sm transition-colors duration-300">
         <div className="flex items-center gap-3">
@@ -172,27 +142,7 @@ export default function HomeView({
             <Menu size={24} />
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg overflow-hidden">
-              <GlobalImage 
-                imageKey="casino_logo" 
-                defaultUrl="https://picsum.photos/seed/casino/100/100" 
-                currentUrl={globalImages?.casino_logo}
-                updateGlobalImage={async (url) => {
-                  if (updateGlobalImage) await updateGlobalImage('casino_logo', url);
-                }}
-                isAdmin={isAdmin}
-              />
-            </div>
-            <div 
-              onClick={() => {
-                setTempCasinoName(casinoName || "SPIN71 BET");
-                setEditingCasinoName(true);
-              }}
-              className="text-2xl font-black italic tracking-tighter bg-gradient-to-b from-yellow-200 via-yellow-400 to-yellow-600 text-transparent bg-clip-text drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] cursor-pointer"
-              title="নাম পরিবর্তন করতে ক্লিক করুন"
-            >
-              {casinoName}
-            </div>
+            {/* LOGO REMOVED PER USER REQUEST */}
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -208,7 +158,10 @@ export default function HomeView({
             <span className="absolute -bottom-1 -left-1 bg-red-600 text-white text-[6px] font-bold px-1 rounded-full animate-pulse">LIVE</span>
           </div>
           <div className="relative">
-            <button className="bg-white text-[#16a374] px-4 py-1 rounded-full text-sm font-bold shadow-md">
+            <button 
+              onClick={() => onNavigate?.('deposit')}
+              className="bg-white text-[#16a374] px-4 py-1 rounded-full text-sm font-bold shadow-md hover:scale-105 transition-transform active:scale-95"
+            >
               জমা
             </button>
             <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-white">
@@ -242,6 +195,11 @@ export default function HomeView({
         </div>
       </header>
 
+      {/* Market Ticker (API Capability Demo) */}
+      <div className="px-3 pt-2">
+        <MarketTicker />
+      </div>
+
       {/* User Info Bar */}
       <div className="bg-[var(--bg-surface)]/50 px-4 py-2 flex items-center justify-between border-b border-[var(--border-color)] backdrop-blur-sm sticky top-[52px] z-30 transition-colors duration-300">
         <div className="flex items-center gap-2">
@@ -266,7 +224,7 @@ export default function HomeView({
               </div>
               <div className="flex flex-col">
                 <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-wider leading-none">স্বাগতম (Welcome)</span>
-                <span className="text-xs font-black text-[var(--text-main)] tracking-tight">{userData?.username || 'Player_SPIN71'}</span>
+                <span className="text-xs font-black text-[var(--text-main)] tracking-tight">{userData?.username || 'Player'}</span>
               </div>
             </>
           )}
@@ -535,7 +493,10 @@ export default function HomeView({
               <h4 className="text-lg font-black text-white italic">বন্ধুদের আমন্ত্রণ জানান</h4>
               <p className="text-xs text-slate-400 font-bold">প্রতি রেফারেলে পান <span className="text-yellow-400">৳ ৯৯৯</span> পর্যন্ত বোনাস!</p>
             </div>
-            <button className="bg-yellow-500 text-black px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-tighter shadow-lg hover:scale-105 active:scale-95 transition-all">
+            <button 
+              onClick={() => onNavigate?.('invite')}
+              className="bg-yellow-500 text-black px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-tighter shadow-lg hover:scale-105 active:scale-95 transition-all outline-none"
+            >
               শেয়ার করুন
             </button>
           </div>
@@ -671,8 +632,11 @@ export default function HomeView({
         ].map((cat) => (
           <div 
             key={cat.id}
+            role="button"
+            tabIndex={0}
             onClick={() => setActiveCategory(cat.id)}
-            className={`flex flex-col items-center gap-1 min-w-[50px] cursor-pointer transition-all ${activeCategory === cat.id ? 'scale-110' : 'opacity-60'}`}
+            onKeyDown={(e) => { if(e.key === 'Enter' || e.key === ' ') setActiveCategory(cat.id); }}
+            className={`flex flex-col items-center gap-1 min-w-[50px] cursor-pointer transition-all ${activeCategory === cat.id ? 'scale-110 active:scale-100' : 'opacity-60'}`}
           >
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${activeCategory === cat.id ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-black shadow-lg shadow-yellow-500/20' : 'bg-white/5 text-slate-400'}`}>
               <cat.icon size={20} />

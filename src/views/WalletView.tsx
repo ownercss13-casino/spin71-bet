@@ -21,7 +21,7 @@ import {
   ArrowDownUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import Skeleton from './Skeleton';
+import Skeleton from '../components/ui/Skeleton';
 import { db } from '../services/firebase';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 
@@ -65,11 +65,22 @@ export default function WalletView({ balance, userData, onTabChange, onSubTabCha
         }
         
         const querySnapshot = await getDocs(q);
-        const data = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          date: doc.data().createdAt ? new Date(doc.data().createdAt).toLocaleString() : 'Just now'
-        })) as Transaction[];
+        const data = querySnapshot.docs.map(doc => {
+          const d = doc.data();
+          let dateStr = 'Just now';
+          if (d.createdAt) {
+            if (typeof d.createdAt.toDate === 'function') {
+              dateStr = d.createdAt.toDate().toLocaleString();
+            } else {
+              dateStr = new Date(d.createdAt).toLocaleString();
+            }
+          }
+          return {
+            id: doc.id,
+            ...d,
+            date: dateStr
+          };
+        }) as Transaction[];
         
         setTransactions(data);
       } catch (err) {
@@ -275,7 +286,7 @@ export default function WalletView({ balance, userData, onTabChange, onSubTabCha
                   </div>
                   <div className="text-right">
                     <p className={`text-lg font-black italic ${trx.amount > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {trx.amount > 0 ? '+' : ''}৳{Math.abs(trx.amount).toLocaleString()}
+                      {trx.amount > 0 ? '+' : ''}৳{Math.abs(trx.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                     {trx.trxId && (
                       <p className="text-[8px] text-[var(--text-muted)] font-mono mt-1">

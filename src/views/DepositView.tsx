@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ClipboardList, MessageCircle, Check, Copy, ShieldCheck, ArrowRight, Loader2, X } from 'lucide-react';
-import { ToastType } from './Toast';
-import GlobalImage from './GlobalImage';
+import { ToastType } from '../components/ui/Toast';
+import GlobalImage from '../components/ui/GlobalImage';
 
 const paymentMethods = [
   { 
@@ -25,6 +25,27 @@ const paymentMethods = [
     logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Rocket_logo.svg/1200px-Rocket_logo.svg.png',
     number: '01860137045'
   },
+  { 
+    id: 'upi', 
+    name: 'UPI', 
+    label: 'UPI',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/UPI-Logo.svg/1200px-UPI-Logo.svg.png',
+    number: 'upi@example'
+  },
+  { 
+    id: 'paytm', 
+    name: 'PayTM', 
+    label: 'PayTM',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Paytm_Logo_%28standalone%29.svg/1200px-Paytm_Logo_%28standalone%29.svg.png',
+    number: 'paytm@example'
+  },
+  { 
+    id: 'bank', 
+    name: 'Bank Transfer', 
+    label: 'ব্যান্ড ট্রান্সফার',
+    logo: 'https://icon-library.com/images/bank-icon-vector/bank-icon-vector-1.jpg',
+    number: '123456789'
+  }
 ];
 
 const channels = [
@@ -56,7 +77,7 @@ export default function DepositView({
   globalImages?: Record<string, string>, 
   isAdmin?: boolean,
   onUpdateGlobalImage?: (key: string, url: string) => Promise<void>,
-  onDepositSuccess?: (amount: number) => void
+  onDepositSuccess?: (amount: number, trxId?: string, senderNumber?: string, method?: string) => void
 }) {
   const [step, setStep] = useState(1);
   const [selectedMethod, setSelectedMethod] = useState('nagad');
@@ -103,10 +124,10 @@ export default function DepositView({
     setIsSubmitting(true);
     setTimeout(() => {
       setIsSubmitting(false);
-      showToast('ডিপোজিট রিকোয়েস্ট সফল হয়েছে!', 'success');
       if (onDepositSuccess) {
-        onDepositSuccess(parseFloat(amount));
+        onDepositSuccess(parseFloat(amount), trxId, senderNumber, selectedMethod);
       }
+      showToast('ডিপোজিট রিকোয়েস্ট সফল হয়েছে!', 'success');
       onTabChange('home');
     }, 1500);
   };
@@ -175,23 +196,18 @@ export default function DepositView({
                 <div className="w-2 h-2 rounded-full bg-orange-500"></div>
                 <h2 className="text-gray-800 font-bold text-base">আমানতের মোড</h2>
               </div>
-              <div className="flex gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 {paymentMethods.map((method) => (
                   <div
                     key={method.id}
                     onClick={() => setSelectedMethod(method.id)}
-                    className={`relative w-[110px] h-[110px] flex flex-col items-center justify-center rounded-xl border-2 transition-all cursor-pointer ${
-                      selectedMethod === method.id ? 'border-red-500' : 'border-gray-100'
+                    className={`relative p-5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col items-center gap-3 ${
+                      selectedMethod === method.id 
+                        ? 'border-red-500 bg-red-50' 
+                        : 'border-gray-100 hover:border-gray-200 bg-white'
                     }`}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        setSelectedMethod(method.id);
-                      }
-                    }}
                   >
-                    <div className="w-12 h-12 mb-2 flex items-center justify-center">
+                    <div className="w-16 h-16 flex items-center justify-center p-2 rounded-full bg-gray-50">
                       <GlobalImage 
                         imageKey={`payment_logo_${method.id}`}
                         defaultUrl={method.logo}
@@ -203,15 +219,15 @@ export default function DepositView({
                         updateGlobalImage={(url) => onUpdateGlobalImage ? onUpdateGlobalImage(`payment_logo_${method.id}`, url) : Promise.resolve()}
                       />
                     </div>
-                    <span className={`text-xs font-bold ${selectedMethod === method.id ? 'text-red-500' : 'text-gray-800'}`}>
-                      {method.label}
-                    </span>
-                    <span className={`text-[10px] font-bold mt-0.5 ${selectedMethod === method.id ? 'text-red-500' : 'text-gray-400'}`}>
-                      {method.name}
-                    </span>
+                    <div className="text-center">
+                      <p className={`text-sm font-black ${selectedMethod === method.id ? 'text-red-600' : 'text-gray-900'}`}>
+                        {method.label}
+                      </p>
+                      <p className="text-[11px] text-gray-500 font-bold uppercase">{method.name}</p>
+                    </div>
                     {selectedMethod === method.id && (
-                      <div className="absolute bottom-0 right-0 bg-red-500 text-white p-0.5 rounded-tl-lg">
-                        <Check size={12} strokeWidth={4} />
+                      <div className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-0.5">
+                        <Check size={14} strokeWidth={3} />
                       </div>
                     )}
                   </div>
@@ -320,6 +336,19 @@ export default function DepositView({
                 </div>
                 <span className="text-gray-800 font-bold text-sm">কোনও প্রচারে অংশ নেওয়া যায় না</span>
               </button>
+
+              <button 
+                onClick={handleNextStep}
+                disabled={!isNextEnabled}
+                className={`w-full mt-6 py-4 font-black text-xl rounded-2xl transition-all flex items-center justify-center gap-3 shadow-lg active:scale-95 ${
+                  isNextEnabled 
+                    ? 'bg-red-500 text-white shadow-red-500/30' 
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
+                }`}
+              >
+                PAY (পরবর্তী)
+                <ArrowRight size={20} strokeWidth={3} />
+              </button>
             </section>
           </>
         ) : (
@@ -379,7 +408,7 @@ export default function DepositView({
               {/* Wallet No Section */}
               <div className="space-y-2">
                 <label className="block text-lg font-black text-gray-900">Wallet No<span className="text-purple-600">*</span></label>
-                <p className="text-gray-900 font-bold text-base">এই {selectedMethod === 'nagad' ? 'NAGAD' : 'BKASH'} নাম্বারে শুধুমাত্র ক্যাশআউট গ্রহণ করা হয়</p>
+                <p className="text-gray-900 font-bold text-base">এই {paymentMethods.find(m => m.id === selectedMethod)?.name} নাম্বারে শুধুমাত্র ক্যাশআউট গ্রহণ করা হয়</p>
                 <div className="bg-[#f2f2f2] rounded-xl p-4 flex justify-between items-center border border-gray-100">
                   <span className="text-2xl font-black text-gray-800 tracking-wider">
                     {newAccountNumber}
@@ -438,7 +467,7 @@ export default function DepositView({
                 <h4 className="text-lg font-black text-gray-900">সতর্কতাঃ</h4>
                 <p className="text-[#ff4d4d] font-bold text-sm">লেনদেন আইডি সঠিকভাবে পূরণ করতে হবে, অন্যথায় স্কোর ব্যর্থ হবে!!</p>
                 <p className="text-gray-400 text-sm leading-relaxed font-medium">
-                  অনুগ্রহ করে নিশ্চিত হয়ে নিন যে আপনি {selectedMethod === 'nagad' ? 'NAGAD' : 'BKASH'} deposit ওয়ালেট নাম্বারে ক্যাশ আউট করছেন। এই নাম্বারের অন্য কোন ওয়ালেট থেকে ক্যাশ আউট করলে সেই টাকা পাওয়ার কোন সম্ভাবনা নাই
+                  অনুগ্রহ করে নিশ্চিত হয়ে নিন যে আপনি {paymentMethods.find(m => m.id === selectedMethod)?.name} deposit ওয়ালেট নাম্বারে ক্যাশ আউট করছেন। এই নাম্বারের অন্য কোন ওয়ালেট থেকে ক্যাশ আউট করলে সেই টাকা পাওয়ার কোন সম্ভাবনা নাই
                 </p>
               </div>
             </div>
@@ -456,7 +485,7 @@ export default function DepositView({
             (step === 1 ? (isNextEnabled ? 'bg-red-500 text-white' : 'bg-[#cccccc] text-white') : 'bg-red-500 text-white')
           }`}
         >
-          {isSubmitting ? <Loader2 className="animate-spin" /> : (step === 1 ? 'পরবর্তী' : 'জমা সম্পন্ন করুন')}
+          {isSubmitting ? <Loader2 className="animate-spin" /> : (step === 1 ? 'PAY (পরবর্তী)' : 'জমা সম্পন্ন করুন')}
         </button>
       </footer>
     </div>

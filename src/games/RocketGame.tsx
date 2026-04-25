@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLiveRocket } from '../hooks/useLiveRocket';
-import GameLoader from './GameLoader';
+import GameLoader from '../components/ui/GameLoader';
 import { ArrowLeft, Wallet, Play, X, History, Zap, Stars, Rocket, Shield, Thermometer, Radio, Activity, Terminal } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -14,7 +14,7 @@ interface RocketGameProps {
 }
 
 export default function RocketGame({ onClose, userBalance, onBalanceUpdate, showToast, globalName, userData }: RocketGameProps) {
-  const [isLoading, setIsLoading] = useState(true);
+  // const [isLoading, setIsLoading] = useState(true);
   const { session } = useLiveRocket();
   const [multiplier, setMultiplier] = useState(1.00);
   const [gamePhase, setGamePhase] = useState<'betting' | 'flying' | 'crashed'>('betting');
@@ -27,7 +27,7 @@ export default function RocketGame({ onClose, userBalance, onBalanceUpdate, show
   const [cashoutAmount, setCashoutAmount] = useState(0);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 2000);
+    // const timer = setTimeout(() => setIsLoading(false), 2000);
     const newStars = Array.from({ length: 80 }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
@@ -36,7 +36,7 @@ export default function RocketGame({ onClose, userBalance, onBalanceUpdate, show
       speed: Math.random() * 0.3 + 0.1
     }));
     setStars(newStars);
-    return () => clearTimeout(timer);
+    // return () => clearTimeout(timer);
   }, []);
 
   // Sync with shared session
@@ -121,13 +121,7 @@ export default function RocketGame({ onClose, userBalance, onBalanceUpdate, show
 
   return (
     <div className="full-display-game flex flex-col bg-[#050505] text-white font-sans overflow-hidden">
-      {isLoading && (
-        <GameLoader 
-          gameName={globalName || 'SPACE ROCKET'} 
-          provider="GALACTIC" 
-          logo="https://picsum.photos/seed/rocket/200/200"
-        />
-      )}
+      {/* Redundant loader removed to favor global loader in App.tsx */}
 
       {/* Technical Header */}
       <div className="flex items-center justify-between p-4 bg-black/80 backdrop-blur-xl border-b border-white/5 z-50">

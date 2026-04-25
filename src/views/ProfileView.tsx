@@ -1,20 +1,20 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from 'motion/react';
 import AgentPanel from './AgentPanel';
-import SupportChat from "./SupportChat";
+import SupportChat from "../layout/SupportChat";
 import ProfileHeader from './ProfileHeader';
 import ProfileNavigation from './ProfileNavigation';
-import Skeleton from './Skeleton';
-import InviteTab from './InviteTab';
-import ImageCropper from './ImageCropper';
-import ShareModal from './ShareModal';
+import Skeleton from '../components/ui/Skeleton';
+import InviteView from './InviteView';
+import ImageCropper from '../components/ui/ImageCropper';
+import ShareModal from '../components/modals/ShareModal';
 import { VIP_LEVELS, getVIPLevel, getNextVIPLevel } from '../constants/vipLevels';
 const fetcher = (url: string) => fetch(url).then(res => {
   if (!res.ok) throw new Error('Network response was not ok');
   return res.json();
 });
 
-import { ToastType } from "./Toast";
+import { ToastType } from "../components/ui/Toast";
 import { 
   X, Gift, Percent, Info, Crown, Sparkles, CheckCircle2, UserCog, 
   User, BadgeCheck, Smartphone, Mail, CreditCard, Shield, Building2, 
@@ -25,7 +25,8 @@ import {
   Filter, Play, Clock, ArrowUpRight, ShieldCheck, Check, AlertCircle, 
   AlertTriangle, KeyRound, Copy, Lock, UserCheck, IdCard, Loader2, ChevronRight,
   Search, TrendingUp, Gamepad2, Key, Download, Bell, Trophy, Star, FileText,
-  ClipboardCheck, FileSearch, UserCircle, UserPlus, Coins, AtSign, Zap, ArrowRight
+  ClipboardCheck, FileSearch, UserCircle, UserPlus, Coins, AtSign, Zap, ArrowRight,
+  ChevronDown, Megaphone, Compass, Globe
 } from 'lucide-react';
 
 import { db } from '../services/firebase';
@@ -77,6 +78,8 @@ export default function ProfileView({
   onAddTransaction?: (transaction: any) => Promise<void>
 }) {
   const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory' | 'reward-center' | 'betting-record' | 'profit-loss' | 'deposit-record' | 'withdraw-record' | 'account-record' | 'security' | 'rebate' | 'mail' | 'feedback' | 'support' | 'invite' | 'faq'>(initialSubTab as any);
+  const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
+  const unreadNotificationsCount = 0; // Temporary definition
   
   useEffect(() => {
     if (initialSubTab) {
@@ -98,7 +101,7 @@ export default function ProfileView({
   const [editFullName, setEditFullName] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
-  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
+  const [isConfirmingLogout, setIsConfirmingLogout] = useState(false);
   const [showAgentPanel, setShowAgentPanel] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isEditingCasinoName, setIsEditingCasinoName] = useState(false);
@@ -114,6 +117,10 @@ export default function ProfileView({
 
   const [isGoogleLinked, setIsGoogleLinked] = useState(false);
   const [isFacebookLinked, setIsFacebookLinked] = useState(false);
+  const [isOTPModalOpen, setIsOTPModalOpen] = useState(false);
+  const [otpValue, setOtpValue] = useState("");
+  const [isVerifyingOTP, setIsVerifyingOTP] = useState(false);
+  const [isAccountVerified, setIsAccountVerified] = useState(userData?.isVerified || false);
 
   useEffect(() => {
     // Auth state listeners removed (Firebase disconnected)
@@ -138,6 +145,34 @@ export default function ProfileView({
       showToast(isFacebookLinked ? "ফেসবুক অ্যাকাউন্ট আনলিঙ্ক করা হয়েছে।" : "ফেসবুক অ্যাকাউন্ট সফলভাবে লিঙ্ক করা হয়েছে!", "success");
       setIsLinkingFacebook(false);
     }, 1000);
+  };
+
+  const handleRequestOTP = () => {
+    if (!userData?.phone && !userData?.phoneNumber) {
+      showToast("দয়া করে আগে প্রোফাইলে ফোন নম্বর যুক্ত করুন।", "warning");
+      return;
+    }
+    showToast("আপনার ফোন নম্বরে একটি ওটিপি পাঠানো হয়েছে (সিমুলেশন)", "info");
+    setIsOTPModalOpen(true);
+  };
+
+  const handleVerifyOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (otpValue.length !== 6) {
+      showToast("দয়া করে ৬ ডিজিটের ওটিপি দিন।", "error");
+      return;
+    }
+    setIsVerifyingOTP(true);
+    setTimeout(async () => {
+      setIsAccountVerified(true);
+      if (onUpdateUser) {
+        await onUpdateUser({ isVerified: true });
+      }
+      showToast("আপনার অ্যাকাউন্ট সফলভাবে ভেরিফাই করা হয়েছে!", "success");
+      setIsOTPModalOpen(false);
+      setIsVerifyingOTP(false);
+      setOtpValue("");
+    }, 1500);
   };
 
   // API Integration Hook
@@ -304,7 +339,7 @@ export default function ProfileView({
   };
 
   const handleLogoutRequest = () => {
-    setIsLogoutConfirmOpen(true);
+    setIsConfirmingLogout(true);
   };
 
   const handleRefresh = () => {
@@ -349,7 +384,7 @@ export default function ProfileView({
   const profileData = userData;
 
   return (
-    <div className="flex-1 overflow-y-auto pb-20 bg-gray-50">
+    <div className="flex-1 overflow-y-auto pb-20 bg-[#0b5c4b]">
       {selectedImage && (
         <ImageCropper 
           image={selectedImage} 
@@ -390,6 +425,8 @@ export default function ProfileView({
             onOpenVIPDetails={() => setIsVIPDetailsModalOpen(true)}
             showToast={showToast}
             onShareProgress={() => setIsShareModalOpen(true)}
+            setIsNotificationCenterOpen={setIsNotificationCenterOpen}
+            unreadNotificationsCount={unreadNotificationsCount}
           />
         )}
 
@@ -409,6 +446,8 @@ export default function ProfileView({
             isLinkingGoogle={isLinkingGoogle}
             isLinkingFacebook={isLinkingFacebook}
             onBack={() => handleSubTabChange('dashboard')}
+            isAccountVerified={isAccountVerified}
+            handleRequestOTP={handleRequestOTP}
           />
         )}
         {activeSubTab === 'history' && <HistoryTab userData={userData} onBack={() => handleSubTabChange('dashboard')} />}
@@ -473,8 +512,10 @@ export default function ProfileView({
         {activeSubTab === 'mail' && <MailTab onBack={() => handleSubTabChange('dashboard')} />}
         {activeSubTab === 'feedback' && <FeedbackTab showToast={showToast} onBack={() => handleSubTabChange('dashboard')} />}
         {activeSubTab === 'support' && <HelpCenterTab onBack={() => handleSubTabChange('dashboard')} />}
+        {activeSubTab === 'faq' && <HelpCenterTab onBack={() => handleSubTabChange('dashboard')} />}
         {activeSubTab === 'invite' && (
-          <InviteTab 
+          <InviteView 
+            onTabChange={onTabChange}
             userData={userData} 
             showToast={showToast} 
             onBack={() => handleSubTabChange('dashboard')} 
@@ -561,6 +602,66 @@ export default function ProfileView({
           </div>
         </div>
       )}
+      {/* OTP Verification Modal */}
+      {isOTPModalOpen && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-6">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsOTPModalOpen(false)}
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+          />
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+            className="relative bg-white border border-gray-100 rounded-[40px] p-10 w-full max-w-sm shadow-2xl text-center"
+          >
+            <div className="w-20 h-20 bg-blue-50 text-blue-500 rounded-[30px] flex items-center justify-center mx-auto mb-6 shadow-inner">
+              <Smartphone size={40} />
+            </div>
+            <h3 className="text-2xl font-serif font-black text-gray-900 mb-2 italic">OTP যাচাইকরণ</h3>
+            <p className="text-gray-400 text-xs font-bold mb-8">আপনার ফোন নম্বরে পাঠানো ৬ ডিজিটের কোডটি লিখুন।</p>
+            
+            <form onSubmit={handleVerifyOTP} className="space-y-6">
+              <input 
+                type="text"
+                maxLength={6}
+                value={otpValue}
+                onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ''))}
+                className="w-full bg-gray-50 border border-gray-100 rounded-[24px] py-5 px-6 text-center text-3xl font-black tracking-[0.5em] text-gray-900 focus:outline-none focus:border-blue-400 transition-all shadow-inner"
+                placeholder="000000"
+                autoFocus
+              />
+              
+              <div className="flex flex-col gap-3">
+                <button 
+                  type="submit"
+                  disabled={isVerifyingOTP || otpValue.length !== 6}
+                  className="w-full bg-gray-900 text-white font-black py-4 rounded-[20px] hover:bg-black transition-all shadow-xl flex items-center justify-center gap-3 disabled:opacity-50"
+                >
+                  {isVerifyingOTP ? <Loader2 className="animate-spin" /> : 'ভেরিফাই সম্পন্ন করুন'}
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setIsOTPModalOpen(false)}
+                  className="text-gray-400 text-[10px] font-black uppercase tracking-widest hover:text-gray-600 transition-colors"
+                >
+                  এখন না (Later)
+                </button>
+              </div>
+            </form>
+
+            <div className="mt-8 p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
+              <p className="text-[10px] text-blue-700 font-bold leading-relaxed">
+                * কোডটি পেতে ১-২ মিনিট সময় লাগতে পারে। সিমটি সক্রিয় রাখুন।
+              </p>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
       {/* VIP Details Modal */}
       {isVIPDetailsModalOpen && (
         <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-300">
@@ -753,8 +854,8 @@ export default function ProfileView({
         isOpen={isShareModalOpen} 
         onClose={() => setIsShareModalOpen(false)} 
         showToast={showToast}
-        title={`${casinoName || 'SPIN71 BET'} - Play with me!`}
-        text={`Hey guys, check out my progress on ${casinoName || 'SPIN71 BET'}! I have ৳ ${balance.toLocaleString()} in my wallet. Join me and play!`}
+        title={`${casinoName || 'NAGAD BET'} - Play with me!`}
+        text={`Hey guys, check out my progress on ${casinoName || 'NAGAD BET'}! I have ৳ ${balance.toLocaleString()} in my wallet. Join me and play!`}
         url={window.location.href}
       />
 
@@ -1040,7 +1141,7 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
           accountNumber: selectedCard?.accountNumber || '',
           status: 'pending',
           statusColor: 'text-amber-600',
-          createdAt: serverTimestamp()
+          createdAt: new Date().toISOString()
         });
       }
 
@@ -1233,6 +1334,36 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
               </div>
             </div>
 
+            {/* Turnover Progress */}
+            <div className="bg-white rounded-[40px] p-8 shadow-[0_15px_40px_-20px_rgba(0,0,0,0.1)] border border-white space-y-4">
+              <div className="flex justify-between items-end">
+                <div className="space-y-1">
+                  <h4 className="text-gray-900 font-serif font-black text-lg italic tracking-tight leading-none">টানউভার প্রগ্রেস</h4>
+                  <p className="text-gray-400 text-[9px] font-black uppercase tracking-[0.2em]">Withdrawal Requirement</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-serif font-black text-amber-600 leading-none">{turnoverProgress.toFixed(1)}%</p>
+                </div>
+              </div>
+              
+              <div className="h-4 bg-gray-50 rounded-full overflow-hidden border border-gray-100 shadow-inner">
+                <div 
+                  className="h-full bg-gradient-to-r from-amber-400 to-amber-600 transition-all duration-1000 ease-out" 
+                  style={{ width: `${turnoverProgress}%` }}
+                />
+              </div>
+
+              <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
+                <div className="text-gray-400">৳ {turnover.toLocaleString()} / ৳ {requiredTurnover.toLocaleString()}</div>
+                <button 
+                  onClick={() => setIsTurnoverInfoModalOpen(true)}
+                  className="text-amber-600 flex items-center gap-1 hover:underline"
+                >
+                  <Info size={12} /> নিয়মাবলী
+                </button>
+              </div>
+            </div>
+
             {/* Stats Grid */}
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-white p-6 rounded-[32px] border border-white shadow-sm hover:shadow-md transition-all">
@@ -1357,6 +1488,8 @@ interface OverviewTabProps {
   onOpenVIPDetails: () => void;
   showToast: (msg: string, type?: ToastType) => void;
   onShareProgress?: () => void;
+  setIsNotificationCenterOpen: (show: boolean) => void;
+  unreadNotificationsCount: number;
 }
 
 function ProfileTab({ 
@@ -1373,7 +1506,9 @@ function ProfileTab({
   handleLinkFacebook,
   isLinkingGoogle,
   isLinkingFacebook,
-  onBack
+  onBack,
+  isAccountVerified,
+  handleRequestOTP
 }: { 
   userData: any, 
   onEditProfile: () => void, 
@@ -1388,7 +1523,9 @@ function ProfileTab({
   handleLinkFacebook: () => Promise<void>,
   isLinkingGoogle: boolean,
   isLinkingFacebook: boolean,
-  onBack: () => void
+  onBack: () => void,
+  isAccountVerified: boolean,
+  handleRequestOTP: () => void 
 }) {
   const [isSortedAZ, setIsSortedAZ] = useState(false);
 
@@ -1469,7 +1606,14 @@ function ProfileTab({
             </div>
             
             <div className="mt-6 text-center">
-              <h2 className="text-3xl font-serif font-black text-gray-900 tracking-tight leading-none mb-2">{userData?.username || 'Player'}</h2>
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <h2 className="text-3xl font-serif font-black text-gray-900 tracking-tight leading-none">{userData?.username || 'Player'}</h2>
+                {isAccountVerified && (
+                  <div className="bg-blue-500 text-white p-1 rounded-full shadow-lg" title="Verified Account">
+                    <ShieldCheck size={16} fill="white" />
+                  </div>
+                )}
+              </div>
               <div className="flex items-center justify-center gap-3">
                 <span className="px-4 py-1.5 bg-amber-50 text-amber-600 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] border border-amber-100 shadow-sm flex items-center gap-1.5">
                   <Trophy size={10} strokeWidth={3} /> VIP Level {userData?.vipLevel || 0}
@@ -1487,6 +1631,27 @@ function ProfileTab({
               <Edit size={16} /> 
               তথ্য পরিবর্তন করুন
             </button>
+
+            {/* Account Verification Card */}
+            {!isAccountVerified && (
+              <div className="mt-4 w-full bg-rose-50 border border-rose-100 rounded-3xl p-6 flex items-center justify-between group">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center">
+                    <AlertCircle size={24} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-rose-900 font-serif">অ্যাকাউন্ট ভেরিফাই নেই</h4>
+                    <p className="text-[9px] font-bold text-rose-600 uppercase tracking-widest mt-0.5">OTP ভেরিফিকেশন করুন</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={handleRequestOTP}
+                  className="px-5 py-3 bg-rose-600 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-rose-700 transition-all shadow-lg shadow-rose-200 active:scale-95"
+                >
+                  ভেরিফাই করুন
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1607,12 +1772,33 @@ function DepositHistoryTab({ userData, onBack }: { userData?: any, onBack: () =>
       const trxs: any[] = [];
       snapshot.forEach(doc => {
         const data = doc.data();
+        let dateStr = 'Just now';
+        let timestamp = 0;
+        
+        const createdAt = data.createdAt;
+        if (createdAt) {
+          if (typeof createdAt.toDate === 'function') {
+            const date = createdAt.toDate();
+            dateStr = date.toLocaleString();
+            timestamp = date.getTime();
+          } else {
+            const date = new Date(createdAt);
+            dateStr = date.toLocaleString();
+            timestamp = date.getTime();
+          }
+        }
+
         if (data.type === 'deposit') {
-          trxs.push({ id: doc.id, ...data });
+          trxs.push({ 
+            id: doc.id, 
+            ...data,
+            date: dateStr,
+            _timestamp: timestamp
+          });
         }
       });
       // Sort in descending order
-      trxs.sort((a, b) => new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime());
+      trxs.sort((a, b) => b._timestamp - a._timestamp);
       setTransactions(trxs);
       setIsLoading(false);
     });
@@ -1646,18 +1832,25 @@ function DepositHistoryTab({ userData, onBack }: { userData?: any, onBack: () =>
             <span className="text-teal-500 font-bold">লোড হচ্ছে...</span>
           </div>
         ) : transactions.length > 0 ? (
-          transactions.map(trx => (
-            <div key={trx.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center justify-between">
-              <div>
-                <p className="font-bold text-gray-800">{trx.method}</p>
-                <p className="text-xs text-gray-500 mt-1">{trx.date}</p>
+            transactions.map(trx => (
+            <div key={trx.id} className="bg-teal-900/40 p-5 rounded-[28px] border border-teal-800/30 flex items-center justify-between group hover:border-teal-600/50 transition-all shadow-lg relative overflow-hidden">
+              <div className="relative z-10">
+                <p className="font-bold text-white text-sm">{trx.method}</p>
+                <p className="text-[10px] text-teal-400 font-bold uppercase mt-1 opacity-80">{trx.date}</p>
               </div>
-              <div className="text-right">
-                <p className="font-bold text-green-500">+৳{trx.amount}</p>
-                <p className={`text-xs mt-1 font-bold ${trx.statusColor}`}>{trx.status}</p>
+              <div className="text-right relative z-10">
+                <p className="font-black text-green-400 text-lg italic tracking-tighter leading-none">+৳{trx.amount}</p>
+                <div className={`mt-2 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest inline-flex items-center gap-1.5 ${
+                  trx.status === 'completed' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 
+                  trx.status === 'pending' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : 
+                  'bg-red-500/10 text-red-400 border border-red-500/20'
+                }`}>
+                  <div className={`w-1 h-1 rounded-full ${trx.status === 'completed' ? 'bg-green-500' : trx.status === 'pending' ? 'bg-orange-500' : 'bg-red-500'}`}></div>
+                  {trx.status}
+                </div>
               </div>
             </div>
-          ))
+            ))
         ) : (
           <div className="bg-teal-900/20 p-8 rounded-[32px] border border-teal-800/30 text-center shadow-inner">
             <ArrowDownLeft size={48} className="text-teal-700 mx-auto mb-4" />
@@ -1685,10 +1878,32 @@ function AccountRecordTab({ userData, onBack }: { userData?: any, onBack: () => 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const trxs: any[] = [];
       snapshot.forEach(doc => {
-        trxs.push({ id: doc.id, ...doc.data() });
+        const data = doc.data();
+        let dateStr = 'Just now';
+        let timestamp = 0;
+        
+        const createdAt = data.createdAt;
+        if (createdAt) {
+          if (typeof createdAt.toDate === 'function') {
+            const date = createdAt.toDate();
+            dateStr = date.toLocaleString();
+            timestamp = date.getTime();
+          } else {
+            const date = new Date(createdAt);
+            dateStr = date.toLocaleString();
+            timestamp = date.getTime();
+          }
+        }
+        
+        trxs.push({ 
+          id: doc.id, 
+          ...data,
+          date: dateStr,
+          _timestamp: timestamp
+        });
       });
       // Sort in descending order
-      trxs.sort((a, b) => new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime());
+      trxs.sort((a, b) => b._timestamp - a._timestamp);
       setTransactions(trxs);
       setIsLoading(false);
     });
@@ -1722,20 +1937,27 @@ function AccountRecordTab({ userData, onBack }: { userData?: any, onBack: () => 
             <span className="text-teal-500 font-bold">লোড হচ্ছে...</span>
           </div>
         ) : transactions.length > 0 ? (
-          transactions.map(trx => (
-            <div key={trx.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center justify-between">
-              <div>
-                <p className="font-bold text-gray-800">{String(trx.type).toUpperCase()} {trx.method ? `/ ${trx.method}` : ''}</p>
-                <p className="text-xs text-gray-500 mt-1">{trx.date}</p>
+            transactions.map(trx => (
+            <div key={trx.id} className="bg-teal-900/40 p-5 rounded-[28px] border border-teal-800/30 flex items-center justify-between group hover:border-teal-600/50 transition-all shadow-lg relative overflow-hidden">
+              <div className="relative z-10">
+                <p className="font-bold text-white text-sm">{String(trx.type).toUpperCase()} {trx.method ? `/ ${trx.method}` : ''}</p>
+                <p className="text-[10px] text-teal-400 font-bold uppercase mt-1 opacity-80">{trx.date}</p>
               </div>
-              <div className="text-right">
-                <p className={`font-bold ${trx.type === 'withdraw' ? 'text-red-500' : 'text-green-500'}`}>
+              <div className="text-right relative z-10">
+                <p className={`font-black text-lg italic tracking-tighter leading-none ${trx.type === 'withdraw' ? 'text-red-400' : 'text-green-400'}`}>
                   {trx.type === 'withdraw' ? '-' : '+'}৳{Math.abs(trx.amount)}
                 </p>
-                <p className={`text-xs mt-1 font-bold ${trx.statusColor}`}>{trx.status}</p>
+                <div className={`mt-2 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest inline-flex items-center gap-1.5 ${
+                  trx.status === 'completed' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 
+                  trx.status === 'pending' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : 
+                  'bg-red-500/10 text-red-400 border border-red-500/20'
+                }`}>
+                  <div className={`w-1 h-1 rounded-full ${trx.status === 'completed' ? 'bg-green-500' : trx.status === 'pending' ? 'bg-orange-500' : 'bg-red-500'}`}></div>
+                  {trx.status}
+                </div>
               </div>
             </div>
-          ))
+            ))
         ) : (
           <div className="bg-teal-900/20 p-8 rounded-[32px] border border-teal-800/30 text-center shadow-inner">
             <ClipboardList size={48} className="text-teal-700 mx-auto mb-4" />
@@ -1909,136 +2131,257 @@ function HelpCenterTab({ onBack }: { onBack: () => void }) {
   );
 }
 
-function OverviewTab({ 
-  onTabChange, 
-  onSubTabChange, 
-  balance, 
-  isRefreshing, 
-  onRefresh, 
-  profileData, 
-  userData, 
-  onEditProfile, 
-  totals, 
-  setShowAgentPanel, 
-  setIsChatOpen, 
-  setIsTurnoverInfoModalOpen,
-  casinoName,
-  onEditCasinoName,
-  onOpenBankCards,
-  onLogout,
-  onOpenVIPDetails,
-  showToast,
-  onShareProgress
-}: OverviewTabProps) {
+function OverviewTab(props: OverviewTabProps) {
+  const { 
+    onTabChange, 
+    onSubTabChange, 
+    balance, 
+    isRefreshing, 
+    onRefresh, 
+    profileData, 
+    userData, 
+    onEditProfile, 
+    totals, 
+    setShowAgentPanel, 
+    setIsChatOpen, 
+    setIsTurnoverInfoModalOpen,
+    casinoName,
+    onEditCasinoName,
+    onOpenBankCards,
+    onLogout,
+    onOpenVIPDetails,
+    showToast,
+    onShareProgress,
+    setIsNotificationCenterOpen,
+    unreadNotificationsCount
+  } = props;
+
+
   const [showNotification, setShowNotification] = useState(false);
 
-  const menuItems = [
-    { title: 'পুরস্কার সেন্টার', icon: Trophy, action: () => onSubTabChange('reward-center') },
-    { title: 'বেটিং রেকর্ড', icon: ClipboardCheck, action: () => onSubTabChange('betting-record') },
-    { title: 'লাভ এবং লস', icon: TrendingUp, action: () => onSubTabChange('profit-loss') },
-    { title: 'জমা রেকর্ড', icon: FileSearch, action: () => onSubTabChange('deposit-record') },
-    
-    { title: 'উত্তোলন রেকর্ড', icon: FileText, action: () => onSubTabChange('withdraw-record') },
-    { title: 'অ্যাকাউন্ট রেকর্ড', icon: ClipboardList, action: () => onSubTabChange('account-record') },
-    { title: 'আমার অ্যাকাউন্ট', icon: UserCircle, action: () => onSubTabChange('profile') },
-    { title: 'সুরক্ষা কেন্দ্র', icon: ShieldCheck, action: () => onSubTabChange('security') },
-    
-    { title: 'বন্ধুদের আমন্ত্রণ', icon: UserPlus, action: () => onSubTabChange('invite') },
-    { title: 'মিশন', icon: Gift, action: () => onSubTabChange('mission'), badge: '2' },
-    { title: 'রিবেট', icon: Coins, action: () => onSubTabChange('rebate') },
-    { title: 'মেইল', icon: Mail, action: () => onSubTabChange('mail') },
-    
-    { title: 'পরামর্শ', icon: MessageSquare, action: () => onSubTabChange('feedback') },
-    { title: 'অ্যাপ ডাউনলোড', icon: Download, action: () => onSubTabChange('download') },
-    { title: 'কাস্টমার সার্ভিস', icon: Headset, action: () => onSubTabChange('support') },
-    { title: 'লগআউট', icon: LogOut, action: onLogout },
-  ];
-  
   const vipLevel = getVIPLevel(userData?.totalRecharge || 0);
   const recharge = userData?.totalRecharge || 0;
   const nextVIP = VIP_LEVELS[vipLevel.level + 1] || VIP_LEVELS[vipLevel.level];
   const req = nextVIP?.minTurnover || 1000;
   const vipProgress = Math.min(100, (recharge / req) * 100);
 
-  const mainActions = [
-    { id: 'deposit', label: 'ডিপোজিট', icon: Wallet, color: 'text-emerald-500', bg: 'bg-emerald-50', subTab: 'deposit' },
-    { id: 'withdraw', label: 'উত্তোলন', icon: ArrowDownUp, color: 'text-amber-500', bg: 'bg-amber-50', subTab: 'withdraw' },
-    { id: 'history', label: 'রেকর্ডস', icon: ClipboardList, color: 'text-blue-500', bg: 'bg-blue-50', subTab: 'history' },
-    { id: 'invite', label: 'রেফার', icon: Users, color: 'text-emerald-400', bg: 'bg-emerald-50', subTab: 'invite' },
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    showToast("কপি করা হয়েছে!", "success");
+  };
+
+  const menuRows: { title: string; subtitle?: string; icon: any; action: () => void; color: string; badge?: string }[] = [
+    { title: 'আমার রেকর্ড', subtitle: 'বিস্তারিত, বাজি, রিপোর্ট, ব্যালেন্স পুনরুদ্ধার', icon: ClipboardCheck, action: () => onSubTabChange('account-record'), color: 'text-yellow-500', badge: '' },
+    { title: 'প্রত্যাহার ব্যবস্থাপনা', icon: CreditCard, action: onOpenBankCards, color: 'text-red-500', badge: '' },
   ];
 
-  const quickLinks = [
-    { label: 'ব্যাংক কার্ড', icon: CreditCard, action: onOpenBankCards },
-    { label: 'অ্যাকাউন্ট', icon: UserCog, action: () => onTabChange('profile') },
-    { label: 'সাপোর্ট', icon: Headset, action: () => setIsChatOpen(true) },
-    { label: 'এজেন্ট', icon: UserCheck, action: () => setShowAgentPanel(true) },
+  const mainList = [
+    { title: 'প্রচার', subtitle: 'শেয়ার করুন~ কমিশন পান', icon: Megaphone, action: () => onSubTabChange('invite'), color: 'text-teal-500' },
+    { title: 'সাপোর্ট (Support)', icon: Headset, action: () => setIsChatOpen?.(true), color: 'text-teal-500' },
+    { title: 'প্রোফাইল', icon: UserCircle, action: () => onSubTabChange('profile'), color: 'text-teal-500' },
+    { title: 'নিরাপত্তা কেন্দ্র', icon: ShieldCheck, action: () => onSubTabChange('security'), color: 'text-teal-500' },
+    { title: 'ভাষা (Language)', subtitle: 'বাংলা', icon: Globe, action: () => {}, color: 'text-teal-500' },
+    { title: 'FAQ', icon: HelpCircle, action: () => onSubTabChange('faq'), color: 'text-teal-500' },
+    { title: 'মতামত (Feedback)', icon: MessageSquare, action: () => onSubTabChange('feedback'), color: 'text-teal-500' },
+    { title: 'ডিভাইস হিস্টরি', icon: Smartphone, action: () => {}, color: 'text-teal-500' },
+    { title: 'প্রস্থান (Logout)', icon: LogOut, action: onLogout, color: 'text-teal-500' },
   ];
 
   return (
-    <div className="bg-[#F6F4F0] min-h-screen pb-24 font-sans">
-      {/* 1. Header */}
-      <div className="px-6 py-4 flex items-center bg-gray-900 text-white">
-        <button className="mr-4" onClick={() => onTabChange('home')}>
-          <ChevronLeft size={24} />
-        </button>
-        <h1 className="text-lg font-bold">আমার অ্যাকাউন্ট</h1>
-      </div>
+    <div className="bg-[#0b5c4b] min-h-screen flex flex-col font-sans">
+      {/* 1. Top Header */}
+      <div className="relative pt-6 pb-16 px-4 overflow-hidden">
+        {/* Abstract Background Patterns */}
+        <div className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-10">
+          <svg className="w-full h-full" viewBox="0 0 400 400" preserveAspectRatio="none">
+             <path d="M0,100 C150,200 350,0 400,100 L400,400 L0,400 Z" fill="currentColor" className="text-teal-200" />
+          </svg>
+        </div>
 
-      <div className="px-5 pt-4 space-y-5">
-        {/* 2. Balance/Profile Card */}
-        <div className="bg-gradient-to-br from-[#D4AF37] to-[#B8860B] rounded-3xl p-6 text-gray-900 shadow-xl border border-white/40 relative overflow-hidden">
-          <div className="flex items-center gap-4 mb-6">
-            <img 
-              src={userData?.avatarUrl || "https://picsum.photos/seed/vip/200"} 
-              className="w-20 h-20 rounded-full border-4 border-white object-cover" 
-              alt="Profile"
-              referrerPolicy="no-referrer"
-            />
-            <div className="flex-1">
-              <div className="bg-gray-800/80 text-white text-xs px-3 py-1 rounded-full inline-flex items-center gap-1 mb-2">
-                <Crown size={12} className="text-yellow-400" /> VIP 0
-              </div>
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                {userData?.username || 'anasvi69'} <Copy size={16} />
-              </h2>
-              <p className="text-xs text-gray-700 mt-1 uppercase">যোগদান করেছেন: {String(userData?.createdAt || '2026-01-01').split('T')[0]}</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-4xl font-black tabular-nums">৳ {balance.toLocaleString()}</h3>
-            <RefreshCw size={24} className="text-gray-800 cursor-pointer" />
-          </div>
-
-          {/* Action Buttons */}
-          <div className="grid grid-cols-3 gap-3">
-            <button onClick={() => onTabChange('deposit')} className="bg-white/80 py-3 rounded-xl font-bold text-sm">জমা দিন</button>
-            <button onClick={() => onTabChange('withdraw')} className="bg-white/80 py-3 rounded-xl font-bold text-sm">উত্তোলন</button>
-            <button onClick={onOpenBankCards} className="bg-white/80 py-3 rounded-xl font-bold text-sm">আমার কার্ড</button>
+        {/* Top Icons */}
+        <div className="flex justify-between items-center mb-6 relative z-10">
+          <button onClick={() => onTabChange('home')} className="text-white">
+            <ChevronLeft size={28} />
+          </button>
+          <div className="flex items-center gap-4">
+             <button onClick={() => setIsChatOpen(true)} className="text-white relative">
+               <Headset size={28} />
+             </button>
+             <button onClick={() => setIsNotificationCenterOpen?.(true)} className="text-white relative">
+               <MessageCircle size={28} />
+               {unreadNotificationsCount > 0 && (
+                 <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#0b5c4b] animate-pulse">
+                   {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}
+                 </span>
+               )}
+             </button>
           </div>
         </div>
 
-        {/* 3. Member Center */}
-        <div className="bg-white rounded-3xl p-6 shadow-sm">
-          <h3 className="text-sm font-bold mb-6 text-gray-400 uppercase tracking-widest pl-1">সদস্য সেন্টার</h3>
-          <div className="grid grid-cols-4 gap-y-8 gap-x-2 text-center">
-            {menuItems.map((item, idx) => (
-              <button key={idx} onClick={item.action} className="flex flex-col items-center gap-2 group relative">
-                <div className="w-12 h-12 flex items-center justify-center text-[#CFA163]">
-                  <item.icon size={28} strokeWidth={1.5} />
-                </div>
-                <span className="text-[11px] font-semibold text-gray-600 leading-tight">{item.title}</span>
-                {item.badge && (
-                  <span className="absolute -top-2 right-2 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">{item.badge}</span>
-                )}
-              </button>
-            ))}
+        {/* Profile Info Row */}
+        <div className="flex items-center gap-3 relative z-10">
+          <div className="relative">
+             <img 
+               src={userData?.avatarUrl || "https://picsum.photos/seed/user123/200"} 
+               className="w-16 h-16 rounded-full border-2 border-white object-cover" 
+               alt="User"
+               referrerPolicy="no-referrer"
+             />
+             <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-white rounded-full flex items-center justify-center shadow-md">
+               <Camera size={14} className="text-teal-700" />
+             </div>
+             <div className="absolute top-0 left-0 w-3 h-3 bg-red-500 rounded-full border-2 border-[#0b5c4b]" />
           </div>
+          
+          <div className="flex-1">
+             <div className="flex items-center gap-1 text-white">
+               <ChevronDown size={14} />
+               <span className="font-bold text-lg">{userData?.username || 'user'}</span>
+               <button onClick={() => copyToClipboard(userData?.username || '')} className="ml-1">
+                 <Copy size={14} className="opacity-80" />
+               </button>
+             </div>
+             <div className="flex items-center gap-2 mt-1">
+                <span className="text-teal-100 text-sm font-medium">ID : {userData?.id?.substring(0, 9) || '123456789'}</span>
+                <button onClick={() => copyToClipboard(userData?.id || '')}>
+                   <Copy size={12} className="text-teal-200" />
+                </button>
+             </div>
+          </div>
+
+          <div className="flex items-center gap-2 bg-teal-900/40 px-3 py-2 rounded-full border border-teal-700/30">
+             <div className="w-6 h-6 rounded-full bg-red-600 flex items-center justify-center border border-white/20">
+                <span className="text-[10px] text-white font-bold">BD</span>
+             </div>
+             <span className="text-white font-bold text-lg">{balance.toFixed(2)}</span>
+             <RefreshCw size={18} className={`text-white transition-transform duration-700 cursor-pointer ${isRefreshing ? 'animate-spin' : ''}`} onClick={onRefresh} />
+          </div>
+        </div>
+
+        {/* Quick Actions (Dashboard level) */}
+        <div className="grid grid-cols-3 gap-4 mt-8 relative z-10 px-2">
+           <button onClick={() => onSubTabChange('withdraw')} className="flex flex-col items-center gap-2">
+              <div className="w-14 h-14 bg-teal-800/40 rounded-2xl flex items-center justify-center text-white border border-teal-700/30">
+                 <Wallet size={32} />
+              </div>
+              <span className="text-white text-xs font-medium">উত্তোলন</span>
+           </button>
+           <button onClick={() => onTabChange('deposit')} className="flex flex-col items-center gap-2 relative">
+              <div className="w-14 h-14 bg-teal-800/40 rounded-2xl flex items-center justify-center text-white border border-teal-700/30">
+                 <CreditCard size={32} />
+              </div>
+              <span className="text-white text-xs font-medium">জমা</span>
+              <div className="absolute top-0 right-0 bg-green-500 text-white text-[8px] px-1.5 py-0.5 rounded-full font-bold">+5%</div>
+           </button>
+           <button onClick={() => onSubTabChange('reward-center')} className="flex flex-col items-center gap-2">
+              <div className="w-14 h-14 bg-teal-800/40 rounded-2xl flex items-center justify-center text-white border border-teal-700/30">
+                 <Percent size={32} />
+              </div>
+              <span className="text-white text-xs font-medium">কুপন</span>
+           </button>
+        </div>
+      </div>
+
+      {/* 2. Main Content Area */}
+      <div className="bg-[#0d7c66] flex-1 rounded-t-[40px] px-4 pt-12 -mt-8 relative shadow-2xl">
+        
+        {/* VIP Card Wrapper (Floating half-in/half-out) */}
+        <div className="absolute top-0 left-4 right-4 -translate-y-1/2">
+           <div className="bg-white rounded-3xl p-5 shadow-xl flex items-center gap-4 border border-teal-50">
+              {/* Left: VIP Badge */}
+              <div className="flex flex-col items-center">
+                 <div className="w-16 h-16 rounded-full border-[3px] border-[#c09628] flex items-center justify-center p-1 relative">
+                    <div className="w-full h-full rounded-full bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center text-white font-bold text-2xl shadow-inner">{userData?.vipLevel || 0}</div>
+                    {/* Laurel Wreath Mock */}
+                    <div className="absolute -bottom-2 w-full flex justify-center">
+                       <Sparkles size={14} className="text-[#c09628]" />
+                    </div>
+                 </div>
+                 <span className="text-[#c09628] font-black text-xl italic mt-1">V{userData?.vipLevel || 0}</span>
+              </div>
+
+              {/* Middle: Progress bars */}
+              <div className="flex-1 space-y-3">
+                 <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-bold text-teal-600 uppercase">বর্তমানে {userData?.vipLevel || 0} লেভেল এ আছেন</span>
+                 </div>
+                 <div className="space-y-2">
+                    <div className="relative h-6 bg-gray-100 rounded-full overflow-hidden border border-gray-200">
+                       <div className="h-full bg-green-500 transition-all duration-1000" style={{ width: `${Math.min(100, (userData?.totalRecharge || 0) / 1000 * 100)}%` }} />
+                       <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-white px-2">রিচার্জ: {userData?.totalRecharge || 0}/1000</span>
+                    </div>
+                    <div className="relative h-6 bg-gray-100 rounded-full overflow-hidden border border-gray-200">
+                       <div className="h-full bg-green-500 transition-all duration-1000" style={{ width: `${Math.min(100, (userData?.totalTurnover || 0) / 5000 * 100)}%` }} />
+                       <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-white px-2">টার্নওভার: {userData?.totalTurnover || 0}/5000</span>
+                    </div>
+                 </div>
+              </div>
+
+              <div className="flex flex-col gap-1 text-[9px] font-bold text-gray-400">
+                 <div className="flex items-center gap-1">
+                    <span>আমানত {userData?.totalRecharge || 0}</span>
+                 </div>
+                 <div className="flex items-center gap-1">
+                    <span>বাজি {userData?.totalTurnover || 0}</span>
+                 </div>
+                 <ChevronRight size={20} className="text-gray-300 self-end mt-2" />
+              </div>
+           </div>
+        </div>
+
+        {/* Menu Items */}
+        <div className="mt-8 space-y-4 pb-12">
+           {/* Section 1 */}
+           <div className="bg-[#0b5c4b]/30 rounded-[24px] overflow-hidden">
+              {menuRows.map((item, idx) => (
+                <button 
+                  key={idx} 
+                  onClick={item.action} 
+                  className={`w-full flex items-center gap-4 p-5 hover:bg-white/5 transition-all text-white border-b border-white/5 last:border-0`}
+                >
+                  <div className={`p-2 rounded-xl bg-white/10 ${item.color}`}>
+                     <item.icon size={28} />
+                  </div>
+                  <div className="flex-1 text-left">
+                     <p className="font-bold text-sm tracking-tight">{item.title}</p>
+                     {item.subtitle && <p className="text-[10px] text-teal-200 opacity-60 leading-tight mt-0.5">{item.subtitle}</p>}
+                  </div>
+                  <ChevronRight size={20} className="text-white/20" />
+                </button>
+              ))}
+           </div>
+
+           {/* Section 2 (List format like image) */}
+           <div className="space-y-1">
+              {mainList.map((item, idx) => (
+                <button 
+                  key={idx} 
+                  onClick={item.action} 
+                  className="w-full flex items-center gap-4 p-5 hover:bg-white/5 transition-all text-white"
+                >
+                  <div className="text-white/80">
+                     <item.icon size={28} strokeWidth={1.5} />
+                  </div>
+                  <div className="flex-1 text-left flex items-center justify-between">
+                     <p className="font-bold text-sm tracking-tight">{item.title}</p>
+                     <div className="flex items-center gap-2">
+                        {item.subtitle && <span className="text-[11px] text-white/40">{item.subtitle}</span>}
+                        {item.badge && (
+                           <div className="flex items-center gap-1 bg-green-500 px-2 py-0.5 rounded-full">
+                              <Gift size={12} className="text-white" />
+                              <span className="text-[10px] font-black text-white">{item.badge}</span>
+                           </div>
+                        )}
+                        <ChevronRight size={20} className="text-white/20" />
+                     </div>
+                  </div>
+                </button>
+              ))}
+           </div>
         </div>
       </div>
     </div>
   );
-
 }
 
 function LinksTab({ onTabChange, onSubTabChange, showToast }: { onTabChange: (tab: any) => void, onSubTabChange: (tab: string) => void, showToast: (msg: string, type?: ToastType) => void }) {
@@ -2516,6 +2859,7 @@ function WithdrawalHistoryTab({ userData, onBack }: { userData?: any, onBack: ()
   const [sortBy, setSortBy] = useState('date_desc');
   const [transactions, setTransactions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedTrx, setSelectedTrx] = useState<any>(null);
 
   useEffect(() => {
     if (!userData?.id) {
@@ -2530,8 +2874,29 @@ function WithdrawalHistoryTab({ userData, onBack }: { userData?: any, onBack: ()
       const trxs: any[] = [];
       snapshot.forEach(doc => {
         const data = doc.data();
+        let dateStr = 'Just now';
+        let timestamp = 0;
+        
+        const createdAt = data.createdAt;
+        if (createdAt) {
+          if (typeof createdAt.toDate === 'function') {
+            const date = createdAt.toDate();
+            dateStr = date.toLocaleString();
+            timestamp = date.getTime();
+          } else {
+            const date = new Date(createdAt);
+            dateStr = date.toLocaleString();
+            timestamp = date.getTime();
+          }
+        }
+
         if (data.type === 'withdraw') {
-          trxs.push({ id: doc.id, ...data });
+          trxs.push({ 
+            id: doc.id, 
+            ...data,
+            date: dateStr,
+            _timestamp: timestamp
+          });
         }
       });
       setTransactions(trxs);
@@ -2546,13 +2911,13 @@ function WithdrawalHistoryTab({ userData, onBack }: { userData?: any, onBack: ()
     let result = [...transactions];
     
     result.sort((a, b) => {
-      const dateA = a.date instanceof Date ? a.date : new Date(a.date);
-      const dateB = b.date instanceof Date ? b.date : new Date(b.date);
+      const timeA = a._timestamp || 0;
+      const timeB = b._timestamp || 0;
       
       if (sortBy === 'date_desc') {
-        return dateB.getTime() - dateA.getTime();
+        return timeB - timeA;
       } else if (sortBy === 'date_asc') {
-        return dateA.getTime() - dateB.getTime();
+        return timeA - timeB;
       } else if (sortBy === 'amount_desc') {
         const amountA = Math.abs(parseFloat(String(a.amount).replace(/[^0-9.-]+/g,"")));
         const amountB = Math.abs(parseFloat(String(b.amount).replace(/[^0-9.-]+/g,"")));
@@ -2633,7 +2998,11 @@ function WithdrawalHistoryTab({ userData, onBack }: { userData?: any, onBack: ()
       ) : (
         <div className="space-y-4">
           {filteredAndSortedTransactions.map((trx) => (
-            <div key={trx.id} className="bg-gradient-to-r from-teal-900/40 to-teal-950/40 p-5 rounded-[28px] border border-teal-800/30 flex items-center justify-between group hover:border-teal-600/50 transition-all shadow-lg relative overflow-hidden">
+            <div 
+              key={trx.id} 
+              onClick={() => setSelectedTrx(trx)}
+              className="bg-gradient-to-r from-teal-900/40 to-teal-950/40 p-5 rounded-[28px] border border-teal-800/30 flex items-center justify-between group hover:border-teal-600/50 transition-all shadow-lg relative overflow-hidden cursor-pointer active:scale-[0.98]"
+            >
               <div className="flex items-center gap-4 relative z-10">
                 <div className="w-12 h-12 rounded-2xl bg-orange-500/10 text-orange-400 flex items-center justify-center border border-orange-500/20 group-hover:scale-110 transition-transform">
                   <ArrowUpRight size={22} />
@@ -2663,6 +3032,78 @@ function WithdrawalHistoryTab({ userData, onBack }: { userData?: any, onBack: ()
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Detail Modal for Withdrawal */}
+      {selectedTrx && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setSelectedTrx(null)}>
+          <div className="bg-[#0b5c4b] rounded-[40px] w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 font-sans border border-teal-700/30" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-teal-800/30 flex items-center justify-between bg-teal-900/40">
+              <h3 className="font-black text-white italic uppercase tracking-tighter flex items-center gap-2">
+                <FileSearch size={22} className="text-orange-400" /> উত্তোলন বিস্তারিত
+              </h3>
+              <button 
+                onClick={() => setSelectedTrx(null)}
+                className="text-teal-400 hover:text-red-400 p-2 hover:bg-red-500/10 rounded-xl transition-all"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="p-8 space-y-6">
+               <div className="flex flex-col items-center gap-2 pb-6 border-b border-teal-800/20">
+                  <div className="w-20 h-20 bg-orange-500/10 rounded-3xl flex items-center justify-center text-orange-400 mb-2 shadow-inner border border-orange-500/10">
+                     <ArrowUpRight size={40} />
+                  </div>
+                  <p className="text-3xl font-black text-white italic tracking-tighter leading-none">-৳{Math.abs(selectedTrx.amount).toLocaleString()}</p>
+                  <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mt-2 ${
+                    selectedTrx.status === 'completed' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
+                    selectedTrx.status === 'pending' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' :
+                    'bg-red-500/10 text-red-400 border border-red-500/20'
+                  }`}>
+                    <div className={`w-1.5 h-1.5 rounded-full ${selectedTrx.status === 'completed' ? 'bg-green-500' : selectedTrx.status === 'pending' ? 'bg-orange-500' : 'bg-red-500'} animate-pulse`}></div>
+                    {selectedTrx.status}
+                  </div>
+               </div>
+
+               <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-black text-teal-400 uppercase tracking-widest">Withdrawal ID</span>
+                    <span className="text-xs font-mono font-bold text-white">{selectedTrx.trxId}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-black text-teal-400 uppercase tracking-widest">পদ্ধতি (Method)</span>
+                    <span className="text-xs font-black text-white uppercase">{selectedTrx.method}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-black text-teal-400 uppercase tracking-widest">তারিখ (Date)</span>
+                    <span className="text-xs font-black text-teal-100">{selectedTrx.date}</span>
+                  </div>
+                  {selectedTrx.accountNumber && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black text-teal-400 uppercase tracking-widest">অ্যাকাউন্ট (Account)</span>
+                      <span className="text-xs font-mono font-bold text-white">{selectedTrx.accountNumber}</span>
+                    </div>
+                  )}
+               </div>
+
+               <div className="p-4 bg-teal-900/40 rounded-2xl border border-teal-800/30 italic">
+                  <p className="text-[10px] text-teal-400 font-bold text-center leading-relaxed">
+                    * আপনার উত্তোলনটি প্রক্রিয়াকরণাধীন আছে। ভেরিফিকেশন সম্পন্ন হলে আপনার অ্যাকাউন্টে টাকা পৌঁছে যাবে।
+                  </p>
+               </div>
+            </div>
+            
+            <div className="p-6">
+              <button 
+                onClick={() => setSelectedTrx(null)}
+                className="w-full bg-teal-700 hover:bg-teal-600 text-white font-black py-4 rounded-2xl transition-all shadow-xl shadow-black/20 uppercase tracking-widest text-[11px] active:scale-95"
+              >
+                বন্ধ করুন (Close)
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -2817,7 +3258,6 @@ function SettingsTab({ profileData, onLogout, onEditProfile, showToast, hideAcco
       setIsLinkingFacebook(false);
     }, 1000);
   };
-  const [isConfirmingLogout, setIsConfirmingLogout] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -2826,6 +3266,10 @@ function SettingsTab({ profileData, onLogout, onEditProfile, showToast, hideAcco
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isTrxPasswordModalOpen, setIsTrxPasswordModalOpen] = useState(false);
+  const [trxPassword, setTrxPassword] = useState("");
+  const [confirmTrxPassword, setConfirmTrxPassword] = useState("");
+  const [isUpdatingTrxPassword, setIsUpdatingTrxPassword] = useState(false);
   const [email, setEmail] = useState(profileData?.email || "");
   const [emailError, setEmailError] = useState<string | null>(null);
   const [emailSuccess, setEmailSuccess] = useState<string | null>(null);
@@ -2840,6 +3284,7 @@ function SettingsTab({ profileData, onLogout, onEditProfile, showToast, hideAcco
   const [setupError, setSetupError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [isConfirmingDisable2FA, setIsConfirmingDisable2FA] = useState(false);
+  const [isConfirmingLogout, setIsConfirmingLogout] = useState(false);
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [showRecoveryCodes, setShowRecoveryCodes] = useState(false);
 
@@ -3014,6 +3459,41 @@ function SettingsTab({ profileData, onLogout, onEditProfile, showToast, hideAcco
     }
   };
 
+  const handleUpdateTrxPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError(null);
+    setPasswordSuccess(null);
+
+    if (!trxPassword || !confirmTrxPassword) {
+      setPasswordError("সবগুলো ফিল্ড পূরণ করুন। (Please fill all fields.)");
+      return;
+    }
+    if (trxPassword !== confirmTrxPassword) {
+      setPasswordError("পাসওয়ার্ড এবং কনফার্ম পাসওয়ার্ড মিলছে না। (Passwords do not match.)");
+      return;
+    }
+    if (!/^\d{6}$/.test(trxPassword)) {
+      setPasswordError("লেনদেন পাসওয়ার্ড অবশ্যই ৬ ডিজিটের হতে হবে। (Transaction password must be 6 digits.)");
+      return;
+    }
+
+    setIsUpdatingTrxPassword(true);
+    try {
+      // Simulate API call for transaction password update
+      setPasswordSuccess("লেনদেন পাসওয়ার্ড সফলভাবে আপডেট করা হয়েছে। (Transaction password updated successfully.)");
+      setTrxPassword("");
+      setConfirmTrxPassword("");
+    } catch (err) {
+      setPasswordError("লেনদেন পাসওয়ার্ড আপডেট করতে সমস্যা হয়েছে। (Failed to update transaction password.)");
+    } finally {
+      setIsUpdatingTrxPassword(false);
+      setTimeout(() => {
+        setIsTrxPasswordModalOpen(false);
+        setPasswordSuccess(null);
+      }, 2000);
+    }
+  };
+
   return (
     <>
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 p-4 pb-20">
@@ -3140,7 +3620,7 @@ function SettingsTab({ profileData, onLogout, onEditProfile, showToast, hideAcco
                   <Key size={20} />
                 </div>
                 <div>
-                  <p className="text-[10px] text-teal-500 uppercase tracking-widest font-black">পাসওয়ার্ড</p>
+                  <p className="text-[10px] text-teal-500 uppercase tracking-widest font-black">লগইন পাসওয়ার্ড</p>
                   <p className="text-sm text-white font-bold mt-0.5">••••••••••••</p>
                 </div>
               </div>
@@ -3149,6 +3629,27 @@ function SettingsTab({ profileData, onLogout, onEditProfile, showToast, hideAcco
                 className="px-4 py-2 bg-white/5 hover:bg-yellow-500 hover:text-black text-teal-400 text-[10px] font-black uppercase tracking-widest rounded-xl border border-white/10 transition-all"
               >
                 রিসেট করুন
+              </button>
+            </div>
+          </div>
+
+          {/* Transaction Password */}
+          <div className="p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-teal-950 border border-teal-800 flex items-center justify-center text-teal-400">
+                  <ShieldCheck size={20} />
+                </div>
+                <div>
+                  <p className="text-[10px] text-teal-500 uppercase tracking-widest font-black">লেনদেন পাসওয়ার্ড</p>
+                  <p className="text-sm text-white font-bold mt-0.5">••••••</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsTrxPasswordModalOpen(true)}
+                className="px-4 py-2 bg-white/5 hover:bg-yellow-500 hover:text-black text-teal-400 text-[10px] font-black uppercase tracking-widest rounded-xl border border-white/10 transition-all"
+              >
+                সেট করুন
               </button>
             </div>
           </div>
@@ -3860,6 +4361,86 @@ function SettingsTab({ profileData, onLogout, onEditProfile, showToast, hideAcco
         </div>
       )}
 
+      {/* Transaction Password Change Modal */}
+      {isTrxPasswordModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-teal-950/90 p-4 backdrop-blur-sm">
+          <div className="bg-teal-900 rounded-2xl border border-teal-700/50 w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-teal-700/50 flex items-center justify-between bg-teal-800/50">
+              <h3 className="font-bold text-white flex items-center gap-2">
+                <ShieldCheck size={18} className="text-teal-400" /> 
+                লেনদেন পাসওয়ার্ড সেট করুন
+              </h3>
+              <button 
+                onClick={() => {
+                  setIsTrxPasswordModalOpen(false);
+                  setPasswordError(null);
+                  setPasswordSuccess(null);
+                  setTrxPassword("");
+                  setConfirmTrxPassword("");
+                }}
+                className="text-teal-400 hover:text-white p-1 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleUpdateTrxPassword} className="p-5 space-y-4">
+              {passwordError && (
+                <div className="bg-red-900/40 border border-red-500/50 text-red-200 text-xs p-3 rounded-lg flex items-start gap-2">
+                  <AlertCircle size={16} className="text-red-400 shrink-0 mt-0.5" />
+                  <span>{passwordError}</span>
+                </div>
+              )}
+              
+              {passwordSuccess && (
+                <div className="bg-green-900/40 border border-green-500/50 text-green-200 text-xs p-3 rounded-lg flex items-start gap-2">
+                  <CheckCircle2 size={16} className="text-green-400 shrink-0 mt-0.5" />
+                  <span>{passwordSuccess}</span>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="text-xs text-teal-200 font-medium">নতুন লেনদেন পাসওয়ার্ড (New Transaction Pin)</label>
+                <input 
+                  type="password" 
+                  maxLength={6}
+                  value={trxPassword}
+                  onChange={(e) => setTrxPassword(e.target.value.replace(/\D/g, ''))}
+                  className="w-full bg-teal-950/50 border border-teal-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-teal-400 transition-colors tracking-widest font-mono"
+                  placeholder="৬ ডিজিটের পিন লিখুন"
+                />
+              </div>
+              
+              <div className="space-y-1.5">
+                <label className="text-xs text-teal-200 font-medium">পুনরায় পিন লিখুন (Confirm Pin)</label>
+                <input 
+                  type="password" 
+                  maxLength={6}
+                  value={confirmTrxPassword}
+                  onChange={(e) => setConfirmTrxPassword(e.target.value.replace(/\D/g, ''))}
+                  className="w-full bg-teal-950/50 border border-teal-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-teal-400 transition-colors tracking-widest font-mono"
+                  placeholder="আবারও পিন লিখুন"
+                />
+              </div>
+
+              <div className="p-3 bg-yellow-500/5 rounded-lg border border-yellow-500/10">
+                <p className="text-[10px] text-yellow-200/70 leading-relaxed font-bold">
+                  * লেনদেন পাসওয়ার্ডটি শুধুমাত্র উত্তোলন করার সময় প্রয়োজন হবে। এটি কমপক্ষে ৬ ডিজিটের সংখ্যা হতে হবে।
+                </p>
+              </div>
+
+              <button 
+                type="submit"
+                disabled={isUpdatingTrxPassword || trxPassword.length !== 6 || trxPassword !== confirmTrxPassword}
+                className="w-full bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 disabled:grayscale text-black font-black py-4 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 uppercase tracking-widest text-[11px]"
+              >
+                {isUpdatingTrxPassword ? <RefreshCw size={18} className="animate-spin" /> : "সেভ করুন"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Password Change Modal */}
       {isPasswordModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-teal-950/90 p-4 backdrop-blur-sm">
@@ -3992,18 +4573,6 @@ function SettingsTab({ profileData, onLogout, onEditProfile, showToast, hideAcco
         </div>
       )}
 
-      {/* Logout Confirmation Modal */}
-      {isLogoutConfirmOpen && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl p-6 shadow-2xl text-center w-full max-w-sm">
-            <h3 className="text-lg font-bold mb-4">আপনি কি সত্যিই লগ আউট করতে চান?</h3>
-            <div className="flex gap-4">
-              <button onClick={() => setIsLogoutConfirmOpen(false)} className="flex-1 bg-gray-200 py-3 rounded-xl font-bold">না</button>
-              <button onClick={() => { setIsLogoutConfirmOpen(false); onLogout(); }} className="flex-1 bg-red-500 text-white py-3 rounded-xl font-bold">হ্যাঁ</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   </>
   );

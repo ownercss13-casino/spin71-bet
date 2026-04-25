@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import GameLoader from './GameLoader';
+import GameLoader from '../components/ui/GameLoader';
 import { ArrowLeft, Wallet, Play, RotateCcw, Star, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -24,14 +24,18 @@ interface SlotGameProps {
 
 const SYMBOLS = ['🍒', '🍋', '🍇', '🔔', '💎', '7️⃣', '⭐', '🍀'];
 
+const SYMBOL_VALUES: Record<string, number> = {
+  '🍒': 2,
+  '🍋': 5,
+  '🍇': 8,
+  '🔔': 15,
+  '💎': 30,
+  '7️⃣': 60,
+  '⭐': 100,
+  '🍀': 250
+};
+
 export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate, referredBy, globalLogo, globalName, userData }: SlotGameProps) {
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 2000);
-    return () => clearTimeout(timer);
-  }, []);
-
   const [reels, setReels] = useState([
     [SYMBOLS[0], SYMBOLS[1], SYMBOLS[2]],
     [SYMBOLS[3], SYMBOLS[4], SYMBOLS[5]],
@@ -51,8 +55,6 @@ export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate, 
     setIsSpinning(true);
     setWinAmount(0);
     setShowWin(false);
-
-    // Activity logs removed (Firebase disconnected)
 
     // Simulate spinning
     const spinDuration = 2000;
@@ -82,25 +84,37 @@ export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate, 
   const checkWin = (currentReels: string[][]) => {
     let totalWin = 0;
     
-    // Check horizontal lines
+    // Check horizontal lines (Rows 0, 1, 2)
     for (let i = 0; i < 3; i++) {
       if (currentReels[0][i] === currentReels[1][i] && currentReels[1][i] === currentReels[2][i]) {
         const symbol = currentReels[0][i];
-        const multiplier = SYMBOLS.indexOf(symbol) + 2;
-        totalWin += betAmount * multiplier;
+        const amount = betAmount * SYMBOL_VALUES[symbol];
+        totalWin += amount;
       }
     }
 
     // Check diagonals
     if (currentReels[0][0] === currentReels[1][1] && currentReels[1][1] === currentReels[2][2]) {
       const symbol = currentReels[0][0];
-      const multiplier = SYMBOLS.indexOf(symbol) + 3;
-      totalWin += betAmount * multiplier;
+      const amount = betAmount * (SYMBOL_VALUES[symbol] + 5);
+      totalWin += amount;
     }
     if (currentReels[0][2] === currentReels[1][1] && currentReels[1][1] === currentReels[2][0]) {
       const symbol = currentReels[0][2];
-      const multiplier = SYMBOLS.indexOf(symbol) + 3;
-      totalWin += betAmount * multiplier;
+      const amount = betAmount * (SYMBOL_VALUES[symbol] + 5);
+      totalWin += amount;
+    }
+
+    // Check V-shape patterns
+    if (currentReels[0][0] === currentReels[1][1] && currentReels[1][1] === currentReels[2][0]) {
+       const symbol = currentReels[0][0];
+       const amount = betAmount * SYMBOL_VALUES[symbol];
+       totalWin += amount;
+    }
+    if (currentReels[0][2] === currentReels[1][1] && currentReels[1][1] === currentReels[2][2]) {
+       const symbol = currentReels[0][2];
+       const amount = betAmount * SYMBOL_VALUES[symbol];
+       totalWin += amount;
     }
 
     if (totalWin > 0) {
@@ -109,24 +123,18 @@ export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate, 
       setShowWin(true);
       onBalanceUpdate(userBalance + totalWin);
       
-      // Leaderboard and activity logs removed (Firebase disconnected)
       setRecentWins(prev => [{
         amount: totalWin,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }, ...prev].slice(0, 5));
-      setTimeout(() => setShowWin(false), 3000);
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      }, ...prev].slice(0, 8));
+      
+      setTimeout(() => setShowWin(false), 3500);
     }
   };
 
   return (
     <div className="full-display-game flex flex-col font-sans safe-top safe-bottom">
-      {isLoading && (
-        <GameLoader 
-          gameName={globalName || game.name} 
-          provider={game.provider} 
-          logo={globalLogo || game.image} 
-        />
-      )}
+      {/* Redundant loader removed */}
       {/* Header */}
       <div className="flex items-center justify-between p-4 bg-teal-900 border-b border-teal-800">
         <button onClick={onClose} className="text-white p-1 hover:bg-teal-800 rounded-full">

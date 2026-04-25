@@ -3,13 +3,15 @@ import { Gift, X, Calendar, Star, AlertCircle, RefreshCw } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
-import { ToastType } from './Toast';
+import { ToastType } from '../components/ui/Toast';
 
 export default function BonusCenter({ 
   userData, 
   balance, 
   onBalanceUpdate, 
   onTabChange, 
+  onUpdateUser,
+  onLogout,
   showToast, 
   welcomeBonus = 57,
   onOpenPromoModal
@@ -18,6 +20,7 @@ export default function BonusCenter({
   balance: number, 
   onBalanceUpdate: (newBalance: number) => void, 
   onTabChange: (tab: any) => void, 
+  onUpdateUser: (updates: any) => Promise<void>,
   onLogout: () => void,
   showToast: (msg: string, type?: ToastType) => void, 
   welcomeBonus?: number,
@@ -90,6 +93,30 @@ export default function BonusCenter({
     }
   };
 
+  const hasClaimedDepositBonus = userData?.hasClaimedDepositBonus;
+
+  const handleClaimDeposit = async () => {
+    if (hasMadeDeposit && !hasClaimedDepositBonus && userData?.id) {
+       setIsClaiming(true);
+       try {
+         const bonusAmount = 100;
+         const userRef = doc(db, 'users', userData.id);
+         await updateDoc(userRef, {
+           balance: balance + bonusAmount,
+           hasClaimedDepositBonus: true
+         });
+         onBalanceUpdate(balance + bonusAmount);
+         setPopupMessage(`আপনি ${bonusAmount} টাকা ডিপোজিট বোনাস পেয়েছেন!`);
+         setShowPopup(true);
+       } catch (err) {
+         console.error("Error claiming deposit bonus:", err);
+         showToast("বোনাস ক্লেইম করতে সমস্যা হয়েছে", "error");
+       } finally {
+         setIsClaiming(false);
+       }
+    }
+  };
+
   return (
     <div className="p-6 bg-[var(--bg-main)] min-h-screen text-[var(--text-main)] pb-24 relative transition-colors duration-300">
       {isClaiming && (
@@ -103,6 +130,45 @@ export default function BonusCenter({
       <h2 className="text-2xl font-black italic mb-6 text-yellow-400">বোনাস সেন্টার (Bonus Center)</h2>
       
       <div className="space-y-4">
+        {/* Deposit Bonus Card */}
+        <div className="bg-[var(--bg-card)] p-6 rounded-2xl shadow-xl border border-[var(--border-color)] relative overflow-hidden group transition-colors duration-300">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform text-[var(--text-main)]">
+            <Gift size={80} />
+          </div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-yellow-500/20 rounded-lg">
+                  <Gift className="text-yellow-500" size={24} />
+                </div>
+                <h3 className="text-xl font-bold text-[var(--text-main)]">ডিপোজিট বোনাস (Deposit Bonus)</h3>
+              </div>
+              <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${hasMadeDeposit ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
+                {hasMadeDeposit ? 'ডিপোজিট সম্পন্ন' : 'ডিপোজিট প্রয়োজন'}
+              </div>
+            </div>
+
+            <div className="bg-[var(--bg-surface)] rounded-xl p-4 mb-4 border border-[var(--border-color)] transition-colors duration-300">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-[var(--text-muted)] text-xs">বোনাস শতাংশ:</span>
+                <span className="text-yellow-400 font-bold">৫০% পর্যন্ত</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[var(--text-muted)] text-xs">ওয়েজারিং (Wagering):</span>
+                <span className="text-[var(--text-main)] text-xs font-medium">৩x</span>
+              </div>
+            </div>
+            
+            <button 
+              onClick={handleClaimDeposit}
+              disabled={!hasMadeDeposit || hasClaimedDepositBonus}
+              className={`w-full font-black py-4 rounded-xl text-lg transition-all shadow-lg ${!hasMadeDeposit || hasClaimedDepositBonus ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-yellow-500 text-black hover:bg-yellow-400 hover:scale-[1.02] active:scale-95'}`}
+            >
+              {!hasMadeDeposit ? 'ডিপোজিট প্রয়োজন' : hasClaimedDepositBonus ? 'ইতিমধ্যে ক্লেইম করা হয়েছে' : 'বোনাস ক্লেইম করুন (Claim Bonus)'}
+            </button>
+          </div>
+        </div>
+
         {/* Promo Code Card */}
         <div className="bg-gradient-to-br from-teal-900/40 to-teal-800/20 p-6 rounded-2xl shadow-xl border border-teal-500/30 relative overflow-hidden group transition-all duration-300 hover:border-teal-400/50">
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform text-teal-400">
@@ -188,15 +254,8 @@ export default function BonusCenter({
               </div>
             </div>
 
-            <div className="bg-[var(--bg-surface)] rounded-xl p-4 mb-4 border border-[var(--border-color)] transition-colors duration-300">
-              <h4 className="text-white text-sm font-bold mb-2">বোনাসের শর্তাবলী (Terms & Conditions):</h4>
-              <ul className="text-[var(--text-muted)] text-[11px] list-disc list-inside space-y-1">
-                <li>এই বোনাসটি শুধুমাত্র নতুন ইউজারদের জন্য প্রযোজ্য।</li>
-                <li>বোনাস ব্যালেন্স উইথড্র করার আগে অন্তত ১ গুণ (1x) গেম খেলতে হবে।</li>
-                <li>বোনাসটি ক্লেইম করার পর ৭ দিনের মধ্যে ব্যবহার করতে হবে।</li>
-                <li>প্রতিটি ইউজার শুধুমাত্র একবার এই বোনাসটি ক্লেইম করতে পারবেন।</li>
-                <li>ক্যাসিনো কর্তৃপক্ষ যেকোনো সময় এই বোনাস পলিসি পরিবর্তন বা বাতিল করার অধিকার রাখে।</li>
-              </ul>
+            <div className="bg-[var(--bg-surface)] rounded-xl p-4 mb-4 border border-[var(--border-color)] transition-colors duration-300 text-[10px] text-[var(--text-muted)] italic">
+               * শর্ত প্রযোজ্য: ১x ওয়েজারিং প্রয়োজন।
             </div>
             
             {!hasClaimedWelcome && !hasMadeDeposit ? (

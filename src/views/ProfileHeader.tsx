@@ -57,10 +57,10 @@ export default function ProfileHeader({ userData, profilePic, fileInputRef, hand
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-black text-[var(--text-main)] drop-shadow-md tracking-tight">{userData?.username || profileData?.username || "Player_SPIN71BET"}</h2>
+            <h2 className="text-2xl font-black text-[var(--text-main)] drop-shadow-md tracking-tight">{userData?.username || profileData?.username || "Player"}</h2>
             <button 
               onClick={() => {
-                navigator.clipboard.writeText(userData?.username || profileData?.username || "Player_SPIN71BET");
+                navigator.clipboard.writeText(userData?.username || profileData?.username || "Player");
               }}
               className="p-1 bg-white/10 hover:bg-white/20 rounded-md transition-colors text-[var(--text-main)] opacity-70 hover:opacity-100"
               title="Copy Username"

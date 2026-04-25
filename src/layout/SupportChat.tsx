@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, X, MessageCircle, User, Loader2, Trash2 } from 'lucide-react';
+import { Send, X, MessageCircle, User, Loader2, Trash2, Mail } from 'lucide-react';
 import { getAIResponse } from '../services/geminiService';
+import SupportContactForm from './SupportContactForm';
 
 interface Message {
   id: string;
@@ -30,14 +31,12 @@ export default function SupportChat({
   const [chatMessage, setChatMessage] = useState("");
   const [isUserTyping, setIsUserTyping] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [view, setView] = useState<'chat' | 'contact'>('chat');
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Fetch chat history from server (Firebase disconnected)
   useEffect(() => {
-    // Local session chat could be implemented here
     if (!userData?.id || !isOpen) return;
     
-    // For now, start with a welcome message if history is empty
     if (chatHistory.length === 0) {
       setChatHistory([{
         id: '1',
@@ -72,7 +71,6 @@ export default function SupportChat({
     setChatHistory(prev => [...prev, userMsg]);
 
     try {
-      // Get AI response
       const aiResponseText = await getAIResponse(text, userData);
       
       const aiMsg: Message = {
@@ -114,11 +112,11 @@ export default function SupportChat({
                 <X size={24} />
               </button>
               <button 
-                onClick={clearChat}
-                className="p-2 text-teal-400 hover:bg-teal-800 rounded-full transition-colors"
-                title="Clear Chat"
+                onClick={() => setView(view === 'chat' ? 'contact' : 'chat')}
+                className="p-2 text-yellow-500 hover:bg-teal-800 rounded-full transition-colors"
+                title={view === 'chat' ? "ইমেইল পাঠান" : "চ্যাটে ফিরে যান"}
               >
-                <Trash2 size={20} />
+                {view === 'chat' ? <Mail size={20} /> : <MessageCircle size={20} />}
               </button>
             </div>
             <div className="flex items-center gap-3">
@@ -137,62 +135,69 @@ export default function SupportChat({
 
           {/* Messages Area */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#0a2a22]">
-            {chatHistory.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-center space-y-4 px-8">
-                <div className="w-16 h-16 rounded-full bg-teal-900/50 flex items-center justify-center border border-teal-800">
-                  <MessageCircle className="text-teal-500 opacity-50" size={32} />
-                </div>
-                <p className="text-teal-400 text-sm">অ্যাডমিনের সাথে কথা বলতে নিচে মেসেজ লিখুন। আমরা সাধারণত কয়েক মিনিটের মধ্যে উত্তর দিই।</p>
-              </div>
-            )}
-            
-            {chatHistory.map((msg) => (
-              <div 
-                key={msg.id} 
-                className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div className={`flex gap-2 max-w-[85%] ${msg.sender === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                  <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold overflow-hidden ${msg.sender === 'user' ? 'bg-yellow-500 text-black' : 'bg-teal-700 text-white'}`}>
-                    {msg.sender === 'user' ? (
-                      userData?.profilePictureUrl ? (
-                        <img src={userData.profilePictureUrl} alt="User" className="w-full h-full object-cover" />
-                      ) : (
-                        <User size={14} />
-                      )
-                    ) : 'A'}
-                  </div>
-                  <div className="flex flex-col">
-                    <div className={`p-3 rounded-2xl text-sm shadow-sm ${
-                      msg.sender === 'user' 
-                        ? 'bg-yellow-500 text-black rounded-tr-none' 
-                        : 'bg-teal-800 text-white rounded-tl-none border border-teal-700'
-                    }`}>
-                      {msg.text}
+            {view === 'chat' ? (
+                <>
+                {chatHistory.length === 0 && (
+                  <div className="flex flex-col items-center justify-center h-full text-center space-y-4 px-8">
+                    <div className="w-16 h-16 rounded-full bg-teal-900/50 flex items-center justify-center border border-teal-800">
+                      <MessageCircle className="text-teal-500 opacity-50" size={32} />
                     </div>
-                    <span className={`text-[9px] mt-1 opacity-50 ${msg.sender === 'user' ? 'text-right' : 'text-left'}`}>
-                      {msg.time}
-                    </span>
+                    <p className="text-teal-400 text-sm">অ্যাডমিনের সাথে কথা বলতে নিচে মেসেজ লিখুন। আমরা সাধারণত কয়েক মিনিটের মধ্যে উত্তর দিই।</p>
                   </div>
-                </div>
-              </div>
-            ))}
-            
-            {isUserTyping && (
-              <div className="flex justify-end">
-                <div className="bg-yellow-500/20 text-yellow-500 text-[10px] px-2 py-1 rounded-full animate-pulse">
-                  আপনি লিখছেন...
-                </div>
-              </div>
+                )}
+                
+                {chatHistory.map((msg) => (
+                  <div 
+                    key={msg.id} 
+                    className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div className={`flex gap-2 max-w-[85%] ${msg.sender === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                      <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold overflow-hidden ${msg.sender === 'user' ? 'bg-yellow-500 text-black' : 'bg-teal-700 text-white'}`}>
+                        {msg.sender === 'user' ? (
+                          userData?.profilePictureUrl ? (
+                            <img src={userData.profilePictureUrl} alt="User" className="w-full h-full object-cover" />
+                          ) : (
+                            <User size={14} />
+                          )
+                        ) : 'A'}
+                      </div>
+                      <div className="flex flex-col">
+                        <div className={`p-3 rounded-2xl text-sm shadow-sm ${
+                          msg.sender === 'user' 
+                            ? 'bg-yellow-500 text-black rounded-tr-none' 
+                            : 'bg-teal-800 text-white rounded-tl-none border border-teal-700'
+                        }`}>
+                          {msg.text}
+                        </div>
+                        <span className={`text-[9px] mt-1 opacity-50 ${msg.sender === 'user' ? 'text-right' : 'text-left'}`}>
+                          {msg.time}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                
+                {isUserTyping && (
+                  <div className="flex justify-end">
+                    <div className="bg-yellow-500/20 text-yellow-500 text-[10px] px-2 py-1 rounded-full animate-pulse">
+                      আপনি লিখছেন...
+                    </div>
+                  </div>
+                )}
+                
+                {chatError && (
+                  <div className="p-2 bg-red-900/30 border border-red-800 rounded-lg text-red-400 text-xs text-center">
+                    {chatError}
+                  </div>
+                )}
+                
+                <div ref={chatEndRef} />
+                </>
+            ) : (
+                <SupportContactForm onClose={onClose} />
             )}
-            
-            {chatError && (
-              <div className="p-2 bg-red-900/30 border border-red-800 rounded-lg text-red-400 text-xs text-center">
-                {chatError}
-              </div>
-            )}
-            
-            <div ref={chatEndRef} />
           </div>
+// ...
 
           {/* Input Area */}
           <div className="p-4 bg-teal-950 border-t border-teal-800">

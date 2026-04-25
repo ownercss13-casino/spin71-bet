@@ -1,112 +1,98 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Default Deny
+    // 0. Global Safety Net
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // --- Helpers ---
-    function isSignedIn() { return request.auth != null; }
-    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
-    function isAdmin() { 
-      return isSignedIn() && (
-        request.auth.token.email == 'owner.css13@gmail.com' ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
-      ); 
+    // Helper Primitives
+    function isSignedIn() {
+      return request.auth != null;
     }
-    function incoming() { return request.resource.data; }
-    function existing() { return resource.data; }
-    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    function incoming() {
+      return request.resource.data;
+    }
+    function existing() {
+      return resource.data;
+    }
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
 
-    // --- Entities Validation ---
-    
+    // Entity Validations
     function isValidUser(data) {
-      return data.username is string && data.username.size() >= 3 && data.username.size() <= 32 &&
+      return data.keys().hasAll(['username', 'balance']) &&
+             data.username is string && data.username.size() <= 50 &&
              data.balance is number && data.balance >= 0 &&
-             data.role in ['user', 'agent', 'admin'] &&
-             (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() >= 10)) &&
-             (!('referredBy' in data) || (data.referredBy is string && isValidId(data.referredBy))) &&
-             (!('lastDailyBonusClaimedAt' in data) || data.lastDailyBonusClaimedAt is string) &&
-             (!('hasClaimedWelcomeBonus' in data) || data.hasClaimedWelcomeBonus is bool);
-    }
-
-    function isValidGameSettings(data) {
-      return (!('game_id' in data) || data.game_id is string) &&
-             (!('name' in data) || (data.name is string && data.name.size() <= 100)) &&
-             (!('logo_url' in data) || data.logo_url is string) &&
-             (!('game_url' in data) || data.game_url is string) &&
-             (!('provider_option' in data) || data.provider_option is string) &&
-             (!('updatedAt' in data) || data.updatedAt is string);
+             (!('vipLevel' in data) || data.vipLevel is int) &&
+             (!('totalTurnover' in data) || data.totalTurnover is number);
     }
 
     function isValidTransaction(data) {
-      return data.userId is string && isValidId(data.userId) &&
-             data.type in ['deposit', 'withdraw', 'bonus'] &&
-             data.amount is number &&
-             data.status in ['pending', 'completed', 'rejected'] &&
-             data.createdAt is timestamp;
+      return data.keys().hasAll(['uid', 'amount', 'type', 'status']) &&
+             data.uid == request.auth.uid &&
+             data.amount is number && data.amount > 0 &&
+             data.type in ['deposit', 'withdrawal'] &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             (!('method' in data) || data.method is string) &&
+             (!('senderNumber' in data) || data.senderNumber is string) &&
+             (!('trxId' in data) || data.trxId is string);
     }
 
-    // --- Match Rules ---
-
-    // User Profiles
+    // 1. Users Collection
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin(); // Only admins can list all users
       
-      allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && 
-                    incoming().balance == 507 && // Initial bonus enforcement
-                    incoming().role == 'user';
+      allow create: if isOwner(userId) && isValidUser(incoming()) && 
+                       incoming().balance == 0 && // New users start with 0 balance
+                       (!('vipLevel' in incoming()) || incoming().vipLevel == 0);
       
-      allow update: if isSignedIn() && (
-        // Admin update
-        isAdmin() ||
-        // Self update (limited fields)
-        (isOwner(userId) && 
-         incoming().diff(existing()).affectedKeys().hasOnly(['username', 'phoneNumber', 'updatedAt', 'balance', 'lastDailyBonusClaimedAt', 'hasClaimedWelcomeBonus']) &&
-         isValidUser(incoming()))
-      );
+      allow update: if (isOwner(userId) && isValidUser(incoming()) && (
+                      // Only allow updating certain fields by the user
+                      incoming().diff(existing()).affectedKeys().hasOnly(['username', 'profilePictureUrl', 'bankCards', 'phoneNumber', 'phone', 'fullName', 'email'])
+                    )) || isAdmin();
     }
 
-    // Admin List (System Managed)
-    match /admins/{userId} {
+    // 2. Transactions Collection
+    match /transactions/{transactionId} {
+      allow get: if isSignedIn() && (isOwner(existing().uid) || isAdmin());
+      allow list: if isSignedIn() && (request.query.limit <= 100 && (isAdmin() || resource.data.uid == request.auth.uid));
+      
+      allow create: if isSignedIn() && isOwner(incoming().uid) && isValidTransaction(incoming()) && 
+                       incoming().status == 'pending'; // Users can only create pending transactions
+      
+      allow update: if isAdmin(); // Only admins can approve/reject transactions
+      allow delete: if isAdmin();
+    }
+
+    // 3. Global Config
+    match /config/{configId} {
+      allow read: if true; // Public config
+      allow write: if isAdmin();
+    }
+
+    match /game_settings/{docId} {
+      allow read: if isSignedIn();
+    }
+    match /global_images/{docId} {
+      allow read: if isSignedIn();
+    }
+    match /metadata/{docId} {
       allow read: if isSignedIn();
     }
 
-    // Game Settings (Public Read, All User Write)
-    match /game_settings/{gameId} {
-      allow read: if true;
-      allow write: if isSignedIn() && isValidGameSettings(incoming());
-    }
-
-    // Global Metadata
-    match /metadata/{docId} {
-      allow read: if true;
-      allow write: if isSignedIn();
-    }
-
-    // Global Images (Collection based to avoid 1MB limit)
-    match /global_images/{imageKey} {
-      allow read: if true;
-      allow write: if isSignedIn();
-    }
-
-    // Transactions (Subcollection)
-    match /users/{userId}/transactions/{transactionId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && isValidTransaction(incoming()) && 
-                    incoming().userId == userId &&
-                    incoming().status == 'pending' &&
-                    incoming().createdAt == request.time;
-      allow update: if isAdmin();
-    }
-
-    // Global Transactions (Admins)
-    match /transactions/{transactionId} {
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow read, write: if isAdmin();
+    // 4. Admin List
+    match /admins/{adminId} {
+      allow read: if isAdmin();
+      allow write: if false; // Only manageable via Google Cloud Console for security
     }
   }
 }

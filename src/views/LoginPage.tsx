@@ -52,8 +52,8 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 type RegisterFormValues = z.infer<typeof registerSchema>;
 type ResetFormValues = z.infer<typeof resetSchema>;
 
-import { ToastType } from './components/Toast';
-import { auth, db } from './services/firebase';
+import { ToastType } from '../components/ui/Toast';
+import { auth, db } from '../services/firebase';
 import { 
   signInWithPopup, 
   GoogleAuthProvider, 
@@ -62,7 +62,7 @@ import {
   createUserWithEmailAndPassword,
   updateProfile
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, increment, collection, query, where, getDocs } from 'firebase/firestore';
 
 interface LoginPageProps {
   onRegisterSuccess: () => void;
@@ -74,7 +74,7 @@ interface LoginPageProps {
   welcomeBonus?: number;
 }
 
-export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSuccess, showToast, casinoName = "SPIN71 BET", isLoggedIn = false, welcomeBonus = 507 }: LoginPageProps) {
+export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSuccess, showToast, casinoName = "NAGAD BET", isLoggedIn = false, welcomeBonus = 507 }: LoginPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
@@ -133,6 +133,10 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     resolver: zodResolver(resetSchema)
   });
 
+  const generateReferralCode = () => {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+  };
+
   const handleAuthError = (err: any) => {
     setIsLoading(false);
     console.error("Auth Error:", err);
@@ -167,15 +171,44 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (!userDoc.exists()) {
-        const referralCode = localStorage.getItem('referralCode');
-        await setDoc(doc(db, 'users', user.uid), {
+        const inviterCode = localStorage.getItem('referralCode');
+        
+        // Find inviter by referral code if skip direct UID
+        let inviterUid = null;
+        if (inviterCode) {
+           // Search users for this code
+           const usersRef = collection(db, 'users');
+           const q = query(usersRef, where('referralCode', '==', inviterCode));
+           const snap = await getDocs(q);
+           if (!snap.empty) {
+             inviterUid = snap.docs[0].id;
+           }
+        }
+
+        const newUser = {
           username: user.displayName || 'FB User',
           balance: 507,
           role: 'user',
           createdAt: new Date().toISOString(),
-          referredBy: referralCode || null
-        });
-        if (referralCode) localStorage.removeItem('referralCode');
+          referredBy: inviterUid,
+          referralCode: generateReferralCode(),
+          referralCount: 0,
+          validReferralCount: 0,
+          totalReferralEarnings: 0
+        };
+        await setDoc(doc(db, 'users', user.uid), newUser);
+        
+        if (inviterUid) {
+          try {
+            const inviterRef = doc(db, 'users', inviterUid);
+            await updateDoc(inviterRef, {
+              referralCount: increment(1)
+            });
+          } catch (e) {
+            console.error("Inviter update failed:", e);
+          }
+          localStorage.removeItem('referralCode');
+        }
       }
       
       showToast("ফেসবুক লগইন সফল হয়েছে", "success");
@@ -198,15 +231,43 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (!userDoc.exists()) {
-        const referralCode = localStorage.getItem('referralCode');
-        await setDoc(doc(db, 'users', user.uid), {
+        const inviterCode = localStorage.getItem('referralCode');
+        
+        // Find inviter by referral code
+        let inviterUid = null;
+        if (inviterCode) {
+           const usersRef = collection(db, 'users');
+           const q = query(usersRef, where('referralCode', '==', inviterCode));
+           const snap = await getDocs(q);
+           if (!snap.empty) {
+             inviterUid = snap.docs[0].id;
+           }
+        }
+
+        const newUser = {
           username: user.displayName || 'Google User',
           balance: 507,
           role: 'user',
           createdAt: new Date().toISOString(),
-          referredBy: referralCode || null
-        });
-        if (referralCode) localStorage.removeItem('referralCode');
+          referredBy: inviterUid,
+          referralCode: generateReferralCode(),
+          referralCount: 0,
+          validReferralCount: 0,
+          totalReferralEarnings: 0
+        };
+        await setDoc(doc(db, 'users', user.uid), newUser);
+        
+        if (inviterUid) {
+          try {
+            const inviterRef = doc(db, 'users', inviterUid);
+            await updateDoc(inviterRef, {
+              referralCount: increment(1)
+            });
+          } catch (e) {
+            console.error("Inviter update failed:", e);
+          }
+          localStorage.removeItem('referralCode');
+        }
       }
 
       showToast("গুগল লগইন সফল হয়েছে", "success");
@@ -259,7 +320,18 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       
       await updateProfile(user, { displayName: data.username });
 
-      const referralCode = localStorage.getItem('referralCode');
+      const inviterCode = localStorage.getItem('referralCode');
+      
+      // Find inviter by referral code
+      let inviterUid = null;
+      if (inviterCode) {
+         const usersRef = collection(db, 'users');
+         const q = query(usersRef, where('referralCode', '==', inviterCode));
+         const snap = await getDocs(q);
+         if (!snap.empty) {
+           inviterUid = snap.docs[0].id;
+         }
+      }
 
       const userData = {
         username: data.username,
@@ -267,11 +339,26 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         balance: 507,
         role: 'user',
         createdAt: new Date().toISOString(),
-        referredBy: referralCode || null
+        referredBy: inviterUid,
+        referralCode: generateReferralCode(),
+        referralCount: 0,
+        validReferralCount: 0,
+        totalReferralEarnings: 0
       };
 
       await setDoc(doc(db, 'users', user.uid), userData);
-      if (referralCode) localStorage.removeItem('referralCode');
+      
+      if (inviterUid) {
+        try {
+          const inviterRef = doc(db, 'users', inviterUid);
+          await updateDoc(inviterRef, {
+            referralCount: increment(1)
+          });
+        } catch (e) {
+          console.error("Inviter update failed:", e);
+        }
+        localStorage.removeItem('referralCode');
+      }
       
       setIsLoading(false);
       onLoginSuccess({ id: user.uid, ...userData });

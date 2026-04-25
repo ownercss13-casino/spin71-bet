@@ -1,87 +1,69 @@
 {
   "entities": {
     "User": {
-      "title": "User",
-      "description": "User profile and balance information",
+      "title": "User Profile",
+      "description": "Store user account information, balance, and levels.",
       "type": "object",
       "properties": {
-        "username": { "type": "string", "description": "Display name" },
-        "phoneNumber": { "type": "string", "description": "Verified phone number" },
-        "balance": { "type": "number", "description": "Current coins" },
-        "role": { "type": "string", "enum": ["user", "agent", "admin"] },
-        "referredBy": { "type": "string", "description": "UID of referrer" },
+        "username": { "type": "string" },
+        "balance": { "type": "number" },
+        "totalDeposits": { "type": "number" },
+        "totalWithdrawals": { "type": "number" },
+        "totalTurnover": { "type": "number" },
+        "vipLevel": { "type": "integer" },
+        "referredBy": { "type": "string" },
+        "isVerified": { "type": "boolean" },
+        "profilePictureUrl": { "type": "string" },
+        "bankCards": { "type": "array" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["username", "balance", "role"]
-    },
-    "GameSettings": {
-      "title": "Game Settings",
-      "description": "Global configuration for games",
-      "type": "object",
-      "properties": {
-        "game_id": { "type": "string" },
-        "name": { "type": "string" },
-        "logo_url": { "type": "string" },
-        "game_url": { "type": "string" },
-        "options": { "type": "string" },
-        "category": { "type": "string" },
-        "image_url": { "type": "string" },
-        "updatedAt": { "type": "string", "format": "date-time" }
-      }
+      "required": ["username", "balance"]
     },
     "Transaction": {
-      "title": "Transaction",
-      "description": "Deposit, withdraw, or bonus history",
+      "title": "Transaction Record",
+      "description": "Records of deposits and withdrawals.",
       "type": "object",
       "properties": {
-        "userId": { "type": "string" },
-        "type": { "type": "string", "enum": ["deposit", "withdraw", "bonus"] },
+        "uid": { "type": "string" },
         "amount": { "type": "number" },
-        "status": { "type": "string", "enum": ["pending", "completed", "rejected"] },
+        "type": { "type": "string", "enum": ["deposit", "withdrawal"] },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
         "method": { "type": "string" },
+        "senderNumber": { "type": "string" },
         "trxId": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "amount", "type", "status"]
+    },
+    "GlobalConfig": {
+      "title": "Global Application Configuration",
+      "description": "Settings for the casino name, notice text, etc.",
+      "type": "object",
+      "properties": {
+        "casinoName": { "type": "string" },
+        "noticeText": { "type": "string" },
+        "globalLogos": { "type": "object" },
+        "globalNames": { "type": "object" }
       }
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "User",
-      "description": "User profiles"
-    },
-    "/game_settings/{gameId}": {
-      "schema": "GameSettings",
-      "description": "Global game configuration"
+      "description": "User documents keyed by their Firebase Auth UID."
     },
     "/transactions/{transactionId}": {
       "schema": "Transaction",
-      "description": "Global transaction history for admins"
+      "description": "All financial transactions."
     },
-    "/users/{userId}/transactions/{transactionId}": {
-      "schema": "Transaction",
-      "description": "User personal transaction history"
+    "/config/main": {
+      "schema": "GlobalConfig",
+      "description": "The main global configuration document."
     },
-    "/promo_codes/{code}": {
-      "schema": {
-        "type": "object",
-        "properties": {
-          "code": { "type": "string" },
-          "amount": { "type": "number" },
-          "maxUses": { "type": "number" },
-          "usedCount": { "type": "number" },
-          "active": { "type": "boolean" },
-          "createdAt": { "type": "string", "format": "date-time" }
-        }
-      },
-      "description": "Promotional codes"
-    },
-    "/metadata/settings": {
-      "schema": {
-        "type": "object",
-        "description": "Global application settings"
-      },
-      "description": "App settings"
+    "/admins/{adminId}": {
+      "schema": "object",
+      "description": "List of admin users."
     }
   }
 }

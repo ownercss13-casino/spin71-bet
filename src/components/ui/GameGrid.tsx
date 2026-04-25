@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Star, Plane as PlaneIcon, Info, Camera, Edit2, X, Upload } from 'lucide-react';
 import Skeleton from './Skeleton';
-import { GAME_IMAGES } from '../constants/gameAssets';
-import { GAME_LOGO_URLS } from '../constants/gameLogos';
+import { GAME_IMAGES } from '../../constants/gameAssets';
+import { GAME_LOGO_URLS } from '../../constants/gameLogos';
 import GlobalImage from './GlobalImage';
 
 export interface Game {

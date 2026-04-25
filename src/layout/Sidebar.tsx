@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, User, Copy, Home, Users, Send, Star, Wallet, RefreshCw, LogOut, Moon, Sun, MessageCircle, Facebook } from 'lucide-react';
+import { X, User, Copy, Home, Users, Send, Star, Wallet, RefreshCw, LogOut, Moon, Sun, MessageCircle, Facebook, Shield } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface SidebarProps {
@@ -8,6 +8,7 @@ interface SidebarProps {
   userData: any;
   activeTab: string;
   handleTabChange: (tab: any) => void;
+  handleGameSelect: (game: any) => void;
   setIsSupportChatOpen: (open: boolean) => void;
   setShowLogoPreview: (show: boolean) => void;
   handleLogout: () => void;
@@ -26,6 +27,7 @@ export default function Sidebar({
   userData,
   activeTab,
   handleTabChange,
+  handleGameSelect,
   setIsSupportChatOpen,
   setShowLogoPreview,
   handleLogout,
@@ -38,6 +40,12 @@ export default function Sidebar({
   toggleTheme
 }: SidebarProps) {
   if (!isOpen) return null;
+
+  const games = [
+    { id: '1', name: 'Aviator', icon: Star },
+    { id: '2', name: 'Rocket', icon: Star },
+    { id: '3', name: 'Slots', icon: Star },
+  ];
 
   return (
     <div 
@@ -90,11 +98,14 @@ export default function Sidebar({
 
         {/* Sidebar Links */}
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto no-scrollbar">
+          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-4 mb-2">Navigation</p>
           {[
             { id: 'home', icon: Home, label: 'বাড়ি (Home)' },
             { id: 'wallet', icon: Wallet, label: 'ওয়ালেট (Wallet)' },
             { id: 'profile', icon: User, label: 'প্রোফাইল (Profile)' },
             { id: 'invite', icon: Users, label: 'আমন্ত্রণ (Invite)' },
+            { id: 'faq', icon: MessageCircle, label: 'সাধারণ প্রশ্ন (FAQ)' },
+            { id: 'terms', icon: Shield, label: 'শর্তাবলী (Terms)' },
             { id: 'telegram', icon: Send, label: 'টেলিগ্রাম (Telegram)' },
             { id: 'whatsapp', icon: MessageCircle, label: 'হোয়াটসঅ্যাপ (WhatsApp)' },
             { id: 'facebook', icon: Facebook, label: 'ফেসবুক (Facebook)' },
@@ -120,6 +131,21 @@ export default function Sidebar({
             >
               <link.icon size={20} className={link.id === 'telegram' ? 'text-blue-400' : link.id === 'whatsapp' ? 'text-green-500' : link.id === 'facebook' ? 'text-blue-600' : ''} />
               <span>{link.label}</span>
+            </button>
+          ))}
+
+          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-4 mt-6 mb-2">Our Games</p>
+          {games.map((game) => (
+            <button
+              key={game.id}
+              onClick={() => {
+                handleGameSelect(game);
+                onClose();
+              }}
+              className="w-full flex items-center gap-4 px-4 py-3 rounded-xl text-[var(--text-muted)] hover:bg-white/10 hover:text-[var(--text-main)] transition-all"
+            >
+              <game.icon size={20} />
+              <span>{game.name}</span>
             </button>
           ))}
           
@@ -149,7 +175,7 @@ export default function Sidebar({
             className="w-full flex items-center gap-4 px-4 py-3 rounded-xl text-[var(--text-muted)] hover:bg-white/10 hover:text-[var(--text-main)] transition-all"
           >
             {theme === 'dark' ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} className="text-indigo-600" />}
-            <span>{theme === 'dark' ? 'লাইট মোড (Light Mode)' : 'ডার্ক মোড (Dark Mode)'}</span>
+            <span>{theme === 'dark' ? 'লাইট মোড (Light Mode)' : 'ডার্ক মোড (Дарк Мод )'}</span>
           </button>
         </nav>
 
@@ -167,3 +193,4 @@ export default function Sidebar({
     </div>
   );
 }
+

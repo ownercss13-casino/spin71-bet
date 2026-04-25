@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { generateAviatorLogos } from '../services/logoGenerator';
+import { generateAviatorLogos } from '../../services/logoGenerator';
 import { Check, Loader2, RefreshCw, X, AlertCircle } from 'lucide-react';
 
 interface LogoPreviewProps {

@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { X } from 'lucide-react';
 import { motion, useScroll, useTransform } from 'motion/react';
-import { GAME_IMAGES } from '../constants/gameAssets';
+import { GAME_IMAGES } from '../../constants/gameAssets';
 
 interface CasinoGalleryProps {
   onClose: () => void;
