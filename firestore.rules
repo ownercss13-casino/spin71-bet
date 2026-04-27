@@ -80,13 +80,16 @@ service cloud.firestore {
     }
 
     match /game_settings/{docId} {
-      allow read: if isSignedIn();
+      allow read: if true;
+      allow write: if isAdmin();
     }
     match /global_images/{docId} {
-      allow read: if isSignedIn();
+      allow read: if true;
+      allow write: if isAdmin();
     }
     match /metadata/{docId} {
-      allow read: if isSignedIn();
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     // 4. Admin List

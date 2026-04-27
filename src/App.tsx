@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db } from './services/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, collection, getDocs, onSnapshot, serverTimestamp, increment } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs, onSnapshot, serverTimestamp, increment, query, orderBy, limit } from 'firebase/firestore';
 import LoginPage from './views/LoginPage';
 import LogoPreview from './components/ui/LogoPreview';
 import BonusCenter from './views/BonusCenter';
@@ -17,7 +17,9 @@ import AviatorGame from "./games/AviatorGame";
 import RocketGame from "./games/RocketGame";
 import SupportChat from "./layout/SupportChat";
 import SlotGame from "./games/SlotGame";
+import GenericGameView from "./views/GenericGameView";
 import PromoCodeModal from "./components/modals/PromoCodeModal";
+import DepositRequiredModal from "./components/ui/DepositRequiredModal";
 import PermissionManager from "./layout/PermissionManager";
 import NotificationCenter from "./layout/NotificationCenter";
 import FAQView from "./views/FAQView";
@@ -93,7 +95,7 @@ export default function App() {
   const [globalImages, setGlobalImages] = useState<Record<string, string>>({});
   const [balance, setBalance] = useState(0);
   const [allButtonName, setAllButtonName] = useState<string>("ALL");
-  const [casinoName, setCasinoName] = useState<string>("NAGAD BET");
+  const [casinoName, setCasinoName] = useState<string>("SPIN71.bet");
   const [noticeText, setNoticeText] = useState<string>("আমাদের গেম উপভোগ করুন এবং বড় জয় নিশ্চিত করুন!");
   const [toasts, setToasts] = useState<{ id: string; message: string; type: ToastType }[]>([]);
 
@@ -264,8 +266,9 @@ export default function App() {
             setBalance(data.balance || 0);
           } else {
             // New user from social login maybe?
+            const cleanDisplayName = (user.displayName || 'Guest').replace(/[^a-zA-Z0-9]/g, '').substring(0, 13) || `u${user.uid.substring(0,5)}`;
             const newData = {
-              username: user.displayName || 'Guest',
+              username: cleanDisplayName,
               balance: 507,
               role: 'user',
               createdAt: new Date().toISOString()
@@ -417,16 +420,12 @@ export default function App() {
 
   const handleUpdateGlobalImage = async (imageKey: string, url: string) => {
     let finalUrl = url;
-    // Check if image is larger than 500KB (approx 680,000 characters in base64)
     if (url.startsWith('data:image/') && url.length > 680000) {
       showToast("ছবি রিসাইজ করা হচ্ছে (Compressing)...", "info");
       finalUrl = await compressImage(url, 1200, 1200, 0.7);
     }
-
     setGlobalImages(prev => ({ ...prev, [imageKey]: finalUrl }));
-    
     try {
-      // Use a collection instead of a single document to avoid the 1MB limit
       await setDoc(doc(db, 'global_images', imageKey), { 
         url: finalUrl,
         updatedAt: new Date().toISOString()
@@ -435,6 +434,83 @@ export default function App() {
     } catch (err) {
       console.error("Error persisting global image:", err);
       showToast("ডাটাবেসে সেভ করতে সমস্যা হয়েছে", "error");
+      throw err;
+    }
+  };
+
+  const handleAddUser = async (user: any) => {
+    try {
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, orderBy('numericId', 'desc'), limit(1));
+      const querySnapshot = await getDocs(q);
+      let nextId = 10000001;
+      if (!querySnapshot.empty) {
+        const lastData = querySnapshot.docs[0].data() as { numericId?: number };
+        nextId = (lastData.numericId || 10000000) + 1;
+      }
+
+      const newUserRef = doc(collection(db, 'users'));
+      await setDoc(newUserRef, {
+        id: newUserRef.id,
+        numericId: nextId,
+        username: user.username,
+        password: user.password,
+        role: user.role,
+        balance: Number(user.balance) || 0,
+        status: 'active',
+        createdAt: serverTimestamp(),
+        vipLevel: 0,
+        vipProgress: 0,
+        experience: 0,
+        deposits: 0,
+        withdrawals: 0,
+        totalWagered: 0,
+        totalWon: 0,
+        totalLost: 0,
+        referralCode: user.username.toLowerCase().substring(0, 4) + Math.floor(1000 + Math.random() * 9000),
+        referredBy: null,
+        referredUsers: [],
+        profilePictureUrl: null,
+      });
+      showToast("ইউজার সফলভাবে তৈরি করা হয়েছে", "success");
+    } catch (err) {
+      showToast("ইউজার তৈরি করতে সমস্যা হয়েছে", "error");
+      throw err;
+    }
+  };
+
+  const handleUpdateCasinoName = async (newName: string) => {
+    setCasinoName(newName);
+    try {
+      await setDoc(doc(db, 'metadata', 'settings'), { casinoName: newName }, { merge: true });
+      showToast("ক্যাসিনোর নাম সফলভাবে আপডেট করা হয়েছে", "success");
+    } catch (err) {
+      console.error(err);
+      showToast("সেভ করতে সমস্যা হয়েছে", "error");
+    }
+  };
+
+  const handleUpdateAllButtonName = async (newName: string) => {
+    setAllButtonName(newName);
+    try {
+      await setDoc(doc(db, 'metadata', 'settings'), { allButtonName: newName }, { merge: true });
+      showToast("বাটন নাম সফলভাবে আপডেট করা হয়েছে", "success");
+    } catch (err) {
+      console.error(err);
+      showToast("সেভ করতে সমস্যা হয়েছে", "error");
+    }
+  };
+
+  const handleProfileUpdate = async (updates: any) => {
+    if (!userData?.id) return;
+    try {
+      const userRef = doc(db, 'users', userData.id);
+      await updateDoc(userRef, updates);
+      setUserData((prev: any) => ({ ...prev, ...updates }));
+      if (updates.balance !== undefined) setBalance(updates.balance);
+    } catch (err) {
+      console.error("User update error:", err);
+      showToast("প্রোফাইল আপডেট করতে সমস্যা হয়েছে", "error");
       throw err;
     }
   };
@@ -537,6 +613,13 @@ export default function App() {
         if (data?.allButtonName) setAllButtonName(data.allButtonName);
         if (data?.casinoName) setCasinoName(data.casinoName);
         if (data?.noticeText) setNoticeText(data.noticeText);
+        if (data?.telegramLink) setTelegramLink(data.telegramLink);
+        if (data?.whatsappLink) setWhatsappLink(data.whatsappLink);
+        if (data?.facebookLink) setFacebookLink(data.facebookLink);
+        if (data?.supportEmail) setSupportEmail(data.supportEmail);
+        if (data?.minDeposit !== undefined) setMinDeposit(data.minDeposit);
+        if (data?.minWithdraw !== undefined) setMinWithdraw(data.minWithdraw);
+        if (data?.welcomeBonus !== undefined) setWelcomeBonus(data.welcomeBonus);
       }
     });
 
@@ -955,6 +1038,42 @@ export default function App() {
     );
   }
 
+  if (activeTab === 'admin' && (userData?.role === 'admin' || userData?.isAdmin === true)) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <AdminPanelView 
+          onBack={() => handleTabChange('home')} 
+          showToast={showToast} 
+          userData={userData}
+          globalLogos={globalLogos}
+          globalNames={globalNames}
+          globalUrls={globalUrls}
+          globalOptions={globalOptions}
+          updateGlobalGameLogo={handleUpdateGlobalGameLogo}
+          updateGlobalGameName={handleUpdateGlobalGameName}
+          updateGlobalGameUrl={updateGlobalGameUrl}
+          updateGlobalGameOption={updateGlobalGameOption}
+          allButtonName={allButtonName}
+          updateAllButtonName={updateAllButtonName}
+          casinoName={casinoName}
+          updateCasinoName={updateCasinoName}
+          noticeText={noticeText}
+          setNoticeText={setNoticeText}
+          minDeposit={minDeposit}
+          setMinDeposit={setMinDeposit}
+          minWithdraw={minWithdraw}
+          setMinWithdraw={setMinWithdraw}
+          welcomeBonus={welcomeBonus}
+          setWelcomeBonus={setWelcomeBonus}
+          telegramLink={telegramLink}
+          setTelegramLink={setTelegramLink}
+          onAddUser={handleAddUser}
+        />
+        <ToastContainer toasts={toasts} removeToast={removeToast} />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-[512px] mx-auto bg-[var(--bg-main)] min-h-[100dvh] relative overflow-x-hidden font-sans text-[var(--text-main)] pb-16 flex flex-col safe-top transition-colors duration-300">
       {/* Database Status Indicator */}
@@ -978,448 +1097,291 @@ export default function App() {
 
       {/* Main Content Area */}
       <div className="relative min-h-[calc(100vh-120px)]">
-        {activeTab === 'faq' && (
-          <FAQView />
-        )}
-        {activeTab === 'terms' && (
-          <div className="p-6 text-white max-w-2xl mx-auto">
-            <h1 className="text-2xl font-bold mb-4">শর্তাবলী (Terms & Conditions)</h1>
-            <p>আমাদের প্ল্যাটফর্ম ব্যবহার করার মাধ্যমে আপনি আমাদের শর্তাবলীর সাথে সম্মত হচ্ছেন। বিস্তারিত এখানে...</p>
-          </div>
-        )}
-        {activeTab === 'home' && (
-          <motion.div
-            key="home"
-            initial={{ opacity: 0, scale: 1.02, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-          >
-            <div id="home-win-ticker-container">
-              <WinTicker />
-            </div>
-            <HomeView 
-              userData={userData}
-              recentlyPlayed={recentlyPlayed}
-              favorites={favorites}
-              handleGameSelect={handleGameSelect}
-              setShowLeaderboard={setShowLeaderboard}
-              onNavigate={handleNavigate}
-              globalLogos={globalLogos}
-              globalNames={globalNames}
-              globalUrls={globalUrls}
-              globalOptions={globalOptions}
-              globalImages={globalImages}
-              balance={balance}
-              isRefreshing={isRefreshing}
-              handleRefresh={handleRefresh}
-              setIsSidebarOpen={setIsSidebarOpen}
-              setIsNotificationCenterOpen={setIsNotificationCenterOpen}
-              unreadNotificationsCount={unreadNotificationsCount}
-              setShowGallery={setShowGallery}
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              activeCategory={activeCategory}
-              setActiveCategory={setActiveCategory}
-              handleToggleFavorite={handleToggleFavorite}
-              updateGlobalGameLogo={handleUpdateGlobalGameLogo}
-              updateGlobalGameName={handleUpdateGlobalGameName}
-              updateGlobalGameUrl={updateGlobalGameUrl}
-              updateGlobalGameOption={updateGlobalGameOption}
-              updateGlobalImage={handleUpdateGlobalImage}
-              allButtonName={allButtonName}
-              updateAllButtonName={updateAllButtonName}
-              casinoName={casinoName}
-              updateCasinoName={updateCasinoName}
-              telegramLink={telegramLink}
-              whatsappLink={whatsappLink}
-              facebookLink={facebookLink}
-              noticeText={noticeText}
-              showToast={showToast}
-              loading={isTabLoading}
-              isAdmin={userData?.role === 'admin' || userData?.isAdmin === true}
-            />
-          </motion.div>
-        )}
-
-      {/* Game Play Modal */}
-      <AnimatePresence>
-        {(isGameLoading || iframeError) && selectedGame && (
-          <GameLoader 
-            gameName={globalNames[selectedGame.id] || selectedGame.name}
-            provider={globalOptions[selectedGame.id] || selectedGame.provider}
-            logo={globalLogos[selectedGame.id] || selectedGame.image}
-            hasError={iframeError}
-            onClose={() => handleGameSelect(null)}
-          />
-        )}
-      </AnimatePresence>
-
-      {selectedGame && globalUrls[selectedGame.id] ? (
-        <div className="full-display-game flex flex-col safe-top safe-bottom">
-          {/* Game Header */}
-          <div className="flex items-center justify-between p-4 bg-teal-900 border-b border-teal-800 shrink-0">
-            <button 
-              onClick={() => handleGameSelect(null)}
-              className="text-white p-1 hover:bg-teal-800 rounded-full transition-colors"
+        <AnimatePresence mode="wait">
+          {activeTab === 'faq' && (
+            <motion.div
+              key="faq"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2 }}
             >
-              <ArrowLeft size={24} />
-            </button>
-            <div className="flex flex-col items-center">
-              <h3 className="text-white font-bold text-sm">{globalNames[selectedGame.id] || selectedGame.name}</h3>
-              <span className="text-teal-300 text-[10px] uppercase tracking-widest">{globalOptions[selectedGame.id] || selectedGame.provider}</span>
-            </div>
-            <div className="w-8"></div>
-          </div>
-
-          {/* Game Viewport */}
-          <div className="flex-1 relative bg-black flex flex-col items-center justify-center overflow-hidden w-full h-full">
-            {iframeError ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#050505] text-center p-6 z-50">
-                <AlertCircle size={48} className="text-red-500 mb-4" />
-                <h3 className="text-xl font-bold text-white mb-2">গেমটি লোড করা যাচ্ছে না</h3>
-                <p className="text-sm text-gray-400 mb-6 max-w-xs">
-                  দুঃখিত, গেমটি এই মুহূর্তে লোড করা সম্ভব হচ্ছে না। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন অথবা সাপোর্টে যোগাযোগ করুন।
-                </p>
-                <button 
-                  onClick={() => handleGameSelect(null)}
-                  className="bg-emerald-600 text-white font-bold px-6 py-3 rounded-xl hover:bg-emerald-700 transition-colors"
-                >
-                  ফিরে যান
-                </button>
+              <FAQView />
+            </motion.div>
+          )}
+          {activeTab === 'terms' && (
+            <motion.div
+              key="terms"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2 }}
+              className="p-6 text-white max-w-2xl mx-auto"
+            >
+              <h1 className="text-2xl font-bold mb-4">শর্তাবলী (Terms & Conditions)</h1>
+              <p>আমাদের প্ল্যাটফর্ম ব্যবহার করার মাধ্যমে আপনি আমাদের শর্তাবলীর সাথে সম্মত হচ্ছেন। বিস্তারিত এখানে...</p>
+            </motion.div>
+          )}
+          {activeTab === 'home' && (
+            <motion.div
+              key="home"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.02 }}
+              transition={{ duration: 0.3 }}
+            >
+              <div id="home-win-ticker-container">
+                <WinTicker />
               </div>
-            ) : (
-              <iframe 
-                src={globalUrls[selectedGame.id]} 
-                className={`w-full h-full border-none transition-opacity duration-500 ${isGameLoading ? 'opacity-0' : 'opacity-100'}`}
-                title={selectedGame.name}
-                allowFullScreen
-                onLoad={() => setIsGameLoading(false)}
-                onError={() => {
-                  setIframeError(true);
-                  setIsGameLoading(false);
+              <HomeView 
+                userData={userData}
+                recentlyPlayed={recentlyPlayed}
+                favorites={favorites}
+                handleGameSelect={handleGameSelect}
+                setShowLeaderboard={setShowLeaderboard}
+                onNavigate={handleNavigate}
+                globalLogos={globalLogos}
+                globalNames={globalNames}
+                globalUrls={globalUrls}
+                globalOptions={globalOptions}
+                globalImages={globalImages}
+                balance={balance}
+                isRefreshing={isRefreshing}
+                handleRefresh={handleRefresh}
+                setIsSidebarOpen={setIsSidebarOpen}
+                setIsNotificationCenterOpen={setIsNotificationCenterOpen}
+                unreadNotificationsCount={unreadNotificationsCount}
+                setShowGallery={setShowGallery}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                activeCategory={activeCategory}
+                setActiveCategory={setActiveCategory}
+                handleToggleFavorite={handleToggleFavorite}
+                updateGlobalGameLogo={handleUpdateGlobalGameLogo}
+                updateGlobalGameName={handleUpdateGlobalGameName}
+                updateGlobalGameUrl={updateGlobalGameUrl}
+                updateGlobalGameOption={updateGlobalGameOption}
+                updateGlobalImage={handleUpdateGlobalImage}
+                allButtonName={allButtonName}
+                updateAllButtonName={updateAllButtonName}
+                casinoName={casinoName}
+                updateCasinoName={updateCasinoName}
+                telegramLink={telegramLink}
+                whatsappLink={whatsappLink}
+                facebookLink={facebookLink}
+                noticeText={noticeText}
+                showToast={showToast}
+                loading={isTabLoading}
+                isAdmin={userData?.role === 'admin' || userData?.isAdmin === true}
+              />
+            </motion.div>
+          )}
+          {activeTab === 'analytics' && (
+            <motion.div
+               key="analytics"
+               initial={{ opacity: 0, y: 20 }}
+               animate={{ opacity: 1, y: 0 }}
+               exit={{ opacity: 0, y: -20 }}
+               transition={{ duration: 0.3 }}
+            >
+              <AnalyticsView balance={balance} userData={userData} onBack={() => handleTabChange('profile')} />
+            </motion.div>
+          )}
+          {activeTab === 'profile' && (
+            <motion.div
+               key="profile"
+               initial={{ opacity: 0, scale: 0.98 }}
+               animate={{ opacity: 1, scale: 1 }}
+               exit={{ opacity: 0, scale: 1.02 }}
+               transition={{ duration: 0.3 }}
+            >
+              <ProfileView 
+                onTabChange={handleTabChange} 
+                balance={balance} 
+                userData={userData}
+                onUpdateUser={async (updates: any) => {
+                  if (userData?.id) {
+                    try {
+                      const userRef = doc(db, 'users', userData.id);
+                      await updateDoc(userRef, updates);
+                      
+                      const newUserData = { ...userData, ...updates };
+                      setUserData(newUserData);
+                      localStorage.setItem('currentUser', JSON.stringify(newUserData));
+                      if (updates.balance !== undefined) {
+                        setBalance(updates.balance);
+                      }
+                    } catch (e) {
+                      console.error('Error updating user', e);
+                      showToast("প্রোফাইল আপডেট করতে সমস্যা হয়েছে", "error");
+                      throw e;
+                    }
+                  }
+                }}
+                onAddTransaction={async (transaction: any) => {
+                  if (userData?.id) {
+                    try {
+                      const txRef = doc(collection(db, 'users', userData.id, 'transactions'));
+                      await setDoc(txRef, {
+                        ...transaction,
+                        createdAt: serverTimestamp()
+                      });
+
+                      // Duplicate to global transactions for admin if needed
+                      const globalTxRef = doc(collection(db, 'transactions'));
+                      await setDoc(globalTxRef, {
+                        ...transaction,
+                        userId: userData.id,
+                        username: userData.username,
+                        createdAt: serverTimestamp()
+                      });
+                    } catch (e) {
+                      console.error('Error adding transaction', e);
+                      showToast("লেনদেন সংরক্ষণ করতে সমস্যা হয়েছে", "error");
+                    }
+                  }
+                }}
+                onLogout={handleLogout} 
+                showToast={showToast} 
+                casinoName={casinoName} 
+                onEditCasinoName={handleEditCasinoName}
+                globalLogos={globalLogos}
+                globalNames={globalNames}
+                globalUrls={globalUrls}
+                globalOptions={globalOptions}
+                updateGlobalGameLogo={handleUpdateGlobalGameLogo}
+                updateGlobalGameName={handleUpdateGlobalGameName}
+                updateGlobalGameUrl={updateGlobalGameUrl}
+                updateGlobalGameOption={updateGlobalGameOption}
+                allButtonName={allButtonName}
+                updateAllButtonName={updateAllButtonName}
+                initialSubTab={profileSubTab as any}
+                minWithdraw={minWithdraw}
+              />
+            </motion.div>
+          )}
+          {activeTab === 'leaderboard' && (
+            <motion.div
+              key="leaderboard"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2 }}
+            >
+              <LeaderboardView />
+            </motion.div>
+          )}
+          {activeTab === 'bonus' && (
+            <motion.div
+              key="bonus"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <BonusCenter 
+                userData={userData} 
+                balance={balance} 
+                onBalanceUpdate={setBalance} 
+                onTabChange={handleTabChange} 
+                onUpdateUser={async (updates: any) => {
+                  if (userData?.id) {
+                    try {
+                      const userRef = doc(db, 'users', userData.id);
+                      await updateDoc(userRef, updates);
+                      
+                      const newUserData = { ...userData, ...updates };
+                      setUserData(newUserData);
+                      localStorage.setItem('currentUser', JSON.stringify(newUserData));
+                      if (updates.balance !== undefined) {
+                        setBalance(updates.balance);
+                      }
+                    } catch (e) {
+                      console.error('Error updating user in bonus center', e);
+                      showToast("বোনাস আপডেট করতে সমস্যা হয়েছে", "error");
+                    }
+                  }
+                }}
+                onLogout={handleLogout}
+                showToast={showToast} 
+                welcomeBonus={welcomeBonus} 
+                onOpenPromoModal={() => setShowPromoModal(true)}
+              />
+            </motion.div>
+          )}
+          {activeTab === 'invite' && (
+            <motion.div
+              key="invite"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <InviteView 
+                onTabChange={handleTabChange} 
+                onBack={() => handleTabChange('home')}
+                userData={userData} 
+                showToast={showToast} 
+                casinoName={casinoName}
+                onUpdateUser={async (updates: any) => {
+                  if (userData?.id) {
+                    const userRef = doc(db, 'users', userData.id);
+                    await updateDoc(userRef, updates);
+                    setUserData({ ...userData, ...updates });
+                  }
+                }}
+                onAddTransaction={async (transaction: any) => {
+                  if (userData?.id) {
+                    const txRef = doc(collection(db, 'users', userData.id, 'transactions'));
+                    await setDoc(txRef, { ...transaction, createdAt: serverTimestamp() });
+                    const globalTxRef = doc(collection(db, 'transactions'));
+                    await setDoc(globalTxRef, { ...transaction, userId: userData.id, username: userData.username, createdAt: serverTimestamp() });
+                  }
                 }}
               />
-            )}
-          </div>
-        </div>
-      ) : selectedGame && (selectedGame.id === '5' || selectedGame.provider === 'CRASH') ? (
-        <AviatorGame 
-          onClose={() => handleGameSelect(null)} 
-          userBalance={userData?.balance || 0}
-          onBalanceUpdate={(newBalance) => {
-            if (userData?.id) updateBalance(userData.id, newBalance);
-          }}
-          logo={globalLogos['5'] || globalLogos.aviator || aviatorLogo}
-          onLogoChange={async (newLogo) => {
-            if (userData?.id) {
-              await handleUpdateGlobalGameLogo('5', newLogo);
-            }
-          }}
-          showToast={showToast}
-          referredBy={userData?.referredBy}
-          globalName={globalNames[selectedGame.id]}
-          userData={userData}
-        />
-      ) : selectedGame && selectedGame.id === 'rocket_1' ? (
-        <RocketGame 
-          onClose={() => handleGameSelect(null)} 
-          userBalance={userData?.balance || 0}
-          onBalanceUpdate={(newBalance) => {
-            if (userData?.id) updateBalance(userData.id, newBalance);
-          }}
-          showToast={showToast}
-          globalName={globalNames[selectedGame.id]}
-          userData={userData}
-        />
-      ) : selectedGame && selectedGame.category === 'স্লট' ? (
-        <SlotGame 
-          game={selectedGame}
-          globalLogo={globalLogos[selectedGame.id]}
-          globalName={globalNames[selectedGame.id]}
-          onClose={() => handleGameSelect(null)} 
-          userBalance={userData?.balance || 0}
-          onBalanceUpdate={(newBalance) => {
-            if (userData?.id) updateBalance(userData.id, newBalance);
-          }}
-          referredBy={userData?.referredBy}
-          userData={userData}
-        />
-      ) : selectedGame && (
-        <div className="fixed inset-0 z-[100] bg-black flex flex-col max-w-[512px] mx-auto min-h-[100dvh] safe-top safe-bottom">
-          {/* Game Header */}
-          <div className="flex items-center justify-between p-4 bg-teal-900 border-b border-teal-800">
-            <button 
-              onClick={() => handleGameSelect(null)}
-              className="text-white p-1 hover:bg-teal-800 rounded-full transition-colors"
+            </motion.div>
+          )}
+          {activeTab === 'deposit' && (
+            <motion.div
+              key="deposit"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
             >
-              <ArrowLeft size={24} />
-            </button>
-            <div className="flex flex-col items-center">
-              <h3 className="text-white font-bold text-sm">{globalNames[selectedGame.id] || selectedGame.name}</h3>
-              <span className="text-teal-300 text-[10px] uppercase tracking-widest">{globalOptions[selectedGame.id] || selectedGame.provider}</span>
-            </div>
-            <div className="w-8"></div>
-          </div>
-
-          {/* Game Viewport */}
-          <div className="flex-1 relative bg-gray-900 flex flex-col items-center justify-center overflow-hidden">
-            <>
-              <img 
-                src={globalLogos[selectedGame.id] || selectedGame.image} 
-                className="absolute inset-0 w-full h-full object-cover opacity-20 blur-xl"
-                alt="Background"
+              <DepositView 
+                onTabChange={handleTabChange} 
+                balance={balance} 
+                onBalanceUpdate={handleBalanceUpdate} 
+                userData={userData} 
+                showToast={showToast} 
+                minDeposit={minDeposit} 
+                globalImages={globalImages}
+                isAdmin={true}
+                onUpdateGlobalImage={handleUpdateGlobalImage}
+                onDepositSuccess={handleDepositSuccess}
               />
-              
-              <div className="relative z-10 flex flex-col items-center text-center p-6">
-                <div className={`w-48 h-64 rounded-2xl bg-gradient-to-b ${selectedGame.bgColor} shadow-2xl border-2 border-white/20 mb-8 overflow-hidden transform hover:scale-105 transition-transform duration-500 relative`}>
-                  <img src={globalLogos[selectedGame.id] || selectedGame.image} className="w-full h-full object-cover opacity-80 mix-blend-overlay" alt={globalNames[selectedGame.id] || selectedGame.name} />
-                  <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse shadow-lg">REAL</div>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                     <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30">
-                        <Play size={32} className="text-white fill-white ml-1" />
-                     </div>
-                  </div>
-                </div>
-                
-                <h2 className="text-3xl font-black text-white mb-2 drop-shadow-lg">{globalNames[selectedGame.id] || selectedGame.name}</h2>
-                <p className="text-teal-200 mb-8 max-w-[250px]">গেমটি প্রস্তুত! নিচে ক্লিক করে খেলা শুরু করুন এবং বড় জয়ের জন্য প্রস্তুত হন!</p>
-                
-                <button 
-                  onClick={() => {
-                    if (!userData?.totalDeposits || userData.totalDeposits === 0) {
-                      setShowDepositRequired(true);
-                      handleGameSelect(null);
-                      return;
-                    }
-                    if (userData?.role === 'admin') {
-                      showToast('অ্যাডমিন প্যানেল থেকে এই গেমটির URL সেট করুন।', 'info');
-                    } else {
-                      showToast('এই গেমটি বর্তমানে রক্ষণাবেক্ষণে আছে। অনুগ্রহ করে অন্য গেম চেষ্টা করুন।', 'info');
-                    }
-                  }}
-                  className="bg-gradient-to-b from-yellow-400 to-yellow-600 text-black font-black px-12 py-3 rounded-full text-lg shadow-[0_4px_15px_rgba(234,179,8,0.4)] hover:scale-105 transition-transform active:scale-95"
-                >
-                  খেলুন
-                </button>
-              </div>
-
-              {/* Floating Particles/Effects */}
-              <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-yellow-400 rounded-full animate-ping"></div>
-              <div className="absolute bottom-1/3 right-1/4 w-3 h-3 bg-teal-400 rounded-full animate-pulse"></div>
-              <div className="absolute top-1/2 right-10 w-1 h-1 bg-white rounded-full animate-bounce"></div>
-            </>
-          </div>
-
-          {/* Game Footer */}
-          <div className="p-4 bg-teal-950 flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-teal-800 flex items-center justify-center">
-                <Wallet size={16} className="text-yellow-400" />
-              </div>
-              <div>
-                <p className="text-[10px] text-teal-400 uppercase font-bold">ব্যালেন্স</p>
-                <p className="text-white font-bold text-sm">৳ {userData?.balance?.toLocaleString() || '0'}</p>
-              </div>
-            </div>
-            <button 
-              onClick={() => handleTabChange('deposit')}
-              className="bg-teal-800 text-white px-4 py-1.5 rounded-lg text-xs font-bold border border-teal-700"
+            </motion.div>
+          )}
+          {activeTab === 'wallet' && (
+            <motion.div
+              key="wallet"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.02 }}
+              transition={{ duration: 0.3 }}
             >
-              জমা করুন
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Casino Gallery Modal */}
-      {showGallery && (
-        <CasinoGallery onClose={() => setShowGallery(false)} />
-      )}
-
-      {/* Sidebar Overlay */}
-      <Sidebar 
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
-        userData={userData}
-        activeTab={activeTab}
-        handleTabChange={handleTabChange}
-        handleGameSelect={handleGameSelect}
-        setIsSupportChatOpen={setIsSupportChatOpen}
-        setShowLogoPreview={setShowLogoPreview}
-        handleLogout={handleLogout}
-        showToast={showToast}
-        casinoName={casinoName}
-        telegramLink={telegramLink}
-        whatsappLink={whatsappLink}
-        facebookLink={facebookLink}
-        theme={theme}
-        toggleTheme={toggleTheme}
-      />
-
-      {activeTab === 'admin' && (userData?.role === 'admin' || userData?.isAdmin === true) && (
-        <AdminPanelView onBack={() => handleTabChange('profile')} showToast={showToast} />
-      )}
-      {activeTab === 'analytics' && (
-        <motion.div
-           key="analytics"
-           initial={{ opacity: 0, scale: 1.02, y: 10 }}
-           animate={{ opacity: 1, scale: 1, y: 0 }}
-           transition={{ duration: 0.3, ease: "easeOut" }}
-        >
-          <AnalyticsView balance={balance} userData={userData} onBack={() => handleTabChange('profile')} />
-        </motion.div>
-      )}
-      {activeTab === 'profile' && (
-        <motion.div
-           key="profile"
-           initial={{ opacity: 0, scale: 1.02, y: 10 }}
-           animate={{ opacity: 1, scale: 1, y: 0 }}
-           transition={{ duration: 0.3, ease: "easeOut" }}
-        >
-          <ProfileView 
-            onTabChange={handleTabChange} 
-            balance={balance} 
-            userData={userData}
-            onUpdateUser={async (updates: any) => {
-              if (userData?.id) {
-                try {
-                  const userRef = doc(db, 'users', userData.id);
-                  await updateDoc(userRef, updates);
-                  
-                  const newUserData = { ...userData, ...updates };
-                  setUserData(newUserData);
-                  localStorage.setItem('currentUser', JSON.stringify(newUserData));
-                  if (updates.balance !== undefined) {
-                    setBalance(updates.balance);
-                  }
-                } catch (e) {
-                  console.error('Error updating user', e);
-                  showToast("প্রোফাইল আপডেট করতে সমস্যা হয়েছে", "error");
-                  throw e;
-                }
-              }
-            }}
-            onAddTransaction={async (transaction: any) => {
-              if (userData?.id) {
-                try {
-                  const txRef = doc(collection(db, 'users', userData.id, 'transactions'));
-                  await setDoc(txRef, {
-                    ...transaction,
-                    createdAt: serverTimestamp()
-                  });
-
-                  // Duplicate to global transactions for admin if needed
-                  const globalTxRef = doc(collection(db, 'transactions'));
-                  await setDoc(globalTxRef, {
-                    ...transaction,
-                    userId: userData.id,
-                    username: userData.username,
-                    createdAt: serverTimestamp()
-                  });
-                } catch (e) {
-                  console.error('Error adding transaction', e);
-                  showToast("লেনদেন সংরক্ষণ করতে সমস্যা হয়েছে", "error");
-                }
-              }
-            }}
-            onLogout={handleLogout} 
-            showToast={showToast} 
-            casinoName={casinoName} 
-            onEditCasinoName={handleEditCasinoName}
-            globalLogos={globalLogos}
-            globalNames={globalNames}
-            globalUrls={globalUrls}
-            globalOptions={globalOptions}
-            updateGlobalGameLogo={handleUpdateGlobalGameLogo}
-            updateGlobalGameName={handleUpdateGlobalGameName}
-            updateGlobalGameUrl={updateGlobalGameUrl}
-            updateGlobalGameOption={updateGlobalGameOption}
-            allButtonName={allButtonName}
-            updateAllButtonName={updateAllButtonName}
-            initialSubTab={profileSubTab as any}
-            minWithdraw={minWithdraw}
-          />
-        </motion.div>
-      )}
-      {activeTab === 'leaderboard' && <LeaderboardView />}
-      {activeTab === 'bonus' && (
-        <BonusCenter 
-          userData={userData} 
-          balance={balance} 
-          onBalanceUpdate={setBalance} 
-          onTabChange={handleTabChange} 
-          onUpdateUser={async (updates: any) => {
-            if (userData?.id) {
-              try {
-                const userRef = doc(db, 'users', userData.id);
-                await updateDoc(userRef, updates);
-                
-                const newUserData = { ...userData, ...updates };
-                setUserData(newUserData);
-                localStorage.setItem('currentUser', JSON.stringify(newUserData));
-                if (updates.balance !== undefined) {
-                  setBalance(updates.balance);
-                }
-              } catch (e) {
-                console.error('Error updating user in bonus center', e);
-                showToast("বোনাস আপডেট করতে সমস্যা হয়েছে", "error");
-              }
-            }
-          }}
-          onLogout={handleLogout}
-          showToast={showToast} 
-          welcomeBonus={welcomeBonus} 
-          onOpenPromoModal={() => setShowPromoModal(true)}
-        />
-      )}
-      {activeTab === 'invite' && (
-        <InviteView 
-          onTabChange={handleTabChange} 
-          onBack={() => handleTabChange('home')}
-          userData={userData} 
-          showToast={showToast} 
-          casinoName={casinoName}
-          onUpdateUser={async (updates: any) => {
-            if (userData?.id) {
-              const userRef = doc(db, 'users', userData.id);
-              await updateDoc(userRef, updates);
-              setUserData({ ...userData, ...updates });
-            }
-          }}
-          onAddTransaction={async (transaction: any) => {
-            if (userData?.id) {
-              const txRef = doc(collection(db, 'users', userData.id, 'transactions'));
-              await setDoc(txRef, { ...transaction, createdAt: serverTimestamp() });
-              const globalTxRef = doc(collection(db, 'transactions'));
-              await setDoc(globalTxRef, { ...transaction, userId: userData.id, username: userData.username, createdAt: serverTimestamp() });
-            }
-          }}
-        />
-      )}
-      {activeTab === 'deposit' && (
-        <DepositView 
-          onTabChange={handleTabChange} 
-          balance={balance} 
-          onBalanceUpdate={handleBalanceUpdate} 
-          userData={userData} 
-          showToast={showToast} 
-          minDeposit={minDeposit} 
-          globalImages={globalImages}
-          isAdmin={true}
-          onUpdateGlobalImage={handleUpdateGlobalImage}
-          onDepositSuccess={handleDepositSuccess}
-        />
-      )}
-      {activeTab === 'wallet' && (
-        <WalletView 
-          balance={balance} 
-          userData={userData} 
-          onTabChange={handleTabChange}
-          onSubTabChange={setProfileSubTab}
-          showToast={showToast}
-          minWithdraw={minWithdraw}
-        />
-      )}
+              <WalletView 
+                balance={balance} 
+                userData={userData} 
+                onTabChange={handleTabChange}
+                onSubTabChange={setProfileSubTab}
+                showToast={showToast}
+                minWithdraw={minWithdraw}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Leaderboard Modal */}
@@ -1557,81 +1519,39 @@ export default function App() {
 
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 max-w-[512px] mx-auto bg-[#062e24] border-t border-white/5 flex justify-between px-6 py-2 text-[10px] text-white/40 z-50 shadow-[0_-10px_20px_rgba(0,0,0,0.4)]">
-        <div 
-          onClick={() => handleTabChange('home')}
-          className={`flex flex-col items-center gap-1 cursor-pointer transition-all duration-300 ${activeTab === 'home' ? 'text-teal-400 scale-110' : 'hover:text-white'}`}
-        >
-          <Home size={22} strokeWidth={activeTab === 'home' ? 2.5 : 2} />
-          <span className={`font-bold ${activeTab === 'home' ? 'text-teal-400' : ''}`}>বাড়ি</span>
-        </div>
-        <div 
-          onClick={() => handleTabChange('bonus')}
-          className={`flex flex-col items-center gap-1 cursor-pointer transition-all duration-300 relative ${activeTab === 'bonus' ? 'text-teal-400 scale-110' : 'hover:text-white'}`}
-        >
-          <Gift size={22} strokeWidth={activeTab === 'bonus' ? 2.5 : 2} />
-          <span className={`font-bold ${activeTab === 'bonus' ? 'text-teal-400' : ''}`}>অফার</span>
-          <div className="absolute -top-1 -right-2 bg-red-600 text-white text-[9px] font-black px-1 rounded-full border border-[#062e24] shadow-lg">
-            14
+        {[
+          { id: 'home', icon: Home, label: 'বাড়ি' },
+          { id: 'bonus', icon: Gift, label: 'অফার', badge: 14 },
+          { id: 'invite', icon: Users, label: 'প্রচার' },
+          { id: 'deposit', icon: Wallet, label: 'জমা', badge: '+5%' },
+          { id: 'profile', icon: User, label: 'প্রোফাইল' },
+        ].map((item) => (
+          <div 
+            key={item.id}
+            onClick={() => handleTabChange(item.id as any)}
+            className={`flex flex-col items-center gap-1 cursor-pointer transition-all duration-300 relative group ${activeTab === item.id ? 'text-teal-400' : 'hover:text-white'}`}
+          >
+            <div className={`transition-transform duration-300 ${activeTab === item.id ? 'scale-110 -translate-y-1' : 'group-hover:scale-105'}`}>
+              <item.icon size={22} strokeWidth={activeTab === item.id ? 2.5 : 2} />
+            </div>
+            <span className={`font-bold transition-all duration-300 ${activeTab === item.id ? 'opacity-100 scale-100' : 'opacity-70 scale-90'}`}>
+              {item.label}
+            </span>
+            {item.badge && (
+              <div className={`absolute -top-1 -right-3 ${typeof item.badge === 'string' ? 'bg-green-500' : 'bg-red-600'} text-white text-[9px] font-black px-1 rounded-full border border-[#062e24] shadow-lg`}>
+                {item.badge}
+              </div>
+            )}
+            {activeTab === item.id && (
+              <motion.div 
+                layoutId="nav-glow"
+                className="absolute -top-2 w-10 h-10 bg-teal-500/20 blur-md rounded-full pointer-events-none"
+              />
+            )}
           </div>
-        </div>
-        <div 
-          onClick={() => handleTabChange('invite')}
-          className={`flex flex-col items-center gap-1 cursor-pointer transition-all duration-300 ${activeTab === 'invite' ? 'text-teal-400 scale-110' : 'hover:text-white'}`}
-        >
-          <Users size={22} strokeWidth={activeTab === 'invite' ? 2.5 : 2} />
-          <span className={`font-bold ${activeTab === 'invite' ? 'text-teal-400' : ''}`}>প্রচার</span>
-        </div>
-        <div 
-          onClick={() => handleTabChange('deposit')}
-          className={`flex flex-col items-center gap-1 relative cursor-pointer transition-all duration-300 ${activeTab === 'deposit' ? 'text-teal-400 scale-110' : 'hover:text-white'}`}
-        >
-          <Wallet size={22} strokeWidth={activeTab === 'deposit' ? 2.5 : 2} />
-          <span className={`font-bold ${activeTab === 'deposit' ? 'text-teal-400' : ''}`}>জমা</span>
-          <div className="absolute -top-1 -right-3 bg-green-500 text-white text-[9px] font-black px-1 rounded-full border border-[#062e24] shadow-lg">
-            +5%
-          </div>
-        </div>
-        <div 
-          onClick={() => handleTabChange('profile')}
-          className={`flex flex-col items-center gap-1 cursor-pointer transition-all duration-300 ${activeTab === 'profile' ? 'text-teal-400 scale-110' : 'hover:text-white'}`}
-        >
-          <User size={22} strokeWidth={activeTab === 'profile' ? 2.5 : 2} />
-          <span className={`font-bold ${activeTab === 'profile' ? 'text-teal-400' : ''}`}>প্রোফাইল</span>
-        </div>
+        ))}
       </div>
 
-      {/* Deposit Required Popup */}
-      {showDepositRequired && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[200] p-6 animate-in fade-in duration-300">
-          <div className="bg-teal-900 p-8 rounded-3xl text-center relative shadow-2xl border-2 border-yellow-500 max-w-sm w-full animate-in zoom-in duration-300">
-            <button onClick={() => setShowDepositRequired(false)} className="absolute top-4 left-4 text-teal-300 hover:text-white">
-              <X size={24} />
-            </button>
-            <div className="w-20 h-20 bg-yellow-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(234,179,8,0.4)]">
-              <AlertCircle size={40} className="text-black" />
-            </div>
-            <h3 className="text-2xl font-black mb-2 text-white italic">ডিপোজিট আবশ্যক! (Deposit Required!)</h3>
-            <p className="text-teal-200 text-lg mb-6">গেম খেলতে আপনাকে অন্তত একটি সর্বনিম্ন ডিপোজিট করতে হবে।</p>
-            <div className="flex flex-col gap-3">
-              <button 
-                onClick={() => {
-                  setShowDepositRequired(false);
-                  handleTabChange('deposit');
-                }}
-                className="w-full bg-yellow-500 text-black font-black py-3 rounded-xl hover:bg-yellow-400 transition-colors shadow-lg"
-              >
-                ডিপোজিট করুন (Deposit Now)
-              </button>
-              <button 
-                onClick={() => setShowDepositRequired(false)}
-                className="w-full bg-teal-800 text-white font-bold py-2 rounded-xl hover:bg-teal-700 transition-colors"
-              >
-                পরে করব (Later)
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {isLoggedIn && <PermissionManager />}
 
@@ -1642,30 +1562,14 @@ export default function App() {
         isAdmin={true}
       />
 
-      {/* Deposit Required Modal */}
-      <AnimatePresence>
-        {showDepositRequired && (
-          <div className="fixed inset-0 z-[300] flex items-center justify-center p-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowDepositRequired(false)} className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
-            <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} className="relative bg-white border border-gray-100 rounded-3xl p-8 w-full max-w-sm shadow-2xl text-center">
-              <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-4">
-                <Wallet size={32} />
-              </div>
-              <h3 className="text-xl font-black text-gray-900 mb-2">ডিপোজিট প্রয়োজন</h3>
-              <p className="text-gray-500 text-sm mb-6">গেম খেলার জন্য আপনাকে অন্তত একবার ডিপোজিট করতে হবে।</p>
-              <button 
-                onClick={() => {
-                  setShowDepositRequired(false);
-                  handleTabChange('deposit');
-                }}
-                className="w-full bg-[#333] text-white font-black py-4 rounded-xl hover:bg-black transition-all"
-              >
-                ডিপোজিট করুন
-              </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <DepositRequiredModal 
+        isOpen={showDepositRequired}
+        onClose={() => setShowDepositRequired(false)}
+        onDeposit={() => {
+          setShowDepositRequired(false);
+          handleTabChange('deposit');
+        }}
+      />
 
       <style>{`
         @keyframes fly-around {

@@ -59,15 +59,18 @@ export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate, 
     // Simulate spinning
     const spinDuration = 2000;
     const startTime = Date.now();
+    let animationFrameId: number;
 
-    const interval = setInterval(() => {
+    const update = () => {
+      const now = Date.now();
+      
       setReels(prev => prev.map(reel => 
         reel.map(() => SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)])
       ));
 
-      if (Date.now() - startTime > spinDuration) {
-        clearInterval(interval);
-        
+      if (now - startTime < spinDuration) {
+        animationFrameId = requestAnimationFrame(update);
+      } else {
         // Final result
         const finalReels = [
           Array.from({ length: 3 }, () => SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]),
@@ -78,7 +81,10 @@ export default function SlotGame({ game, onClose, userBalance, onBalanceUpdate, 
         setIsSpinning(false);
         checkWin(finalReels);
       }
-    }, 100);
+    };
+
+    animationFrameId = requestAnimationFrame(update);
+    return () => cancelAnimationFrame(animationFrameId);
   }, [isSpinning, userBalance, betAmount, onBalanceUpdate]);
 
   const checkWin = (currentReels: string[][]) => {

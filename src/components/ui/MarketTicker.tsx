@@ -6,20 +6,29 @@ import { apiService } from '../../services/apiService';
 export default function MarketTicker() {
   const [marketData, setMarketData] = useState<{ btc: number; multiplier: string; trend: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchMarketData = async () => {
     setLoading(true);
-    const response = await apiService.proxyGet<any>('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
-    
-    if (response.success && response.data) {
-      const price = parseFloat(response.data.price);
-      setMarketData({
-        btc: price,
-        multiplier: (price / 50000).toFixed(4),
-        trend: Math.random() > 0.5 ? 'up' : 'down'
-      });
+    setError(null);
+    try {
+      const response = await apiService.proxyGet<any>('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
+      
+      if (response.success && response.data) {
+        const price = parseFloat(response.data.price);
+        setMarketData({
+          btc: price,
+          multiplier: (price / 50000).toFixed(4),
+          trend: Math.random() > 0.5 ? 'up' : 'down'
+        });
+      } else {
+        setError('Failed to fetch market data');
+      }
+    } catch (err) {
+      setError('Connection error');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -65,6 +74,16 @@ export default function MarketTicker() {
                 exit={{ opacity: 0 }}
                 className="h-6 w-24 bg-white/5 animate-pulse rounded"
               />
+            ) : error ? (
+              <motion.div 
+                key="error"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="text-[10px] text-red-400 font-bold"
+              >
+                {error}
+              </motion.div>
             ) : (
               <motion.div
                 key="data"

@@ -7,7 +7,7 @@ export interface LeaderboardEntry {
   username: string;
   totalWinnings: number;
   achievements: string[];
-  avatarUrl?: string;
+  profilePictureUrl?: string;
 }
 
 export default function LeaderboardView() {
@@ -102,9 +102,9 @@ export default function LeaderboardView() {
 
                   <div className="relative">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-500/20 to-amber-500/20 border border-white/10 flex items-center justify-center overflow-hidden">
-                      {entry.avatarUrl ? (
+                      {entry.profilePictureUrl ? (
                         <img 
-                          src={entry.avatarUrl} 
+                          src={entry.profilePictureUrl} 
                           alt={entry.username} 
                           className="w-full h-full object-cover"
                           referrerPolicy="no-referrer"
@@ -157,7 +157,7 @@ export default function LeaderboardView() {
           {/* 2nd Place */}
           <div className="flex flex-col items-center gap-2">
             <div className="w-12 h-12 rounded-full border-2 border-gray-300 overflow-hidden">
-              <img src={entries[1].avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entries[1].username}`} alt="" referrerPolicy="no-referrer" />
+              <img src={entries[1].profilePictureUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entries[1].username}`} alt="" referrerPolicy="no-referrer" />
             </div>
             <div className="w-full h-16 bg-gray-300/10 rounded-t-lg flex items-center justify-center">
               <span className="text-xl font-bold text-gray-300">2</span>
@@ -168,7 +168,7 @@ export default function LeaderboardView() {
           <div className="flex flex-col items-center gap-2">
             <Crown className="w-6 h-6 text-yellow-400" />
             <div className="w-16 h-16 rounded-full border-2 border-yellow-400 overflow-hidden -mt-2">
-              <img src={entries[0].avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entries[0].username}`} alt="" referrerPolicy="no-referrer" />
+              <img src={entries[0].profilePictureUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entries[0].username}`} alt="" referrerPolicy="no-referrer" />
             </div>
             <div className="w-full h-24 bg-yellow-400/10 rounded-t-lg flex items-center justify-center border-x border-t border-yellow-400/20">
               <span className="text-3xl font-bold text-yellow-400">1</span>
@@ -178,7 +178,7 @@ export default function LeaderboardView() {
           {/* 3rd Place */}
           <div className="flex flex-col items-center gap-2">
             <div className="w-12 h-12 rounded-full border-2 border-amber-600 overflow-hidden">
-              <img src={entries[2].avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entries[2].username}`} alt="" referrerPolicy="no-referrer" />
+              <img src={entries[2].profilePictureUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entries[2].username}`} alt="" referrerPolicy="no-referrer" />
             </div>
             <div className="w-full h-12 bg-amber-600/10 rounded-t-lg flex items-center justify-center">
               <span className="text-xl font-bold text-amber-600">3</span>

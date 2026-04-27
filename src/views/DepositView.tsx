@@ -49,12 +49,13 @@ const paymentMethods = [
 ];
 
 const channels = [
-  { id: 'ch1', name: 'চ্যানেল ২ ১০' },
-  { id: 'ch2', name: 'চ্যানেল ২ ৬' },
-  { id: 'ch3', name: 'চ্যানেল ২ ৯' },
+  { id: 'ch1', name: 'M(min.300)' },
+  { id: 'ch2', name: 'T(min.200)' },
+  { id: 'ch3', name: 'PC(min.200)' },
+  { id: 'ch4', name: 'E(min.100)' }
 ];
 
-const quickAmounts = [100, 200, 500, 800, 1000, 2000, 5000, 10000, 20000, 30000];
+const quickAmounts = [300, 500, 1000, 2000, 3000, 5000, 10000];
 
 export default function DepositView({ 
   onTabChange, 
@@ -82,7 +83,7 @@ export default function DepositView({
   const [step, setStep] = useState(1);
   const [selectedMethod, setSelectedMethod] = useState('nagad');
   const [selectedChannel, setSelectedChannel] = useState('ch1');
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState('300');
   const [selectedBonus, setSelectedBonus] = useState('none');
   const [trxId, setTrxId] = useState('');
   const [senderNumber, setSenderNumber] = useState('');
@@ -115,20 +116,28 @@ export default function DepositView({
     }
   }, [selectedMethod, globalImages]);
 
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
   const handleDeposit = async () => {
-    if (!trxId.trim() || !senderNumber.trim()) {
-      showToast('সবগুলো তথ্য পূরণ করুন', 'warning');
+    if (!trxId.trim()) {
+      showToast('Transaction ID is required', 'warning');
       return;
     }
+    setShowConfirmModal(true);
+  };
 
+  const confirmDeposit = () => {
+    setShowConfirmModal(false);
     setIsSubmitting(true);
     setTimeout(() => {
       setIsSubmitting(false);
       if (onDepositSuccess) {
         onDepositSuccess(parseFloat(amount), trxId, senderNumber, selectedMethod);
       }
-      showToast('ডিপোজিট রিকোয়েস্ট সফল হয়েছে!', 'success');
-      onTabChange('home');
+      showToast('Submitted successfully! / সফলভাবে জমা দিন!', 'success');
+      setTrxId('');
+      setStep(1);
+      setShowHistory(true);
     }, 1500);
   };
 
@@ -136,31 +145,35 @@ export default function DepositView({
 
   if (showHistory) {
     return (
-      <div className="flex flex-col min-h-screen bg-white pb-24 font-sans">
-        <header className="bg-[#2d1b4d] text-white p-4 flex items-center justify-between sticky top-0 z-50">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setShowHistory(false)} className="p-1">
+      <div className="flex flex-col min-h-screen bg-[#21817d] font-sans">
+        <header className="bg-[#5abeb9] text-[#13615e] p-4 flex items-center justify-between sticky top-0 z-50">
+          <div className="flex items-center gap-4 w-full relative">
+            <button onClick={() => setShowHistory(false)} className="absolute left-0 p-1">
               <ChevronLeft size={28} />
             </button>
-            <h1 className="text-xl font-medium">ডিপোজিট ইতিহাস</h1>
+            <h1 className="text-xl font-bold w-full text-center">Deposit History</h1>
           </div>
         </header>
-        <main className="p-4 space-y-3">
+        <div className="flex bg-[#2f8e8a]">
+          <button onClick={() => setShowHistory(false)} className="flex-1 py-3 font-bold text-center text-white/70 bg-[#2f8e8a]">Deposit</button>
+          <button className="flex-1 py-3 font-bold text-center text-white bg-[#21817d]">Deposit History</button>
+        </div>
+        <main className="p-4 space-y-3 flex-1 overflow-y-auto">
           {deposits.length > 0 ? deposits.map(d => (
-            <div key={d.id} className="p-4 border rounded-xl flex justify-between items-center">
+            <div key={d.id} className="p-4 bg-[#1d7470] rounded-xl flex justify-between items-center text-white">
               <div>
-                <p className="font-bold text-gray-800 uppercase">{d.method}</p>
-                <p className="text-xs text-gray-500">{d.trxId}</p>
+                <p className="font-bold uppercase">{d.method}</p>
+                <p className="text-xs text-white/70">{d.trxId}</p>
               </div>
               <div className="text-right">
-                <p className="font-bold text-green-600">৳{d.amount}</p>
+                <p className="font-bold text-green-400">৳{d.amount}</p>
                 <p className={`text-xs ${d.status === 'approved' ? 'text-green-500' : d.status === 'rejected' ? 'text-red-500' : 'text-yellow-500'}`}>
                   {d.status === 'approved' ? 'সফল' : d.status === 'rejected' ? 'বাতিল' : 'পেন্ডিং'}
                 </p>
               </div>
             </div>
           )) : (
-            <div className="text-center py-20 text-gray-400">কোনো ইতিহাস পাওয়া যায়নি</div>
+            <div className="text-center py-20 text-white/50">কোনো ইতিহাস পাওয়া যায়নি</div>
           )}
         </main>
       </div>
@@ -168,46 +181,41 @@ export default function DepositView({
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-white pb-24 font-sans">
+    <div className="flex flex-col min-h-screen bg-[#21817d] font-sans">
       {/* Header */}
-      <header className="bg-[#2d1b4d] text-white p-4 flex items-center justify-between sticky top-0 z-50">
-        <div className="flex items-center gap-4">
-          <button onClick={() => step === 2 ? setStep(1) : onTabChange('home')} className="p-1">
+      <header className="bg-[#5abeb9] text-[#13615e] p-4 flex items-center justify-between sticky top-0 z-50">
+        <div className="flex items-center gap-4 w-full relative">
+          <button onClick={() => step === 2 ? setStep(1) : onTabChange('home')} className="absolute left-0 p-1">
             <ChevronLeft size={28} />
           </button>
-          <h1 className="text-xl font-medium">{step === 1 ? 'জমা দিন' : 'পেমেন্ট সম্পন্ন করুন'}</h1>
-        </div>
-        <div className="flex items-center gap-4">
-          <button onClick={() => setShowHistory(true)} className="p-1">
-            <ClipboardList size={24} />
-          </button>
-          <button onClick={() => window.open('https://t.me/spin71_bot', '_blank')} className="p-1">
-            <MessageCircle size={24} />
-          </button>
+          <h1 className="text-xl font-bold w-full text-center">{step === 1 ? 'Deposit' : 'Payment'}</h1>
         </div>
       </header>
+
+      {step === 1 && (
+        <div className="flex bg-[#2f8e8a]">
+          <button className="flex-1 py-3 font-bold text-center text-white bg-[#21817d]">Deposit</button>
+          <button onClick={() => setShowHistory(true)} className="flex-1 py-3 font-bold text-center text-white/70 bg-[#2f8e8a]">Deposit History</button>
+        </div>
+      )}
 
       <main className="flex-1 overflow-y-auto">
         {step === 1 ? (
           <>
             {/* Deposit Mode */}
-            <section className="p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-2 h-2 rounded-full bg-orange-500"></div>
-                <h2 className="text-gray-800 font-bold text-base">আমানতের মোড</h2>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+            <section className="p-4 bg-[#21817d]">
+              <div className="grid grid-cols-2 gap-3">
                 {paymentMethods.map((method) => (
                   <div
                     key={method.id}
                     onClick={() => setSelectedMethod(method.id)}
-                    className={`relative p-5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col items-center gap-3 ${
+                    className={`relative p-3 rounded-xl border-2 transition-all cursor-pointer flex flex-col items-center justify-center gap-2 h-24 ${
                       selectedMethod === method.id 
-                        ? 'border-red-500 bg-red-50' 
-                        : 'border-gray-100 hover:border-gray-200 bg-white'
+                        ? 'border-[#ffc107] bg-[#1d7470]' 
+                        : 'border-transparent bg-[#1d7470]'
                     }`}
                   >
-                    <div className="w-16 h-16 flex items-center justify-center p-2 rounded-full bg-gray-50">
+                    <div className="w-10 h-10 flex items-center justify-center bg-white rounded p-1 flex-shrink-0">
                       <GlobalImage 
                         imageKey={`payment_logo_${method.id}`}
                         defaultUrl={method.logo}
@@ -220,176 +228,157 @@ export default function DepositView({
                       />
                     </div>
                     <div className="text-center">
-                      <p className={`text-sm font-black ${selectedMethod === method.id ? 'text-red-600' : 'text-gray-900'}`}>
-                        {method.label}
+                      <p className={`text-[13px] font-bold ${selectedMethod === method.id ? 'text-white' : 'text-white/80'}`}>
+                        {method.name}
                       </p>
-                      <p className="text-[11px] text-gray-500 font-bold uppercase">{method.name}</p>
                     </div>
-                    {selectedMethod === method.id && (
-                      <div className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-0.5">
-                        <Check size={14} strokeWidth={3} />
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>
-              <p className="text-red-500 text-[13px] mt-4 leading-tight font-medium">
-                আপনাকে trxid পূরণ করতে হবে। আপনি যদি রিচার্জটি পূরণ না করেন তবে রিচার্জটি জমা হবে না
-              </p>
             </section>
 
-            <div className="h-2 bg-gray-50"></div>
-
             {/* Payment Channel */}
-            <section className="p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-2 h-2 rounded-full bg-teal-400"></div>
-                <h2 className="text-gray-800 font-bold text-base">পেমেন্ট চ্যানেল</h2>
-              </div>
-              <div className="grid grid-cols-3 gap-3">
+            <section className="p-4 bg-[#21817d] border-t border-[#319b96]/30">
+              <div className="grid grid-cols-3 gap-2">
                 {channels.map((channel) => (
                   <button
                     key={channel.id}
                     onClick={() => setSelectedChannel(channel.id)}
-                    className={`py-4 px-1 rounded-xl border-2 text-[13px] font-bold transition-all ${
-                      selectedChannel === channel.id ? 'border-red-500 text-red-500' : 'border-gray-100 text-gray-800'
+                    className={`py-2 px-1 rounded border-2 text-[12px] font-bold transition-all flex items-center justify-center gap-1 ${
+                      selectedChannel === channel.id ? 'border-[#ffc107] text-[#ffc107] bg-[#1d7470]' : 'border-transparent text-white bg-[#1d7470]'
                     }`}
                   >
-                    {channel.name}
+                    {selectedChannel === channel.id && <Check size={12} strokeWidth={3} />} {channel.name}
                   </button>
                 ))}
               </div>
-              <p className="text-red-500 text-[13px] mt-4 leading-tight font-medium">
-                আপনাকে trxid পূরণ করতে হবে। আপনি যদি রিচার্জটি পূরণ না করেন তবে রিচার্জটি জমা হবে না
-              </p>
             </section>
 
-            <div className="h-2 bg-gray-50"></div>
-
             {/* Deposit Amount */}
-            <section className="p-4">
+            <section className="p-4 bg-[#21817d] border-t border-[#319b96]/30">
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-2 h-2 rounded-full bg-rose-400"></div>
-                <h2 className="text-gray-800 font-bold text-base">জমা পরিমাণ</h2>
+                <h2 className="text-white font-bold text-sm">Deposit Amount</h2>
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder="300 - 30,000"
+                    className="w-full bg-[#1d7470] rounded py-2 px-3 text-white font-bold text-sm focus:outline-none placeholder:text-white/30 text-right pr-6"
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-red-500">*</span>
+                </div>
               </div>
-              <div className="grid grid-cols-5 gap-2 mb-4">
+              <div className="flex flex-wrap gap-2">
                 {quickAmounts.map((amt) => (
                   <button
                     key={amt}
                     onClick={() => setAmount(amt.toString())}
-                    className={`py-2 rounded-lg border text-[13px] font-bold transition-all ${
-                      amount === amt.toString() ? 'border-red-500 text-red-500' : 'border-gray-200 text-gray-600'
+                    className={`flex-1 min-w-[30%] py-2.5 rounded border text-[13px] font-bold transition-all ${
+                      amount === amt.toString() ? 'border-[#ffc107] text-[#ffc107] bg-[#1d7470]' : 'border-transparent text-white/90 bg-[#1d7470]'
                     }`}
                   >
                     {amt.toLocaleString()}
                   </button>
                 ))}
               </div>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-800 font-bold text-lg">৳</span>
-                <input
-                  type="text"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="100 - 30,000"
-                  className="w-full bg-gray-50 border border-gray-100 rounded-xl py-4 pl-10 pr-4 text-gray-800 font-bold text-lg focus:outline-none placeholder:text-gray-400 placeholder:font-medium"
-                />
-              </div>
             </section>
 
-            <div className="h-2 bg-gray-50"></div>
-
             {/* Activities */}
-            <section className="p-4 space-y-4">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-2 h-2 rounded-full bg-blue-400"></div>
-                <h2 className="text-gray-800 font-bold text-base">কার্যক্রম</h2>
+            <section className="p-4 space-y-4 bg-[#21817d] border-t border-[#319b96]/30">
+              <div>
+                <h2 className="text-white font-bold text-lg mb-1">Would you like to claim your bonus?</h2>
+                <p className="text-white/70 text-xs text-left mb-3">Please select your bonus.</p>
               </div>
               
-              <button 
-                onClick={() => setSelectedBonus('daily8')}
-                className={`w-full p-4 rounded-xl border-2 flex items-center justify-between transition-all ${
-                  selectedBonus === 'daily8' ? 'border-red-500' : 'border-gray-100'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                    selectedBonus === 'daily8' ? 'border-red-500' : 'border-gray-300'
+              <div className="space-y-3">
+                <button 
+                  onClick={() => setSelectedBonus('daily8')}
+                  className={`w-full p-4 rounded border flex items-start gap-3 transition-all ${
+                    selectedBonus === 'daily8' ? 'border-[#ffc107] bg-[#1d7470]' : 'border-transparent bg-[#1d7470]'
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                    selectedBonus === 'daily8' ? 'border-[#ffc107]' : 'border-gray-400'
                   }`}>
-                    {selectedBonus === 'daily8' && <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>}
+                    {selectedBonus === 'daily8' && <div className="w-2 h-2 rounded-full bg-[#ffc107]"></div>}
                   </div>
-                  <span className="text-gray-400 font-bold text-sm">ডেইলি ৮% ফার্স্ট ডিপোজিট বোনাস (1/1)</span>
-                </div>
-                <span className="text-gray-400 font-bold text-sm">≥ ৳ 100.00</span>
-              </button>
+                  <div className="text-left w-full flex flex-col justify-center">
+                    <div className="flex justify-between items-center w-full">
+                      <span className={`block font-bold text-[13px] ${selectedBonus === 'daily8' ? 'text-[#ffc107]' : 'text-white'}`}>Daily Deposit Rewards 100%</span>
+                      <span className="text-white/60 text-xs font-bold">b=200</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <div className="w-1.5 h-1.5 rounded-full bg-[#ffc107]"></div>
+                      <span className="text-white/60 text-[10px] uppercase font-bold tracking-wider">Due Date : 2024-12-31</span>
+                    </div>
+                    <div className="w-full text-center mt-3">
+                      <span className="text-white/40 text-[10px] font-bold tracking-wider uppercase">Read More ▼</span>
+                    </div>
+                  </div>
+                </button>
 
-              <button 
-                onClick={() => setSelectedBonus('none')}
-                className={`w-full p-4 rounded-xl border-2 flex items-center gap-3 transition-all ${
-                  selectedBonus === 'none' ? 'border-red-500' : 'border-gray-100'
-                }`}
-              >
-                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                  selectedBonus === 'none' ? 'border-red-500' : 'border-gray-300'
-                }`}>
-                  {selectedBonus === 'none' && <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>}
-                </div>
-                <span className="text-gray-800 font-bold text-sm">কোনও প্রচারে অংশ নেওয়া যায় না</span>
-              </button>
+                <button 
+                  onClick={() => setSelectedBonus('none')}
+                  className={`w-full p-4 rounded border flex items-center justify-center gap-3 transition-all relative ${
+                    selectedBonus === 'none' ? 'border-[#ffc107] bg-[#319b96]' : 'border-transparent bg-[#1d7470]'
+                  }`}
+                >
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2">
+                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                      selectedBonus === 'none' ? 'border-[#ffc107]' : 'border-gray-400'
+                    }`}>
+                      {selectedBonus === 'none' && <div className="w-2 h-2 rounded-full bg-[#ffc107]"></div>}
+                    </div>
+                  </div>
+                  <span className={`font-bold text-base ${selectedBonus === 'none' ? 'text-white' : 'text-white/80'}`}>Disclaim</span>
+                </button>
+              </div>
 
-              <button 
-                onClick={handleNextStep}
-                disabled={!isNextEnabled}
-                className={`w-full mt-6 py-4 font-black text-xl rounded-2xl transition-all flex items-center justify-center gap-3 shadow-lg active:scale-95 ${
-                  isNextEnabled 
-                    ? 'bg-red-500 text-white shadow-red-500/30' 
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
-                }`}
-              >
-                PAY (পরবর্তী)
-                <ArrowRight size={20} strokeWidth={3} />
-              </button>
+              <div className="pt-2">
+                <button 
+                  onClick={handleNextStep}
+                  disabled={!isNextEnabled}
+                  className={`w-full py-3.5 font-bold text-lg rounded-[8px] transition-all flex items-center justify-center gap-3 shadow-lg ${
+                    isNextEnabled 
+                      ? 'bg-[#f5661d] text-white hover:bg-[#de5b1a]' 
+                      : 'bg-[#b64b14] text-white/50 cursor-not-allowed'
+                  }`}
+                >
+                  Submit
+                </button>
+              </div>
+              
+              <div className="flex items-center justify-center gap-1 text-white/80 mb-20">
+                <div className="w-4 h-4 bg-white/20 rounded-full flex items-center justify-center font-bold text-[10px]">
+                  !
+                </div>
+                <span className="text-xs font-bold">Notice</span>
+              </div>
             </section>
           </>
         ) : (
-          <div className="min-h-screen bg-white font-sans relative">
+          <div className="min-h-screen bg-white font-sans relative pb-20">
             {/* Header Section */}
-            <div className="bg-[#005a3c] text-white p-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h2 className="text-2xl font-black">BDT {amount}.00</h2>
-                  <p className="text-sm font-medium mt-1">কম বা বেশি ক্যাশআউট করবেন না</p>
-                </div>
-                <div className="text-right">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="bg-white text-[#005a3c] px-2 py-0.5 rounded text-[10px] font-black italic">PAY</span>
-                    <span className="text-sm font-bold tracking-widest uppercase">Service</span>
-                  </div>
-                  <div className="flex bg-white/20 rounded p-0.5 text-[10px] font-bold">
-                    <button className="px-2 py-1">EN</button>
-                    <button className="px-2 py-1 bg-white text-black rounded shadow-sm">বাং</button>
-                  </div>
-                </div>
-              </div>
+            <div className="bg-[#0b5c4b] text-white p-4">
+              <h2 className="text-2xl font-bold">BDT {amount}</h2>
+              <p className="text-sm font-medium mt-1">কম বা বেশি ক্যাশআউট করবেন না</p>
             </div>
 
-            {/* Close Button */}
-            <button 
-              onClick={() => setStep(1)}
-              className="absolute top-[85px] left-4 w-10 h-10 bg-black rounded-full flex items-center justify-center text-white shadow-lg z-10"
-            >
-              <X size={24} strokeWidth={3} />
-            </button>
-
-            <div className="p-6 pt-12 space-y-6">
-              {/* Warning Message */}
-              <p className="text-[#ff4d4d] text-center font-bold text-lg leading-tight">
-                আপনি যদি টাকার পরিমাণ পরিবর্তন করেন (BDT {amount}.00), আপনি ক্রেডিট পেতে সক্ষম হবেন না।
-              </p>
+            <div className="p-4 space-y-5">
+              {/* Warning Messages */}
+              <div className="text-center space-y-1">
+                <p className="text-red-500 font-bold text-sm">
+                  If you change the amount (BDT {amount}), you won't get the credit
+                </p>
+                <p className="text-red-500 font-bold text-sm leading-tight">
+                  আপনি যদি টাকার পরিমাণ পরিবর্তন করেন (BDT {amount}), আপনি ক্রেডিট পেতে সক্ষম হবেন না।
+                </p>
+              </div>
 
               {/* Deposit Banner */}
-              <div className="bg-[#ff4d4d] rounded-xl p-4 flex items-center gap-4 shadow-md">
-                <div className="w-16 h-16 bg-white rounded-full p-2 flex items-center justify-center border-2 border-[#005a3c]">
+              <div className="bg-[#f25c3a] p-3 flex items-center justify-center gap-3 shadow-sm rounded-sm">
+                <div className="w-10 h-10 bg-white rounded-full p-1 flex items-center justify-center">
                   <GlobalImage 
                     imageKey={`payment_logo_${selectedMethod}`}
                     defaultUrl={paymentMethods.find(m => m.id === selectedMethod)?.logo || ''}
@@ -400,94 +389,113 @@ export default function DepositView({
                     isAdmin={isAdmin}
                   />
                 </div>
-                <span className="text-white text-2xl font-black italic uppercase tracking-tight">
-                  {amount} Deposit
+                <span className="text-white text-lg font-bold uppercase tracking-wide">
+                  {paymentMethods.find(m => m.id === selectedMethod)?.name} Deposit
                 </span>
               </div>
 
               {/* Wallet No Section */}
-              <div className="space-y-2">
-                <label className="block text-lg font-black text-gray-900">Wallet No<span className="text-purple-600">*</span></label>
-                <p className="text-gray-900 font-bold text-base">এই {paymentMethods.find(m => m.id === selectedMethod)?.name} নাম্বারে শুধুমাত্র ক্যাশআউট গ্রহণ করা হয়</p>
-                <div className="bg-[#f2f2f2] rounded-xl p-4 flex justify-between items-center border border-gray-100">
-                  <span className="text-2xl font-black text-gray-800 tracking-wider">
+              <div className="space-y-1">
+                <label className="block text-base font-bold text-gray-900">Wallet No <span className="text-red-500">*</span></label>
+                <p className="text-gray-500 text-sm">এই {paymentMethods.find(m => m.id === selectedMethod)?.name} নাম্বারে শুধুমাত্র ক্যাশআউট গ্রহণ করা হয়</p>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-2xl font-bold text-red-500 flex-1">
                     {newAccountNumber}
                   </span>
                   <button 
                     onClick={() => {
                       navigator.clipboard.writeText(newAccountNumber);
                       setIsCopied(true);
+                      showToast('Copied to clipboard!', 'success');
                       setTimeout(() => setIsCopied(false), 2000);
                     }}
-                    className="text-[#005a3c] p-1"
+                    className="text-[#4caf50] p-1 bg-green-50 rounded"
                   >
-                    <ClipboardList size={32} />
+                    <Copy size={24} />
                   </button>
                 </div>
               </div>
 
-              {/* TrxID & Sender Number Section */}
-              <div className="space-y-4">
-                <label className="block text-lg font-black text-gray-900">
-                  ক্যাশআউটের তথ্য <span className="text-[#ff4d4d]">(প্রয়োজন)</span>
+              {/* TrxID Section */}
+              <div className="space-y-1">
+                <label className="block text-base font-bold text-gray-900">
+                  Transaction ID <span className="text-red-500">*(required)</span>
                 </label>
+                <p className="text-gray-500 text-sm">ক্যাশআউটের TrxID নাম্বারটি লিখুন (প্রয়োজন)</p>
+                <div className="mt-2 text-[#2196f3] text-sm text-center mb-2">
+                  Click to see how to get TrxID/কিভাবে TrxID পেতে হয় তা দেখতে ক্লিক করুন
+                </div>
                 <div className="relative">
                   <input 
                     type="text" 
                     value={trxId}
                     onChange={(e) => setTrxId(e.target.value)}
                     placeholder="TrxID অবশ্যই পূরণ করতে হবে!"
-                    className="w-full p-5 bg-white border-2 border-red-500 rounded-xl focus:outline-none text-xl font-bold placeholder:text-gray-300"
-                  />
-                </div>
-                <div className="relative">
-                  <input 
-                    type="text" 
-                    value={senderNumber}
-                    onChange={(e) => setSenderNumber(e.target.value)}
-                    placeholder="আপনার সেন্ডার নাম্বার (Sender Number)"
-                    className="w-full p-5 bg-white border-2 border-red-500 rounded-xl focus:outline-none text-xl font-bold placeholder:text-gray-300"
+                    className="w-full p-3 bg-white border border-red-500 rounded focus:outline-none text-base font-bold placeholder:text-gray-400 placeholder:font-normal text-center"
                   />
                 </div>
               </div>
 
+              {/* Time Warning */}
+              <div className="text-center space-y-1 border-t border-b border-gray-100 py-4">
+                <p className="text-gray-900 text-sm">Please do not pay beyond the following time</p>
+                <p className="text-gray-900 text-sm">অনুগ্রহ করে নিম্নলিখিত সময়ের বেশি অর্থ প্রদান করবেন না</p>
+                <p className="text-red-500 font-bold text-lg mt-2">2026-12-31 23:59:59</p>
+              </div>
+
               {/* Confirm Button */}
-              <div className="flex justify-center pt-4">
+              <div className="pt-2">
                 <button 
                   disabled={isSubmitting}
                   onClick={handleDeposit}
-                  className="w-48 py-3 border-2 border-black rounded-xl bg-white text-black font-black text-xl hover:bg-gray-50 transition-colors active:scale-95 flex items-center justify-center"
+                  className="w-full py-3 border border-gray-300 rounded-full bg-white text-gray-600 font-bold text-base hover:bg-gray-50 transition-colors active:scale-95 flex items-center justify-center shadow-sm"
                 >
-                  {isSubmitting ? <Loader2 className="animate-spin" /> : 'নিশ্চিত'}
+                  {isSubmitting ? <Loader2 className="animate-spin" /> : 'Submit/নিশ্চিত'}
                 </button>
               </div>
 
               {/* Footer Warning Section */}
-              <div className="space-y-2 pt-4">
-                <h4 className="text-lg font-black text-gray-900">সতর্কতাঃ</h4>
-                <p className="text-[#ff4d4d] font-bold text-sm">লেনদেন আইডি সঠিকভাবে পূরণ করতে হবে, অন্যথায় স্কোর ব্যর্থ হবে!!</p>
-                <p className="text-gray-400 text-sm leading-relaxed font-medium">
-                  অনুগ্রহ করে নিশ্চিত হয়ে নিন যে আপনি {paymentMethods.find(m => m.id === selectedMethod)?.name} deposit ওয়ালেট নাম্বারে ক্যাশ আউট করছেন। এই নাম্বারের অন্য কোন ওয়ালেট থেকে ক্যাশ আউট করলে সেই টাকা পাওয়ার কোন সম্ভাবনা নাই
-                </p>
+              <div className="space-y-2 pt-2 pb-6">
+                <h4 className="text-base font-bold text-gray-900">Warning সতর্কতাঃ</h4>
+                <p className="text-red-500 text-sm">Transaction ID must be filled in correctly, otherwise the score will fail!</p>
+                <p className="text-red-500 text-sm">লেনদেন আইডি সঠিকভাবে পূরণ করতে হবে, অন্যথায় স্কোর ব্যর্থ হবে!!</p>
+                
+                <p className="text-gray-500 text-sm mt-4">Please note that you make the deposit to {paymentMethods.find(m => m.id === selectedMethod)?.name} deposit. Be sure that you make the payment from the same channel</p>
               </div>
             </div>
           </div>
         )}
       </main>
 
-      {/* Footer Button */}
-      <footer className="fixed bottom-0 left-0 right-0 p-4 bg-[#f5f5f5] border-t border-gray-200 z-50">
-        <button 
-          disabled={isSubmitting || (step === 1 && !isNextEnabled)}
-          onClick={step === 1 ? handleNextStep : handleDeposit}
-          className={`w-full py-4 font-bold text-lg rounded-lg transition-all flex items-center justify-center gap-2 ${
-            isSubmitting ? 'bg-gray-400 cursor-not-allowed' :
-            (step === 1 ? (isNextEnabled ? 'bg-red-500 text-white' : 'bg-[#cccccc] text-white') : 'bg-red-500 text-white')
-          }`}
-        >
-          {isSubmitting ? <Loader2 className="animate-spin" /> : (step === 1 ? 'PAY (পরবর্তী)' : 'জমা সম্পন্ন করুন')}
-        </button>
-      </footer>
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-sm overflow-hidden flex flex-col items-center">
+            <div className="p-6 text-center space-y-2">
+              <p className="text-gray-900 font-bold text-[15px]">
+                This order can only be submitted once, please confirm your Transaction ID: <span className="text-red-500">{trxId}</span> is correct!
+              </p>
+              <p className="text-gray-900 font-bold text-[15px]">
+                এই অর্ডারটি শুধুমাত্র একবার জমা দেওয়া যাবে, অনুগ্রহ করে নিশ্চিত করুন যে আপনার লেনদেন আইডি: <span className="text-red-500">{trxId}</span> সঠিক!
+              </p>
+            </div>
+            <div className="flex border-t w-full">
+              <button 
+                onClick={() => setShowConfirmModal(false)}
+                className="flex-1 py-4 text-center text-gray-500 font-bold border-r hover:bg-gray-50"
+              >
+                cancel/বাতিল
+              </button>
+              <button 
+                onClick={confirmDeposit}
+                className="flex-1 py-4 text-center text-[#1d7470] font-bold hover:bg-gray-50"
+              >
+                confirm/জমা
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

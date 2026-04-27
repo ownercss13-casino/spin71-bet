@@ -30,12 +30,17 @@ import * as z from 'zod';
 
 // Validation Schemas
 const loginSchema = z.object({
-  username: z.string().min(3, 'নাম অথবা ফোন নম্বর দিন (Enter name or phone)'),
+  username: z.string()
+    .min(3, 'ইউজারনেম অথবা ফোন নম্বর দিন (Enter username or phone)')
+    .regex(/^[a-zA-Z0-9]+$/, 'বিশেষ চিহ্ন বা স্পেস ছাড়া অক্ষর দিন (Only letters and numbers)'),
   password: z.string().min(6, 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে (Min 6 chars)'),
 });
 
 const registerSchema = z.object({
-  username: z.string().min(3, 'নাম কমপক্ষে ৩ অক্ষরের হতে হবে (Min 3 chars)'),
+  username: z.string()
+    .min(6, 'ইউজারনেম কমপক্ষে ৬ অক্ষরের হতে হবে (Min 6 chars)')
+    .max(13, 'ইউজারনেম ১৩ অক্ষরের বেশি হতে পারবে না (Max 13 chars)')
+    .regex(/^[a-zA-Z0-9]+$/, 'বিশেষ চিহ্ন বা স্পেস ছাড়া অক্ষর দিন (Only letters and numbers)'),
   phoneNumber: z.string().min(11, 'সঠিক মোবাইল নম্বর দিন (Invalid phone number)'),
   password: z.string().min(6, 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে (Min 6 chars)'),
   confirmPassword: z.string().min(6, 'পাসওয়ার্ড নিশ্চিত করুন'),
@@ -74,7 +79,7 @@ interface LoginPageProps {
   welcomeBonus?: number;
 }
 
-export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSuccess, showToast, casinoName = "NAGAD BET", isLoggedIn = false, welcomeBonus = 507 }: LoginPageProps) {
+export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSuccess, showToast, casinoName = "SPIN71.bet", isLoggedIn = false, welcomeBonus = 507 }: LoginPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
@@ -185,8 +190,10 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
            }
         }
 
+        const cleanDisplayName = (user.displayName || 'FB User').replace(/[^a-zA-Z0-9]/g, '').substring(0, 13) || `fb${user.uid.substring(0,5)}`;
+
         const newUser = {
-          username: user.displayName || 'FB User',
+          username: cleanDisplayName,
           balance: 507,
           role: 'user',
           createdAt: new Date().toISOString(),
@@ -198,11 +205,32 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         };
         await setDoc(doc(db, 'users', user.uid), newUser);
         
+        // Notify Telegram
+        try {
+          await fetch('/api/telegram/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: `🎉 <b>New FB User Registered!</b>\n\n👤 <b>Username:</b> ${newUser.username}\n🔢 <b>UID:</b> <code>${user.uid}</code>\n🤝 <b>Referred By:</b> <code>${inviterUid || 'None'}</code>`
+            })
+          });
+        } catch (err) {
+          console.error("Telegram notification error", err);
+        }
+        
         if (inviterUid) {
           try {
             const inviterRef = doc(db, 'users', inviterUid);
             await updateDoc(inviterRef, {
-              referralCount: increment(1)
+              referralCount: increment(1),
+              balance: increment(50),
+              totalReferralEarnings: increment(50)
+            });
+            await setDoc(doc(collection(db, 'users', inviterUid, 'transactions')), {
+              type: 'bonus',
+              amount: 50,
+              description: 'Referral Bonus (FB Signup)',
+              date: new Date().toISOString()
             });
           } catch (e) {
             console.error("Inviter update failed:", e);
@@ -244,8 +272,10 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
            }
         }
 
+        const cleanDisplayName = (user.displayName || 'Google User').replace(/[^a-zA-Z0-9]/g, '').substring(0, 13) || `g${user.uid.substring(0,5)}`;
+
         const newUser = {
-          username: user.displayName || 'Google User',
+          username: cleanDisplayName,
           balance: 507,
           role: 'user',
           createdAt: new Date().toISOString(),
@@ -257,11 +287,32 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         };
         await setDoc(doc(db, 'users', user.uid), newUser);
         
+        // Notify Telegram
+        try {
+          await fetch('/api/telegram/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: `🎉 <b>New Google User Registered!</b>\n\n👤 <b>Username:</b> ${newUser.username}\n🔢 <b>UID:</b> <code>${user.uid}</code>\n🤝 <b>Referred By:</b> <code>${inviterUid || 'None'}</code>`
+            })
+          });
+        } catch (err) {
+          console.error("Telegram notification error", err);
+        }
+
         if (inviterUid) {
           try {
             const inviterRef = doc(db, 'users', inviterUid);
             await updateDoc(inviterRef, {
-              referralCount: increment(1)
+              referralCount: increment(1),
+              balance: increment(50),
+              totalReferralEarnings: increment(50)
+            });
+            await setDoc(doc(collection(db, 'users', inviterUid, 'transactions')), {
+              type: 'bonus',
+              amount: 50,
+              description: 'Referral Bonus (Google Signup)',
+              date: new Date().toISOString()
             });
           } catch (e) {
             console.error("Inviter update failed:", e);
@@ -283,11 +334,25 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     setIsLoading(true);
     setError(null);
     try {
-      // For email login, we should probably have email addresses, 
-      // but the username field is currently used in the form.
-      // If the user enters an email-like string, use it.
-      const email = data.username.includes('@') ? data.username : `${data.username}@spin71bet.com`;
-      const result = await signInWithEmailAndPassword(auth, email, data.password);
+      let loginEmail = "";
+      
+      // Check if input is a phone number (11 digits)
+      if (/^\d{11}$/.test(data.username)) {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('phoneNumber', '==', data.username));
+        const snap = await getDocs(q);
+        
+        if (snap.empty) {
+          throw new Error("এই ফোন নম্বর দিয়ে কোনো অ্যাকাউন্ট নেই (Phone number not found)");
+        }
+        const userDoc = snap.docs[0].data();
+        loginEmail = `${userDoc.username.toLowerCase()}@spin71bet.com`;
+      } else {
+        // Assume username
+        loginEmail = data.username.includes('@') ? data.username : `${data.username.toLowerCase()}@spin71bet.com`;
+      }
+
+      const result = await signInWithEmailAndPassword(auth, loginEmail, data.password);
       const user = result.user;
 
       const userDoc = await getDoc(doc(db, 'users', user.uid));
@@ -314,7 +379,24 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     setIsLoading(true);
     setError(null);
     try {
-      const email = `${data.username.replace(/\s+/g, '').toLowerCase()}${Math.floor(Math.random()*1000)}@spin71bet.com`;
+      // Check for existing username
+      const usersRef = collection(db, 'users');
+      const qUsername = query(usersRef, where('username', '==', data.username));
+      const snapUsername = await getDocs(qUsername);
+      
+      if (!snapUsername.empty) {
+        throw new Error("এই ইউজারনেমটি ইতিমধ্যে ব্যবহার করা হয়েছে (Username already taken)");
+      }
+
+      // Check for existing phone
+      const qPhone = query(usersRef, where('phoneNumber', '==', data.phoneNumber));
+      const snapPhone = await getDocs(qPhone);
+      
+      if (!snapPhone.empty) {
+        throw new Error("এই ফোন নম্বরটি ইতিমধ্যে ব্যবহার করা হয়েছে (Phone already registered)");
+      }
+
+      const email = `${data.username.toLowerCase()}@spin71bet.com`;
       const result = await createUserWithEmailAndPassword(auth, email, data.password);
       const user = result.user;
       
@@ -348,11 +430,32 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
 
       await setDoc(doc(db, 'users', user.uid), userData);
       
+      // Notify Telegram
+      try {
+        await fetch('/api/telegram/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: `🎉 <b>New User Registered!</b>\n\n👤 <b>Username:</b> ${data.username}\n📞 <b>Phone:</b> ${data.phoneNumber}\n🔢 <b>UID:</b> <code>${user.uid}</code>\n🤝 <b>Referred By:</b> <code>${inviterUid || 'None'}</code>`
+          })
+        });
+      } catch (err) {
+        console.error("Telegram notification error", err);
+      }
+
       if (inviterUid) {
         try {
           const inviterRef = doc(db, 'users', inviterUid);
           await updateDoc(inviterRef, {
-            referralCount: increment(1)
+            referralCount: increment(1),
+            balance: increment(50),
+            totalReferralEarnings: increment(50)
+          });
+          await setDoc(doc(collection(db, 'users', inviterUid, 'transactions')), {
+            type: 'bonus',
+            amount: 50,
+            description: 'Referral Bonus (Email Signup)',
+            date: new Date().toISOString()
           });
         } catch (e) {
           console.error("Inviter update failed:", e);
@@ -483,9 +586,6 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
                     {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                   </button>
                 </div>
-                <p className="text-[10px] text-red-500 font-medium leading-tight">
-                  দয়া করে 6 - 12 বর্ণমালা এবং সংখ্যাসহ বিশেষ চিহ্ন ছাড়া একটি অক্ষর লিখুন
-                </p>
               </div>
 
               {/* Remember Me & Forgot Password */}
@@ -529,17 +629,22 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
               className="space-y-4"
             >
               {/* Username Field */}
-              <div className="relative group">
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
-                  <User size={20} />
+              <div className="space-y-2">
+                <div className="relative group">
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
+                    <User size={20} />
+                  </div>
+                  <input 
+                    {...registerSignup('username')}
+                    type="text" 
+                    placeholder="দয়া করে ব্যবহারকারী নাম দিন"
+                    className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-4 pl-12 pr-4 text-white text-sm focus:border-green-500/50 outline-none transition-all placeholder:text-white/40"
+                  />
                 </div>
-                <input 
-                  {...registerSignup('username')}
-                  type="text" 
-                  placeholder="দয়া করে ব্যবহারকারী নাম দিন"
-                  className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-4 pl-12 pr-4 text-white text-sm focus:border-green-500/50 outline-none transition-all placeholder:text-white/40"
-                />
+                <p className="text-[10px] text-red-500 font-medium leading-tight ml-2">
+                  দয়া করে 6 - 13 বর্ণমালা এবং সংখ্যাসহ বিশেষ চিহ্ন ছাড়া একটি অক্ষর লিখুন
+                </p>
               </div>
 
               {/* Password Field */}

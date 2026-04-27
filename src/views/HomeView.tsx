@@ -119,7 +119,7 @@ export default function HomeView({
   updateGlobalImage,
   allButtonName,
   updateAllButtonName,
-  casinoName = "NAGAD BET",
+  casinoName = "SPIN71.bet",
   updateCasinoName,
   noticeText = "আমাদের গেম উপভোগ করুন এবং বড় জয় নিশ্চিত করুন!",
   telegramLink,
@@ -131,7 +131,7 @@ export default function HomeView({
   onNavigate
 }: HomeViewProps) {
   const [editingCasinoName, setEditingCasinoName] = React.useState(false);
-  const [tempCasinoName, setTempCasinoName] = React.useState(casinoName || "NAGAD BET");
+  const [tempCasinoName, setTempCasinoName] = React.useState(casinoName || "SPIN71.bet");
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -482,23 +482,46 @@ export default function HomeView({
 
       {/* Referral Program Banner */}
       <div className="px-2 mt-4">
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1a1a1a] to-[#0a0a0a] border border-yellow-500/20 p-4 shadow-xl group">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-500/10 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-yellow-500/20 transition-all"></div>
-          <div className="relative z-10 flex items-center justify-between">
-            <div className="space-y-1">
+        <div 
+          className="relative overflow-hidden rounded-[32px] bg-gradient-to-br from-[#1a1a1a] via-[#2a2a2a] to-[#1a1a1a] border border-yellow-500/30 p-6 shadow-2xl group cursor-pointer"
+          onClick={() => onNavigate?.('invite')}
+        >
+          {/* Animated Background Orbs */}
+          <div className="absolute top-0 right-0 w-48 h-48 bg-yellow-500/10 rounded-full blur-[60px] -mr-24 -mt-24 group-hover:bg-yellow-500/20 transition-all duration-700"></div>
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-[50px] -ml-16 -mb-16 group-hover:bg-indigo-500/20 transition-all duration-700"></div>
+          
+          <div className="relative z-10 flex items-center justify-between gap-4">
+            <div className="flex-1 space-y-2">
               <div className="flex items-center gap-2">
-                <Users className="text-yellow-500" size={20} />
-                <span className="text-[10px] font-black text-yellow-500 uppercase tracking-widest">রেফারেল প্রোগ্রাম</span>
+                <div className="w-8 h-8 rounded-xl bg-yellow-500/20 flex items-center justify-center text-yellow-500 shadow-inner">
+                  <Users size={18} />
+                </div>
+                <span className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.2em] drop-[0_0_5px_rgba(234,179,8,0.3)]">REFER & EARN</span>
               </div>
-              <h4 className="text-lg font-black text-white italic">বন্ধুদের আমন্ত্রণ জানান</h4>
-              <p className="text-xs text-slate-400 font-bold">প্রতি রেফারেলে পান <span className="text-yellow-400">৳ ৯৯৯</span> পর্যন্ত বোনাস!</p>
+              <h4 className="text-2xl font-black text-white italic tracking-tighter leading-none">বন্ধুদের আমন্ত্রণ জানান</h4>
+              <p className="text-xs text-slate-400 font-bold leading-tight">
+                আপনার রেফারেল লিঙ্কে জয়েন করলে পান <br/>
+                <span className="text-yellow-400 text-sm">৳ ৯৯৯ পর্যন্ত বোনাস পুরস্কার!</span>
+              </p>
             </div>
-            <button 
-              onClick={() => onNavigate?.('invite')}
-              className="bg-yellow-500 text-black px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-tighter shadow-lg hover:scale-105 active:scale-95 transition-all outline-none"
-            >
-              শেয়ার করুন
-            </button>
+            
+            <div className="relative">
+              <div className="absolute inset-0 bg-yellow-500/20 blur-xl rounded-full animate-pulse"></div>
+              <button 
+                className="relative bg-yellow-500 text-black px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-tighter shadow-[0_4px_15px_rgba(234,179,8,0.4)] hover:scale-105 active:scale-95 transition-all outline-none"
+              >
+                শেয়ার 
+              </button>
+            </div>
+          </div>
+          
+          {/* Light sweep effect */}
+          <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-30">
+            <motion.div 
+              animate={{ x: ["-100%", "200%"] }}
+              transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+              className="w-full h-full bg-gradient-to-r from-transparent via-white/40 to-transparent -skew-x-12"
+            />
           </div>
         </div>
       </div>
@@ -619,7 +642,12 @@ export default function HomeView({
       </div>
 
       {/* Category Navigation */}
-      <div className="flex overflow-x-auto gap-4 px-4 py-3 no-scrollbar bg-[#0a1e1e]/20 border-b border-white/5 sticky top-[92px] z-30 backdrop-blur-md transition-colors duration-300">
+      <motion.div 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="flex overflow-x-auto gap-4 px-4 py-3 no-scrollbar bg-[#0a1e1e]/20 border-b border-white/5 sticky top-[92px] z-30 backdrop-blur-md transition-colors duration-300"
+      >
         {[
           { id: 'সব', icon: Gamepad2, label: 'সব' },
           { id: 'সেরা', icon: Flame, label: 'সেরা' },
@@ -629,9 +657,12 @@ export default function HomeView({
           { id: 'Table Games', icon: Club, label: 'Table Games' },
           { id: 'Fishing Games', icon: Fish, label: 'Fishing Games' },
           { id: 'Lottery', icon: Ticket, label: 'Lottery' },
-        ].map((cat) => (
-          <div 
+        ].map((cat, index) => (
+          <motion.div 
             key={cat.id}
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.1 + index * 0.05 }}
             role="button"
             tabIndex={0}
             onClick={() => setActiveCategory(cat.id)}
@@ -644,9 +675,9 @@ export default function HomeView({
             <span className={`text-[10px] font-black uppercase tracking-tighter ${activeCategory === cat.id ? 'text-yellow-500' : 'text-slate-500'}`}>
               {cat.label}
             </span>
-          </div>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
 
       {/* Game Grid Section */}
       <div className="px-2 pt-3 pb-6">

@@ -22,6 +22,7 @@ interface NotificationCenterProps {
 export default function NotificationCenter({ isOpen, onClose, userData, onAction }: NotificationCenterProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [activeFilter, setActiveFilter] = useState<'all' | 'unread'>('all');
+  const [notificationToDelete, setNotificationToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     // Mock notifications
@@ -56,7 +57,7 @@ export default function NotificationCenter({ isOpen, onClose, userData, onAction
 
   const handleDelete = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    setNotifications(prev => prev.filter(n => n.id !== id));
+    setNotificationToDelete(id);
   };
 
   const getIcon = (type: string) => {
@@ -197,6 +198,25 @@ export default function NotificationCenter({ isOpen, onClose, userData, onAction
             </div>
           </motion.div>
         </motion.div>
+      )}
+      {notificationToDelete && (
+        <div className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-[#1a1a1a] p-6 rounded-2xl border border-white/10 w-full max-w-sm">
+            <h3 className="text-white font-black mb-4">Are you sure you want to delete this task?</h3>
+            <div className="flex gap-4">
+              <button onClick={() => setNotificationToDelete(null)} className="flex-1 py-2 rounded-xl bg-white/10 text-white font-bold">Cancel</button>
+              <button 
+                onClick={() => {
+                  setNotifications(prev => prev.filter(n => n.id !== notificationToDelete));
+                  setNotificationToDelete(null);
+                }} 
+                className="flex-1 py-2 rounded-xl bg-red-600 text-white font-bold"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </AnimatePresence>
   );

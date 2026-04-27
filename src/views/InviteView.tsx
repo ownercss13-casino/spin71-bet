@@ -6,6 +6,7 @@ import { collection, query, where, getDocs, orderBy, limit } from "firebase/fire
 import { 
   Copy, 
   HelpCircle, 
+  Home,
   Share2, 
   User, 
   Users, 
@@ -29,12 +30,15 @@ import {
   QrCode,
   Calendar,
   ChevronDown,
+  History,
   Plane,
   Info,
   Download,
   Loader2
 } from "lucide-react";
 import { ToastType } from '../components/ui/Toast';
+
+import ShareModal from '../components/modals/ShareModal';
 
 export default function InviteView({ 
   onTabChange, 
@@ -59,6 +63,8 @@ export default function InviteView({
   const [incomeCalculatorValue, setIncomeCalculatorValue] = useState(1);
   const [referralsList, setReferralsList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+
   
   useEffect(() => {
     if (userData?.id) {
@@ -68,7 +74,7 @@ export default function InviteView({
           const q = query(
             collection(db, 'users'), 
             where('referredBy', '==', userData.id),
-            limit(50)
+            orderBy('createdAt', 'desc')
           );
           const querySnapshot = await getDocs(q);
           const list = querySnapshot.docs.map(doc => ({
@@ -76,6 +82,14 @@ export default function InviteView({
             ...doc.data()
           }));
           setReferralsList(list);
+          
+          // Calculate stats locally for extra accuracy
+          const valid = list.filter((u: any) => (u.deposits || 0) > 0).length;
+          setStats({
+            registers: list.length,
+            validReferrals: valid,
+            totalEarnings: userData.totalReferralEarnings || 0
+          });
         } catch (error) {
           console.error("Error fetching referrals:", error);
         } finally {
@@ -85,13 +99,17 @@ export default function InviteView({
       
       fetchReferrals();
     }
-  }, [userData?.id]);
+  }, [userData?.id, userData?.totalReferralEarnings]);
+
+  const [stats, setStats] = useState({
+    registers: userData?.referralCount || 0,
+    validReferrals: userData?.validReferralCount || 0,
+    totalEarnings: userData?.totalReferralEarnings || 0
+  });
   
-  const currentReferrals = userData?.referralCount || 0;
-  const totalEarned = userData?.totalReferralEarnings || 0;
   const referralCode = userData?.referralCode || (userData?.id ? userData.id.substring(0, 6).toUpperCase() : 'BETAIG');
   const referralLink = `${window.location.origin}/?ref=${referralCode}`;
-  const displayCasinoName = casinoName || "NAGAD BET";
+  const displayCasinoName = casinoName || "SPIN71.bet";
 
   const [isClaiming, setIsClaiming] = useState<number | null>(null);
 
@@ -143,11 +161,11 @@ export default function InviteView({
   };
 
   const tabs = [
-    { id: 'overview', name: 'ওভারভিউ' },
-    { id: 'rewards', name: 'পুরস্কার' },
-    { id: 'incomes', name: 'আয়' },
-    { id: 'records', name: 'রেকর্ড' },
-    { id: 'invited', name: 'আমন্ত্রিত তালিকা' }
+    { id: 'overview', name: 'ওভারভিউ', icon: Home },
+    { id: 'rewards', name: 'পুরস্কার', icon: Award },
+    { id: 'incomes', name: 'আয়', icon: DollarSign },
+    { id: 'records', name: 'রেকর্ড', icon: History },
+    { id: 'invited', name: 'আমন্ত্রিত তালিকা', icon: Users }
   ];
 
   const copyToClipboard = (text: string, msg: string) => {
@@ -155,36 +173,23 @@ export default function InviteView({
     showToast(msg, "success");
   };
 
-  const shareReferral = (platform: string) => {
+  const shareToSocial = (platform: string) => {
     const text = `Join ${displayCasinoName} and get a ৳507 welcome bonus! Use my referral link: ${referralLink}`;
-    const url = encodeURIComponent(referralLink);
-    const shareText = encodeURIComponent(text);
+    let url = "";
 
-    let shareUrl = "";
     switch (platform) {
-      case 'facebook':
-        shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
-        break;
-      case 'twitter':
-        shareUrl = `https://twitter.com/intent/tweet?text=${shareText}`;
+      case 'whatsapp':
+        url = `https://wa.me/?text=${encodeURIComponent(text)}`;
         break;
       case 'telegram':
-        shareUrl = `https://t.me/share/url?url=${url}&text=${shareText}`;
+        url = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(text)}`;
         break;
-      case 'whatsapp':
-        shareUrl = `https://wa.me/?text=${shareText}%20${url}`;
+      case 'facebook':
+        url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(referralLink)}`;
         break;
-      default:
-        if (navigator.share) {
-          navigator.share({
-            title: `${displayCasinoName} Referral`,
-            text: text,
-            url: referralLink,
-          }).catch(console.error);
-          return;
-        }
     }
-    if (shareUrl) window.open(shareUrl, '_blank');
+
+    if (url) window.open(url, '_blank');
   };
 
   const downloadQRCode = () => {
@@ -239,19 +244,23 @@ export default function InviteView({
       </div>
 
       {/* Tab Navigation */}
-      <div className="bg-white border-b border-gray-200 sticky top-[60px] z-20">
+      <div className="bg-white border-b border-gray-100 sticky top-[60px] z-20 shadow-sm">
         <div className="flex overflow-x-auto no-scrollbar">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 min-w-[100px] py-4 text-sm font-medium transition-colors relative ${
-                activeTab === tab.id ? 'text-blue-500' : 'text-gray-600'
+              className={`flex-1 min-w-[90px] py-3 flex flex-col items-center gap-1 transition-all relative ${
+                activeTab === tab.id ? 'text-indigo-600 scale-105' : 'text-gray-400'
               }`}
             >
-              {tab.name}
+              <tab.icon size={18} className={activeTab === tab.id ? 'animate-pulse' : ''} />
+              <span className="text-[10px] font-black uppercase tracking-tighter">{tab.name}</span>
               {activeTab === tab.id && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
+                <motion.div 
+                  layoutId="activeInviteTab"
+                  className="absolute bottom-0 left-2 right-2 h-1 bg-indigo-600 rounded-t-full" 
+                />
               )}
             </button>
           ))}
@@ -262,127 +271,134 @@ export default function InviteView({
         {activeTab === 'overview' && (
           <div className="p-4 space-y-4 animate-in fade-in duration-500">
             {/* Share Section */}
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <p className="text-xs font-bold text-indigo-900 mb-3">বন্ধুদের সাথে শেয়ার করুন (Share to friends)</p>
-              <div className="flex gap-4 items-start mb-4">
-                <div className="flex flex-col items-center gap-1 group cursor-pointer" onClick={downloadQRCode}>
-                  <div className="w-16 h-16 bg-white border border-gray-200 p-1 rounded flex items-center justify-center relative shadow-sm group-hover:border-indigo-300 transition-colors">
-                    <QRCodeSVG 
-                      id="referral-qr"
-                      value={referralLink} 
-                      size={56} 
-                      level="H"
-                      includeMargin={false}
-                    />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded">
-                      <Download size={16} className="text-white" />
+            <div className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 relative overflow-hidden">
+               <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full blur-3xl -mr-16 -mt-16"></div>
+              <div className="relative z-10">
+                <p className="text-[10px] font-black text-indigo-900 uppercase tracking-[0.2em] mb-4">বন্ধুদের সাথে শেয়ার করুন</p>
+                
+                <div className="flex gap-4 items-center mb-6">
+                  <div className="relative group cursor-pointer" onClick={downloadQRCode}>
+                    <div className="w-20 h-20 bg-white border-2 border-indigo-100 p-1.5 rounded-[24px] flex items-center justify-center relative shadow-sm group-hover:border-indigo-500 transition-all duration-300">
+                      <QRCodeSVG 
+                        id="referral-qr"
+                        value={referralLink} 
+                        size={64} 
+                        level="H"
+                        includeMargin={false}
+                      />
+                      <div className="absolute inset-0 bg-indigo-600/10 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-[24px]">
+                        <Download size={20} className="text-indigo-600" />
+                      </div>
+                    </div>
+                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap bg-indigo-900 text-white text-[8px] font-black px-2 py-0.5 rounded-full shadow-sm">Save QR</div>
+                  </div>
+
+                  <div className="flex-1 space-y-4">
+                    <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 group focus-within:border-indigo-300 transition-all">
+                      <span className="text-[11px] font-bold text-gray-500 truncate flex-1">{referralLink}</span>
+                      <button 
+                        onClick={() => copyToClipboard(referralLink, "লিঙ্ক কপি করা হয়েছে!")}
+                        className="p-2 bg-indigo-600 rounded-xl text-white hover:bg-indigo-700 transition-all active:scale-90 shadow-md"
+                      >
+                        <Copy size={14} />
+                      </button>
+                    </div>
+                    
+                    <div className="flex items-center justify-between gap-2">
+                       <button onClick={() => shareToSocial('whatsapp')} className="flex-1 bg-[#25D366] text-white p-3 rounded-2xl flex items-center justify-center shadow-lg shadow-green-500/20 active:scale-95 transition-all">
+                         <MessageCircle size={20} />
+                       </button>
+                       <button onClick={() => shareToSocial('telegram')} className="flex-1 bg-[#0088cc] text-white p-3 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20 active:scale-95 transition-all">
+                         <Send size={20} />
+                       </button>
+                       <button onClick={() => shareToSocial('facebook')} className="flex-1 bg-[#1877F2] text-white p-3 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-600/20 active:scale-95 transition-all">
+                         <Facebook size={20} />
+                       </button>
                     </div>
                   </div>
-                  <span className="text-[8px] bg-indigo-900 text-white px-1 rounded">কিউআর কোড সেভ করুন</span>
                 </div>
-                <div className="flex-1 space-y-3">
-                  <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded p-1.5 focus-within:border-indigo-300 transition-colors">
-                    <span className="text-[10px] text-gray-500 truncate flex-1">{referralLink}</span>
-                    <button 
-                      onClick={() => copyToClipboard(referralLink, "লিঙ্ক কপি করা হয়েছে!")}
-                      className="p-1 bg-indigo-900 rounded text-white hover:bg-indigo-800 transition-colors active:scale-90"
-                    >
-                      <Copy size={12} />
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button onClick={() => shareReferral('facebook')} className="w-8 h-8 rounded bg-[#1877F2] flex items-center justify-center text-white hover:scale-110 transition-transform active:scale-90"><Facebook size={16} fill="currentColor" /></button>
-                    <button onClick={() => shareReferral('twitter')} className="w-8 h-8 rounded bg-black flex items-center justify-center text-white hover:scale-110 transition-transform active:scale-90"><XIcon size={16} /></button>
-                    <button onClick={() => shareReferral('telegram')} className="w-8 h-8 rounded bg-[#0088cc] flex items-center justify-center text-white hover:scale-110 transition-transform active:scale-90"><Send size={16} /></button>
-                    <button onClick={() => shareReferral('whatsapp')} className="w-8 h-8 rounded bg-[#25D366] flex items-center justify-center text-white hover:scale-110 transition-transform active:scale-90"><MessageCircle size={16} /></button>
-                    <button onClick={() => shareReferral('native')} className="w-8 h-8 rounded bg-gray-600 flex items-center justify-center text-white hover:scale-110 transition-transform active:scale-90"><Share2 size={16} /></button>
-                  </div>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-blue-400 rounded-lg p-3 text-white">
-                  <p className="text-[10px] font-medium text-center opacity-90">Today's Income</p>
-                  <p className="text-lg font-bold text-center">৳ 0.00</p>
-                </div>
-                <div className="bg-purple-400 rounded-lg p-3 text-white">
-                  <p className="text-[10px] font-medium text-center opacity-90">Yesterday's Income</p>
-                  <p className="text-lg font-bold text-center">৳ 0.00</p>
-                </div>
-                <div className="bg-purple-500 rounded-lg p-3 text-white">
-                  <p className="text-[10px] font-medium text-center opacity-90">Registers</p>
-                  <p className="text-lg font-bold text-center">{userData?.referralCount || 0}</p>
-                </div>
-                <div className="bg-blue-500 rounded-lg p-3 text-white">
-                  <p className="text-[10px] font-medium text-center opacity-90">Valid Referral</p>
-                  <p className="text-lg font-bold text-center">{userData?.validReferralCount || 0}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-[24px] p-4 text-white shadow-lg shadow-indigo-500/20">
+                    <div className="flex items-center gap-2 mb-1 opacity-80">
+                       <TrendingUp size={12} />
+                       <p className="text-[10px] font-bold uppercase tracking-wider">Today's Income</p>
+                    </div>
+                    <p className="text-xl font-black italic">৳ 0.00</p>
+                  </div>
+                  <div className="bg-gradient-to-br from-purple-600 to-purple-800 rounded-[24px] p-4 text-white shadow-lg shadow-purple-500/20">
+                    <div className="flex items-center gap-2 mb-1 opacity-80">
+                       <Clock size={12} />
+                       <p className="text-[10px] font-bold uppercase tracking-wider">Yesterday's</p>
+                    </div>
+                    <p className="text-xl font-black italic">৳ 0.00</p>
+                  </div>
+                  <div className="bg-white border border-gray-100 rounded-[24px] p-4 shadow-sm">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1">Registers</p>
+                    <p className="text-xl font-black text-indigo-900 italic">{stats.registers}</p>
+                  </div>
+                  <div className="bg-white border border-gray-100 rounded-[24px] p-4 shadow-sm">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1">Valid Users</p>
+                    <p className="text-xl font-black text-green-600 italic">{stats.validReferrals}</p>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Banner */}
-            <div className="bg-gradient-to-r from-purple-900 to-indigo-900 rounded-xl p-4 text-white relative overflow-hidden shadow-lg">
-              <div className="flex items-center gap-3">
-                <div className="w-16 h-16 rounded-xl bg-yellow-500 p-1 flex items-center justify-center shadow-lg">
-                  <img src="https://picsum.photos/seed/casino/100/100" alt="VIP" className="rounded-lg w-full h-full object-cover" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-black italic">বাজি কমিশন</h3>
-                  <div className="flex items-center gap-1">
-                    <span className="text-2xl font-black text-yellow-400">৳ 88,000.00</span>
-                    <HelpCircle size={14} className="text-white/60" />
-                  </div>
-                  <p className="text-[10px] text-white/60">বাজি কমিশন</p>
-                </div>
-              </div>
+            {/* Commission details */}
+            <div className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100">
+               <h3 className="text-indigo-900 font-black italic text-lg mb-4 flex items-center gap-2">
+                 <Target size={20} className="text-yellow-500" />
+                 রেফারেল কমিশন সিস্টেম
+               </h3>
+               
+               <div className="space-y-3">
+                 <div className="bg-green-50 rounded-2xl p-4 border border-green-100 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center font-bold text-xs">1</div>
+                      <p className="text-[11px] font-bold text-green-800">প্রথম ডিপোজিট বোনাস</p>
+                    </div>
+                    <span className="text-sm font-black text-green-900 italic">৳ ৩০৮</span>
+                 </div>
+                 <div className="bg-blue-50 rounded-2xl p-4 border border-blue-100 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-xs">2</div>
+                      <p className="text-[11px] font-bold text-blue-800">বেটিং টার্নওভার কমিশন</p>
+                    </div>
+                    <span className="text-sm font-black text-blue-900 italic">০.৮৮%</span>
+                 </div>
+                 <div className="bg-purple-50 rounded-2xl p-4 border border-purple-100 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-purple-500 text-white flex items-center justify-center font-bold text-xs">3</div>
+                      <p className="text-[11px] font-bold text-purple-800">৩-স্তরের নেটওয়ার্ক কমিশন</p>
+                    </div>
+                    <span className="text-sm font-black text-purple-900 italic">১০% পর্যন্ত</span>
+                 </div>
+               </div>
             </div>
 
-            {/* Rewards Released */}
-            <div className="space-y-3">
-              <h3 className="text-center font-bold text-indigo-900 text-lg">Rewards Released to Date</h3>
-              <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center gap-4">
-                <div className="w-16 h-16 flex items-center justify-center">
-                  <Star size={48} className="text-yellow-400 fill-yellow-400" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-gray-700">Invitation Rewards</p>
-                  <p className="text-xl font-black text-indigo-900">৳ 445,557,036.00</p>
-                  <p className="text-[10px] text-gray-500">438288 claimed</p>
-                </div>
-              </div>
-              <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center gap-4">
-                <div className="w-16 h-16 flex items-center justify-center">
-                  <Award size={48} className="text-blue-400 fill-blue-400" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-gray-700">Achievement Rewards</p>
-                  <p className="text-xl font-black text-indigo-900">৳ 246,443,928.00</p>
-                  <p className="text-[10px] text-gray-500">175932 claimed</p>
-                </div>
-              </div>
+            {/* Rules Section */}
+            <div className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 mb-10">
+               <h3 className="text-gray-900 font-black italic text-lg mb-4 flex items-center gap-2 underline decoration-yellow-400 decoration-4 underline-offset-4">
+                 <Shield size={20} className="text-indigo-600" />
+                 আমন্ত্রণ নিয়মাবলী (Invite Rules)
+               </h3>
+               
+               <div className="space-y-4">
+                 {[
+                   "আপনার আমন্ত্রিত বন্ধুকে অবশ্যই তার প্রোফাইল ভেরিফাই করতে হবে।",
+                   "আপনার বন্ধু প্রথম ২,০০০ টাকা ডিপোজিট করলে আপনি ভ্যালিড রেফারেল হিসেবে গণ্য হবেন।",
+                   "একই আইপি (IP) বা ডিভাইস থেকে একাধিক অ্যাকাউন্ট খোলা নিষিদ্ধ।",
+                   "যেকোনো প্রতারণামূলক কাজের জন্য আপনার অ্যাকাউন্ট এবং ব্যালেন্স বাজেয়াপ্ত হতে পারে।",
+                   "কোম্পানি যেকোনো সময় এই প্রচারের নিয়মাবলী পরিবর্তনের অধিকার রাখে।"
+                 ].map((rule, idx) => (
+                   <div key={idx} className="flex gap-3 items-start">
+                     <div className="mt-1 w-1.5 h-1.5 rounded-full bg-indigo-600 shrink-0"></div>
+                     <p className="text-xs text-gray-600 font-medium leading-relaxed">{rule}</p>
+                   </div>
+                 ))}
+               </div>
             </div>
-
-            {/* Commission Details */}
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 space-y-4">
-              <div className="text-center space-y-1">
-                <h3 className="text-indigo-900 font-bold text-lg">{displayCasinoName} এর নতুন রেফারেল প্রোগ্রাম</h3>
-                <p className="text-indigo-800 text-sm">এজেন্টের ৪টি সুপার কমিশন উপভোগ করুন</p>
-              </div>
-              
-              <div className="space-y-2">
-                <div className="bg-purple-100 rounded-lg p-2 flex items-center gap-3 border border-purple-200">
-                  <div className="bg-blue-500 text-white w-6 h-6 rounded flex items-center justify-center font-bold text-xs">1</div>
-                  <p className="text-indigo-900 font-bold text-sm">প্রতিটি আমন্ত্রণে <span className="text-yellow-600">৳৩০৮</span></p>
-                </div>
-                <div className="bg-purple-100 rounded-lg p-2 flex items-center gap-3 border border-purple-200">
-                  <div className="bg-blue-500 text-white w-6 h-6 rounded flex items-center justify-center font-bold text-xs">2</div>
-                  <p className="text-indigo-900 font-bold text-sm">প্রতিটি ডিপোজিটে <span className="text-yellow-600">০.৮৮%</span></p>
-                </div>
-                <div className="bg-purple-100 rounded-lg p-2 flex items-center gap-3 border border-purple-200">
-                  <div className="bg-blue-500 text-white w-6 h-6 rounded flex items-center justify-center font-bold text-xs">3</div>
-                  <p className="text-indigo-900 font-bold text-sm">৩ লেভেলে বাজির কমিশন <span className="text-yellow-600">০.৯৮%</span></p>
-                </div>
-              </div>
 
               {/* Hierarchy Diagram */}
               <div className="py-8 flex flex-col items-center bg-indigo-50/50 rounded-[30px] border border-indigo-100">
@@ -464,7 +480,7 @@ export default function InviteView({
                 <div className="bg-blue-500 text-white w-6 h-6 rounded flex items-center justify-center font-bold text-xs">4</div>
                 <p className="text-indigo-900 font-bold text-sm">অর্জন বোনাস <span className="text-yellow-600">৳১৯,৯৯৯,৯৯৯</span></p>
               </div>
-            </div>
+            
 
             {/* Leaderboard */}
             <div className="space-y-4">
@@ -597,24 +613,54 @@ export default function InviteView({
 
         {activeTab === 'incomes' && (
           <div className="p-4 space-y-4 animate-in fade-in duration-500">
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <p className="text-center text-gray-500 text-sm mb-4">মোট আয় (Total Income) <span className="text-indigo-900 font-bold">৳ {totalEarned.toLocaleString()}</span></p>
-              <div className="space-y-3">
-                <IncomeItem label="আমন্ত্রণ পুরস্কার" value="৳ 0.00" />
-                <IncomeItem label="পুরস্কার অর্জন" value="৳ 0.00" />
-                <IncomeItem label="ডিপোজিট রিবেট" value={`৳ ${(userData?.totalReferralEarnings || 0).toLocaleString()}`} />
-                <IncomeItem label="বেটিং রিবেট" value="৳ 0.00" />
-                <IncomeItem label="নিবন্ধন" value={`${userData?.referralCount || 0}`} isCurrency={false} />
-                <IncomeItem label="সঠিক রেফারেল" value={`${userData?.validReferralCount || 0}`} isCurrency={false} />
-                <IncomeItem label="ডিপোজিটর" value={`${userData?.validReferralCount || 0}`} isCurrency={false} />
+            <div className="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100 text-center space-y-6 relative overflow-hidden">
+               <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500"></div>
+              
+              <div>
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">সর্বমোট আয় (Total Earnings)</p>
+                <p className="text-4xl font-black text-indigo-900 italic">৳ {stats.totalEarnings.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 py-4">
+                <IncomeItem label="আমন্ত্রণ পুরস্কার (Invite Bonus)" value="৳ 0.00" icon={Gift} color="bg-orange-100 text-orange-600" />
+                <IncomeItem label="অর্জন পুরস্কার (Achievement)" value="৳ 0.00" icon={Award} color="bg-blue-100 text-blue-600" />
+                <IncomeItem label="ডিপোজিট রিবেট (Deposit Rebate)" value={`৳ ${stats.totalEarnings.toLocaleString()}`} icon={DollarSign} color="bg-green-100 text-green-600" />
+                <IncomeItem label="বেটিং রিবেট (Betting Rebate)" value="৳ 0.00" icon={Activity} color="bg-purple-100 text-purple-600" />
+              </div>
+
+              <div className="pt-6 border-t border-gray-50 grid grid-cols-3 gap-2">
+                <div>
+                   <p className="text-[9px] font-bold text-gray-400 uppercase">নিবন্ধন</p>
+                   <p className="text-sm font-black text-indigo-900">{stats.registers}</p>
+                </div>
+                <div>
+                   <p className="text-[9px] font-bold text-gray-400 uppercase">সঠিক রেফার</p>
+                   <p className="text-sm font-black text-indigo-900">{stats.validReferrals}</p>
+                </div>
+                <div>
+                   <p className="text-[9px] font-bold text-gray-400 uppercase">ডিপোজিটর</p>
+                   <p className="text-sm font-black text-indigo-900">{stats.validReferrals}</p>
+                </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100">
-              <img src="https://picsum.photos/seed/referral/400/200" alt="Referral Program" className="w-full h-auto" />
+            <div className="bg-indigo-900 rounded-[32px] p-6 text-white relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-8 opacity-10">
+                <Info size={120} />
+              </div>
+              <h4 className="text-lg font-black italic mb-2">কিভাবে আরও আয় করবেন?</h4>
+              <p className="text-xs text-indigo-200 leading-relaxed mb-4">
+                আপনার বন্ধুদের আমন্ত্রন জানান এবং তারা গেম খেললে আপনি লাইফটাইম কমিশন পাবেন। যত বেশি বন্ধু, তত বেশি আয়!
+              </p>
+              <button 
+                onClick={() => setActiveTab('overview')}
+                className="bg-white text-indigo-900 px-6 py-2 rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 transition-all"
+              >
+                এখনই শেয়ার করুন
+              </button>
             </div>
 
-            <p className="text-center text-[10px] text-gray-400">Note : The system updates the data every 15 minutes.</p>
+            <p className="text-center text-[10px] text-gray-400 font-medium">সিস্টেম প্রতি ১৫ মিনিট পর পর ডাটা আপডেট করে।</p>
           </div>
         )}
 
@@ -650,87 +696,82 @@ export default function InviteView({
 
         {activeTab === 'invited' && (
           <div className="p-4 space-y-4 animate-in fade-in duration-500 h-full flex flex-col">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
-                  <User size={20} className="text-blue-400" />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-indigo-50 rounded-[28px] p-5 border border-indigo-100 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-[20px] bg-indigo-600 flex items-center justify-center text-white shadow-lg">
+                  <User size={24} />
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-blue-900">Registers</p>
-                  <p className="text-lg font-black text-blue-500">{currentReferrals}</p>
+                  <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest leading-none mb-1">Registers</p>
+                  <p className="text-2xl font-black text-indigo-900 italic leading-none">{stats.registers}</p>
                 </div>
               </div>
-              <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
-                  <Users size={20} className="text-blue-400" />
+              <div className="bg-green-50 rounded-[28px] p-5 border border-green-100 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-[20px] bg-green-600 flex items-center justify-center text-white shadow-lg">
+                  <Users size={24} />
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-blue-900">Valid Referral</p>
-                  <p className="text-lg font-black text-blue-500">{referralsList.filter(r => r.status === 'active').length}</p>
+                  <p className="text-[10px] font-black text-green-400 uppercase tracking-widest leading-none mb-1">Valid</p>
+                  <p className="text-2xl font-black text-green-900 italic leading-none">{stats.validReferrals}</p>
                 </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <div className="bg-orange-50 rounded-lg p-2 border border-orange-100">
-                <p className="text-[8px] font-bold text-orange-800">Today</p>
-                <p className="text-xs font-black text-orange-900 text-right">+0</p>
-              </div>
-              <div className="bg-orange-50 rounded-lg p-2 border border-orange-100">
-                <p className="text-[8px] font-bold text-orange-800">Yesterday</p>
-                <p className="text-xs font-black text-orange-900 text-right">+0</p>
-              </div>
-              <div className="bg-orange-50 rounded-lg p-2 border border-orange-100">
-                <p className="text-[8px] font-bold text-orange-800">Current Month</p>
-                <p className="text-xs font-black text-orange-900 text-right">+0</p>
               </div>
             </div>
 
             <div className="flex gap-2">
-              <div className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 flex items-center justify-between text-xs text-blue-500 font-medium">
-                All
-                <ChevronDown size={14} />
-              </div>
-              <div className="bg-blue-500 rounded-lg px-3 py-2 flex items-center gap-2 text-xs text-white font-medium">
-                <Shield size={14} />
+              <button className="flex-1 bg-white border border-gray-100 rounded-2xl px-4 py-3 flex items-center justify-between text-xs font-bold text-gray-600 shadow-sm active:scale-95 transition-all">
+                All Type
+                <ChevronDown size={14} className="text-gray-400" />
+              </button>
+              <button className="bg-indigo-600 rounded-2xl px-6 py-3 flex items-center gap-2 text-xs font-bold text-white shadow-lg shadow-indigo-200 active:scale-95 transition-all">
                 Today
-              </div>
-              <div className="bg-white border border-gray-200 rounded-lg px-3 py-2 flex items-center gap-2 text-xs text-blue-500 font-medium">
-                <Calendar size={14} />
-                04/13- 04/13
-              </div>
+              </button>
             </div>
 
-            <div className="flex-1 flex flex-col">
+            <div className="flex-1 overflow-y-auto no-scrollbar min-h-0">
               {isLoading ? (
-                <div className="flex-1 flex flex-col items-center justify-center gap-2">
-                  <Loader2 size={32} className="text-blue-500 animate-spin" />
-                  <p className="text-xs font-bold text-gray-400">লোড হচ্ছে...</p>
+                <div className="h-64 flex flex-col items-center justify-center gap-4">
+                  <div className="w-10 h-10 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
+                  <p className="text-[10px] font-black text-indigo-900 uppercase tracking-widest">Loading...</p>
                 </div>
               ) : referralsList.length > 0 ? (
-                <div className="space-y-2 mt-4">
+                <div className="space-y-3 py-2">
                   {referralsList.map((ref, idx) => (
-                    <div key={idx} className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex justify-between items-center">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-400">
-                          <User size={16} />
+                    <motion.div 
+                      key={idx}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.05 }}
+                      className="bg-white p-4 rounded-[28px] border border-gray-50 shadow-sm flex justify-between items-center group hover:border-indigo-100 transition-all"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-[18px] bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
+                          <User size={20} />
                         </div>
-                        <div>
-                          <p className="font-bold text-indigo-900 text-sm whitespace-nowrap overflow-hidden text-ellipsis max-w-[120px]">{ref.username || 'Anonymous'}</p>
-                          <p className="text-[10px] text-gray-500 italic">
-                             {ref.createdAt ? (typeof ref.createdAt === 'string' ? new Date(ref.createdAt).toLocaleDateString() : new Date(ref.createdAt.seconds * 1000).toLocaleDateString()) : 'N/A'}
+                        <div className="min-w-0">
+                          <p className="font-black text-indigo-900 text-sm truncate w-24">
+                            {ref.username ? `${ref.username.substring(0, 3)}***${ref.username.slice(-2)}` : 'Anonymous'}
                           </p>
+                          <div className="flex items-center gap-1.5">
+                             <Clock size={10} className="text-gray-300" />
+                             <p className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">
+                               {ref.createdAt ? (typeof ref.createdAt === 'string' ? new Date(ref.createdAt).toLocaleDateString() : new Date(ref.createdAt.seconds * 1000).toLocaleDateString()) : 'N/A'}
+                             </p>
+                          </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-xs font-bold text-green-500">৳ {ref.totalWinnings || 0}</p>
-                        <p className="text-[10px] text-gray-400 uppercase tracking-tighter">{ref.role || 'Player'}</p>
+                      <div className="text-right whitespace-nowrap">
+                        <div className="bg-gray-50 px-3 py-1 rounded-full mb-1 group-hover:bg-indigo-50 transition-colors">
+                           <p className="text-[10px] font-black text-indigo-900 italic">৳ {ref.totalWinnings || '0'}</p>
+                        </div>
+                        <p className={`text-[8px] font-black uppercase tracking-[0.1em] ${(ref.totalDeposits || 0) > 0 ? 'text-green-500' : 'text-gray-300'}`}>
+                           {(ref.totalDeposits || 0) > 0 ? 'VALID' : 'PENDING'}
+                        </p>
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
               ) : (
-                <div className="flex-1 flex flex-col items-center justify-center">
+                <div className="h-full flex items-center justify-center">
                   <EmptyState />
                 </div>
               )}
@@ -738,15 +779,39 @@ export default function InviteView({
           </div>
         )}
       </div>
+
+      <ShareModal 
+        isOpen={isShareModalOpen} 
+        onClose={() => setIsShareModalOpen(false)} 
+        showToast={showToast}
+        title={`${displayCasinoName} - Join & Play!`}
+        text={`Join ${displayCasinoName} and get a ৳507 welcome bonus! Use my referral link: ${referralLink}`}
+        url={referralLink}
+      />
     </div>
   );
 }
 
-function IncomeItem({ label, value, isCurrency = true }: { label: string, value: string, isCurrency?: boolean }) {
+function IncomeItem({ 
+  label, 
+  value, 
+  icon: Icon, 
+  color 
+}: { 
+  label: string, 
+  value: string, 
+  icon: any, 
+  color: string 
+}) {
   return (
-    <div className="flex justify-between items-center text-sm">
-      <span className="text-gray-500 font-medium">{label}</span>
-      <span className="text-indigo-900 font-black">{value}</span>
+    <div className="flex justify-between items-center bg-gray-50/50 p-4 rounded-2xl border border-gray-100 group hover:border-indigo-200 transition-all">
+      <div className="flex items-center gap-3">
+        <div className={`p-2 rounded-xl ${color}`}>
+          <Icon size={18} />
+        </div>
+        <span className="text-[11px] font-bold text-gray-500 whitespace-nowrap">{label}</span>
+      </div>
+      <span className="text-sm font-black text-indigo-900 italic tracking-tighter">{value}</span>
     </div>
   );
 }

@@ -105,29 +105,44 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
     }
   }, [session, gamePhase]);
 
-  // Local multiplier calculation for smooth animation
+  // Unified animation loop for multiplier and parallax
   useEffect(() => {
-    if (gamePhase !== 'flying' || !isFlying || !session || hasCrashed) return;
+    if (gamePhase !== 'flying' || !isFlying || !session || hasCrashed) {
+      if (gamePhase === 'betting') setParallaxOffset({ x: 0, y: 0 });
+      return;
+    }
 
-    const interval = setInterval(() => {
-      const now = new Date();
+    let animationFrameId: number;
+    let lastUpdateAt = Date.now();
+
+    const update = () => {
+      const now = Date.now();
+      const deltaTime = (now - lastUpdateAt) / 1000;
+      lastUpdateAt = now;
+
+      // Update multiplier
       const startTimeTimestamp = session.startTime;
       const startTime = (startTimeTimestamp && typeof startTimeTimestamp === 'number') 
         ? new Date(startTimeTimestamp) 
-        : now;
-      const elapsed = (now.getTime() - startTime.getTime()) / 1000;
-      
-      // Aviator multiplier formula: 1.00 * e^(0.1 * t)
-      // Matching the controller's 1.06^elapsed
+        : new Date();
+      const elapsed = (now - startTime.getTime()) / 1000;
       const currentMultiplier = Number(Math.pow(1.06, elapsed).toFixed(2));
       
-      // Don't go beyond crash point if we know it (though usually we don't until it crashes)
       if (session.status === 'running') {
         setMultiplier(currentMultiplier);
       }
-    }, 50); // Update every 50ms for smooth animation
 
-    return () => clearInterval(interval);
+      // Update parallax
+      setParallaxOffset(prev => ({
+        x: (prev.x - 0.2 * deltaTime * 60) % 100,
+        y: (prev.y + 0.1 * deltaTime * 60) % 100
+      }));
+
+      animationFrameId = requestAnimationFrame(update);
+    };
+
+    animationFrameId = requestAnimationFrame(update);
+    return () => cancelAnimationFrame(animationFrameId);
   }, [gamePhase, isFlying, session, hasCrashed]);
 
   useEffect(() => {
@@ -151,7 +166,7 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
           }
           return bet;
         }));
-      }, 500);
+      }, 1000); // Reduced frequency from 500ms to 1000ms for better performance
       return () => clearInterval(interval);
     }
   }, [gamePhase, isFlying]);
@@ -165,21 +180,6 @@ export default function AviatorGame({ onClose, userBalance, onBalanceUpdate, log
       setBetError(null);
     }
   }, [betAmount, userBalance]);
-
-  // Parallax Effect
-  useEffect(() => {
-    if (gamePhase === 'flying' && isFlying) {
-      const interval = setInterval(() => {
-        setParallaxOffset(prev => ({
-          x: (prev.x - 0.2) % 100,
-          y: (prev.y + 0.1) % 100
-        }));
-      }, 50);
-      return () => clearInterval(interval);
-    } else if (gamePhase === 'betting') {
-      setParallaxOffset({ x: 0, y: 0 });
-    }
-  }, [gamePhase, isFlying]);
 
   const placeBet = React.useCallback((isSecond = false) => {
     const amount = isSecond ? betAmount2 : betAmount;

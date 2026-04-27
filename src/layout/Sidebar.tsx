@@ -99,6 +99,18 @@ export default function Sidebar({
         {/* Sidebar Links */}
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto no-scrollbar">
           <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-4 mb-2">Navigation</p>
+          {(userData?.role === 'admin' || userData?.isAdmin === true) && (
+            <button
+              onClick={() => {
+                handleTabChange('admin');
+                onClose();
+              }}
+              className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all ${activeTab === 'admin' ? 'bg-rose-500 text-white font-bold shadow-lg shadow-rose-500/20' : 'text-[var(--text-muted)] hover:bg-rose-500/10 hover:text-rose-500'}`}
+            >
+              <Shield size={20} className="text-rose-500" />
+              <span className="font-black uppercase tracking-tight">Admin Dashboard</span>
+            </button>
+          )}
           {[
             { id: 'home', icon: Home, label: 'বাড়ি (Home)' },
             { id: 'wallet', icon: Wallet, label: 'ওয়ালেট (Wallet)' },

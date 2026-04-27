@@ -205,6 +205,41 @@ async function startServer() {
     }
   });
 
+  // --- Telegram API ---
+  const TELEGRAM_BOT_TOKEN = "8608514077:AAG71iBMY0Si9T5SDo1jxJTvOnOZ_2VZNes";
+  const TELEGRAM_CHAT_ID = "-7354725295";
+
+  app.post("/api/telegram/send", async (req, res) => {
+    try {
+      const { message } = req.body;
+      if (!message) {
+        return res.status(400).json({ error: "Message is required" });
+      }
+
+      const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: TELEGRAM_CHAT_ID,
+          text: message,
+          parse_mode: 'HTML',
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Failed to send Telegram message", errorText);
+        return res.status(500).json({ error: "Failed to send to Telegram" });
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Telegram send error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // --- Deposit & Referral Reward API ---
   app.post("/api/user/deposit/confirm", async (req, res) => {
     const { amount, idToken, trxId, senderNumber, method } = req.body;
@@ -306,6 +341,23 @@ async function startServer() {
       });
       
       console.log("Transaction completed successfully!");
+      
+      // Notify Telegram
+      try {
+        const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+        await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: TELEGRAM_CHAT_ID,
+            text: `🎯 <b>New Deposit Confirmed!</b>\n\n👤 <b>User UID:</b> <code>${uid}</code>\n💰 <b>Amount:</b> ৳${amount}\n🏦 <b>Method:</b> ${method || 'Unknown'}\n📱 <b>Sender:</b> ${senderNumber || 'Unknown'}\n🔖 <b>TxID:</b> <code>${trxId || 'N/A'}</code>`,
+            parse_mode: 'HTML',
+          }),
+        });
+      } catch (e) {
+        console.error("Telegram notification failed", e);
+      }
+
       const updatedUserDoc = await userRef.get();
       res.json({ success: true, balance: updatedUserDoc.data()?.balance });
       

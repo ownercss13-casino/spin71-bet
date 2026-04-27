@@ -23,21 +23,8 @@ export default function RocketGame({ onClose, userBalance, onBalanceUpdate, show
   const [isBetPlaced, setIsBetPlaced] = useState(false);
   const [isCashedOut, setIsCashedOut] = useState(false);
   const [history, setHistory] = useState<number[]>([]);
-  const [stars, setStars] = useState<{ id: number; x: number; y: number; size: number; speed: number }[]>([]);
   const [cashoutAmount, setCashoutAmount] = useState(0);
-
-  useEffect(() => {
-    // const timer = setTimeout(() => setIsLoading(false), 2000);
-    const newStars = Array.from({ length: 80 }, (_, i) => ({
-      id: i,
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      size: Math.random() * 1.5 + 0.5,
-      speed: Math.random() * 0.3 + 0.1
-    }));
-    setStars(newStars);
-    // return () => clearTimeout(timer);
-  }, []);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Sync with shared session
   useEffect(() => {
@@ -61,16 +48,56 @@ export default function RocketGame({ onClose, userBalance, onBalanceUpdate, show
     }
   }, [session, gamePhase]);
 
-  // Star Animation linked to multiplier speed
   useEffect(() => {
-    if (gamePhase !== 'flying') return;
-    const interval = setInterval(() => {
-      setStars(prev => prev.map(star => ({
-        ...star,
-        y: (star.y + star.speed * (1 + (multiplier - 1) * 0.2)) % 100
-      })));
-    }, 50);
-    return () => clearInterval(interval);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let animationFrameId: number;
+    const starList = Array.from({ length: 80 }, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      size: Math.random() * 1.5 + 0.5,
+      speed: Math.random() * 0.3 + 0.1
+    }));
+
+    const render = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = 'white';
+      
+      const speedMultiplier = 1 + (multiplier - 1) * 0.2;
+      
+      starList.forEach(star => {
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+        ctx.fill();
+        
+        if (gamePhase === 'flying') {
+          star.y = (star.y + star.speed * speedMultiplier) % canvas.height;
+        }
+      });
+      
+      animationFrameId = requestAnimationFrame(render);
+    };
+
+    const handleResize = () => {
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+      starList.forEach(star => {
+        star.x = Math.random() * canvas.width;
+        star.y = Math.random() * canvas.height;
+      });
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    render();
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      window.removeEventListener('resize', handleResize);
+    };
   }, [gamePhase, multiplier]);
 
   const handlePlaceBet = () => {
@@ -231,21 +258,10 @@ export default function RocketGame({ onClose, userBalance, onBalanceUpdate, show
               <div className={`absolute inset-0 z-0 transition-colors duration-2000 bg-gradient-to-b ${getAtmosphereColor()}`}></div>
               
               {/* Starfield */}
-              <div className="absolute inset-0 z-0 pointer-events-none">
-                {stars.map(star => (
-                  <motion.div 
-                    key={star.id}
-                    className="absolute bg-white rounded-full opacity-40"
-                    style={{
-                      left: `${star.x}%`,
-                      top: `${star.y}%`,
-                      width: `${star.size}px`,
-                      height: `${star.size}px`,
-                      boxShadow: star.size > 1 ? `0 0 ${star.size * 4}px rgba(255,255,255,0.8)` : 'none'
-                    }}
-                  />
-                ))}
-              </div>
+              <canvas 
+                ref={canvasRef}
+                className="absolute inset-0 z-0 pointer-events-none w-full h-full"
+              />
 
               {/* HUD Elements */}
               {gamePhase === 'flying' && (
