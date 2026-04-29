@@ -6,6 +6,7 @@ import ProfileHeader from './ProfileHeader';
 import ProfileNavigation from './ProfileNavigation';
 import Skeleton from '../components/ui/Skeleton';
 import InviteView from './InviteView';
+import ReferralDashboardTab from './ReferralDashboardTab';
 import ImageCropper from '../components/ui/ImageCropper';
 import ShareModal from '../components/modals/ShareModal';
 import { VIP_LEVELS, getVIPLevel, getNextVIPLevel } from '../constants/vipLevels';
@@ -72,12 +73,12 @@ export default function ProfileView({
   updateGlobalGameOption?: (gameId: string, option: string) => Promise<void>,
   allButtonName?: string,
   updateAllButtonName?: (newName: string) => Promise<void>,
-  initialSubTab?: 'dashboard' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory' | 'reward-center' | 'betting-record' | 'profit-loss' | 'deposit-record' | 'withdraw-record' | 'account-record' | 'security' | 'rebate' | 'mail' | 'feedback' | 'support' | 'invite' | 'faq',
+  initialSubTab?: 'dashboard' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory' | 'reward-center' | 'betting-record' | 'profit-loss' | 'deposit-record' | 'withdraw-record' | 'account-record' | 'security' | 'rebate' | 'mail' | 'feedback' | 'support' | 'invite' | 'faq' | 'referral-dashboard',
   minWithdraw?: number,
   onUpdateUser?: (updates: any) => Promise<void>,
   onAddTransaction?: (transaction: any) => Promise<void>
 }) {
-  const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory' | 'reward-center' | 'betting-record' | 'profit-loss' | 'deposit-record' | 'withdraw-record' | 'account-record' | 'security' | 'rebate' | 'mail' | 'feedback' | 'support' | 'invite' | 'faq'>(initialSubTab as any);
+  const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory' | 'reward-center' | 'betting-record' | 'profit-loss' | 'deposit-record' | 'withdraw-record' | 'account-record' | 'security' | 'rebate' | 'mail' | 'feedback' | 'support' | 'invite' | 'faq' | 'referral-dashboard'>(initialSubTab as any);
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
   const unreadNotificationsCount = 0; // Temporary definition
   
@@ -535,6 +536,13 @@ export default function ProfileView({
             userData={userData} 
             showToast={showToast} 
             onBack={() => handleSubTabChange('dashboard')} 
+          />
+        )}
+        {activeSubTab === 'referral-dashboard' && (
+          <ReferralDashboardTab
+            userData={userData}
+            showToast={showToast}
+            onBack={() => handleSubTabChange('dashboard')}
           />
         )}
       </div>
@@ -2137,6 +2145,7 @@ function OverviewTab(props: OverviewTabProps) {
 
   const mainList: { title: string; subtitle?: string; icon: any; action: () => void; color: string; badge?: string }[] = [
     { title: 'প্রচার', subtitle: 'শেয়ার করুন~ কমিশন পান', icon: Megaphone, action: () => onSubTabChange('invite'), color: 'text-teal-500' },
+    { title: 'রেফারেল ড্যাশবোর্ড', subtitle: 'Referral metrics and share links', icon: Users, action: () => onSubTabChange('referral-dashboard'), color: 'text-teal-500' },
     { title: 'সাপোর্ট (Support)', icon: Headset, action: () => setIsChatOpen?.(true), color: 'text-teal-500' },
     { title: 'প্রোফাইল', icon: UserCircle, action: () => onSubTabChange('profile'), color: 'text-teal-500' },
     { title: 'নিরাপত্তা কেন্দ্র', icon: ShieldCheck, action: () => onSubTabChange('security'), color: 'text-teal-500' },
