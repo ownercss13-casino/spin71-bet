@@ -4,51 +4,95 @@ import path from "path";
 import fs from "fs";
 import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
+import cors from 'cors';
+import session from 'express-session';
+import fetch from 'node-fetch';
 
 const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
 const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf8'));
 
+const SESSION_SECRET = process.env.SESSION_SECRET || "mFmqcdqsiI5hs3XgwbGrwrnBqwUdrsXihK7Ix1udVzfb/FVPq2tLBjOr9d9tuAQjQoPnW67NDFuN1gBXNBQy4A==";
+
+console.log("Server process starting... NODE_ENV:", process.env.NODE_ENV);
+
 // Initialize Firebase Admin
 if (!admin.apps?.length) {
   try {
-    // Zero-config initialization is generally best for Cloud Run environments
-    // It automatically picks up the service account and project ID
-    admin.initializeApp();
-    console.log("Firebase Admin initialized using default credentials");
-  } catch (err: any) {
-    console.warn("Default Firebase Admin initialization failed, trying with explicit project ID:", err.message);
-    try {
-      // Fallback: Use the project ID from config
+    if (firebaseConfig && firebaseConfig.projectId) {
       admin.initializeApp({
         projectId: firebaseConfig.projectId
       });
-      console.log(`Firebase Admin initialized with project ID: ${firebaseConfig.projectId}`);
-    } catch (err2: any) {
-      console.error("Firebase Admin initialization failed completely:", err2.message);
+      console.log(`Firebase Admin initialized with explicit project ID: ${firebaseConfig.projectId}`);
+    } else {
+      admin.initializeApp();
+      console.log("Firebase Admin initialized using environment default project");
     }
+  } catch (err: any) {
+    console.error("Firebase Admin initialization failed completely:", err.message);
   }
 }
 
 // Get reference to the specific Firestore database
 let db: admin.firestore.Firestore;
-try {
-  const dbId = firebaseConfig.firestoreDatabaseId;
-  console.log(`Targeting Database ID: ${dbId || '(default)'}`);
-  if (dbId) {
-    db = getFirestore(dbId);
-  } else {
-    db = getFirestore();
+const dbId = firebaseConfig.firestoreDatabaseId;
+
+async function testConnection(database: admin.firestore.Firestore, name: string) {
+  console.log(`Testing connectivity for ${name}...`);
+  try {
+    const doc = await database.collection('config').doc('main').get();
+    console.log(`Firestore connectivity test successful for ${name}`);
+    
+    if (!doc.exists) {
+      console.log(`Seeding missing global config for ${name}...`);
+      const defaultSettings = {
+        casinoName: "SPIN71",
+        noticeText: "স্বাগতম SPIN71-এ! আমাদের নতুন অফারগুলো চেক করুন।",
+        updatedAt: new Date().toISOString()
+      };
+      await database.collection('config').doc('main').set({
+        ...defaultSettings,
+        globalLogos: {},
+        globalNames: {},
+      });
+      await database.collection('metadata').doc('settings').set({
+        ...defaultSettings,
+        allButtonName: "ALL",
+        minDeposit: 100,
+        minWithdraw: 100,
+        welcomeBonus: 507
+      });
+    }
+    return true;
+  } catch (err: any) {
+    console.error(`Firestore connectivity test failed for ${name}:`, err.message);
+    return false;
   }
-  // Try a test operation immediately
-  console.log("Firestore reference initialized. Testing connectivity...");
-} catch (err) {
-  console.error("Failed to initialize Firestore with specific database ID, falling back to default", err);
-  db = getFirestore();
 }
+
+async function initializeDb() {
+  console.log(`Targeting Database ID: ${dbId || '(default)'}`);
+  
+  if (dbId) {
+    const specificDb = getFirestore(dbId);
+    const success = await testConnection(specificDb, `specific db (${dbId})`);
+    if (success) {
+      db = specificDb;
+      return;
+    }
+    console.log("Falling back to default database...");
+  }
+  
+  const defaultDb = getFirestore();
+  await testConnection(defaultDb, "default database");
+  db = defaultDb;
+}
+
+initializeDb().catch(err => console.error("Critical database initialization error:", err.message));
+
 
 const auth = admin.auth();
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "8608514077:AAFHK4yjhkPn1McxvI2NvBhxzPPjUyhc7Z0";
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "8608514077:AAG71iBMY0Si9T5SDo1jxJTvOnOZ_2VZNes";
 const TELEGRAM_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID || "7354725295";
 
 let adminChatId: string | null = TELEGRAM_ADMIN_CHAT_ID;
@@ -71,27 +115,36 @@ function getChatHistory(userId: string) {
 }
 
 async function pollTelegramUpdates() {
+  if (!TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN === "YOUR_TELEGRAM_BOT_TOKEN") {
+    console.log("Telegram Bot Token not configured. Polling skipped.");
+    return;
+  }
+
   let offset = 0;
+  console.log("Starting Telegram polling...");
   while (true) {
     try {
       const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=${offset}&timeout=30`);
       
       if (!res.ok) {
         if (res.status === 401) {
-          console.error("Telegram Bot Token is invalid (401). Polling stopped. Please provide a valid token in server.ts.");
-          return; // Stop polling completely to prevent infinite error loops
+          console.error("Telegram Bot Token is invalid (401). Polling stopped.");
+          return; 
         }
         if (res.status === 409) {
           console.warn("Telegram polling conflict (409). Another instance might be running. Waiting...");
           await new Promise(resolve => setTimeout(resolve, 10000));
           continue;
         }
-        throw new Error(`Telegram API error! status: ${res.status}`);
+        console.warn(`Telegram API error! status: ${res.status}`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        continue;
       }
       
       const data = await res.json() as any;
       
-      if (data.ok && data.result.length > 0) {
+      if (data.ok && data.result && data.result.length > 0) {
+        console.log(`Received ${data.result.length} Telegram updates.`);
         for (const update of data.result) {
           offset = update.update_id + 1;
           
@@ -141,41 +194,91 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // Add global request logging
+  app.use((req, res, next) => {
+    if (req.url.startsWith('/api')) {
+      console.log(`[API Request] ${new Date().toISOString()} - ${req.method} ${req.url}`);
+    }
+    next();
+  });
+
   app.use(express.json());
+  app.use(cors());
+  app.use(session({
+    secret: SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: { secure: process.env.NODE_ENV === 'production' }
+  }));
 
   // API routes
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", message: "Server is running!" });
+    console.log("Health check hit");
+    res.json({ 
+      status: "ok", 
+      message: "Server is running!",
+      time: new Date().toISOString()
+    });
+  });
+
+  // TEST ROUTE: Simple ping to verify /api/proxy is reachable
+  app.get("/api/proxy/ping", (req, res) => {
+    console.log("[Proxy] Ping received");
+    res.json({ success: true, message: "Proxy endpoint is reachable" });
   });
 
   // --- External API Proxy ---
   // This allows the frontend to call external APIs securely
-  app.post("/api/proxy", async (req, res) => {
-    const { url, method = 'GET', body, headers = {} } = req.body;
-
-    if (!url) {
-      res.status(400).json({ error: "Target URL is required" });
-      return;
-    }
-
+  app.post(["/api/proxy", "/api/proxy/"], async (req: express.Request, res: express.Response) => {
     try {
-      console.log(`Proxying ${method} request to: ${url}`);
+      console.log(`[Proxy Request] Target: ${req.body?.url}, Method: ${req.body?.method}`);
+      const { url, method = 'GET', body, headers = {} } = req.body || {};
+
+      if (!url) {
+        console.warn("[Proxy] Missing target URL in request body");
+        return res.status(400).json({ error: "Target URL is required" });
+      }
+
+      // Check if fetch is available (Node 18+)
+      if (typeof fetch === 'undefined') {
+        console.error("[Proxy] Global fetch is not available in this Node environment!");
+        return res.status(500).json({ error: "Server misconfiguration: fetch not available" });
+      }
+
+      console.log(`[Proxy] Fetching ${method} ${url}`);
       
       const response = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
           ...headers
         },
-        body: method !== 'GET' ? JSON.stringify(body) : undefined
+        body: (method !== 'GET' && method !== 'HEAD' && body) ? JSON.stringify(body) : undefined
+      }).catch(err => {
+        console.error(`[Proxy] Fetch error for ${url}:`, err.message);
+        throw err;
       });
 
-      const data = await response.json().catch(() => ({}));
+      console.log(`[Proxy] Response status from ${url}: ${response.status}`);
       
-      // Copy relevant headers back to client if needed, or just send JSON
-      res.status(response.status).json(data);
+      const contentType = response.headers.get('content-type') || '';
+      let responseData: any;
+      
+      if (contentType.includes('application/json')) {
+        responseData = await response.json().catch(err => {
+          console.warn("[Proxy] Failed to parse JSON response:", err.message);
+          return { error: "Failed to parse JSON response from target" };
+        });
+      } else {
+        const text = await response.text().catch(() => "");
+        console.log(`[Proxy] Non-JSON response received, length: ${text.length}`);
+        responseData = { text };
+      }
+      
+      res.status(response.status).json(responseData);
     } catch (error: any) {
-      console.error("Proxy error:", error);
+      console.error("[Proxy] Critical error:", error.message);
       res.status(500).json({ 
         error: "Failed to fetch from external API", 
         details: error.message 
@@ -206,9 +309,6 @@ async function startServer() {
   });
 
   // --- Telegram API ---
-  const TELEGRAM_BOT_TOKEN = "8608514077:AAG71iBMY0Si9T5SDo1jxJTvOnOZ_2VZNes";
-  const TELEGRAM_CHAT_ID = "-7354725295";
-
   app.post("/api/telegram/send", async (req, res) => {
     try {
       const { message } = req.body;
@@ -221,7 +321,7 @@ async function startServer() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chat_id: TELEGRAM_CHAT_ID,
+          chat_id: adminChatId || TELEGRAM_ADMIN_CHAT_ID,
           text: message,
           parse_mode: 'HTML',
         }),
@@ -349,7 +449,7 @@ async function startServer() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            chat_id: TELEGRAM_CHAT_ID,
+            chat_id: adminChatId || TELEGRAM_ADMIN_CHAT_ID,
             text: `🎯 <b>New Deposit Confirmed!</b>\n\n👤 <b>User UID:</b> <code>${uid}</code>\n💰 <b>Amount:</b> ৳${amount}\n🏦 <b>Method:</b> ${method || 'Unknown'}\n📱 <b>Sender:</b> ${senderNumber || 'Unknown'}\n🔖 <b>TxID:</b> <code>${trxId || 'N/A'}</code>`,
             parse_mode: 'HTML',
           }),
@@ -872,6 +972,16 @@ async function startServer() {
     res.json(userMsg);
   });
 
+  // Catch-all for undefined /api routes
+  app.all("/api/*", (req, res) => {
+    console.warn(`404 for API route: ${req.method} ${req.url}`);
+    res.status(404).json({ 
+      error: `API route not found: ${req.url}`,
+      method: req.method,
+      expectedJson: true
+    });
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -889,6 +999,14 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+  });
+
+  // Global Error Handlers
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  });
+  process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
   });
 }
 

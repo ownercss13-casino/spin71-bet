@@ -76,7 +76,8 @@ export default function ProfileView({
   initialSubTab?: 'dashboard' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory' | 'reward-center' | 'betting-record' | 'profit-loss' | 'deposit-record' | 'withdraw-record' | 'account-record' | 'security' | 'rebate' | 'mail' | 'feedback' | 'support' | 'invite' | 'faq' | 'referral-dashboard',
   minWithdraw?: number,
   onUpdateUser?: (updates: any) => Promise<void>,
-  onAddTransaction?: (transaction: any) => Promise<void>
+  onAddTransaction?: (transaction: any) => Promise<void>,
+  loading?: boolean
 }) {
   const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory' | 'reward-center' | 'betting-record' | 'profit-loss' | 'deposit-record' | 'withdraw-record' | 'account-record' | 'security' | 'rebate' | 'mail' | 'feedback' | 'support' | 'invite' | 'faq' | 'referral-dashboard'>(initialSubTab as any);
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
@@ -243,8 +244,31 @@ export default function ProfileView({
     setIsEditProfileModalOpen(true);
   };
 
+  const [isConfirmingProfileUpdate, setIsConfirmingProfileUpdate] = useState(false);
+
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validations
+    if (!editUsername || editUsername.trim().length < 3) {
+      showToast("ইউজার নেম অন্তত ৩ অক্ষরের হতে হবে।", "error");
+      return;
+    }
+    const phoneRegex = /^(\+88)?01[3-9]\d{8}$/;
+    if (!editPhone || (!phoneRegex.test(editPhone) && editPhone.length < 10)) {
+      showToast("সঠিক ফোন নম্বর প্রদান করুন।", "error");
+      return;
+    }
+    if (editEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail)) {
+      showToast("সঠিক ইমেইল এড্রেস প্রদান করুন।", "error");
+      return;
+    }
+
+    setIsConfirmingProfileUpdate(true);
+  };
+
+  const executeUpdateProfile = async () => {
+    setIsConfirmingProfileUpdate(false);
     const userId = userData?.id || profileData?.id;
     if (!userId) return;
 
@@ -797,8 +821,9 @@ export default function ProfileView({
                   <input 
                     type="text" 
                     value={editUsername}
-                    disabled
-                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl pl-12 pr-4 py-4 text-sm text-gray-400 focus:outline-none cursor-not-allowed font-bold"
+                    onChange={(e) => setEditUsername(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl pl-12 pr-4 py-4 text-sm text-gray-700 focus:outline-none focus:border-yellow-500 transition-all font-bold"
+                    placeholder="আপনার ইউজার নেম লিখুন"
                   />
                 </div>
               </div>
@@ -869,6 +894,34 @@ export default function ProfileView({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Update Confirmation Modal */}
+      {isConfirmingProfileUpdate && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 p-6 text-center">
+            <div className="w-16 h-16 rounded-full bg-yellow-100 flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 size={32} className="text-yellow-600" />
+            </div>
+            <h3 className="text-xl font-black text-gray-800 italic mb-2">নিশ্চিত করুন</h3>
+            <p className="text-sm text-gray-500 mb-6 font-medium">আপনি কি আপনার প্রোফাইল তথ্য আপডেট করতে চান?</p>
+            <div className="flex gap-4">
+              <button 
+                onClick={() => setIsConfirmingProfileUpdate(false)}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-xl transition-all"
+              >
+                না, বাতিল করুন
+              </button>
+              <button 
+                onClick={executeUpdateProfile}
+                disabled={isUpdatingProfile}
+                className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 rounded-xl transition-all flex justify-center items-center gap-2"
+              >
+                {isUpdatingProfile ? <Loader2 size={18} className="animate-spin" /> : "হ্যাঁ, আপডেট করুন"}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -995,6 +1048,10 @@ export default function ProfileView({
                           <option value="Nagad">Nagad</option>
                           <option value="Rocket">Rocket</option>
                           <option value="Upay">Upay</option>
+                          <option value="PayTM">PayTM</option>
+                          <option value="UPI">UPI</option>
+                          <option value="Google Pay">Google Pay</option>
+                          <option value="Bank Transfer">Bank Transfer</option>
                           <option value="Bank Asia">Bank Asia</option>
                           <option value="Dutch-Bangla Bank">Dutch-Bangla Bank</option>
                           <option value="Islami Bank">Islami Bank</option>

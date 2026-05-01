@@ -12,6 +12,15 @@ export default function MarketTicker() {
     setLoading(true);
     setError(null);
     try {
+      // First check if backend is even reachable
+      console.log("[MarketTicker] Checking backend connectivity...");
+      try {
+        const healthRes = await fetch('/api/health');
+        if (!healthRes.ok) console.warn("[MarketTicker] Health check returned non-200", healthRes.status);
+      } catch (e) {
+        console.warn("[MarketTicker] Backend totally unreachable via /api/health");
+      }
+
       const response = await apiService.proxyGet<any>('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
       
       if (response.success && response.data) {

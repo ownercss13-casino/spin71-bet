@@ -82,6 +82,8 @@ interface AdminPanelViewProps {
   setWelcomeBonus: (val: number) => void;
   telegramLink: string;
   setTelegramLink: (val: string) => void;
+  globalImages: Record<string, string>;
+  updateGlobalImage: (key: string, url: string) => Promise<void>;
   onAddUser: (user: any) => Promise<void>;
 }
 
@@ -1128,6 +1130,80 @@ function GlobalSettings(props: AdminPanelViewProps) {
                 />
               </div>
             </div>
+        </div>
+
+        <div className="space-y-6">
+           <h3 className="text-[10px] font-black text-amber-600 uppercase tracking-[0.2em] border-b border-amber-100 pb-2">Payment Gateways</h3>
+           <div className="space-y-4">
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+               <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Nagad Number</label>
+                  <input 
+                    value={props.globalImages['payment_number_nagad'] || ''}
+                    onChange={(e) => props.updateGlobalImage('payment_number_nagad', e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold text-gray-700 focus:outline-none focus:border-teal-500"
+                    placeholder="017xxxxxxxx"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Bkash Number</label>
+                  <input 
+                    value={props.globalImages['payment_number_bkash'] || ''}
+                    onChange={(e) => props.updateGlobalImage('payment_number_bkash', e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold text-gray-700 focus:outline-none focus:border-teal-500"
+                    placeholder="018xxxxxxxx"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Rocket Number</label>
+                  <input 
+                    value={props.globalImages['payment_number_rocket'] || ''}
+                    onChange={(e) => props.updateGlobalImage('payment_number_rocket', e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold text-gray-700 focus:outline-none focus:border-teal-500"
+                    placeholder="019xxxxxxxx"
+                  />
+                </div>
+             </div>
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+               <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">UPI ID</label>
+                  <input 
+                    value={props.globalImages['payment_number_upi'] || ''}
+                    onChange={(e) => props.updateGlobalImage('payment_number_upi', e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold text-gray-700 focus:outline-none focus:border-teal-500"
+                    placeholder="upi@example"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">PayTM Number</label>
+                  <input 
+                    value={props.globalImages['payment_number_paytm'] || ''}
+                    onChange={(e) => props.updateGlobalImage('payment_number_paytm', e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold text-gray-700 focus:outline-none focus:border-teal-500"
+                    placeholder="Enter PayTM Number"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Google Pay</label>
+                  <input 
+                    value={props.globalImages['payment_number_googlepay'] || ''}
+                    onChange={(e) => props.updateGlobalImage('payment_number_googlepay', e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold text-gray-700 focus:outline-none focus:border-teal-500"
+                    placeholder="Enter Google Pay info"
+                  />
+                </div>
+             </div>
+             <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Bank Transfer Info</label>
+                <textarea 
+                  value={props.globalImages['payment_number_bank'] || ''}
+                  onChange={(e) => props.updateGlobalImage('payment_number_bank', e.target.value)}
+                  rows={3}
+                  className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-bold text-gray-700 focus:outline-none focus:border-teal-500 resize-none"
+                  placeholder="Acc: 123456789, IFSC: SBIN000123"
+                />
+              </div>
+           </div>
         </div>
       </div>
     </div>

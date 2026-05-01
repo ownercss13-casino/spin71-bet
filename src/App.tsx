@@ -32,6 +32,7 @@ import { GameGrid, Game } from "./components/ui/GameGrid";
 import { CasinoGallery } from "./components/ui/CasinoGallery";
 import { GAME_IMAGES } from "./constants/gameAssets";
 import GameLoader from "./components/ui/GameLoader";
+import GlobalLoader from "./components/ui/GlobalLoader";
 import { ToastContainer, ToastType } from "./components/ui/Toast";
 import {
   AlertCircle,
@@ -99,13 +100,42 @@ export default function App() {
   const [noticeText, setNoticeText] = useState<string>("আমাদের গেম উপভোগ করুন এবং বড় জয় নিশ্চিত করুন!");
   const [toasts, setToasts] = useState<{ id: string; message: string; type: ToastType }[]>([]);
 
+  enum OperationType {
+    CREATE = 'create',
+    UPDATE = 'update',
+    DELETE = 'delete',
+    LIST = 'list',
+    GET = 'get',
+    WRITE = 'write',
+  }
+
+  function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+    const errInfo = {
+      error: error instanceof Error ? error.message : String(error),
+      authInfo: {
+        userId: auth.currentUser?.uid,
+        email: auth.currentUser?.email,
+        emailVerified: auth.currentUser?.emailVerified,
+      },
+      operationType,
+      path
+    };
+    console.error('Firestore Error: ', JSON.stringify(errInfo));
+    return errInfo;
+  }
+
   useEffect(() => {
-    getDoc(doc(db, 'metadata', 'settings')).then(() => {
+    const testPath = 'config/main';
+    getDoc(doc(db, testPath)).then((snapshot) => {
+      console.log('Frontend Firestore check successful, doc exists:', snapshot.exists());
       setDbStatus('success');
-    }).catch(() => {
+    }).catch((err) => {
+      handleFirestoreError(err, OperationType.GET, testPath);
       setDbStatus('error');
     });
   }, []);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
   const [activeTab, setActiveTab] = useState<'home' | 'profile' | 'invite' | 'deposit' | 'bonus' | 'wallet' | 'faq' | 'leaderboard' | 'terms' | 'analytics' | 'admin'>('home');
   const [profileSubTab, setProfileSubTab] = useState<string>('dashboard');
 
@@ -200,6 +230,15 @@ export default function App() {
 
   const handleTabChange = (tab: any) => {
     if (tab === activeTab) return;
+    
+    // Protect certain tabs
+    const protectedTabs = ['profile', 'deposit', 'bonus', 'wallet', 'invite', 'admin'];
+    if (!isLoggedIn && protectedTabs.includes(tab)) {
+      setShowLoginModal(true);
+      showToast("এই অপশনটি ব্যবহার করতে লগইন করুন", "info");
+      return;
+    }
+
     setIsTabLoading(true);
     setTimeout(() => {
       setActiveTab(tab);
@@ -223,7 +262,12 @@ export default function App() {
 
   const handleGameSelect = async (game: Game | null) => {
     if (game) {
-      const hasDeposited = userData?.totalDeposits && userData.totalDeposits > 0;
+      if (!isLoggedIn) {
+        setShowLoginModal(true);
+        showToast("গেম খেলতে লগইন করুন", "info");
+        return;
+      }
+      const hasDeposited = (userData?.totalDeposits && userData.totalDeposits > 0) || (userData?.balance && userData.balance > 0);
       if (!hasDeposited) {
         setShowDepositRequired(true);
         return;
@@ -254,6 +298,13 @@ export default function App() {
 
   useEffect(() => {
     console.log("App booting...");
+    
+    // Check server health
+    fetch('/api/health')
+      .then(res => res.json())
+      .then(data => console.log('Server Health Check:', data))
+      .catch(err => console.error('Server Health Check Failed:', err));
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       console.log("Auth state changed:", user?.uid);
       if (user) {
@@ -269,6 +320,7 @@ export default function App() {
             const cleanDisplayName = (user.displayName || 'Guest').replace(/[^a-zA-Z0-9]/g, '').substring(0, 13) || `u${user.uid.substring(0,5)}`;
             const newData = {
               username: cleanDisplayName,
+              email: user.email || "",
               balance: 507,
               role: 'user',
               createdAt: new Date().toISOString()
@@ -860,183 +912,18 @@ export default function App() {
   }, [isLoggedIn, userData?.id]);
 
   if (showSplash) {
-    return (
-      <div className="max-w-[512px] mx-auto bg-gradient-to-b from-[#1a5b3d] via-[#228b22] to-[#1a5b3d] min-h-[100dvh] relative overflow-hidden flex flex-col items-center justify-center font-sans safe-top safe-bottom">
-        {/* Background Curtains/Lines Effect */}
-        <div className="absolute inset-0 opacity-20" style={{
-          backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 20px)'
-        }}></div>
-
-        {/* Glowing Rings */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full border-2 border-green-400/50 shadow-[0_0_50px_rgba(74,222,128,0.5)]"></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full border border-green-300/30"></div>
-
-    // LOGO REMOVED PER USER REQUEST
-
-        <button 
-          onClick={() => setShowSplash(false)}
-          className="absolute top-6 right-6 z-30 bg-black/40 text-white/70 text-xs px-3 py-1 rounded-full border border-white/10 hover:bg-black/60 transition-colors"
-        >
-          SKIP
-        </button>
-
-        {/* Center Stage Elements */}
-        <div className="relative z-10 mt-20 flex flex-col items-center">
-          {/* Stage Base */}
-          <div className="absolute bottom-0 w-64 h-16 bg-green-600 rounded-[100%] blur-sm opacity-50"></div>
-          <div className="absolute bottom-2 w-56 h-12 bg-gradient-to-b from-green-400 to-green-700 rounded-[100%] border-t border-green-300 shadow-[0_0_30px_rgba(74,222,128,0.8)]"></div>
-
-          {/* Coins Stack */}
-          <div className="absolute bottom-6 flex gap-1">
-            <div className="w-16 h-4 bg-yellow-500 rounded-[100%] border border-yellow-300 relative">
-               <div className="absolute -top-2 w-16 h-4 bg-yellow-400 rounded-[100%] border border-yellow-200"></div>
-               <div className="absolute -top-4 w-16 h-4 bg-yellow-300 rounded-[100%] border border-yellow-100"></div>
-            </div>
-            <div className="w-16 h-4 bg-yellow-500 rounded-[100%] border border-yellow-300 relative">
-               <div className="absolute -top-2 w-16 h-4 bg-yellow-400 rounded-[100%] border border-yellow-200"></div>
-               <div className="absolute -top-4 w-16 h-4 bg-yellow-300 rounded-[100%] border border-yellow-100"></div>
-            </div>
-          </div>
-
-          {/* Main Crown/Jester Hat */}
-          <div className="relative z-20 mb-8 transform hover:scale-105 transition-transform duration-700 animate-bounce" style={{ animationDuration: '3s' }}>
-            <svg width="180" height="150" viewBox="0 0 200 180" className="drop-shadow-2xl">
-              <defs>
-                <linearGradient id="gold" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="#fef08a" />
-                  <stop offset="50%" stopColor="#eab308" />
-                  <stop offset="100%" stopColor="#a16207" />
-                </linearGradient>
-                <linearGradient id="red" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="#fca5a5" />
-                  <stop offset="50%" stopColor="#ef4444" />
-                  <stop offset="100%" stopColor="#991b1b" />
-                </linearGradient>
-                <filter id="glow">
-                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-                  <feMerge>
-                    <feMergeNode in="coloredBlur"/>
-                    <feMergeNode in="SourceGraphic"/>
-                  </feMerge>
-                </filter>
-              </defs>
-              
-              {/* Base */}
-              <path d="M40 140 Q100 160 160 140 L150 160 Q100 170 50 160 Z" fill="url(#gold)" stroke="#fff" strokeWidth="2"/>
-              
-              {/* Left Point */}
-              <path d="M45 140 Q30 90 20 60 Q50 80 70 145 Z" fill="url(#gold)" stroke="#fff" strokeWidth="2"/>
-              <path d="M48 138 Q35 90 25 65 Q45 80 65 142 Z" fill="url(#red)"/>
-              <circle cx="20" cy="55" r="12" fill="url(#gold)" stroke="#fff" strokeWidth="2" filter="url(#glow)"/>
-              
-              {/* Right Point */}
-              <path d="M155 140 Q170 90 180 60 Q150 80 130 145 Z" fill="url(#gold)" stroke="#fff" strokeWidth="2"/>
-              <path d="M152 138 Q165 90 175 65 Q155 80 135 142 Z" fill="url(#red)"/>
-              <circle cx="180" cy="55" r="12" fill="url(#gold)" stroke="#fff" strokeWidth="2" filter="url(#glow)"/>
-              
-              {/* Center Point */}
-              <path d="M70 145 Q100 40 100 20 Q100 40 130 145 Z" fill="url(#gold)" stroke="#fff" strokeWidth="2"/>
-              <path d="M75 142 Q100 45 100 25 Q100 45 125 142 Z" fill="url(#red)"/>
-              <circle cx="100" cy="15" r="15" fill="url(#gold)" stroke="#fff" strokeWidth="2" filter="url(#glow)"/>
-            </svg>
-          </div>
-
-          {/* Floating Elements */}
-          <div className="absolute -left-12 bottom-10 transform -rotate-12 z-30">
-            <div className="w-16 h-20 bg-gradient-to-br from-yellow-100 to-yellow-400 rounded border-2 border-yellow-200 shadow-lg flex flex-col items-center justify-center p-1">
-              <span className="text-red-600 font-black text-xl">WILD</span>
-              <div className="w-8 h-8 bg-red-500 rotate-45 mt-1"></div>
-            </div>
-          </div>
-
-          <div className="absolute -right-10 bottom-12 transform rotate-12 z-30">
-            <div className="w-16 h-16 bg-gradient-to-br from-yellow-300 to-yellow-600 rounded-full border-2 border-yellow-200 shadow-lg flex items-center justify-center">
-              <div className="w-12 h-12 border border-yellow-200 rounded-full flex items-center justify-center">
-                <span className="text-yellow-100 text-xs">🦁</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Plane */}
-          <div className="absolute -right-16 top-0 transform -rotate-45 z-10 animate-pulse">
-            <svg width="60" height="60" viewBox="0 0 24 24" fill="#ef4444" className="drop-shadow-lg">
-              <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
-            </svg>
-          </div>
-
-          {/* Floating Coins */}
-          <div className="absolute -left-20 top-10 w-8 h-8 bg-yellow-400 rounded-full border-2 border-yellow-200 shadow-[0_0_15px_rgba(250,204,21,0.6)]"></div>
-          <div className="absolute -right-4 -bottom-16 w-10 h-10 bg-yellow-400 rounded-full border-2 border-yellow-200 shadow-[0_0_15px_rgba(250,204,21,0.6)] transform rotate-45"></div>
-        </div>
-
-        {/* Loading Section */}
-        <div className="absolute bottom-20 w-full px-12 flex flex-col items-center gap-4">
-          <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/5 p-[1px]">
-            <motion.div 
-              initial={{ width: "0%" }}
-              animate={{ width: "100%" }}
-              transition={{ duration: 2, ease: "easeInOut" }}
-              className="h-full bg-gradient-to-r from-yellow-600 via-yellow-400 to-yellow-200 rounded-full shadow-[0_0_10px_rgba(234,179,8,0.5)]"
-            />
-          </div>
-          <div className="flex flex-col items-center gap-1">
-            <div className="flex items-center gap-2 text-yellow-500/60 text-[10px] font-black uppercase tracking-[0.3em] animate-pulse">
-              <RefreshCw size={12} className="animate-spin" />
-              লোডিং হচ্ছে... (Loading...)
-            </div>
-            <p className="text-[8px] text-white/20 font-bold uppercase tracking-widest">
-              Preparing your premium experience
-            </p>
-          </div>
-        </div>
-      </div>
-    );
+    return <GlobalLoader message={casinoName} subMessage="PREMIUM GAMING EXPERIENCE" />;
   }
 
   if (isDataLoading && !showRegistrationSuccess) {
-    return (
-      <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center justify-center p-6 text-center">
-        <div className="relative mb-8">
-          <div className="w-24 h-24 bg-yellow-500/10 rounded-full flex items-center justify-center animate-pulse">
-            <Loader2 size={48} className="text-yellow-500 animate-spin" />
-          </div>
-          <div className="absolute -inset-4 bg-yellow-500/5 blur-2xl rounded-full -z-10"></div>
-        </div>
-        <h2 className="text-2xl font-black text-white mb-2 italic uppercase tracking-tighter">অ্যাকাউন্ট প্রস্তুত হচ্ছে</h2>
-        <p className="text-yellow-500/60 text-sm font-bold uppercase tracking-widest">Loading your premium experience...</p>
-        
-        <div className="mt-12 w-48 h-1 bg-white/5 rounded-full overflow-hidden">
-          <motion.div 
-            initial={{ width: "0%" }}
-            animate={{ width: "100%" }}
-            transition={{ duration: 2, repeat: Infinity }}
-            className="h-full bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]"
-          />
-        </div>
-      </div>
-    );
+    return <GlobalLoader message="অ্যাকাউন্ট লোড হচ্ছে" subMessage="আপনার প্রোফাইল প্রস্তুত করা হচ্ছে" type="data" />;
   }
 
   if (!isAuthInitialized) {
-    return <div className="min-h-screen bg-black flex items-center justify-center text-white">Loading...</div>;
+    return <GlobalLoader message="নিরাপত্তা নিশ্চিত করা হচ্ছে" subMessage="AUTH INITIALIZING..." />;
   }
 
-  if (!isLoggedIn || showRegistrationSuccess) {
-    return (
-      <LoginPage 
-        onRegisterSuccess={() => {
-          setShowRegistrationSuccess(false);
-          showToast("অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে!", "success");
-        }} 
-        onContinue={() => setShowRegistrationSuccess(false)} 
-        onLoginSuccess={handleLogin}
-        showToast={showToast}
-        casinoName={casinoName}
-        isLoggedIn={isLoggedIn}
-        welcomeBonus={welcomeBonus}
-      />
-    );
-  }
+  // Remove the blocking login page check to allow guest browsing
 
   if (activeTab === 'admin' && (userData?.role === 'admin' || userData?.isAdmin === true)) {
     return (
@@ -1067,6 +954,8 @@ export default function App() {
           setWelcomeBonus={setWelcomeBonus}
           telegramLink={telegramLink}
           setTelegramLink={setTelegramLink}
+          globalImages={globalImages}
+          updateGlobalImage={handleUpdateGlobalImage}
           onAddUser={handleAddUser}
         />
         <ToastContainer toasts={toasts} removeToast={removeToast} />
@@ -1092,6 +981,80 @@ export default function App() {
             transition={{ duration: 0.5 }}
             className="fixed top-0 left-0 h-1 bg-gradient-to-r from-yellow-400 to-yellow-600 z-[200] shadow-[0_0_10px_rgba(234,179,8,0.5)]"
           />
+        )}
+      </AnimatePresence>
+
+      {/* Game Loader Overlay */}
+      <AnimatePresence>
+        {isGameLoading && selectedGame && (
+          <GameLoader 
+            gameName={globalUrls[selectedGame.id] ? (globalNames[selectedGame.id] || selectedGame.name) : selectedGame.name}
+            provider={selectedGame.provider}
+            logo={globalLogos[selectedGame.id] || selectedGame.image}
+            onClose={() => {
+              setIsGameLoading(false);
+              setSelectedGame(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Actual Game View Overlay */}
+      <AnimatePresence>
+        {!isGameLoading && selectedGame && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.05 }}
+            className="fixed inset-0 z-[100] max-w-[512px] mx-auto bg-black"
+          >
+            {selectedGame.id === 'aviator' || selectedGame.id === '5' ? (
+              <AviatorGame 
+                onClose={() => setSelectedGame(null)}
+                userBalance={userData.balance}
+                onBalanceUpdate={handleBalanceUpdate}
+                logo={globalLogos[selectedGame.id] || selectedGame.image}
+                onLogoChange={handleLogoSelect}
+                showToast={showToast}
+                userData={userData}
+                globalName={globalNames[selectedGame.id] || selectedGame.name}
+              />
+            ) : selectedGame.id === 'rocket_1' || selectedGame.id === 'rocket' ? (
+              <RocketGame 
+                onClose={() => setSelectedGame(null)}
+                userBalance={userData.balance}
+                onBalanceUpdate={handleBalanceUpdate}
+                showToast={showToast}
+                userData={userData}
+                globalName={globalNames[selectedGame.id] || selectedGame.name}
+              />
+            ) : selectedGame.provider === 'Generic' ? (
+              <SlotGame 
+                game={selectedGame}
+                onClose={() => setSelectedGame(null)}
+                userBalance={userData.balance}
+                onBalanceUpdate={handleBalanceUpdate}
+                userData={userData}
+                globalName={globalNames[selectedGame.id] || selectedGame.name}
+                globalLogo={globalLogos[selectedGame.id] || selectedGame.image}
+              />
+            ) : (
+              <GenericGameView 
+                selectedGame={selectedGame}
+                globalName={globalNames[selectedGame.id] || selectedGame.name}
+                globalOption={globalOptions[selectedGame.id] || selectedGame.provider}
+                globalLogo={globalLogos[selectedGame.id] || selectedGame.image}
+                userData={userData}
+                onClose={() => setSelectedGame(null)}
+                onDeposit={() => {
+                  setSelectedGame(null);
+                  handleTabChange('deposit');
+                }}
+                setShowDepositRequired={setShowDepositRequired}
+                showToast={showToast}
+              />
+            )}
+          </motion.div>
         )}
       </AnimatePresence>
 
@@ -1154,6 +1117,7 @@ export default function App() {
                 setShowGallery={setShowGallery}
                 searchQuery={searchQuery}
                 setSearchQuery={setSearchQuery}
+                onOpenLogin={() => setShowLoginModal(true)}
                 activeCategory={activeCategory}
                 setActiveCategory={setActiveCategory}
                 handleToggleFavorite={handleToggleFavorite}
@@ -1257,6 +1221,7 @@ export default function App() {
                 updateAllButtonName={updateAllButtonName}
                 initialSubTab={profileSubTab as any}
                 minWithdraw={minWithdraw}
+                loading={isTabLoading}
               />
             </motion.div>
           )}
@@ -1554,6 +1519,32 @@ export default function App() {
 
 
       {isLoggedIn && <PermissionManager />}
+
+      <AnimatePresence>
+        {(showLoginModal || (!isLoggedIn && showRegistrationSuccess)) && (
+          <div className="fixed inset-0 z-[150] bg-black max-w-[512px] mx-auto overflow-y-auto">
+             <LoginPage 
+                onRegisterSuccess={() => {
+                  setShowRegistrationSuccess(false);
+                  setShowLoginModal(false);
+                  showToast("অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে!", "success");
+                }} 
+                onContinue={() => {
+                  setShowRegistrationSuccess(false);
+                  setShowLoginModal(false);
+                }} 
+                onLoginSuccess={(user) => {
+                  handleLogin(user);
+                  setShowLoginModal(false);
+                }}
+                showToast={showToast}
+                casinoName={casinoName}
+                isLoggedIn={isLoggedIn}
+                welcomeBonus={welcomeBonus}
+              />
+          </div>
+        )}
+      </AnimatePresence>
 
       <PromoCodeModal 
         isOpen={showPromoModal}

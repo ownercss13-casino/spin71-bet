@@ -40,6 +40,13 @@ const paymentMethods = [
     number: 'paytm@example'
   },
   { 
+    id: 'googlepay', 
+    name: 'Google Pay', 
+    label: 'গুগল পে',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/Google_Pay_Logo_%282020%29.svg/1200px-Google_Pay_Logo_%282020%29.svg.png',
+    number: 'gpay@example'
+  },
+  { 
     id: 'bank', 
     name: 'Bank Transfer', 
     label: 'ব্যান্ড ট্রান্সফার',
@@ -119,6 +126,10 @@ export default function DepositView({
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const handleDeposit = async () => {
+    if (!senderNumber.trim()) {
+      showToast('আপনার মোবাইল নাম্বার দিন', 'warning');
+      return;
+    }
     if (!trxId.trim()) {
       showToast('Transaction ID is required', 'warning');
       return;
@@ -396,10 +407,18 @@ export default function DepositView({
 
               {/* Wallet No Section */}
               <div className="space-y-1">
-                <label className="block text-base font-bold text-gray-900">Wallet No <span className="text-red-500">*</span></label>
-                <p className="text-gray-500 text-sm">এই {paymentMethods.find(m => m.id === selectedMethod)?.name} নাম্বারে শুধুমাত্র ক্যাশআউট গ্রহণ করা হয়</p>
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="text-2xl font-bold text-red-500 flex-1">
+                <label className="block text-base font-bold text-gray-900">
+                  {selectedMethod === 'bank' ? 'Account Details' : selectedMethod === 'upi' ? 'UPI ID' : 'Wallet No'} <span className="text-red-500">*</span>
+                </label>
+                <p className="text-gray-500 text-sm">
+                  {selectedMethod === 'bank' 
+                    ? 'এই ব্যাংক একাউন্টে টাকা পাঠান' 
+                    : selectedMethod === 'upi' 
+                      ? 'এই UPI ID-তে পেমেন্ট করুন' 
+                      : `এই ${paymentMethods.find(m => m.id === selectedMethod)?.name} নাম্বারে শুধুমাত্র ক্যাশআউট গ্রহণ করা হয়`}
+                </p>
+                <div className="flex items-center gap-2 mt-2 bg-gray-50 p-4 rounded-lg border border-gray-100">
+                  <span className="text-xl font-black text-red-600 flex-1 break-all">
                     {newAccountNumber}
                   </span>
                   <button 
@@ -409,30 +428,49 @@ export default function DepositView({
                       showToast('Copied to clipboard!', 'success');
                       setTimeout(() => setIsCopied(false), 2000);
                     }}
-                    className="text-[#4caf50] p-1 bg-green-50 rounded"
+                    className="bg-green-500 text-white p-2 rounded-lg shadow-sm active:scale-95 transition-transform"
                   >
-                    <Copy size={24} />
+                    <Copy size={20} />
                   </button>
                 </div>
+                {selectedMethod === 'bank' && (
+                  <p className="text-xs text-amber-600 font-bold mt-1">Note: Please send the exact amount as BDT {amount}</p>
+                )}
               </div>
 
               {/* TrxID Section */}
-              <div className="space-y-1">
-                <label className="block text-base font-bold text-gray-900">
-                  Transaction ID <span className="text-red-500">*(required)</span>
-                </label>
-                <p className="text-gray-500 text-sm">ক্যাশআউটের TrxID নাম্বারটি লিখুন (প্রয়োজন)</p>
-                <div className="mt-2 text-[#2196f3] text-sm text-center mb-2">
-                  Click to see how to get TrxID/কিভাবে TrxID পেতে হয় তা দেখতে ক্লিক করুন
-                </div>
-                <div className="relative">
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="block text-base font-bold text-gray-900">
+                    Sender Number (আপনার মোবাইল নাম্বার) <span className="text-red-500">*</span>
+                  </label>
+                  <p className="text-gray-500 text-sm">যে নাম্বার থেকে টাকা পাঠিয়েছেন তা লিখুন</p>
                   <input 
                     type="text" 
-                    value={trxId}
-                    onChange={(e) => setTrxId(e.target.value)}
-                    placeholder="TrxID অবশ্যই পূরণ করতে হবে!"
-                    className="w-full p-3 bg-white border border-red-500 rounded focus:outline-none text-base font-bold placeholder:text-gray-400 placeholder:font-normal text-center"
+                    value={senderNumber}
+                    onChange={(e) => setSenderNumber(e.target.value)}
+                    placeholder="আপনার নাম্বারটি লিখুন"
+                    className="w-full p-3 bg-white border border-gray-300 rounded focus:outline-none text-base font-bold text-gray-900 placeholder:text-gray-400 placeholder:font-normal text-center"
                   />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-base font-bold text-gray-900">
+                    Transaction ID (TrxID) <span className="text-red-500">*(required)</span>
+                  </label>
+                  <p className="text-gray-500 text-sm">ক্যাশআউটের TrxID নাম্বারটি লিখুন (প্রয়োজন)</p>
+                  <div className="mt-2 text-[#2196f3] text-xs text-center mb-1 cursor-pointer hover:underline">
+                    Click to see how to get TrxID/কিভাবে TrxID পেতে হয় তা দেখতে ক্লিক করুন
+                  </div>
+                  <div className="relative">
+                    <input 
+                      type="text" 
+                      value={trxId}
+                      onChange={(e) => setTrxId(e.target.value)}
+                      placeholder="এখানে Transaction ID দিন"
+                      className="w-full p-3 bg-white border-2 border-red-500 rounded focus:border-red-600 focus:outline-none text-lg font-black text-red-600 placeholder:text-gray-300 placeholder:font-normal text-center uppercase"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -455,12 +493,32 @@ export default function DepositView({
               </div>
 
               {/* Footer Warning Section */}
-              <div className="space-y-2 pt-2 pb-6">
-                <h4 className="text-base font-bold text-gray-900">Warning সতর্কতাঃ</h4>
-                <p className="text-red-500 text-sm">Transaction ID must be filled in correctly, otherwise the score will fail!</p>
-                <p className="text-red-500 text-sm">লেনদেন আইডি সঠিকভাবে পূরণ করতে হবে, অন্যথায় স্কোর ব্যর্থ হবে!!</p>
+              <div className="space-y-2 pt-2 border-t border-gray-100 mt-4">
+                <div className="flex items-center gap-2 text-amber-600 mb-2">
+                  <ShieldCheck size={20} />
+                  <h4 className="text-base font-bold">Privacy & Security</h4>
+                </div>
+                <p className="text-gray-600 text-[13px] leading-relaxed">
+                  আপনার পেমেন্ট নিরাপদ রাখতে সর্বদা সঠিক <span className="font-bold text-red-500">Transaction ID</span> এবং <span className="font-bold text-red-500">আপনার নাম্বারটি</span> প্রদান করবেন। ভুল তথ্য প্রদান করলে ডিপোজিট সফল হবে না।
+                </p>
                 
-                <p className="text-gray-500 text-sm mt-4">Please note that you make the deposit to {paymentMethods.find(m => m.id === selectedMethod)?.name} deposit. Be sure that you make the payment from the same channel</p>
+                <div className="bg-blue-50 p-4 rounded-xl mt-6 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white">
+                      <MessageCircle size={24} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-blue-900 text-sm">Need Help?</p>
+                      <p className="text-blue-700 text-xs text-left">পেমেন্ট নিয়ে সমস্যা? চ্যাট করুণ</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => window.open(globalImages['telegram_link'] || 'https://t.me/your_support', '_blank')}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-sm"
+                  >
+                    Live Chat
+                  </button>
+                </div>
               </div>
             </div>
           </div>

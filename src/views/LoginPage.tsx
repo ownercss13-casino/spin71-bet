@@ -31,8 +31,7 @@ import * as z from 'zod';
 // Validation Schemas
 const loginSchema = z.object({
   username: z.string()
-    .min(3, 'ইউজারনেম অথবা ফোন নম্বর দিন (Enter username or phone)')
-    .regex(/^[a-zA-Z0-9]+$/, 'বিশেষ চিহ্ন বা স্পেস ছাড়া অক্ষর দিন (Only letters and numbers)'),
+    .min(3, 'ইউজারনেম অথবা ইমেইল দিন (Enter username or email)'),
   password: z.string().min(6, 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে (Min 6 chars)'),
 });
 
@@ -41,6 +40,7 @@ const registerSchema = z.object({
     .min(6, 'ইউজারনেম কমপক্ষে ৬ অক্ষরের হতে হবে (Min 6 chars)')
     .max(13, 'ইউজারনেম ১৩ অক্ষরের বেশি হতে পারবে না (Max 13 chars)')
     .regex(/^[a-zA-Z0-9]+$/, 'বিশেষ চিহ্ন বা স্পেস ছাড়া অক্ষর দিন (Only letters and numbers)'),
+  email: z.string().email('সঠিক ইমেইল দিন (Invalid email)'),
   phoneNumber: z.string().min(11, 'সঠিক মোবাইল নম্বর দিন (Invalid phone number)'),
   password: z.string().min(6, 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে (Min 6 chars)'),
   confirmPassword: z.string().min(6, 'পাসওয়ার্ড নিশ্চিত করুন'),
@@ -67,7 +67,7 @@ import {
   createUserWithEmailAndPassword,
   updateProfile
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, increment, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, increment, collection, query, where, getDocs, limit } from 'firebase/firestore';
 
 interface LoginPageProps {
   onRegisterSuccess: () => void;
@@ -160,6 +160,22 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     }
 
     let msg = "কিছু ভুল হয়েছে। (Something went wrong.)";
+    
+    // Firebase Auth Error Codes
+    if (err.code === 'auth/wrong-password') msg = "ভুল পাসওয়ার্ড! (Wrong password)";
+    if (err.code === 'auth/user-not-found') msg = "অ্যাকাউন্ট পাওয়া যায়নি! (No account found)";
+    if (err.code === 'auth/email-already-in-use') msg = "এই ইমেইলটি ইতিমধ্যে ব্যবহার করা হয়েছে! (Email already in use)";
+    if (err.code === 'auth/invalid-email') msg = "সঠিক ইমেইল এড্রেস দিন! (Invalid email address)";
+    if (err.code === 'auth/weak-password') msg = "পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে (Weak password)";
+    if (err.code === 'auth/too-many-requests') msg = "অতিরিক্ত রিকোয়েস্ট! কিছুক্ষণ পর চেষ্টা করুন। (Too many requests)";
+    
+    // Custom error messages from thrown errors
+    if (err.message && err.message.length < 100) {
+      if (err.message.includes('Username already taken')) msg = "এই ইউজারনেমটি ইতিমধ্যে ব্যবহার করা হয়েছে";
+      if (err.message.includes('Phone already registered')) msg = "এই ফোন নম্বরটি ইতিমধ্যে ব্যবহার করা হয়েছে";
+      if (err.message.includes('not found')) msg = err.message;
+    }
+
     setError(msg);
     showToast(msg, "error");
   };
@@ -183,7 +199,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         if (inviterCode) {
            // Search users for this code
            const usersRef = collection(db, 'users');
-           const q = query(usersRef, where('referralCode', '==', inviterCode));
+           const q = query(usersRef, where('referralCode', '==', inviterCode), limit(1));
            const snap = await getDocs(q);
            if (!snap.empty) {
              inviterUid = snap.docs[0].id;
@@ -194,6 +210,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
 
         const newUser = {
           username: cleanDisplayName,
+          email: user.email || "",
           balance: 507,
           role: 'user',
           createdAt: new Date().toISOString(),
@@ -226,11 +243,14 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
               balance: increment(50),
               totalReferralEarnings: increment(50)
             });
-            await setDoc(doc(collection(db, 'users', inviterUid, 'transactions')), {
+            await setDoc(doc(collection(db, 'transactions')), {
               type: 'bonus',
+              status: 'approved',
+              uid: inviterUid,
               amount: 50,
               description: 'Referral Bonus (FB Signup)',
-              date: new Date().toISOString()
+              date: new Date().toISOString(),
+              createdAt: new Date().toISOString()
             });
           } catch (e) {
             console.error("Inviter update failed:", e);
@@ -265,7 +285,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         let inviterUid = null;
         if (inviterCode) {
            const usersRef = collection(db, 'users');
-           const q = query(usersRef, where('referralCode', '==', inviterCode));
+           const q = query(usersRef, where('referralCode', '==', inviterCode), limit(1));
            const snap = await getDocs(q);
            if (!snap.empty) {
              inviterUid = snap.docs[0].id;
@@ -276,6 +296,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
 
         const newUser = {
           username: cleanDisplayName,
+          email: user.email || "",
           balance: 507,
           role: 'user',
           createdAt: new Date().toISOString(),
@@ -308,11 +329,14 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
               balance: increment(50),
               totalReferralEarnings: increment(50)
             });
-            await setDoc(doc(collection(db, 'users', inviterUid, 'transactions')), {
+            await setDoc(doc(collection(db, 'transactions')), {
               type: 'bonus',
+              status: 'approved',
+              uid: inviterUid,
               amount: 50,
               description: 'Referral Bonus (Google Signup)',
-              date: new Date().toISOString()
+              date: new Date().toISOString(),
+              createdAt: new Date().toISOString()
             });
           } catch (e) {
             console.error("Inviter update failed:", e);
@@ -336,20 +360,33 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     try {
       let loginEmail = "";
       
-      // Check if input is a phone number (11 digits)
-      if (/^\d{11}$/.test(data.username)) {
+      // 1. Check if input is a real email
+      if (data.username.includes('@')) {
+        loginEmail = data.username;
+      } 
+      // 2. Check if input is a phone number (11 digits)
+      else if (/^\d{11}$/.test(data.username)) {
         const usersRef = collection(db, 'users');
-        const q = query(usersRef, where('phoneNumber', '==', data.username));
+        const q = query(usersRef, where('phoneNumber', '==', data.username), limit(1));
         const snap = await getDocs(q);
         
         if (snap.empty) {
           throw new Error("এই ফোন নম্বর দিয়ে কোনো অ্যাকাউন্ট নেই (Phone number not found)");
         }
-        const userDoc = snap.docs[0].data();
-        loginEmail = `${userDoc.username.toLowerCase()}@spin71bet.com`;
-      } else {
-        // Assume username
-        loginEmail = data.username.includes('@') ? data.username : `${data.username.toLowerCase()}@spin71bet.com`;
+        loginEmail = snap.docs[0].data().email;
+      } 
+      // 3. Assume it's a username
+      else {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('username', '==', data.username), limit(1));
+        const snap = await getDocs(q);
+        
+        if (!snap.empty) {
+          loginEmail = snap.docs[0].data().email;
+        } else {
+          // Fallback to legacy convention if not found in Firestore
+          loginEmail = `${data.username.toLowerCase()}@spin71bet.com`;
+        }
       }
 
       const result = await signInWithEmailAndPassword(auth, loginEmail, data.password);
@@ -381,7 +418,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     try {
       // Check for existing username
       const usersRef = collection(db, 'users');
-      const qUsername = query(usersRef, where('username', '==', data.username));
+      const qUsername = query(usersRef, where('username', '==', data.username), limit(1));
       const snapUsername = await getDocs(qUsername);
       
       if (!snapUsername.empty) {
@@ -389,14 +426,14 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       }
 
       // Check for existing phone
-      const qPhone = query(usersRef, where('phoneNumber', '==', data.phoneNumber));
+      const qPhone = query(usersRef, where('phoneNumber', '==', data.phoneNumber), limit(1));
       const snapPhone = await getDocs(qPhone);
       
       if (!snapPhone.empty) {
         throw new Error("এই ফোন নম্বরটি ইতিমধ্যে ব্যবহার করা হয়েছে (Phone already registered)");
       }
 
-      const email = `${data.username.toLowerCase()}@spin71bet.com`;
+      const email = data.email;
       const result = await createUserWithEmailAndPassword(auth, email, data.password);
       const user = result.user;
       
@@ -407,16 +444,21 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       // Find inviter by referral code
       let inviterUid = null;
       if (inviterCode) {
+         console.log("Locating inviter by referral code:", inviterCode);
          const usersRef = collection(db, 'users');
-         const q = query(usersRef, where('referralCode', '==', inviterCode));
+         const q = query(usersRef, where('referralCode', '==', inviterCode), limit(1));
          const snap = await getDocs(q);
          if (!snap.empty) {
            inviterUid = snap.docs[0].id;
+           console.log("Inviter found:", inviterUid);
+         } else {
+           console.log("No inviter found for code.");
          }
       }
 
       const userData = {
         username: data.username,
+        email: data.email,
         phoneNumber: data.phoneNumber,
         balance: 507,
         role: 'user',
@@ -451,11 +493,14 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
             balance: increment(50),
             totalReferralEarnings: increment(50)
           });
-          await setDoc(doc(collection(db, 'users', inviterUid, 'transactions')), {
+          await setDoc(doc(collection(db, 'transactions')), {
             type: 'bonus',
+            status: 'approved',
+            uid: inviterUid,
             amount: 50,
             description: 'Referral Bonus (Email Signup)',
-            date: new Date().toISOString()
+            date: new Date().toISOString(),
+            createdAt: new Date().toISOString()
           });
         } catch (e) {
           console.error("Inviter update failed:", e);
@@ -556,12 +601,12 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
                   <input 
                     {...registerLogin('username')}
                     type="text" 
-                    placeholder="দয়া করে ব্যবহারকারী নাম দিন"
+                    placeholder="ইউজারনেম / ইমেইল / মোবাইল নম্বর"
                     className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-4 pl-12 pr-4 text-white text-sm focus:border-red-500/50 outline-none transition-all placeholder:text-white/40"
                   />
                 </div>
                 <p className="text-[10px] text-red-500 font-medium leading-tight">
-                  দয়া করে 6 - 13 বর্ণমালা এবং সংখ্যাসহ বিশেষ চিহ্ন ছাড়া একটি অক্ষর লিখুন
+                  সঠিক ইউজারনেম, ইমেইল অথবা মোবাইল নম্বর টি প্রবেশ করুন
                 </p>
               </div>
 
@@ -642,9 +687,24 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
                     className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-4 pl-12 pr-4 text-white text-sm focus:border-green-500/50 outline-none transition-all placeholder:text-white/40"
                   />
                 </div>
-                <p className="text-[10px] text-red-500 font-medium leading-tight ml-2">
-                  দয়া করে 6 - 13 বর্ণমালা এবং সংখ্যাসহ বিশেষ চিহ্ন ছাড়া একটি অক্ষর লিখুন
-                </p>
+                {signupErrors.username && <p className="text-[10px] text-red-500 mt-1 ml-2 font-bold italic">! {signupErrors.username.message}</p>}
+              </div>
+
+              {/* Email Field */}
+              <div className="space-y-1">
+                <div className="relative group">
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
+                    <Mail size={20} />
+                  </div>
+                  <input 
+                    {...registerSignup('email')}
+                    type="email" 
+                    placeholder="ইমেইল এড্রেস"
+                    className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-4 pl-12 pr-4 text-white text-sm focus:border-green-500/50 outline-none transition-all placeholder:text-white/40"
+                  />
+                </div>
+                {signupErrors.email && <p className="text-[10px] text-red-500 mt-1 ml-2 font-bold italic">! {signupErrors.email.message}</p>}
               </div>
 
               {/* Password Field */}

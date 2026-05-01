@@ -11,7 +11,7 @@ export interface ApiResponse<T> {
 
 class ApiService {
   private static instance: ApiService;
-  private baseUrl = window.location.origin + '/api';
+  private baseUrl = '/api';
 
   private constructor() {}
 
@@ -26,16 +26,35 @@ class ApiService {
    * Universal fetch helper with error handling
    */
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
+    // Ensure we have a valid base URL. In some environments, we might need the full origin.
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const fullUrl = endpoint.startsWith('http') ? endpoint : `${origin}${this.baseUrl}${endpoint}`;
+    
     try {
-      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      console.log(`[ApiService] Fetching: ${fullUrl}`, { 
+        method: options.method || 'GET',
+        hasBody: !!options.body
+      });
+      
+      const response = await fetch(fullUrl, {
         ...options,
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
           ...options.headers,
         },
       });
 
-      const data = await response.json();
+      const contentType = response.headers.get('Content-Type');
+      let data: any;
+
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        console.warn(`Non-JSON response from ${endpoint}:`, text.substring(0, 100));
+        throw new Error(`Expected JSON but received ${contentType || 'text'}. Server might be misconfigured or returning an error page.`);
+      }
 
       if (!response.ok) {
         throw new Error(data.error || `HTTP error! status: ${response.status}`);

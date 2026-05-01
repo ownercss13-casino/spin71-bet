@@ -87,6 +87,7 @@ interface HomeViewProps {
   loading?: boolean;
   isAdmin?: boolean;
   onNavigate?: (tab: string, subTab?: string) => void;
+  onOpenLogin?: () => void;
 }
 
 export default function HomeView({ 
@@ -128,13 +129,44 @@ export default function HomeView({
   showToast,
   loading,
   isAdmin = false,
-  onNavigate
+  onNavigate,
+  onOpenLogin
 }: HomeViewProps) {
   const [editingCasinoName, setEditingCasinoName] = React.useState(false);
   const [tempCasinoName, setTempCasinoName] = React.useState(casinoName || "SPIN71.bet");
 
+  const categories = [
+    { id: 'সব', icon: Gamepad2, label: 'সব' },
+    { id: 'সেরা', icon: Flame, label: 'সেরা' },
+    { id: 'পছন্দ', icon: Star, label: 'পছন্দ' },
+    { id: 'স্লট', icon: Gamepad2, label: 'স্লট' },
+    { id: 'Live Casino', icon: Tv, label: 'Live Casino' },
+    { id: 'Table Games', icon: Club, label: 'Table Games' },
+    { id: 'Fishing Games', icon: Fish, label: 'Fishing Games' },
+    { id: 'Lottery', icon: Ticket, label: 'Lottery' },
+  ];
+
+  const handleSwipe = (event: any, info: any) => {
+    const swipeThreshold = 50;
+    const currentIndex = categories.findIndex(c => c.id === activeCategory);
+
+    if (info.offset.x < -swipeThreshold) {
+      // Swipe Left -> Next Category
+      const nextIndex = Math.min(currentIndex + 1, categories.length - 1);
+      if (nextIndex !== currentIndex) {
+        setActiveCategory(categories[nextIndex].id);
+      }
+    } else if (info.offset.x > swipeThreshold) {
+      // Swipe Right -> Previous Category
+      const prevIndex = Math.max(currentIndex - 1, 0);
+      if (prevIndex !== currentIndex) {
+        setActiveCategory(categories[prevIndex].id);
+      }
+    }
+  };
+
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-x-hidden">
       {/* Main Header */}
       <header className="flex items-center justify-between px-3 py-2 sticky top-0 z-40 bg-[var(--bg-main)] shadow-sm transition-colors duration-300">
         <div className="flex items-center gap-3">
@@ -146,28 +178,47 @@ export default function HomeView({
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 bg-[var(--bg-surface)] rounded-full pl-2 pr-1 py-1 border border-[var(--border-color)] shadow-inner relative transition-colors duration-300">
-            <div className="w-2 h-2 rounded-full bg-red-500 border border-red-300 animate-pulse"></div>
-            <span className="text-sm font-bold tracking-tight text-[var(--text-main)]">৳ {balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            <button 
-              onClick={handleRefresh}
-              className="p-0.5 hover:bg-black/10 rounded-full transition-colors"
-            >
-              <RefreshCw size={14} className={`text-[var(--text-muted)] ${isRefreshing ? 'animate-spin' : ''}`} />
-            </button>
-            <span className="absolute -bottom-1 -left-1 bg-red-600 text-white text-[6px] font-bold px-1 rounded-full animate-pulse">LIVE</span>
-          </div>
-          <div className="relative">
-            <button 
-              onClick={() => onNavigate?.('deposit')}
-              className="bg-white text-[#16a374] px-4 py-1 rounded-full text-sm font-bold shadow-md hover:scale-105 transition-transform active:scale-95"
-            >
-              জমা
-            </button>
-            <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-white">
-              +5%
-            </span>
-          </div>
+          {userData ? (
+            <>
+              <div className="flex items-center gap-1.5 bg-[var(--bg-surface)] rounded-full pl-2 pr-1 py-1 border border-[var(--border-color)] shadow-inner relative transition-colors duration-300">
+                <div className="w-2 h-2 rounded-full bg-red-500 border border-red-300 animate-pulse"></div>
+                <span className="text-sm font-bold tracking-tight text-[var(--text-main)]">৳ {balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <button 
+                  onClick={handleRefresh}
+                  className="p-0.5 hover:bg-black/10 rounded-full transition-colors"
+                >
+                  <RefreshCw size={14} className={`text-[var(--text-muted)] ${isRefreshing ? 'animate-spin' : ''}`} />
+                </button>
+                <span className="absolute -bottom-1 -left-1 bg-red-600 text-white text-[6px] font-bold px-1 rounded-full animate-pulse">LIVE</span>
+              </div>
+              <div className="relative">
+                <button 
+                  onClick={() => onNavigate?.('deposit')}
+                  className="bg-white text-[#16a374] px-4 py-1 rounded-full text-sm font-bold shadow-md hover:scale-105 transition-transform active:scale-95"
+                >
+                  জমা
+                </button>
+                <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-white">
+                  +5%
+                </span>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center gap-2">
+               <button 
+                onClick={onOpenLogin}
+                className="text-[var(--text-main)] bg-[#1a1a1a] border border-[#333] px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-white/5 transition-all outline-none"
+              >
+                লগইন
+              </button>
+              <button 
+                onClick={onOpenLogin}
+                className="bg-green-600 text-white px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest shadow-[0_0_15px_rgba(22,163,74,0.3)] hover:scale-105 transition-all active:scale-95 outline-none"
+              >
+                নিবন্ধন
+              </button>
+            </div>
+          )}
           <div className="relative">
             <button 
               onClick={() => setShowGallery(true)}
@@ -224,7 +275,7 @@ export default function HomeView({
               </div>
               <div className="flex flex-col">
                 <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-wider leading-none">স্বাগতম (Welcome)</span>
-                <span className="text-xs font-black text-[var(--text-main)] tracking-tight">{userData?.username || 'Player'}</span>
+                <span className="text-xs font-black text-[var(--text-main)] tracking-tight">{userData?.username || 'Guest Player'}</span>
               </div>
             </>
           )}
@@ -238,7 +289,7 @@ export default function HomeView({
           ) : (
             <>
               <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-wider leading-none">আইডি (ID)</span>
-              <span className="text-xs font-mono text-yellow-400 font-bold">{userData?.numericId || userData?.id?.substring(0, 8) || '84729104'}</span>
+              <span className="text-xs font-mono text-yellow-400 font-bold">{userData?.numericId || userData?.id?.substring(0, 8) || 'GUEST-MODE'}</span>
             </>
           )}
         </div>
@@ -648,16 +699,7 @@ export default function HomeView({
         transition={{ delay: 0.1 }}
         className="flex overflow-x-auto gap-4 px-4 py-3 no-scrollbar bg-[#0a1e1e]/20 border-b border-white/5 sticky top-[92px] z-30 backdrop-blur-md transition-colors duration-300"
       >
-        {[
-          { id: 'সব', icon: Gamepad2, label: 'সব' },
-          { id: 'সেরা', icon: Flame, label: 'সেরা' },
-          { id: 'পছন্দ', icon: Star, label: 'পছন্দ' },
-          { id: 'স্লট', icon: Gamepad2, label: 'স্লট' },
-          { id: 'Live Casino', icon: Tv, label: 'Live Casino' },
-          { id: 'Table Games', icon: Club, label: 'Table Games' },
-          { id: 'Fishing Games', icon: Fish, label: 'Fishing Games' },
-          { id: 'Lottery', icon: Ticket, label: 'Lottery' },
-        ].map((cat, index) => (
+        {categories.map((cat, index) => (
           <motion.div 
             key={cat.id}
             initial={{ opacity: 0, x: -10 }}
@@ -680,78 +722,93 @@ export default function HomeView({
       </motion.div>
 
       {/* Game Grid Section */}
-      <div className="px-2 pt-3 pb-6">
-        {/* Section Header */}
-        <div className="flex items-center justify-between mb-3 px-1">
-          <div className="flex items-center gap-1.5 text-lg font-bold text-[var(--text-main)]">
-            {activeCategory === 'পছন্দ' ? (
-              <Star className="text-yellow-400 fill-yellow-400" size={20} />
-            ) : activeCategory === 'সব' ? (
-              <Gamepad2 className="text-blue-400 fill-blue-400" size={20} />
-            ) : (
-              <Flame className="text-[var(--brand-primary)] fill-[var(--brand-primary)]" size={20} />
-            )} 
-            {activeCategory}
-          </div>
-          <div className="flex items-center gap-1">
-            <button className="p-1 rounded bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors duration-300">
-              <ChevronLeft size={16} />
-            </button>
-            <button 
-              onClick={() => setActiveCategory('সব')}
-              className={`px-4 py-1 rounded text-[13px] font-medium transition-colors duration-300 ${activeCategory === 'সব' ? 'bg-yellow-500 text-black' : 'bg-[var(--bg-surface)] text-[var(--text-muted)] hover:bg-[var(--bg-main)] hover:text-[var(--text-main)]'}`}
-            >
-              সব
-            </button>
-            <button className="p-1 rounded bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors duration-300">
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        </div>
+      <motion.div 
+        drag="x"
+        dragConstraints={{ left: 0, right: 0 }}
+        onDragEnd={handleSwipe}
+        className="px-2 pt-3 pb-6 relative"
+      >
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeCategory}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2 }}
+          >
+            {/* Section Header */}
+            <div className="flex items-center justify-between mb-3 px-1">
+              <div className="flex items-center gap-1.5 text-lg font-bold text-[var(--text-main)]">
+                {activeCategory === 'পছন্দ' ? (
+                  <Star className="text-yellow-400 fill-yellow-400" size={20} />
+                ) : activeCategory === 'সব' ? (
+                  <Gamepad2 className="text-blue-400 fill-blue-400" size={20} />
+                ) : (
+                  <Flame className="text-[var(--brand-primary)] fill-[var(--brand-primary)]" size={20} />
+                )} 
+                {activeCategory}
+              </div>
+              <div className="flex items-center gap-1">
+                <button className="p-1 rounded bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors duration-300">
+                  <ChevronLeft size={16} />
+                </button>
+                <button 
+                  onClick={() => setActiveCategory('সব')}
+                  className={`px-4 py-1 rounded text-[13px] font-medium transition-colors duration-300 ${activeCategory === 'সব' ? 'bg-yellow-500 text-black' : 'bg-[var(--bg-surface)] text-[var(--text-muted)] hover:bg-[var(--bg-main)] hover:text-[var(--text-main)]'}`}
+                >
+                  সব
+                </button>
+                <button className="p-1 rounded bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors duration-300">
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
 
-        {/* Grid */}
-        <GameGrid 
-          category={activeCategory} 
-          setActiveCategory={setActiveCategory}
-          searchQuery={searchQuery} 
-          onGameSelect={handleGameSelect} 
-          favorites={favorites}
-          onToggleFavorite={handleToggleFavorite}
-          globalLogos={globalLogos}
-          globalNames={globalNames}
-          globalUrls={globalUrls}
-          globalOptions={globalOptions}
-          loading={loading}
-          allButtonName={allButtonName}
-          showToast={showToast}
-          isAdmin={isAdmin}
-          onAllButtonNameChange={async (newName) => {
-            if (updateAllButtonName) {
-              await updateAllButtonName(newName);
-            }
-          }}
-          onGameLogoChange={async (gameId, newLogo) => {
-            if (updateGlobalGameLogo) {
-              await updateGlobalGameLogo(gameId, newLogo);
-            }
-          }}
-          onGameNameChange={async (gameId, newName) => {
-            if (updateGlobalGameName) {
-              await updateGlobalGameName(gameId, newName);
-            }
-          }}
-          onGameUrlChange={async (gameId, newUrl) => {
-            if (updateGlobalGameUrl) {
-              await updateGlobalGameUrl(gameId, newUrl);
-            }
-          }}
-          onGameOptionChange={async (gameId, newOption) => {
-            if (updateGlobalGameOption) {
-              await updateGlobalGameOption(gameId, newOption);
-            }
-          }}
-        />
-      </div>
+            {/* Grid */}
+            <GameGrid 
+              category={activeCategory} 
+              setActiveCategory={setActiveCategory}
+              searchQuery={searchQuery} 
+              onGameSelect={handleGameSelect} 
+              favorites={favorites}
+              onToggleFavorite={handleToggleFavorite}
+              globalLogos={globalLogos}
+              globalNames={globalNames}
+              globalUrls={globalUrls}
+              globalOptions={globalOptions}
+              loading={loading}
+              allButtonName={allButtonName}
+              showToast={showToast}
+              isAdmin={isAdmin}
+              onAllButtonNameChange={async (newName) => {
+                if (updateAllButtonName) {
+                  await updateAllButtonName(newName);
+                }
+              }}
+              onGameLogoChange={async (gameId, newLogo) => {
+                if (updateGlobalGameLogo) {
+                  await updateGlobalGameLogo(gameId, newLogo);
+                }
+              }}
+              onGameNameChange={async (gameId, newName) => {
+                if (updateGlobalGameName) {
+                  await updateGlobalGameName(gameId, newName);
+                }
+              }}
+              onGameUrlChange={async (gameId, newUrl) => {
+                if (updateGlobalGameUrl) {
+                  await updateGlobalGameUrl(gameId, newUrl);
+                }
+              }}
+              onGameOptionChange={async (gameId, newOption) => {
+                if (updateGlobalGameOption) {
+                  await updateGlobalGameOption(gameId, newOption);
+                }
+              }}
+            />
+          </motion.div>
+        </AnimatePresence>
+      </motion.div>
 
       {/* Edit Casino Name Modal */}
       {editingCasinoName && (
