@@ -59,7 +59,7 @@ export default function InviteView({
   onAddTransaction?: (transaction: any) => Promise<void>,
   onBack: () => void
 }) {
-  const [activeTab, setActiveTab] = useState(initialSubTab);
+  const [activeTab, setActiveTab] = useState(initialSubTab || 'overview');
   const [incomeCalculatorValue, setIncomeCalculatorValue] = useState(1);
   const [referralsList, setReferralsList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -107,7 +107,7 @@ export default function InviteView({
     totalEarnings: userData?.totalReferralEarnings || 0
   });
   
-  const referralCode = userData?.referralCode || (userData?.id ? userData.id.substring(0, 6).toUpperCase() : 'BETAIG');
+  const referralCode = userData?.referralCode || 'BETAIG';
   const referralLink = `${window.location.origin}/?ref=${referralCode}`;
   const displayCasinoName = casinoName || "SPIN71.bet";
 
@@ -231,7 +231,7 @@ export default function InviteView({
   );
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#f4f7f9]">
+    <div className="flex-1 w-full flex flex-col min-h-screen bg-[#f4f7f9]">
       {/* Header */}
       <div className="bg-[#1a0b2e] p-4 flex items-center gap-4 sticky top-0 z-20">
         <button 
@@ -244,7 +244,7 @@ export default function InviteView({
       </div>
 
       {/* Tab Navigation */}
-      <div className="bg-white border-b border-gray-100 sticky top-[60px] z-20 shadow-sm">
+      <div className="bg-white border-b border-gray-100 z-20 shadow-sm">
         <div className="flex overflow-x-auto no-scrollbar">
           {tabs.map(tab => (
             <button
@@ -267,7 +267,7 @@ export default function InviteView({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto pb-24">
+      <div className="flex-1 pb-24">
         {activeTab === 'overview' && (
           <div className="p-4 space-y-4 animate-in fade-in duration-500">
             {/* Share Section */}

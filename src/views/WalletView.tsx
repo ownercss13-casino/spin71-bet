@@ -201,12 +201,12 @@ export default function WalletView({ balance, userData, onTabChange, onSubTabCha
         {/* Quick Stats */}
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-[var(--bg-card)] p-3 rounded-2xl border border-[var(--border-color)] text-center transition-colors duration-300">
-            <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold mb-1">টার্নওভার</p>
-            <p className="text-[var(--text-main)] font-black text-xs">৳ {userData?.turnover?.toLocaleString() || '0'}</p>
+            <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold mb-1">মোট ডিপোজিট</p>
+            <p className="text-[var(--text-main)] font-black text-xs">৳ {userData?.totalDeposit?.toLocaleString() || '0'}</p>
           </div>
           <div className="bg-[var(--bg-card)] p-3 rounded-2xl border border-[var(--border-color)] text-center transition-colors duration-300">
-            <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold mb-1">প্রয়োজনীয়</p>
-            <p className="text-[var(--brand-primary)] font-black text-xs">৳ {userData?.requiredTurnover?.toLocaleString() || '0'}</p>
+            <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold mb-1">মোট উত্তোলন</p>
+            <p className="text-[var(--brand-primary)] font-black text-xs">৳ {userData?.totalWithdraws?.toLocaleString() || '0'}</p>
           </div>
           <div className="bg-[var(--bg-card)] p-3 rounded-2xl border border-[var(--border-color)] text-center transition-colors duration-300">
             <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold mb-1">ভিআইপি</p>

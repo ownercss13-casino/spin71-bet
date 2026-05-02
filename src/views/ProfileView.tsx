@@ -5,6 +5,7 @@ import SupportChat from "../layout/SupportChat";
 import ProfileHeader from './ProfileHeader';
 import ProfileNavigation from './ProfileNavigation';
 import Skeleton from '../components/ui/Skeleton';
+import VIPLoader from '../components/ui/VIPLoader';
 import InviteView from './InviteView';
 import ReferralDashboardTab from './ReferralDashboardTab';
 import ImageCropper from '../components/ui/ImageCropper';
@@ -30,8 +31,9 @@ import {
   ChevronDown, Megaphone, Compass, Globe, Share2
 } from 'lucide-react';
 
-import { db } from '../services/firebase';
+import { db, auth } from '../services/firebase';
 import { collection, query, where, getDocs, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 export default function ProfileView({ 
   onTabChange, 
@@ -416,7 +418,7 @@ export default function ProfileView({
   const profileData = userData;
 
   return (
-    <div className="flex-1 overflow-y-auto pb-20 bg-[#0b5c4b]">
+    <div className="flex-1 flex flex-col overflow-y-auto pb-20 bg-[#0b5c4b]">
       {selectedImage && (
         <ImageCropper 
           image={selectedImage} 
@@ -822,7 +824,8 @@ export default function ProfileView({
                     type="text" 
                     value={editUsername}
                     onChange={(e) => setEditUsername(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl pl-12 pr-4 py-4 text-sm text-gray-700 focus:outline-none focus:border-yellow-500 transition-all font-bold"
+                    disabled={!!userData?.username}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl pl-12 pr-4 py-4 text-sm text-gray-700 focus:outline-none focus:border-yellow-500 transition-all font-bold disabled:opacity-60 disabled:bg-gray-100 disabled:cursor-not-allowed"
                     placeholder="আপনার ইউজার নেম লিখুন"
                   />
                 </div>
@@ -1147,10 +1150,6 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
     setIsLoadingHistory(false);
   }, []);
 
-  const turnover = userData?.turnover || 0;
-  const requiredTurnover = userData?.requiredTurnover || 0;
-  const turnoverProgress = requiredTurnover > 0 ? Math.min(100, (turnover / requiredTurnover) * 100) : 100;
-
   const generateCaptcha = () => {
     const code = Math.floor(1000 + Math.random() * 9000).toString();
     setCaptchaCode(code);
@@ -1160,11 +1159,6 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
   const handleWithdraw = async () => {
     const withdrawAmount = parseFloat(amount);
     
-    if (turnover < requiredTurnover) {
-      showToast(`উত্তোলনের জন্য আরও ৳ ${(requiredTurnover - turnover).toFixed(2)} টানউভার প্রয়োজন।`, 'error');
-      return;
-    }
-
     if (isNaN(withdrawAmount) || withdrawAmount <= 0) {
       showToast('উত্তোলন পরিমাণ অবশ্যই একটি ধনাত্মক সংখ্যা হতে হবে।', 'error');
       return;
@@ -1186,14 +1180,27 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
     }
 
     if (!transactionPassword.trim()) {
-      showToast('দয়া করে লেনদেন পাসওয়ার্ড দিন।', 'warning');
+      showToast('দয়া করে লগইন পাসওয়ার্ড দিন।', 'warning');
       return;
     }
 
-    if (!/^\d{6}$/.test(transactionPassword)) {
-      showToast('লেনদেন পাসওয়ার্ড অবশ্যই ৬ ডিজিটের হতে হবে।', 'error');
+    try {
+      setIsSubmitting(true);
+      if (auth.currentUser && auth.currentUser.email) {
+        // Not google linked if password provider exists
+        const hasPasswordProvider = auth.currentUser.providerData.some(p => p.providerId === 'password');
+        if (hasPasswordProvider) {
+          await signInWithEmailAndPassword(auth, auth.currentUser.email, transactionPassword);
+        } else {
+           // Skip if google/social login only
+        }
+      }
+    } catch (e: any) {
+      setIsSubmitting(false);
+      showToast('ভুল পাসওয়ার্ড। (Wrong password)', 'error');
       return;
     }
+    setIsSubmitting(false);
 
     // Move to verification step
     generateCaptcha();
@@ -1213,6 +1220,9 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
     const selectedCard = bankCards[currentCardIndex] || bankCards[0];
 
     try {
+      // Simulate real bank/crypto communication time for VIP feel
+      await new Promise(resolve => setTimeout(resolve, 3500));
+
       // Send Telegram Notification
       try {
         await fetch('/api/telegram/send', {
@@ -1346,14 +1356,15 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
                      {bankCards.map((card: any, idx: number) => (
                        <motion.div 
                          key={card.id} 
+                         onClick={() => setCurrentCardIndex(idx)}
                          initial={{ opacity: 0, scale: 0.9 }}
                          animate={{ opacity: 1, scale: 1 }}
                          transition={{ delay: idx * 0.1 }}
-                         className="p-4 bg-[#1d7470] rounded-xl flex items-center justify-between text-white border border-[#319b96]/30"
+                         className={`relative p-4 rounded-xl flex items-center justify-between text-white border transition-all cursor-pointer ${currentCardIndex === idx ? 'bg-[#186a67] border-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.2)]' : 'bg-[#1d7470] border-[#319b96]/30 hover:bg-[#1a6b68]'}`}
                        >
                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-white rounded p-1 flex items-center justify-center">
-                              <Building2 size={24} className="text-[#13615e]" />
+                            <div className={`w-10 h-10 rounded p-1 flex items-center justify-center ${currentCardIndex === idx ? 'bg-yellow-500' : 'bg-white'}`}>
+                              <Building2 size={24} className={currentCardIndex === idx ? 'text-black' : 'text-[#13615e]'} />
                             </div>
                             <div>
                                <p className="font-bold text-sm">{card.bankName}</p>
@@ -1364,6 +1375,13 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
                             <p className="text-green-400 font-bold text-xs uppercase">Verified</p>
                             <p className="text-xs text-white/70 mt-1">{card.accountHolderName}</p>
                          </div>
+                         {currentCardIndex === idx && (
+                           <div className="absolute top-2 right-2">
+                             <div className="w-5 h-5 bg-yellow-500 rounded-full flex items-center justify-center shadow-lg">
+                               <Check size={12} className="text-black stroke-[3]" />
+                             </div>
+                           </div>
+                         )}
                        </motion.div>
                      ))}
                      {bankCards.length < 5 && (
@@ -1387,33 +1405,6 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
                 )}
               </div>
             </motion.div>
-
-          {/* Turnover Progress */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="p-4 bg-[#1d7470] rounded-xl border border-[#319b96]/30 mb-6 space-y-2"
-          >
-            <div className="flex justify-between items-end text-white text-sm">
-                <p className="font-bold">Turnover Requirement</p>
-                <p className="font-bold text-[#ffc107]">{turnoverProgress.toFixed(1)}%</p>
-            </div>
-            <div className="h-2.5 bg-[#21817d] rounded-full overflow-hidden">
-                <motion.div 
-                  initial={{ width: 0 }}
-                  animate={{ width: `${turnoverProgress}%` }}
-                  transition={{ duration: 1, delay: 0.5 }}
-                  className="h-full bg-[#ffc107]" 
-                />
-            </div>
-            <div className="flex justify-between items-center text-xs text-white/70 pt-1">
-                <p>৳ {turnover.toLocaleString()} / ৳ {requiredTurnover.toLocaleString()}</p>
-                <button onClick={() => setIsTurnoverInfoModalOpen(true)} className="flex items-center gap-1 text-[#ffc107] hover:underline">
-                  <Info size={12} /> Rules
-                </button>
-            </div>
-          </motion.div>
 
           {/* Amount and Password Section */}
           <div className="space-y-4">
@@ -1451,13 +1442,13 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
                 transition={{ delay: 0.4 }}
                 className="bg-[#1d7470] p-4 rounded-xl border border-[#319b96]/30"
               >
-                <h2 className="text-white font-bold text-sm mb-3">Transaction Password</h2>
+                <h2 className="text-white font-bold text-sm mb-3">Login Password</h2>
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
                     value={transactionPassword}
                     onChange={(e) => setTransactionPassword(e.target.value)}
-                    placeholder="Enter 6-digit PIN"
+                    placeholder="Enter Registration Password"
                     className="w-full bg-[#21817d] rounded py-3 px-3 text-white font-bold focus:outline-none placeholder:text-white/30 pl-10 pr-10"
                   />
                   <div className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30">
@@ -1485,6 +1476,7 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
           </section>
         )}
       </div>
+      <VIPLoader isVisible={isSubmitting} type="withdraw" />
     </div>
   );
 }
@@ -2282,14 +2274,12 @@ function OverviewTab(props: OverviewTabProps) {
              <div className="flex items-center gap-1 text-white">
                <ChevronDown size={14} />
                <span className="font-bold text-lg">{userData?.username || 'user'}</span>
-               <button onClick={() => copyToClipboard(userData?.username || '')} className="ml-1">
-                 <Copy size={14} className="opacity-80" />
-               </button>
              </div>
              <div className="flex items-center gap-2 mt-1">
                 <span className="text-teal-100 text-sm font-medium">ID : {userData?.id?.substring(0, 9) || '123456789'}</span>
-                <button onClick={() => copyToClipboard(userData?.id || '')}>
+                <button onClick={() => copyToClipboard(userData?.id || '')} className="flex items-center gap-1 p-1 bg-white/10 hover:bg-white/20 rounded-md transition-colors text-teal-200 hover:text-white">
                    <Copy size={12} className="text-teal-200" />
+                   <span className="text-[10px] font-bold">কপি</span>
                 </button>
              </div>
           </div>
@@ -2373,26 +2363,14 @@ function OverviewTab(props: OverviewTabProps) {
                          transition={{ duration: 1, delay: 0.5 }}
                          className="h-full bg-green-500" 
                        />
-                       <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-white px-2">রিচার্জ: {userData?.totalRecharge || 0}/1000</span>
-                    </div>
-                    <div className="relative h-6 bg-gray-100 rounded-full overflow-hidden border border-gray-200">
-                       <motion.div 
-                         initial={{ width: 0 }}
-                         animate={{ width: `${Math.min(100, (userData?.totalTurnover || 0) / 5000 * 100)}%` }}
-                         transition={{ duration: 1, delay: 0.7 }}
-                         className="h-full bg-green-500" 
-                       />
-                       <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-white px-2">টার্নওভার: {userData?.totalTurnover || 0}/5000</span>
+                       <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-white px-2">রিচার্জ: {userData?.totalDeposit || 0}/1000</span>
                     </div>
                  </div>
               </div>
 
               <div className="flex flex-col gap-1 text-[9px] font-bold text-gray-400">
                  <div className="flex items-center gap-1">
-                    <span>আমানত {userData?.totalRecharge || 0}</span>
-                 </div>
-                 <div className="flex items-center gap-1">
-                    <span>বাজি {userData?.totalTurnover || 0}</span>
+                    <span>আমানত {userData?.totalDeposit || 0}</span>
                  </div>
                  <ChevronRight size={20} className="text-gray-300 self-end mt-2" />
               </div>
@@ -3688,12 +3666,6 @@ function SettingsTab({
                 <span className="text-xs text-teal-200">ইউজার নেম (Username)</span>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-white">{profileData?.username || 'Player_SPIN71'}</span>
-                  <button 
-                    onClick={() => navigator.clipboard.writeText(profileData?.username || 'Player_SPIN71')}
-                    className="p-1 bg-white/5 hover:bg-white/10 rounded transition-colors text-teal-400 hover:text-teal-200"
-                  >
-                    <Copy size={12} />
-                  </button>
                 </div>
               </div>
               <div className="flex justify-between items-center py-2 border-b border-teal-700/30">
@@ -3702,9 +3674,10 @@ function SettingsTab({
                   <span className="text-sm font-mono text-yellow-400 font-bold">{profileData?.id || '84729104'}</span>
                   <button 
                     onClick={() => navigator.clipboard.writeText(profileData?.id || '84729104')}
-                    className="p-1 bg-white/5 hover:bg-white/10 rounded transition-colors text-teal-400 hover:text-teal-200"
+                    className="p-1 px-2 flex items-center gap-1 bg-white/5 hover:bg-white/10 rounded transition-colors text-teal-400 hover:text-teal-200"
                   >
                     <Copy size={12} />
+                    <span className="text-[10px] font-bold">কপি</span>
                   </button>
                 </div>
               </div>

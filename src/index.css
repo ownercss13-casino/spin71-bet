@@ -70,6 +70,8 @@ body {
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-text-size-adjust: none;
   overscroll-behavior-y: none;
   background-color: var(--bg-main);
   color: var(--text-main);

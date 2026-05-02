@@ -20,11 +20,14 @@ if (!admin.apps?.length) {
   try {
     if (firebaseConfig && firebaseConfig.projectId) {
       admin.initializeApp({
-        projectId: firebaseConfig.projectId
+        projectId: firebaseConfig.projectId,
+        credential: admin.credential.applicationDefault()
       });
       console.log(`Firebase Admin initialized with explicit project ID: ${firebaseConfig.projectId}`);
     } else {
-      admin.initializeApp();
+      admin.initializeApp({
+        credential: admin.credential.applicationDefault()
+      });
       console.log("Firebase Admin initialized using environment default project");
     }
   } catch (err: any) {
@@ -39,29 +42,9 @@ const dbId = firebaseConfig.firestoreDatabaseId;
 async function testConnection(database: admin.firestore.Firestore, name: string) {
   console.log(`Testing connectivity for ${name}...`);
   try {
-    const doc = await database.collection('config').doc('main').get();
+    // Only perform a read operation to test connectivity
+    await database.collection('test').doc('connection').get();
     console.log(`Firestore connectivity test successful for ${name}`);
-    
-    if (!doc.exists) {
-      console.log(`Seeding missing global config for ${name}...`);
-      const defaultSettings = {
-        casinoName: "SPIN71",
-        noticeText: "স্বাগতম SPIN71-এ! আমাদের নতুন অফারগুলো চেক করুন।",
-        updatedAt: new Date().toISOString()
-      };
-      await database.collection('config').doc('main').set({
-        ...defaultSettings,
-        globalLogos: {},
-        globalNames: {},
-      });
-      await database.collection('metadata').doc('settings').set({
-        ...defaultSettings,
-        allButtonName: "ALL",
-        minDeposit: 100,
-        minWithdraw: 100,
-        welcomeBonus: 507
-      });
-    }
     return true;
   } catch (err: any) {
     console.error(`Firestore connectivity test failed for ${name}:`, err.message);
@@ -92,12 +75,17 @@ initializeDb().catch(err => console.error("Critical database initialization erro
 
 const auth = admin.auth();
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "8608514077:AAG71iBMY0Si9T5SDo1jxJTvOnOZ_2VZNes";
-const TELEGRAM_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID || "7354725295";
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID;
 
-let adminChatId: string | null = TELEGRAM_ADMIN_CHAT_ID;
-if (adminChatId === "YOUR_TELEGRAM_ADMIN_CHAT_ID") {
-  adminChatId = null; // Force user to provide a real one or send a message to the bot
+// Track admin chat ID dynamically if provided by bot
+let adminChatId: string | null = TELEGRAM_ADMIN_CHAT_ID || null;
+
+if (!TELEGRAM_BOT_TOKEN) {
+  console.warn("TELEGRAM_BOT_TOKEN is missing. Telegram notifications will not work.");
+}
+if (!TELEGRAM_ADMIN_CHAT_ID) {
+  console.warn("TELEGRAM_ADMIN_CHAT_ID is missing. Telegram notifications will not work.");
 }
 
 // Multi-user chat history: { [userId: string]: Message[] }
@@ -115,7 +103,7 @@ function getChatHistory(userId: string) {
 }
 
 async function pollTelegramUpdates() {
-  if (!TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN === "YOUR_TELEGRAM_BOT_TOKEN") {
+  if (!TELEGRAM_BOT_TOKEN) {
     console.log("Telegram Bot Token not configured. Polling skipped.");
     return;
   }
@@ -221,15 +209,15 @@ async function startServer() {
     });
   });
 
-  // TEST ROUTE: Simple ping to verify /api/proxy is reachable
-  app.get("/api/proxy/ping", (req, res) => {
-    console.log("[Proxy] Ping received");
-    res.json({ success: true, message: "Proxy endpoint is reachable" });
+  // TEST ROUTE: Simple ping to verify /api/external-fetch is reachable
+  app.get("/api/external-fetch/ping", (req, res) => {
+    console.log("[External Fetch] Ping received");
+    res.json({ success: true, message: "External fetch endpoint is reachable" });
   });
 
   // --- External API Proxy ---
   // This allows the frontend to call external APIs securely
-  app.post(["/api/proxy", "/api/proxy/"], async (req: express.Request, res: express.Response) => {
+  app.post(["/api/external-fetch", "/api/external-fetch/"], async (req: express.Request, res: express.Response) => {
     try {
       console.log(`[Proxy Request] Target: ${req.body?.url}, Method: ${req.body?.method}`);
       const { url, method = 'GET', body, headers = {} } = req.body || {};
@@ -427,7 +415,7 @@ async function startServer() {
         
         // Log the main deposit transaction with provided details
         const depositTransRef = db.collection('users').doc(uid).collection('transactions').doc();
-        transaction.set(depositTransRef, {
+        const txData = {
           method: method || 'Direct Payment',
           senderNumber: senderNumber || 'Unknown',
           type: 'deposit',
@@ -436,8 +424,14 @@ async function startServer() {
           status: 'সম্পন্ন',
           statusColor: 'text-green-400',
           trxId: trxId || ('DEP_' + Date.now()),
+          userId: uid,
+          username: userData.username || 'Anonymous',
           createdAt: admin.firestore.FieldValue.serverTimestamp()
-        });
+        };
+        transaction.set(depositTransRef, txData);
+        
+        const globalTxRef = db.collection('transactions').doc();
+        transaction.set(globalTxRef, txData);
       });
       
       console.log("Transaction completed successfully!");
@@ -982,7 +976,7 @@ async function startServer() {
     });
   });
 
-  // Vite middleware for development
+  // Vite middleware
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },

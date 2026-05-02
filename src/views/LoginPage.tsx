@@ -68,6 +68,7 @@ import {
   updateProfile
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc, increment, collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { defaultAvatarBase64 } from '../assets/default-avatar';
 
 interface LoginPageProps {
   onRegisterSuccess: () => void;
@@ -83,7 +84,9 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
-  const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot-password'>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot-password'>(() => {
+    return localStorage.getItem('referralCode') ? 'register' : 'login';
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [rememberPassword, setRememberPassword] = useState(() => {
@@ -214,6 +217,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
           balance: 507,
           role: 'user',
           createdAt: new Date().toISOString(),
+          profilePictureUrl: defaultAvatarBase64,
           referredBy: inviterUid,
           referralCode: generateReferralCode(),
           referralCount: 0,
@@ -240,6 +244,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
             const inviterRef = doc(db, 'users', inviterUid);
             await updateDoc(inviterRef, {
               referralCount: increment(1),
+              validReferralCount: increment(1),
               balance: increment(50),
               totalReferralEarnings: increment(50)
             });
@@ -300,6 +305,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
           balance: 507,
           role: 'user',
           createdAt: new Date().toISOString(),
+          profilePictureUrl: defaultAvatarBase64,
           referredBy: inviterUid,
           referralCode: generateReferralCode(),
           referralCount: 0,
@@ -326,6 +332,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
             const inviterRef = doc(db, 'users', inviterUid);
             await updateDoc(inviterRef, {
               referralCount: increment(1),
+              validReferralCount: increment(1),
               balance: increment(50),
               totalReferralEarnings: increment(50)
             });
@@ -404,6 +411,20 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       }
 
       showToast("লগইন সফল হয়েছে", "success");
+      
+      // Notify Telegram
+      try {
+        await fetch('/api/telegram/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: `🔑 <b>User Logged In!</b>\n\n👤 <b>Username:</b> ${userData.username || 'Unknown'}\n🔢 <b>UID:</b> <code>${user.uid}</code>`
+          })
+        });
+      } catch (err) {
+        console.error("Telegram notification error", err);
+      }
+
       onLoginSuccess({ id: user.uid, ...userData });
     } catch (err: any) {
       handleAuthError(err);
@@ -463,6 +484,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         balance: 507,
         role: 'user',
         createdAt: new Date().toISOString(),
+        profilePictureUrl: defaultAvatarBase64,
         referredBy: inviterUid,
         referralCode: generateReferralCode(),
         referralCount: 0,
@@ -490,6 +512,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
           const inviterRef = doc(db, 'users', inviterUid);
           await updateDoc(inviterRef, {
             referralCount: increment(1),
+            validReferralCount: increment(1),
             balance: increment(50),
             totalReferralEarnings: increment(50)
           });
@@ -536,35 +559,50 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
   return (
     <div className="min-h-[100dvh] bg-black flex flex-col items-center relative overflow-x-hidden font-sans safe-top safe-bottom">
       {/* Header Banner */}
-      <div className="w-full relative h-[180px] sm:h-[220px]">
-        <img 
-          src="https://images.unsplash.com/photo-1585336261022-680e295ce3fe?q=80&w=2070&auto=format&fit=crop" 
-          alt="Banner" 
-          className="w-full h-full object-cover"
-          referrerPolicy="no-referrer"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/80"></div>
+      <div className="w-full relative h-[250px] sm:h-[280px]">
+        <div className="absolute inset-0 bg-gradient-to-b from-[#115e3c] to-black">
+          {/* Subtle pattern overlay */}
+          <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)', backgroundSize: '10px 10px' }}></div>
+        </div>
+        <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black to-transparent"></div>
         <button 
           onClick={onContinue}
-          className="absolute top-4 right-4 z-20 text-white/60 hover:text-white transition-colors"
+          className="absolute top-6 right-6 z-20 w-10 h-10 bg-black/40 border border-white/10 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-black/80 transition-all backdrop-blur-md"
         >
-          <X size={24} />
+          <X size={20} />
         </button>
+        
+        {/* Center Logo/Title in Banner */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pt-4">
+          <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600 drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)] italic tracking-tighter mb-2">
+            {casinoName}
+          </h1>
+          <div className="flex gap-1 items-center px-4 py-1.5 bg-green-900/50 border border-yellow-500/30 rounded-full backdrop-blur-sm">
+            <Gift size={14} className="text-yellow-400" />
+            <span className="text-yellow-400 font-bold text-xs">স্বাগতম বোনাস ৳{welcomeBonus}</span>
+          </div>
+        </div>
       </div>
 
-      <div className="w-full max-w-md px-6 -mt-8 relative z-10">
+      <div className="w-full max-w-md px-6 -mt-12 relative z-20 pb-12">
         {/* Auth Mode Toggle */}
-        <div className="flex bg-[#1a1a1a] p-1 rounded-2xl border border-[#333] mb-8">
+        <div className="flex bg-[#0f172a]/80 backdrop-blur-xl p-1.5 rounded-2xl border border-white/5 mb-8 shadow-2xl relative">
           <button 
             onClick={() => setAuthMode('login')}
-            className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${authMode === 'login' ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'text-white/40 hover:text-white'}`}
+            className={`flex-1 py-3.5 rounded-xl text-sm font-black transition-all duration-300 relative z-10 ${authMode === 'login' ? 'text-black shadow-lg shadow-yellow-500/20' : 'text-white/50 hover:text-white'}`}
           >
+            {authMode === 'login' && (
+              <motion.div layoutId="auth-tab" className="absolute inset-0 bg-gradient-to-r from-yellow-400 to-yellow-600 rounded-xl -z-10" />
+            )}
             লগইন
           </button>
           <button 
             onClick={() => setAuthMode('register')}
-            className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${authMode === 'register' ? 'bg-green-600 text-white shadow-lg shadow-green-600/20' : 'text-white/40 hover:text-white'}`}
+            className={`flex-1 py-3.5 rounded-xl text-sm font-black transition-all duration-300 relative z-10 ${authMode === 'register' ? 'text-black shadow-lg shadow-yellow-500/20' : 'text-white/50 hover:text-white'}`}
           >
+            {authMode === 'register' && (
+              <motion.div layoutId="auth-tab" className="absolute inset-0 bg-gradient-to-r from-yellow-400 to-yellow-600 rounded-xl -z-10" />
+            )}
             নিবন্ধন
           </button>
         </div>
@@ -594,18 +632,18 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
               {/* Username Field */}
               <div className="space-y-2">
                 <div className="relative group">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-yellow-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]"></div>
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-yellow-400 transition-colors">
                     <User size={20} />
                   </div>
                   <input 
                     {...registerLogin('username')}
                     type="text" 
                     placeholder="ইউজারনেম / ইমেইল / মোবাইল নম্বর"
-                    className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-4 pl-12 pr-4 text-white text-sm focus:border-red-500/50 outline-none transition-all placeholder:text-white/40"
+                    className="w-full bg-[#111] border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white text-sm focus:border-yellow-500/50 outline-none transition-all placeholder:text-white/30 focus:bg-emerald-950/10 focus:shadow-[0_0_15px_rgba(234,179,8,0.1)]"
                   />
                 </div>
-                <p className="text-[10px] text-red-500 font-medium leading-tight">
+                <p className="text-[10px] text-yellow-500 font-medium leading-tight ml-2">
                   সঠিক ইউজারনেম, ইমেইল অথবা মোবাইল নম্বর টি প্রবেশ করুন
                 </p>
               </div>
@@ -613,20 +651,20 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
               {/* Password Field */}
               <div className="space-y-2">
                 <div className="relative group">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-yellow-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]"></div>
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-yellow-400 transition-colors">
                     <Lock size={20} />
                   </div>
                   <input 
                     {...registerLogin('password')}
                     type={showPassword ? "text" : "password"} 
                     placeholder="পাসওয়ার্ড প্রবেশ করুন"
-                    className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-4 pl-12 pr-12 text-white text-sm focus:border-red-500/50 outline-none transition-all placeholder:text-white/40"
+                    className="w-full bg-[#111] border border-white/10 rounded-xl py-4 pl-12 pr-12 text-white text-sm focus:border-yellow-500/50 outline-none transition-all placeholder:text-white/30 focus:bg-emerald-950/10 focus:shadow-[0_0_15px_rgba(234,179,8,0.1)]"
                   />
                   <button 
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-yellow-400 transition-colors"
                   >
                     {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                   </button>
@@ -657,9 +695,9 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
               <button 
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-[#22c55e] py-4 rounded-full text-black font-black text-lg shadow-[0_0_20px_rgba(34,197,94,0.3)] hover:bg-[#16a34a] transition-all active:scale-95 flex items-center justify-center"
+                className="w-full bg-gradient-to-b from-[#25ab5e] to-[#0c6b32] py-4 rounded-xl text-white font-black text-lg shadow-[0_4px_15px_rgba(37,171,94,0.3)] hover:scale-[1.02] transition-all active:scale-95 flex items-center justify-center border border-emerald-400/30"
               >
-                {isLoading ? <Loader2 size={24} className="animate-spin" /> : 'লগইন'}
+                {isLoading ? <Loader2 size={24} className="animate-spin" /> : 'লগইন করুন'}
               </button>
             </motion.form>
           )}
@@ -676,15 +714,15 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
               {/* Username Field */}
               <div className="space-y-2">
                 <div className="relative group">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-yellow-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]"></div>
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-yellow-400 transition-colors">
                     <User size={20} />
                   </div>
                   <input 
                     {...registerSignup('username')}
                     type="text" 
                     placeholder="দয়া করে ব্যবহারকারী নাম দিন"
-                    className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-4 pl-12 pr-4 text-white text-sm focus:border-green-500/50 outline-none transition-all placeholder:text-white/40"
+                    className="w-full bg-[#111] border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white text-sm focus:border-yellow-500/50 outline-none transition-all placeholder:text-white/30 focus:bg-emerald-950/10 focus:shadow-[0_0_15px_rgba(234,179,8,0.1)]"
                   />
                 </div>
                 {signupErrors.username && <p className="text-[10px] text-red-500 mt-1 ml-2 font-bold italic">! {signupErrors.username.message}</p>}
@@ -693,15 +731,15 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
               {/* Email Field */}
               <div className="space-y-1">
                 <div className="relative group">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-yellow-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]"></div>
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-yellow-400 transition-colors">
                     <Mail size={20} />
                   </div>
                   <input 
                     {...registerSignup('email')}
                     type="email" 
                     placeholder="ইমেইল এড্রেস"
-                    className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-4 pl-12 pr-4 text-white text-sm focus:border-green-500/50 outline-none transition-all placeholder:text-white/40"
+                    className="w-full bg-[#111] border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white text-sm focus:border-yellow-500/50 outline-none transition-all placeholder:text-white/30 focus:bg-emerald-950/10 focus:shadow-[0_0_15px_rgba(234,179,8,0.1)]"
                   />
                 </div>
                 {signupErrors.email && <p className="text-[10px] text-red-500 mt-1 ml-2 font-bold italic">! {signupErrors.email.message}</p>}
@@ -709,20 +747,20 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
 
               {/* Password Field */}
               <div className="relative group">
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-yellow-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]"></div>
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-yellow-400 transition-colors">
                   <Lock size={20} />
                 </div>
                 <input 
                   {...registerSignup('password')}
                   type={showPassword ? "text" : "password"} 
                   placeholder="পাসওয়ার্ড"
-                  className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-4 pl-12 pr-12 text-white text-sm focus:border-green-500/50 outline-none transition-all placeholder:text-white/40"
+                  className="w-full bg-[#111] border border-white/10 rounded-xl py-4 pl-12 pr-12 text-white text-sm focus:border-yellow-500/50 outline-none transition-all placeholder:text-white/30 focus:bg-emerald-950/10 focus:shadow-[0_0_15px_rgba(234,179,8,0.1)]"
                 />
                 <button 
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-yellow-400 transition-colors"
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
@@ -730,20 +768,20 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
 
               {/* Confirm Password Field */}
               <div className="relative group">
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-yellow-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]"></div>
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-yellow-400 transition-colors">
                   <Lock size={20} />
                 </div>
                 <input 
                   {...registerSignup('confirmPassword')}
                   type={showConfirmPassword ? "text" : "password"} 
                   placeholder="পাসওয়ার্ড নিশ্চিত করুন"
-                  className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-4 pl-12 pr-12 text-white text-sm focus:border-green-500/50 outline-none transition-all placeholder:text-white/40"
+                  className="w-full bg-[#111] border border-white/10 rounded-xl py-4 pl-12 pr-12 text-white text-sm focus:border-yellow-500/50 outline-none transition-all placeholder:text-white/30 focus:bg-emerald-950/10 focus:shadow-[0_0_15px_rgba(234,179,8,0.1)]"
                 />
                 <button 
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-yellow-400 transition-colors"
                 >
                   {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
@@ -752,15 +790,15 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
               {/* Mobile Number Field */}
               <div className="space-y-1">
                 <div className="relative group">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-yellow-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]"></div>
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-yellow-400 transition-colors">
                     <Smartphone size={20} />
                   </div>
                   <input 
                     {...registerSignup('phoneNumber')}
                     type="tel" 
                     placeholder="মোবাইল নম্বর"
-                    className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-4 pl-12 pr-4 text-white text-sm focus:border-green-500/50 outline-none transition-all placeholder:text-white/40"
+                    className="w-full bg-[#111] border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white text-sm focus:border-yellow-500/50 outline-none transition-all placeholder:text-white/30 focus:bg-emerald-950/10 focus:shadow-[0_0_15px_rgba(234,179,8,0.1)]"
                   />
                 </div>
                 {signupErrors.phoneNumber && <p className="text-[10px] text-red-500 mt-1 ml-2 font-bold italic">! {signupErrors.phoneNumber.message}</p>}
@@ -770,13 +808,13 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
                 <button 
                   type="submit"
                   disabled={isLoading}
-                  className="flex-1 bg-[#22c55e] py-4 rounded-full text-black font-black text-lg shadow-[0_0_20px_rgba(34,197,94,0.3)] hover:bg-[#16a34a] transition-all active:scale-95 flex items-center justify-center"
+                  className="flex-1 bg-gradient-to-b from-[#25ab5e] to-[#0c6b32] py-4 rounded-xl text-white font-black text-lg shadow-[0_4px_15px_rgba(37,171,94,0.3)] hover:scale-[1.02] transition-all active:scale-95 flex items-center justify-center border border-emerald-400/30"
                 >
                   {isLoading ? <Loader2 size={24} className="animate-spin" /> : 'নিবন্ধন'}
                 </button>
                 <button 
                   type="reset"
-                  className="flex-1 bg-transparent border border-[#22c55e] py-4 rounded-full text-[#22c55e] font-black text-lg hover:bg-[#22c55e]/10 transition-all active:scale-95"
+                  className="flex-1 bg-black/40 border border-[#25ab5e] py-4 rounded-xl text-[#25ab5e] font-black text-lg hover:bg-[#25ab5e]/10 transition-all active:scale-95"
                 >
                   রিসেট
                 </button>
@@ -835,9 +873,9 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         {/* Social Login Section */}
         <div className="mt-12">
           <div className="flex items-center gap-4 mb-8">
-            <div className="flex-1 h-[1px] bg-[#333]"></div>
-            <span className="text-white text-sm font-medium">অথবা চালিয়ে যান</span>
-            <div className="flex-1 h-[1px] bg-[#333]"></div>
+            <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent to-white/10"></div>
+            <span className="text-yellow-500/60 text-xs font-bold uppercase tracking-widest">অথবা চালিয়ে যান</span>
+            <div className="flex-1 h-[1px] bg-gradient-to-l from-transparent to-white/10"></div>
           </div>
 
           <div className="space-y-4">
@@ -845,18 +883,18 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
               onClick={onFacebookLogin}
               disabled={isLoading}
               type="button"
-              className="w-full bg-[#1877F2] py-4 rounded-full text-white font-bold flex items-center justify-center gap-3 hover:bg-[#166fe5] transition-all active:scale-95 disabled:opacity-50"
+              className="w-full bg-gradient-to-r from-[#1877F2] to-[#166fe5] py-4 rounded-xl text-white font-bold flex items-center justify-center gap-3 hover:scale-[1.02] transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-blue-500/20"
             >
-              <Facebook size={24} fill="currentColor" />
-              Facebook
+              <Facebook size={20} fill="currentColor" />
+              Facebook দিয়ে চালিয়ে যান
             </button>
             <button 
               onClick={onGoogleLogin}
               disabled={isLoading}
-              className="w-full bg-white py-4 rounded-full text-black font-bold flex items-center justify-center gap-3 hover:bg-gray-100 transition-all active:scale-95"
+              className="w-full bg-gradient-to-r from-white to-gray-200 py-4 rounded-xl text-black font-bold flex items-center justify-center gap-3 hover:scale-[1.02] transition-all active:scale-95 shadow-lg shadow-white/10"
             >
-              <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/google/google-original.svg" alt="Google" className="w-6 h-6" />
-              Google
+              <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/google/google-original.svg" alt="Google" className="w-5 h-5 flex-shrink-0" />
+              <span className="text-[15px]">Google দিয়ে চালিয়ে যান</span>
             </button>
           </div>
         </div>

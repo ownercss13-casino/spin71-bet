@@ -103,11 +103,15 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
     const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
       const userList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setUsers(userList);
+    }, (error) => {
+      console.error("Users list onSnapshot error:", error);
     });
 
     const unsubTrxs = onSnapshot(query(collection(db, 'transactions'), orderBy('createdAt', 'desc')), (snapshot) => {
       const trxList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setTransactions(trxList);
+    }, (error) => {
+      console.error("Transactions list onSnapshot error:", error);
     });
 
     // Simulated traffic stats

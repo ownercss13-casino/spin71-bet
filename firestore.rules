@@ -5,6 +5,11 @@ service cloud.firestore {
     match /{document=**} {
       allow read, write: if false;
     }
+    
+    // Connectivity test
+    match /test/connection {
+      allow read, write: if true;
+    }
 
     // Helper Primitives
     function isSignedIn() {
@@ -16,7 +21,8 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && (
         exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        request.auth.token.email == 'owner.css13@gmail.com'
+        request.auth.token.email == 'owner.css13@gmail.com' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
       );
     }
     function incoming() {
@@ -31,11 +37,13 @@ service cloud.firestore {
 
     // Entity Validations
     function isValidUser(data) {
-      return data.keys().hasAll(['username', 'balance']) &&
-             data.username is string && data.username.size() <= 50 &&
-             data.balance is number && data.balance >= 0 &&
+      return (data.username is string && data.username.size() <= 50) &&
+             (data.balance is number && data.balance >= 0) &&
              (!('vipLevel' in data) || data.vipLevel is int) &&
              (!('totalTurnover' in data) || data.totalTurnover is number);
+    }
+    function isNewUser(data) {
+      return data.keys().hasAll(['username', 'balance']) && isValidUser(data);
     }
 
     function isValidTransaction(data) {
@@ -65,7 +73,7 @@ service cloud.firestore {
       // Allow admins to list all, and users to list their own referrals
       allow list: if isSignedIn() && (isAdmin() || resource.data.referredBy == request.auth.uid);
       
-      allow create: if isOwner(userId) && isValidUser(incoming()) && 
+      allow create: if isOwner(userId) && isNewUser(incoming()) && 
                        incoming().balance == 507 && // New users start with 507 bonus
                        (!('vipLevel' in incoming()) || incoming().vipLevel == 0);
       
@@ -81,7 +89,7 @@ service cloud.firestore {
     // 2. Transactions Collection
     match /transactions/{transactionId} {
       allow get: if isSignedIn() && (isOwner(existing().uid) || isAdmin());
-      allow list: if isSignedIn() && (request.query.limit <= 100 && (isAdmin() || resource.data.uid == request.auth.uid));
+      allow list: if isAdmin() || (isSignedIn() && (resource.data.uid == request.auth.uid || resource.data.userId == request.auth.uid));
       
       allow create: if isSignedIn() && (isOwner(incoming().uid) || incoming().type == 'bonus') && isValidTransaction(incoming()) && 
                        (incoming().status == 'pending' || incoming().status == 'approved');

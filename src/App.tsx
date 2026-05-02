@@ -4,7 +4,6 @@ import { auth, db } from './services/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs, onSnapshot, serverTimestamp, increment, query, orderBy, limit } from 'firebase/firestore';
 import LoginPage from './views/LoginPage';
-import LogoPreview from './components/ui/LogoPreview';
 import BonusCenter from './views/BonusCenter';
 import AdminPanelView from "./views/AdminPanelView";
 import AnalyticsView from "./views/AnalyticsView";
@@ -13,11 +12,7 @@ import InviteView from "./views/InviteView";
 import HomeView from "./views/HomeView";
 import DepositView from "./views/DepositView";
 import WalletView from "./views/WalletView";
-import AviatorGame from "./games/AviatorGame";
-import RocketGame from "./games/RocketGame";
 import SupportChat from "./layout/SupportChat";
-import SlotGame from "./games/SlotGame";
-import GenericGameView from "./views/GenericGameView";
 import PromoCodeModal from "./components/modals/PromoCodeModal";
 import DepositRequiredModal from "./components/ui/DepositRequiredModal";
 import PermissionManager from "./layout/PermissionManager";
@@ -286,13 +281,12 @@ export default function App() {
 
   useEffect(() => {
     if (isGameLoading && selectedGame) {
-      const isNative = !globalUrls[selectedGame.id];
-      if (isNative) {
-        const timer = setTimeout(() => {
-          setIsGameLoading(false);
-        }, 3000); // 3 seconds simulated load
-        return () => clearTimeout(timer);
-      }
+      const isNative = !globalUrls[selectedGame.id] && selectedGame.id !== 'aviator' && selectedGame.id !== 'rocket_1' && selectedGame.provider !== 'Generic';
+      // Just simulate load for 3 seconds either way for better UX
+      const timer = setTimeout(() => {
+        setIsGameLoading(false);
+      }, 3000); 
+      return () => clearTimeout(timer);
     }
   }, [isGameLoading, selectedGame, globalUrls]);
 
@@ -311,18 +305,33 @@ export default function App() {
         try {
           const userDoc = await getDoc(doc(db, 'users', user.uid));
           if (userDoc.exists()) {
-            const data = userDoc.data();
+            let data = userDoc.data();
+            
+            // Ensure referralCode exists for old users
+            if (!data.referralCode) {
+              const newRefCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+              await updateDoc(doc(db, 'users', user.uid), { referralCode: newRefCode });
+              data.referralCode = newRefCode;
+            }
+
+            // Upgrade role if the user is owner.css13@gmail.com
+            if (user.email === 'owner.css13@gmail.com' && data.role !== 'admin') {
+              await updateDoc(doc(db, 'users', user.uid), { role: 'admin' });
+              data.role = 'admin';
+            }
+            
             setUserData({ id: user.uid, ...data });
             setIsLoggedIn(true);
             setBalance(data.balance || 0);
           } else {
             // New user from social login maybe?
             const cleanDisplayName = (user.displayName || 'Guest').replace(/[^a-zA-Z0-9]/g, '').substring(0, 13) || `u${user.uid.substring(0,5)}`;
+            const isAdminEmail = user.email === 'owner.css13@gmail.com';
             const newData = {
               username: cleanDisplayName,
               email: user.email || "",
               balance: 507,
-              role: 'user',
+              role: isAdminEmail ? 'admin' : 'user',
               createdAt: new Date().toISOString()
             };
             await setDoc(doc(db, 'users', user.uid), newData);
@@ -614,6 +623,8 @@ export default function App() {
       setGlobalNames(prev => ({ ...prev, ...names }));
       setGlobalUrls(prev => ({ ...prev, ...urls }));
       setGlobalOptions(prev => ({ ...prev, ...options }));
+    }, (error) => {
+      console.error("game_settings snapshot error:", error);
     });
 
     // Subscribe to global image changes - now using a collection
@@ -626,6 +637,8 @@ export default function App() {
         }
       });
       setGlobalImages(prev => ({ ...prev, ...images }));
+    }, (error) => {
+      console.error("global_images snapshot error:", error);
     });
 
     // Also migrate old images from document to collection if they exist
@@ -673,6 +686,8 @@ export default function App() {
         if (data?.minWithdraw !== undefined) setMinWithdraw(data.minWithdraw);
         if (data?.welcomeBonus !== undefined) setWelcomeBonus(data.welcomeBonus);
       }
+    }, (error) => {
+      console.error("metadata snapshot error:", error);
     });
 
     return () => {
@@ -695,8 +710,6 @@ export default function App() {
   const [isGlobalChatOpen, setIsGlobalChatOpen] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showRegistrationSuccess, setShowRegistrationSuccess] = useState(false);
-  const [showLogoPreview, setShowLogoPreview] = useState(false);
-  const [aviatorLogo, setAviatorLogo] = useState<string | null>('https://storage.googleapis.com/genai-studio-user-uploads/projects/ais-dev-wxllhxlbpwpt7cv6zg665n/uploads/1743526563604-image.png');
   const [telegramLink, setTelegramLink] = useState<string>("https://t.me/spin71bet_official");
   const [whatsappLink, setWhatsappLink] = useState<string>("https://wa.me/...");
   const [facebookLink, setFacebookLink] = useState<string>("https://facebook.com/...");
@@ -806,10 +819,6 @@ export default function App() {
     updateCasinoName(name);
   };
 
-  const handleLogoSelect = (logo: string) => {
-    setAviatorLogo(logo);
-  };
-
   const logUserActivity = (activity: string) => {
     console.log("Activity Log:", activity);
   };
@@ -900,6 +909,8 @@ export default function App() {
           setUserData((prev: any) => ({ ...prev, ...data }));
           setBalance(data.balance || 0);
         }
+      }, (error) => {
+        console.error("User snapshot error:", error);
       });
     }
 
@@ -912,7 +923,7 @@ export default function App() {
   }, [isLoggedIn, userData?.id]);
 
   if (showSplash) {
-    return <GlobalLoader message={casinoName} subMessage="PREMIUM GAMING EXPERIENCE" />;
+    return <GlobalLoader message={casinoName} subMessage="PREPARING YOUR PREMIUM EXPERIENCE" onSkip={() => setShowSplash(false)} />;
   }
 
   if (isDataLoading && !showRegistrationSuccess) {
@@ -965,6 +976,36 @@ export default function App() {
 
   return (
     <div className="max-w-[512px] mx-auto bg-[var(--bg-main)] min-h-[100dvh] relative overflow-x-hidden font-sans text-[var(--text-main)] pb-16 flex flex-col safe-top transition-colors duration-300">
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <Sidebar
+            isOpen={isSidebarOpen}
+            onClose={() => setIsSidebarOpen(false)}
+            userData={userData}
+            activeTab={activeTab}
+            handleTabChange={handleTabChange}
+            handleGameSelect={(game) => {
+              setSelectedGame(game);
+              setIsSidebarOpen(false);
+              if (game.url) {
+                 window.open(game.url, '_blank');
+              } else {
+                 setIsGameLoading(true);
+              }
+            }}
+            setIsSupportChatOpen={setIsSupportChatOpen}
+            handleLogout={() => {
+              handleLogout();
+              setIsSidebarOpen(false);
+            }}
+            showToast={showToast}
+            casinoName={casinoName}
+            telegramLink={telegramLink}
+            theme={theme}
+            toggleTheme={toggleTheme}
+          />
+        )}
+      </AnimatePresence>
       {/* Database Status Indicator */}
       <div className={`fixed top-4 right-4 z-[201] w-3 h-3 rounded-full ${
         dbStatus === 'success' ? 'bg-green-500' :
@@ -1006,54 +1047,18 @@ export default function App() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 1.05 }}
-            className="fixed inset-0 z-[100] max-w-[512px] mx-auto bg-black"
+            className="fixed inset-0 z-[100] max-w-[512px] mx-auto bg-black flex items-center justify-center p-4"
           >
-            {selectedGame.id === 'aviator' || selectedGame.id === '5' ? (
-              <AviatorGame 
-                onClose={() => setSelectedGame(null)}
-                userBalance={userData.balance}
-                onBalanceUpdate={handleBalanceUpdate}
-                logo={globalLogos[selectedGame.id] || selectedGame.image}
-                onLogoChange={handleLogoSelect}
-                showToast={showToast}
-                userData={userData}
-                globalName={globalNames[selectedGame.id] || selectedGame.name}
-              />
-            ) : selectedGame.id === 'rocket_1' || selectedGame.id === 'rocket' ? (
-              <RocketGame 
-                onClose={() => setSelectedGame(null)}
-                userBalance={userData.balance}
-                onBalanceUpdate={handleBalanceUpdate}
-                showToast={showToast}
-                userData={userData}
-                globalName={globalNames[selectedGame.id] || selectedGame.name}
-              />
-            ) : selectedGame.provider === 'Generic' ? (
-              <SlotGame 
-                game={selectedGame}
-                onClose={() => setSelectedGame(null)}
-                userBalance={userData.balance}
-                onBalanceUpdate={handleBalanceUpdate}
-                userData={userData}
-                globalName={globalNames[selectedGame.id] || selectedGame.name}
-                globalLogo={globalLogos[selectedGame.id] || selectedGame.image}
-              />
-            ) : (
-              <GenericGameView 
-                selectedGame={selectedGame}
-                globalName={globalNames[selectedGame.id] || selectedGame.name}
-                globalOption={globalOptions[selectedGame.id] || selectedGame.provider}
-                globalLogo={globalLogos[selectedGame.id] || selectedGame.image}
-                userData={userData}
-                onClose={() => setSelectedGame(null)}
-                onDeposit={() => {
-                  setSelectedGame(null);
-                  handleTabChange('deposit');
-                }}
-                setShowDepositRequired={setShowDepositRequired}
-                showToast={showToast}
-              />
-            )}
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-white mb-2">গেমে কাজ চলতেছে</h2>
+              <p className="text-gray-400">অনুগ্রহ করে পরে আবার চেষ্টা করুন|</p>
+              <button 
+                onClick={() => setSelectedGame(null)}
+                className="mt-6 px-6 py-2 bg-yellow-500 text-black font-bold rounded-full hover:bg-yellow-400 transition-colors"
+              >
+                ফিরে যান
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1403,13 +1408,6 @@ export default function App() {
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
-
-      {/* Logo Preview Modal */}
-      {showLogoPreview && (
-        <div className="fixed inset-0 z-[150] bg-black flex flex-col max-w-[512px] mx-auto">
-          <LogoPreview onClose={() => setShowLogoPreview(false)} onSelect={handleLogoSelect} />
-        </div>
-      )}
 
       {/* Floating Telegram Support */}
       <div className="fixed bottom-20 right-4 md:right-[calc(50%-13rem)] z-40 flex flex-col gap-3">

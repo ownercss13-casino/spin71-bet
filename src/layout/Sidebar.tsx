@@ -10,7 +10,6 @@ interface SidebarProps {
   handleTabChange: (tab: any) => void;
   handleGameSelect: (game: any) => void;
   setIsSupportChatOpen: (open: boolean) => void;
-  setShowLogoPreview: (show: boolean) => void;
   handleLogout: () => void;
   showToast: (msg: string, type?: any) => void;
   casinoName?: string;
@@ -29,7 +28,6 @@ export default function Sidebar({
   handleTabChange,
   handleGameSelect,
   setIsSupportChatOpen,
-  setShowLogoPreview,
   handleLogout,
   showToast,
   casinoName = "SPIN71 BET",
@@ -39,8 +37,6 @@ export default function Sidebar({
   theme,
   toggleTheme
 }: SidebarProps) {
-  if (!isOpen) return null;
-
   const games = [
     { id: '1', name: 'Aviator', icon: Star },
     { id: '2', name: 'Rocket', icon: Star },
@@ -121,7 +117,6 @@ export default function Sidebar({
             { id: 'telegram', icon: Send, label: 'টেলিগ্রাম (Telegram)' },
             { id: 'whatsapp', icon: MessageCircle, label: 'হোয়াটসঅ্যাপ (WhatsApp)' },
             { id: 'facebook', icon: Facebook, label: 'ফেসবুক (Facebook)' },
-            { id: 'logo', icon: Star, label: 'লোগো জেনারেটর (Logo Generator)' },
           ].map((link) => (
             <button
               key={link.id}
@@ -132,8 +127,6 @@ export default function Sidebar({
                   window.open(whatsappLink, '_blank');
                 } else if (link.id === 'facebook') {
                   window.open(facebookLink, '_blank');
-                } else if (link.id === 'logo') {
-                  setShowLogoPreview(true);
                 } else {
                   handleTabChange(link.id as any);
                 }

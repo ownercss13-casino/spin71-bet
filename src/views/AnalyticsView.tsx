@@ -102,49 +102,7 @@ export default function AnalyticsView({ balance, userData, onBack }: AnalyticsVi
           </motion.div>
         </div>
 
-        {/* Turnover Progress Section */}
-        <div className="bg-[var(--bg-card)] rounded-[40px] p-6 border border-[var(--border-color)] relative overflow-hidden">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-teal-500/20 flex items-center justify-center text-teal-400">
-                <Target size={24} />
-              </div>
-              <div>
-                <h3 className="text-white font-black italic uppercase tracking-tight leading-none">টার্নওভার প্রগ্রেস</h3>
-                <p className="text-teal-500 text-[10px] font-bold uppercase tracking-widest mt-1">Turnover Progress</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-2xl font-black text-white italic">{turnoverProgress.percentage}%</p>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="w-full h-4 bg-black/20 rounded-full relative overflow-hidden border border-white/5 shadow-inner">
-              <motion.div 
-                initial={{ width: 0 }}
-                animate={{ width: `${turnoverProgress.percentage}%` }}
-                transition={{ duration: 1, ease: "easeOut" }}
-                className="absolute inset-y-0 left-0 bg-gradient-to-r from-teal-500 to-teal-400 shadow-[0_0_15px_rgba(20,184,166,0.5)] rounded-full"
-              />
-            </div>
-            <div className="flex justify-between text-[11px] font-bold uppercase tracking-widest">
-              <p className="text-teal-500">৳ {turnoverProgress.current.toLocaleString()}</p>
-              <p className="text-gray-500">লক্ষ্য: ৳ {turnoverProgress.required.toLocaleString()}</p>
-            </div>
-          </div>
-
-          <div className="mt-8 grid grid-cols-2 gap-3">
-             <div className="p-4 bg-teal-500/5 border border-teal-500/10 rounded-2xl text-center">
-                <p className="text-[9px] font-black text-teal-600 uppercase mb-1">অ্যাক্টিভ দিন</p>
-                <p className="text-lg font-black text-white">২৫/৩০</p>
-             </div>
-             <div className="p-4 bg-teal-500/5 border border-teal-500/10 rounded-2xl text-center">
-                <p className="text-[9px] font-black text-teal-600 uppercase mb-1">গড় বাজি</p>
-                <p className="text-lg font-black text-white">৳ ৫৪০</p>
-             </div>
-          </div>
-        </div>
+        {/* Statistics Sections removed to hide Turnover */}
 
         {/* Performance Chart */}
         <div className="bg-[var(--bg-card)] rounded-[40px] p-6 border border-[var(--border-color)]">

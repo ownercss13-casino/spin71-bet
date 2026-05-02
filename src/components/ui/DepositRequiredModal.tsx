@@ -33,9 +33,15 @@ export default function DepositRequiredModal({ isOpen, onClose, onDeposit }: Dep
             <p className="text-gray-500 text-sm mb-6">গেম খেলার জন্য আপনাকে অন্তত একবার ডিপোজিট করতে হবে।</p>
             <button 
               onClick={onDeposit}
-              className="w-full bg-[#333] text-white font-black py-4 rounded-xl hover:bg-black transition-all"
+              className="w-full bg-[#333] text-white font-black py-4 rounded-xl hover:bg-black transition-all mb-2"
             >
               ডিপোজিট করুন
+            </button>
+            <button 
+              onClick={onClose}
+              className="w-full bg-gray-100 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-200 transition-all"
+            >
+              বন্ধ করুন
             </button>
           </motion.div>
         </div>

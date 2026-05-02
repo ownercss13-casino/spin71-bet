@@ -26,9 +26,10 @@ class ApiService {
    * Universal fetch helper with error handling
    */
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
-    // Ensure we have a valid base URL. In some environments, we might need the full origin.
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const fullUrl = endpoint.startsWith('http') ? endpoint : `${origin}${this.baseUrl}${endpoint}`;
+    // Use relative URL for API requests to avoid origin issues in iframes
+    const fullUrl = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint}`;
+    
+    console.log(`[ApiService] Requesting: ${endpoint}, Full URL: ${fullUrl}`);
     
     try {
       console.log(`[ApiService] Fetching: ${fullUrl}`, { 
@@ -72,14 +73,14 @@ class ApiService {
    * This avoids CORS and hides API keys
    */
   public async proxyGet<T>(url: string, headers: Record<string, string> = {}): Promise<ApiResponse<T>> {
-    return this.request<T>('/proxy', {
+    return this.request<T>('/external-fetch', {
       method: 'POST',
       body: JSON.stringify({ url, method: 'GET', headers }),
     });
   }
 
   public async proxyPost<T>(url: string, body: any, headers: Record<string, string> = {}): Promise<ApiResponse<T>> {
-    return this.request<T>('/proxy', {
+    return this.request<T>('/external-fetch', {
       method: 'POST',
       body: JSON.stringify({ url, method: 'POST', body, headers }),
     });

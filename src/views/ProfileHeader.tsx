@@ -58,17 +58,21 @@ export default function ProfileHeader({ userData, profilePic, fileInputRef, hand
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <h2 className="text-2xl font-black text-[var(--text-main)] drop-shadow-md tracking-tight">{userData?.username || profileData?.username || "Player"}</h2>
+          </div>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-[var(--text-muted)] text-sm font-medium opacity-90">ID: {userData?.id || profileData?.id || "84729104"}</p>
             <button 
               onClick={() => {
-                navigator.clipboard.writeText(userData?.username || profileData?.username || "Player");
+                navigator.clipboard.writeText(userData?.id || profileData?.id || "84729104");
+                // Optional: you could add a toast notification here if you passed down `showToast`
               }}
-              className="p-1 bg-white/10 hover:bg-white/20 rounded-md transition-colors text-[var(--text-main)] opacity-70 hover:opacity-100"
-              title="Copy Username"
+              className="flex items-center gap-1 px-2 py-0.5 bg-white/10 hover:bg-white/20 rounded-md transition-colors text-[var(--text-main)] opacity-70 hover:opacity-100 text-xs"
+              title="Copy UID"
             >
-              <Copy size={14} />
+              <Copy size={12} />
+              <span>কপি</span>
             </button>
           </div>
-          <p className="text-[var(--text-muted)] text-sm font-medium opacity-90">ID: {userData?.id || profileData?.id || "84729104"}</p>
           <div className="mt-2 flex flex-col gap-1.5">
             <div className="flex justify-between items-center">
               <span className="text-[10px] text-yellow-300 font-black uppercase tracking-widest">VIP Progress</span>

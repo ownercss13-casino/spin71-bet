@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ClipboardList, MessageCircle, Check, Copy, ShieldCheck, ArrowRight, Loader2, X } from 'lucide-react';
 import { ToastType } from '../components/ui/Toast';
 import GlobalImage from '../components/ui/GlobalImage';
+import VIPLoader from '../components/ui/VIPLoader';
 
 const paymentMethods = [
   { 
@@ -149,7 +150,7 @@ export default function DepositView({
       setTrxId('');
       setStep(1);
       setShowHistory(true);
-    }, 1500);
+    }, 3500);
   };
 
   const isNextEnabled = amount !== '' && parseFloat(amount) >= minDeposit;
@@ -234,7 +235,7 @@ export default function DepositView({
                         alt={method.name}
                         showToast={showToast}
                         className="max-w-full max-h-full object-contain"
-                        isAdmin={isAdmin}
+                        isAdmin={false}
                         updateGlobalImage={(url) => onUpdateGlobalImage ? onUpdateGlobalImage(`payment_logo_${method.id}`, url) : Promise.resolve()}
                       />
                     </div>
@@ -397,7 +398,7 @@ export default function DepositView({
                     alt="Logo"
                     showToast={showToast}
                     className="w-full h-full object-contain"
-                    isAdmin={isAdmin}
+                    isAdmin={false}
                   />
                 </div>
                 <span className="text-white text-lg font-bold uppercase tracking-wide">
@@ -554,6 +555,8 @@ export default function DepositView({
           </div>
         </div>
       )}
+      
+      <VIPLoader isVisible={isSubmitting} type="deposit" />
     </div>
   );
 }

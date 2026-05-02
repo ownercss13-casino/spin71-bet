@@ -264,7 +264,7 @@ export default function HomeView({
             </>
           ) : (
             <>
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-400 to-yellow-600 p-0.5 shadow-lg overflow-hidden">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-400 to-yellow-600 p-0.5 shadow-lg overflow-hidden cursor-pointer" onClick={() => onNavigate?.('profile')}>
                 <div className="w-full h-full bg-[var(--bg-main)] rounded-full flex items-center justify-center border-2 border-white overflow-hidden transition-colors duration-300">
                   {userData?.profilePictureUrl ? (
                     <img src={userData.profilePictureUrl} alt="Profile" className="w-full h-full object-cover" />
@@ -273,7 +273,7 @@ export default function HomeView({
                   )}
                 </div>
               </div>
-              <div className="flex flex-col">
+              <div className="flex flex-col cursor-pointer" onClick={() => onNavigate?.('profile')}>
                 <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-wider leading-none">স্বাগতম (Welcome)</span>
                 <span className="text-xs font-black text-[var(--text-main)] tracking-tight">{userData?.username || 'Guest Player'}</span>
               </div>

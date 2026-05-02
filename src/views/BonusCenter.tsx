@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Gift, X, Calendar, Star, AlertCircle, RefreshCw, ArrowLeft, Trophy, Users, Wallet, ChevronRight, Info, Target, Award, Activity } from 'lucide-react';
+import { Gift, X, Calendar, Star, AlertCircle, RefreshCw, ArrowLeft, Trophy, Users, Zap, CheckCircle2, Copy, Play, ArrowRight, BookOpen, Clock, Settings, Bell, CircleDollarSign } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { motion, AnimatePresence } from 'motion/react';
@@ -27,244 +27,264 @@ export default function BonusCenter({
   welcomeBonus?: number,
   onOpenPromoModal: () => void
 }) {
-  const [isClaiming, setIsClaiming] = useState(false);
-  const [showPopup, setShowPopup] = useState(false);
-  const [popupMessage, setPopupMessage] = useState("");
+  const [activeTab, setActiveTab] = useState('mission');
+  const [subTab, setSubTab] = useState('new_player');
 
-  const parseClaimDate = (dateVal: any) => {
-    if (!dateVal) return null;
-    if (typeof dateVal === 'string') return new Date(dateVal);
-    if (dateVal.toDate && typeof dateVal.toDate === 'function') return dateVal.toDate();
-    if (dateVal.seconds) return new Date(dateVal.seconds * 1000);
-    return new Date(dateVal);
-  };
+  const tabs = [
+    { id: 'event', label: 'ইভেন্ট', badge: 2 },
+    { id: 'mission', label: 'মিশন', badge: 3 },
+    { id: 'vip', label: 'VIP' },
+    { id: 'svip', label: 'SVIP' },
+    { id: 'claim', label: 'দাবি করুন', badge: 8 },
+    { id: 'cashback', label: 'ক্যাশব্যাক' },
+  ];
 
-  const lastClaimed = userData?.lastDailyBonusClaimedAt;
-  const lastClaimedDate = parseClaimDate(lastClaimed);
-  const now = new Date();
-  const canClaimDaily = !lastClaimedDate || (now.getTime() - lastClaimedDate.getTime() > 24 * 60 * 60 * 1000);
-  
-  const hasClaimedWelcome = userData?.hasClaimedWelcomeBonus;
-  const hasMadeDeposit = (userData?.totalDeposits || 0) > 0;
-  const hasClaimedDepositBonus = userData?.hasClaimedDepositBonus;
-
-  const handleClaimDaily = async () => {
-    if (canClaimDaily && userData?.id) {
-       setIsClaiming(true);
-       try {
-         const claimTime = new Date().toISOString();
-         const bonusAmt = 6.77;
-         await onUpdateUser({
-           balance: balance + bonusAmt,
-           lastDailyBonusClaimedAt: claimTime
-         });
-         setPopupMessage(`অভিনন্দন! আপনি ৳${bonusAmt} ডেইলি বোনাস পেয়েছেন!`);
-         setShowPopup(true);
-       } catch (err) {
-         showToast("বোনাস ক্লেইম করতে সমস্যা হয়েছে", "error");
-       } finally {
-         setIsClaiming(false);
-       }
-    }
-  };
-
-  const handleClaimWelcome = async () => {
-    if (!hasClaimedWelcome && userData?.id) {
-       setIsClaiming(true);
-       try {
-         await onUpdateUser({
-           balance: balance + welcomeBonus,
-           hasClaimedWelcomeBonus: true
-         });
-         setPopupMessage(`অভিনंदन! আপনি ${welcomeBonus} টাকা ওয়েলকাম বোনাস পেয়েছেন!`);
-         setShowPopup(true);
-       } catch (err) {
-         showToast("বোনাস ক্লেইম করতে সমস্যা হয়েছে", "error");
-       } finally {
-         setIsClaiming(false);
-       }
-    }
+  const handleClaimReward = (amount: number) => {
+    showToast(`Successfully claimed ৳${amount}`, 'success');
+    onUpdateUser({
+      balance: balance + amount
+    });
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24 animate-in fade-in duration-500 relative">
-      {isClaiming && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-3 bg-white p-8 rounded-[40px] border border-gray-100 shadow-2xl scale-110">
-            <RefreshCw size={48} className="text-red-500 animate-spin" />
-            <span className="text-gray-900 font-black italic uppercase tracking-tighter text-lg animate-pulse">Processing...</span>
+    <div className="min-h-screen bg-[#2BAA74] pb-24 relative overflow-hidden flex flex-col font-sans">
+      
+      {/* Top Navigation */}
+      <div className="flex items-center gap-2 px-4 py-3 text-white">
+        <button onClick={() => onTabChange('home')} className="p-1">
+          <ArrowLeft size={24} />
+        </button>
+        <div className="flex-1 overflow-x-auto no-scrollbar">
+          <div className="flex gap-6 min-w-max items-center pb-2">
+            {tabs.map(tab => (
+              <button 
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`relative whitespace-nowrap text-base font-bold pb-1 transition-all ${
+                  activeTab === tab.id 
+                    ? 'text-white border-b-2 border-white' 
+                    : 'text-white/80 border-b-2 border-transparent'
+                }`}
+              >
+                {tab.label}
+                {tab.badge && (
+                  <span className="absolute -top-1 -right-4 bg-red-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="bg-gradient-to-r from-red-600 to-red-800 p-6 rounded-b-[40px] shadow-lg shadow-red-900/20 sticky top-0 z-30">
-        <div className="flex items-center gap-4 mb-4">
-          <button onClick={() => onTabChange('home')} className="text-white hover:scale-110 transition-transform">
-            <ArrowLeft size={24} />
-          </button>
-          <h1 className="text-2xl font-black text-white italic uppercase tracking-tighter">প্রচার ও বোনাস (Promotions)</h1>
-        </div>
-        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 flex items-center justify-between border border-white/20">
-          <div className="flex items-center gap-3">
-             <div className="w-10 h-10 rounded-full bg-yellow-400 flex items-center justify-center shadow-lg">
-                <Trophy size={20} className="text-red-700" />
-             </div>
-             <div>
-                <p className="text-[10px] font-black text-white/60 uppercase tracking-widest leading-none mb-1">Available Rewards</p>
-                <p className="text-xl font-black text-white italic leading-none">৳ {balance.toLocaleString()}</p>
-             </div>
-          </div>
-          <button onClick={() => onTabChange('wallet')} className="bg-yellow-400 text-red-900 px-4 py-2 rounded-xl font-black text-xs uppercase tracking-tighter shadow-lg active:scale-95 transition-all">
-            উত্তোলন
-          </button>
         </div>
       </div>
 
-      <div className="p-4 space-y-6">
-        {/* Promo Code section */}
-        <div className="bg-white rounded-[40px] p-8 shadow-sm border border-gray-100 flex flex-col items-center text-center space-y-4 relative overflow-hidden group">
-           <div className="absolute top-0 right-0 w-32 h-32 bg-red-50 rounded-full blur-3xl -mr-16 -mt-16 opacity-50 group-hover:opacity-100 transition-opacity"></div>
-           <Gift size={56} className="text-red-500 animate-bounce" />
-           <div>
-             <h3 className="text-2xl font-black text-gray-900 italic leading-none mb-2">প্রোমো কোড (Promo Code)</h3>
-             <p className="text-xs text-gray-500 font-medium">আপনার কাছে কি কোনো গিফট কোড আছে? এখানে উপহার সংগ্রহ করুন।</p>
+      <div className="px-4 flex-1 overflow-y-auto pb-6 space-y-4">
+        {/* Chest Progress Section */}
+        <div className="bg-[#249965] rounded-xl p-4 shadow-sm border border-[#3bc68a]">
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex items-center gap-1 font-bold text-green-300">
+              <Zap size={16} className="fill-green-300" />
+              <span>0</span>
+            </div>
+            <button className="text-white text-sm">বিশদ</button>
+          </div>
+
+          <div className="relative flex items-center justify-between px-2">
+            {/* Progress line */}
+            <div className="absolute left-[10%] right-[10%] top-6 h-0.5 bg-[#45B888] -z-0"></div>
+            
+            {/* Chests */}
+            {[
+              { id: 1, energy: 100, active: 1 },
+              { id: 2, energy: 200, active: 1 },
+              { id: 3, energy: 300, active: 1 },
+              { id: 4, energy: 500, active: 1 },
+            ].map((chest, index) => (
+              <div key={chest.id} className="flex flex-col items-center gap-2 z-10">
+                <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center border-2 border-[#52C594]">
+                  {/* Chest Icon representation */}
+                  <div className="w-8 h-8 opacity-80 flex flex-col items-center">
+                    <div className="w-8 h-4 bg-gray-200 rounded-t border-b border-gray-400 relative">
+                       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-yellow-400 rounded-full border border-yellow-600"></div>
+                    </div>
+                    <div className="w-8 h-4 bg-gray-300 rounded-b flex items-center justify-center text-[10px] font-bold text-gray-500">
+                       1
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 text-[10px] text-green-200 bg-[#1D8254] px-2 py-0.5 rounded-full border border-[#42B485]">
+                  <Zap size={10} className="fill-green-200" />
+                  <span>- {chest.energy}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Sub Tabs */}
+        <div className="flex items-center justify-between">
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setSubTab('new_player')}
+              className={`relative px-4 py-1.5 rounded-full text-sm font-bold transition-colors ${
+                subTab === 'new_player' 
+                  ? 'bg-white text-[#2BAA74]' 
+                  : 'border border-[#52C594] text-white hover:bg-white/10'
+              }`}
+            >
+              নিউপ্লেয়ার বোনাস
+              <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">3</span>
+            </button>
+            <button 
+              onClick={() => setSubTab('daily')}
+              className={`relative px-4 py-1.5 rounded-full text-sm font-bold transition-colors ${
+                subTab === 'daily' 
+                  ? 'bg-white text-[#2BAA74]' 
+                  : 'border border-[#52C594] text-white hover:bg-white/10'
+              }`}
+            >
+              দৈনিক মিশন
+            </button>
+          </div>
+          <button className="flex items-center gap-1 text-white text-sm font-medium">
+            <RefreshCw size={14} />
+            রিফ্রেশ
+          </button>
+        </div>
+
+        {/* Gift Icon */}
+        <div className="flex justify-between items-center px-1">
+           <div className="relative">
+              <Gift size={40} className="text-red-500 fill-yellow-400" />
+              <span className="absolute -bottom-2 -left-2 bg-green-500 text-white text-[10px] font-black px-1.5 rounded border border-white">NEW</span>
            </div>
-           <button 
-             onClick={onOpenPromoModal}
-             className="w-full bg-gradient-to-r from-red-600 to-red-800 text-white font-black py-5 rounded-[24px] shadow-lg shadow-red-500/30 flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all uppercase tracking-widest text-sm"
-           >
-             কোড ব্যবহার করুন
+           <button className="text-white p-2">
+             <BookOpen size={24} className="opacity-80" />
            </button>
         </div>
 
-        {/* Featured Promotion */}
-        <div className="relative rounded-[40px] overflow-hidden shadow-2xl group cursor-pointer" onClick={() => onTabChange('deposit')}>
-          <img src="https://picsum.photos/seed/bonus/800/400" alt="Special Offer" className="w-full h-56 object-cover group-hover:scale-110 transition-transform duration-1000" />
-          <div className="absolute inset-0 bg-gradient-to-t from-red-900/90 via-black/20 to-transparent p-6 flex flex-col justify-end">
-            <div className="bg-yellow-400 text-red-900 text-[10px] font-black px-3 py-1 rounded-full w-fit mb-2 uppercase tracking-widest shadow-lg">New Offer 🔥</div>
-            <h2 className="text-3xl font-black text-white italic leading-tight mb-1">স্বাগতম বোনাস ৳ ৫০০৭ পর্যন্ত!</h2>
-            <p className="text-red-200 text-xs font-bold leading-none">প্রথম জমার ওপর ১০০% ক্যাশব্যাক বোনাস পান আজই</p>
-          </div>
-        </div>
-
-        {/* Categories */}
-        <div className="grid grid-cols-2 gap-4">
-          <BonusCard 
-            title="ডেইলি বোনাস" 
-            desc="প্রতিদিন ৩-৭ টাকা পর্যন্ত ফ্রী রিওয়ার্ড" 
-            icon={Calendar} 
-            color="bg-orange-500" 
-            available={canClaimDaily}
-            onClick={handleClaimDaily}
-          />
-          <BonusCard 
-            title="রেফারেল" 
-            desc="বন্ধুদের আনুন এবং আয় করুন Unlimited" 
-            icon={Users} 
-            color="bg-indigo-600" 
-            available={true}
-            onClick={() => onTabChange('invite')}
-          />
-        </div>
-
-        <div>
-           <div className="flex items-center justify-between mb-4 px-2">
-             <h3 className="font-black text-gray-900 uppercase tracking-tighter italic text-xl underline decoration-red-500 decoration-4 underline-offset-4">অন্যান্য অফার (Explore)</h3>
-             <ChevronRight size={24} className="text-gray-300" />
-           </div>
-           
-           <div className="space-y-4 pb-10">
-              <PromotionItem 
-                title="সাপ্তাহিক ৫% ক্যাশব্যাক" 
-                desc="আপনার মোট হারের ৫% টাকা ক্যাশব্যাক হিসেবে ফিরে পান সরাসরি ওয়ালেটে।" 
-                icon={RefreshCw}
-                color="bg-blue-500"
-                tag="LIVE"
-              />
-              <PromotionItem 
-                title="VIP মেম্বারশিপ টার্গেট" 
-                desc="১ লক্ষ টাকা টার্নওভার পূরণ করে ভিআইপি ক্লাবে যোগদান করুন এবং পান স্পেশাল সুবিধা।" 
-                icon={Star}
-                color="bg-yellow-500"
-                tag="VIP"
-              />
-              <PromotionItem 
-                title="প্রথম ডিপোজিটে ১০০%" 
-                desc="রেজিস্ট্রেশনের পর প্রথম ২৪ ঘন্টার জন্য স্পেশাল বোনাস।" 
-                icon={Target}
-                color="bg-red-500"
-                tag="NEW"
-              />
-           </div>
-        </div>
-      </div>
-
-      <AnimatePresence>
-        {showPopup && (
-          <div className="fixed inset-0 z-[210] flex items-center justify-center p-6 bg-black/60 backdrop-blur-md">
-            <motion.div 
-              initial={{ scale: 0.5, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.5, opacity: 0 }}
-              className="bg-white rounded-[40px] p-8 text-center max-w-sm w-full shadow-2xl relative border-4 border-yellow-400"
-            >
-              <div className="w-24 h-24 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Trophy size={48} className="text-yellow-600" />
+        {/* Mission List */}
+        <div className="space-y-3">
+          {/* Mission Item 1 */}
+          <div className="bg-[#1D8254]/40 border border-[#3bc68a]/50 rounded-lg overflow-hidden">
+            <div className="bg-[#1D8254]/60 px-3 py-2 flex items-center gap-2 border-b border-[#3bc68a]/30">
+              <div className="w-6 h-6 bg-white rounded flex items-center justify-center text-[#2BAA74]">
+                 <ArrowRight size={16} />
               </div>
-              <h3 className="text-2xl font-black text-gray-900 italic mb-2">চমৎকার খবর!</h3>
-              <p className="text-gray-600 font-medium mb-8 leading-relaxed">{popupMessage}</p>
-              <button 
-                onClick={() => setShowPopup(false)}
-                className="w-full bg-red-600 text-white font-black py-4 rounded-[24px] uppercase tracking-widest text-sm shadow-lg shadow-red-500/30 active:scale-95 transition-all"
-              >
-                দারুণ, ধন্যবাদ!
-              </button>
-            </motion.div>
+              <span className="text-white text-sm font-medium">ডাউনলোড(আমানত)</span>
+            </div>
+            <div className="p-3 flex items-center justify-between">
+               <div className="flex gap-6">
+                 <div className="flex flex-col items-center">
+                    <CircleDollarSign size={20} className="text-yellow-400 fill-yellow-100" />
+                    <span className="text-yellow-400 text-sm mt-1">49.99</span>
+                 </div>
+                 <div className="flex flex-col items-center">
+                    <Zap size={20} className="text-green-300 fill-green-300" />
+                    <span className="text-green-300 text-sm mt-1">10</span>
+                 </div>
+               </div>
+               <button 
+                 onClick={() => handleClaimReward(49.99)}
+                 className="bg-[#2CE830] hover:bg-[#25cc28] text-black font-bold px-8 py-2 rounded-md shadow-sm active:scale-95 transition-all text-sm"
+               >
+                 দাবি
+               </button>
+            </div>
           </div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
 
-function BonusCard({ title, desc, icon: Icon, color, available, onClick }: any) {
-  return (
-    <button 
-      onClick={onClick}
-      className={`${color} p-6 rounded-[32px] text-left text-white shadow-xl relative overflow-hidden group active:scale-95 transition-all h-full flex flex-col justify-between`}
-    >
-      <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:scale-110 transition-transform">
-        <Icon size={40} />
-      </div>
-      <div className="relative z-10">
-        <div className="bg-white/20 w-10 h-10 rounded-xl flex items-center justify-center mb-4">
-          <Icon size={20} />
-        </div>
-        <h4 className="text-lg font-black italic leading-none mb-1">{title}</h4>
-        <p className="text-[10px] font-bold text-white/70 leading-tight mb-2">{desc}</p>
-      </div>
-      
-      <div className={`mt-2 w-fit px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${available ? 'bg-white text-black' : 'bg-black/20 text-white/50'}`}>
-        {available ? 'এখনই দেখুন' : 'শেষ হয়েছে'}
-      </div>
-    </button>
-  );
-}
+          {/* Mission Item 2 */}
+          <div className="bg-[#1D8254]/40 border border-[#3bc68a]/50 rounded-lg overflow-hidden">
+            <div className="bg-[#1D8254]/60 px-3 py-2 flex items-center gap-2 border-b border-[#3bc68a]/30">
+              <div className="w-6 h-6 bg-white rounded flex items-center justify-center text-blue-500 relative">
+                 <Settings size={16} />
+                 <CheckCircle2 size={10} className="absolute -bottom-1 -right-1 text-green-500 fill-white" />
+              </div>
+              <span className="text-white text-sm font-medium">অ্যাকাউন্ট নিবন্ধন করুন</span>
+            </div>
+            <div className="p-3 flex items-center justify-between">
+               <div className="flex gap-6">
+                 <div className="flex flex-col items-center">
+                    <CircleDollarSign size={20} className="text-yellow-400 fill-yellow-100" />
+                    <span className="text-yellow-400 text-sm mt-1">1.00-9.99</span>
+                 </div>
+               </div>
+               <button 
+                 onClick={() => handleClaimReward(5.00)}
+                 className="bg-[#2CE830] hover:bg-[#25cc28] text-black font-bold px-8 py-2 rounded-md shadow-sm active:scale-95 transition-all text-sm"
+               >
+                 দাবি
+               </button>
+            </div>
+          </div>
 
-function PromotionItem({ title, desc, icon: Icon, color, tag }: any) {
-  return (
-    <div className="bg-white rounded-[32px] p-5 shadow-sm border border-gray-100 flex gap-4 hover:border-gray-200 transition-all group">
-      <div className={`${color} w-16 h-16 rounded-[24px] shrink-0 flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform`}>
-        <Icon size={28} />
-      </div>
-      <div className="flex-1">
-        <div className="flex items-center justify-between mb-1">
-          <h4 className="font-black text-gray-900 italic">{title}</h4>
-          <span className="text-[8px] font-black bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full uppercase tracking-widest">{tag}</span>
+          {/* Mission Item 3 */}
+          <div className="bg-[#1D8254]/40 border border-[#3bc68a]/50 rounded-lg overflow-hidden">
+            <div className="bg-[#1D8254]/60 px-3 py-2 flex items-center gap-2 border-b border-[#3bc68a]/30">
+              <div className="w-6 h-6 bg-blue-100 rounded flex items-center justify-center text-blue-500">
+                 <Settings size={14} className="animate-spin-slow" />
+              </div>
+              <span className="text-white text-sm font-medium">এসএমএস যাচাইকরণ</span>
+            </div>
+            <div className="p-3 flex items-center justify-between">
+               <div className="flex gap-6">
+                 <div className="flex flex-col items-center">
+                    <CircleDollarSign size={20} className="text-yellow-400 fill-yellow-100" />
+                    <span className="text-yellow-400 text-sm mt-1">2.99</span>
+                 </div>
+                 <div className="flex flex-col items-center">
+                    <Zap size={20} className="text-green-300 fill-green-300" />
+                    <span className="text-green-300 text-sm mt-1">10</span>
+                 </div>
+               </div>
+               <button className="bg-white text-[#2BAA74] border border-[#2BAA74] font-bold px-8 py-2 rounded-md shadow-sm active:scale-95 transition-all text-sm">
+                 যাওয়া
+               </button>
+            </div>
+          </div>
+
+          {/* Mission Item 4 */}
+          <div className="bg-[#1D8254]/40 border border-[#3bc68a]/50 rounded-lg overflow-hidden">
+            <div className="bg-[#1D8254]/60 px-3 py-2 flex items-center gap-2 border-b border-[#3bc68a]/30">
+              <div className="w-6 h-6 bg-blue-100 rounded flex items-center justify-center text-blue-500">
+                 <Copy size={14} />
+              </div>
+              <span className="text-white text-sm font-medium">ডেস্কটপ শর্টকাট সংরক্ষণ করুন</span>
+            </div>
+            <div className="p-3 flex items-center justify-between">
+               <div className="flex gap-6">
+                 <div className="flex flex-col items-center">
+                    <CircleDollarSign size={20} className="text-yellow-400 fill-yellow-100" />
+                    <span className="text-yellow-400 text-sm mt-1">1.00-99.90</span>
+                 </div>
+                 <div className="flex flex-col items-center">
+                    <Zap size={20} className="text-green-300 fill-green-300" />
+                    <span className="text-green-300 text-sm mt-1">10</span>
+                 </div>
+               </div>
+               <button className="bg-white text-[#2BAA74] border border-[#2BAA74] font-bold px-8 py-2 rounded-md shadow-sm active:scale-95 transition-all text-sm">
+                 যাওয়া
+               </button>
+            </div>
+          </div>
         </div>
-        <p className="text-[11px] text-gray-500 font-medium leading-tight">{desc}</p>
+
+        {/* Info Box */}
+        <div className="bg-[#248B5F] rounded-lg p-4 text-white/90 text-sm leading-relaxed mt-2 border border-[#3bc68a]/30 shadow-inner">
+           <p className="mb-4">
+             এই ইভেন্টটি বিশেষভাবে নতুন খেলোয়াড়দের জন্য প্রস্তুত। আপনি
+             অ্যাকাউন্ট নিবন্ধন করে ৳০.৫ এবং মোবাইল ফোন যাচাইকরণ সম্
+             পন্ন করে ৳২.৯৯ পেতে পারেন। আপনার প্রথম জমা করার পর,
+             F999 মোবাইল অ্যাপ ডাউনলোড করে এবং অ্যাপে লগ ইন করার
+             পর আপনি আবার ৳49.99 পেতে পারেন।
+           </p>
+           <p>
+             ১. কাজটি শেষ করার পরের দিনই আপনি টাস্ক বোনাসটি পেতে পার
+             বেন;
+           </p>
+        </div>
       </div>
+
     </div>
   );
 }
