@@ -3,6 +3,7 @@ import { ChevronLeft, ClipboardList, MessageCircle, Check, Copy, ShieldCheck, Ar
 import { ToastType } from '../components/ui/Toast';
 import GlobalImage from '../components/ui/GlobalImage';
 import VIPLoader from '../components/ui/VIPLoader';
+import { auth } from '../services/firebase';
 
 const paymentMethods = [
   { 
@@ -138,19 +139,48 @@ export default function DepositView({
     setShowConfirmModal(true);
   };
 
-  const confirmDeposit = () => {
+  const confirmDeposit = async () => {
     setShowConfirmModal(false);
     setIsSubmitting(true);
-    setTimeout(() => {
+    
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("Not authenticated");
+      const idToken = await user.getIdToken();
+
+      const response = await fetch('/api/user/deposit/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: parseFloat(amount),
+          idToken,
+          trxId,
+          senderNumber,
+          method: selectedMethod
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to confirm deposit");
+      }
+
       setIsSubmitting(false);
+      showToast('Deposit confirmed! / ডিপোজিট সফল হয়েছে!', 'success');
+      
       if (onDepositSuccess) {
         onDepositSuccess(parseFloat(amount), trxId, senderNumber, selectedMethod);
       }
-      showToast('Submitted successfully! / সফলভাবে জমা দিন!', 'success');
+      
       setTrxId('');
       setStep(1);
       setShowHistory(true);
-    }, 3500);
+
+    } catch (err: any) {
+      setIsSubmitting(false);
+      showToast(err.message || 'Deposit failed!', 'error');
+    }
   };
 
   const isNextEnabled = amount !== '' && parseFloat(amount) >= minDeposit;

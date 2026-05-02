@@ -27,7 +27,7 @@ import { collection, query, where, getDocs, orderBy, limit } from 'firebase/fire
 
 interface Transaction {
   id: string;
-  type: 'deposit' | 'withdraw' | 'bonus' | 'rebate' | 'bet' | 'win';
+  type: 'deposit' | 'withdrawal' | 'bonus' | 'rebate' | 'bet' | 'win';
   amount: number;
   method?: string;
   status: 'pending' | 'completed' | 'failed' | 'approved' | 'rejected';
@@ -48,7 +48,7 @@ interface WalletViewProps {
 export default function WalletView({ balance, userData, onTabChange, onSubTabChange, showToast }: WalletViewProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'deposit' | 'withdraw'>('all');
+  const [filter, setFilter] = useState<'all' | 'deposit' | 'withdrawal'>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
@@ -120,7 +120,7 @@ export default function WalletView({ balance, userData, onTabChange, onSubTabCha
     switch (type) {
       case 'deposit':
         return <ArrowDownLeft className="text-green-400" size={18} />;
-      case 'withdraw':
+      case 'withdrawal':
         return <ArrowUpRight className="text-red-400" size={18} />;
       case 'bonus':
         return <TrendingUp className="text-yellow-400" size={18} />;
@@ -206,7 +206,7 @@ export default function WalletView({ balance, userData, onTabChange, onSubTabCha
           </div>
           <div className="bg-[var(--bg-card)] p-3 rounded-2xl border border-[var(--border-color)] text-center transition-colors duration-300">
             <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold mb-1">মোট উত্তোলন</p>
-            <p className="text-[var(--brand-primary)] font-black text-xs">৳ {userData?.totalWithdraws?.toLocaleString() || '0'}</p>
+            <p className="text-[var(--brand-primary)] font-black text-xs">৳ {userData?.totalWithdrawals?.toLocaleString() || '0'}</p>
           </div>
           <div className="bg-[var(--bg-card)] p-3 rounded-2xl border border-[var(--border-color)] text-center transition-colors duration-300">
             <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold mb-1">ভিআইপি</p>
@@ -235,8 +235,8 @@ export default function WalletView({ balance, userData, onTabChange, onSubTabCha
                 জমা
               </button>
               <button 
-                onClick={() => setFilter('withdraw')}
-                className={`px-3 py-1 rounded-full text-[10px] font-bold transition-all ${filter === 'withdraw' ? 'bg-red-500 text-white' : 'bg-[var(--bg-card)] text-[var(--text-muted)] border border-[var(--border-color)]'}`}
+                onClick={() => setFilter('withdrawal')}
+                className={`px-3 py-1 rounded-full text-[10px] font-bold transition-all ${filter === 'withdrawal' ? 'bg-red-500 text-white' : 'bg-[var(--bg-card)] text-[var(--text-muted)] border border-[var(--border-color)]'}`}
               >
                 উত্তোলন
               </button>
@@ -266,7 +266,7 @@ export default function WalletView({ balance, userData, onTabChange, onSubTabCha
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-black text-[var(--text-main)] uppercase tracking-tight">
                           {trx.type === 'deposit' ? 'জমা (Deposit)' : 
-                           trx.type === 'withdraw' ? 'উত্তোলন (Withdraw)' : 
+                           trx.type === 'withdrawal' ? 'উত্তোলন (Withdrawal)' : 
                            trx.type === 'bonus' ? 'বোনাস (Bonus)' : 
                            trx.type === 'rebate' ? 'রিবেট (Rebate)' : trx.type}
                         </p>
@@ -299,7 +299,7 @@ export default function WalletView({ balance, userData, onTabChange, onSubTabCha
               
               <button 
                 onClick={() => {
-                  if (onSubTabChange) onSubTabChange(filter === 'withdraw' ? 'withdrawHistory' : 'history');
+                  if (onSubTabChange) onSubTabChange(filter === 'withdrawal' ? 'withdrawHistory' : 'history');
                   onTabChange('profile');
                 }}
                 className="w-full py-4 text-[var(--text-muted)] text-xs font-bold hover:text-[var(--text-main)] transition-colors flex items-center justify-center gap-2"

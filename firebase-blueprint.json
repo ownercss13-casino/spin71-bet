@@ -11,8 +11,11 @@
         "totalWithdrawals": { "type": "number" },
         "totalTurnover": { "type": "number" },
         "vipLevel": { "type": "integer" },
+        "vipPoints": { "type": "number" },
         "referredBy": { "type": "string" },
         "isVerified": { "type": "boolean" },
+        "isBlocked": { "type": "boolean" },
+        "dailyDepositLimit": { "type": "number" },
         "profilePictureUrl": { "type": "string" },
         "bankCards": { "type": "array" },
         "createdAt": { "type": "string", "format": "date-time" },
@@ -20,6 +23,27 @@
       },
       "required": ["username", "balance"]
     },
+    "GameProvider": {
+      "title": "Game Provider",
+      "description": "Configuration for third-party game providers.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "apiKey": { "type": "string" },
+        "apiEndpoint": { "type": "string" },
+        "isActive": { "type": "boolean" }
+      }
+    },
+    "Report": {
+        "title": "Automated Report",
+        "description": "Configuration for automated reporting.",
+        "type": "object",
+        "properties": {
+          "type": { "type": "string" },
+          "frequency": { "type": "string" },
+          "recipientEmail": { "type": "string" }
+        }
+      },
     "Transaction": {
       "title": "Transaction Record",
       "description": "Records of deposits and withdrawals.",
@@ -52,6 +76,14 @@
     "/users/{userId}": {
       "schema": "User",
       "description": "User documents keyed by their Firebase Auth UID."
+    },
+    "/game_providers/{providerId}": {
+      "schema": "GameProvider",
+      "description": "Third-party game provider configurations."
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Automated report configurations."
     },
     "/transactions/{transactionId}": {
       "schema": "Transaction",

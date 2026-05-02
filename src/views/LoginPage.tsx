@@ -42,8 +42,12 @@ const registerSchema = z.object({
     .regex(/^[a-zA-Z0-9]+$/, 'বিশেষ চিহ্ন বা স্পেস ছাড়া অক্ষর দিন (Only letters and numbers)'),
   email: z.string().email('সঠিক ইমেইল দিন (Invalid email)'),
   phoneNumber: z.string().min(11, 'সঠিক মোবাইল নম্বর দিন (Invalid phone number)'),
-  password: z.string().min(6, 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে (Min 6 chars)'),
-  confirmPassword: z.string().min(6, 'পাসওয়ার্ড নিশ্চিত করুন'),
+  password: z.string()
+    .min(8, 'পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের হতে হবে (Min 8 chars)')
+    .regex(/[A-Z]/, 'কমপক্ষে একটি বড় হাতের অক্ষর থাকতে হবে (Must have an uppercase letter)')
+    .regex(/[0-9]/, 'কমপক্ষে একটি সংখ্যা থাকতে হবে (Must have a number)')
+    .regex(/[^A-Za-z0-9]/, 'কমপক্ষে একটি বিশেষ চিহ্ন থাকতে হবে (Must have a special character)'),
+  confirmPassword: z.string().min(8, 'পাসওয়ার্ড নিশ্চিত করুন'),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "পাসওয়ার্ড মিলছে না (Passwords don't match)",
   path: ["confirmPassword"],
@@ -765,6 +769,8 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
+              <p className="text-[10px] text-white/40 ml-2">কমপক্ষে ৮ অক্ষর, একটি বড় হাতের অক্ষর, একটি সংখ্যা ও বিশেষ চিহ্ন থাকতে হবে।</p>
+              {signupErrors.password && <p className="text-[10px] text-red-500 mt-1 ml-2 font-bold italic">! {signupErrors.password.message}</p>}
 
               {/* Confirm Password Field */}
               <div className="relative group">

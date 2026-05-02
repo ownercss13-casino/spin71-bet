@@ -16,61 +16,38 @@ const SESSION_SECRET = process.env.SESSION_SECRET || "mFmqcdqsiI5hs3XgwbGrwrnBqw
 console.log("Server process starting... NODE_ENV:", process.env.NODE_ENV);
 
 // Initialize Firebase Admin
+let db: admin.firestore.Firestore;
+
 if (!admin.apps?.length) {
   try {
-    if (firebaseConfig && firebaseConfig.projectId) {
-      admin.initializeApp({
-        projectId: firebaseConfig.projectId,
-        credential: admin.credential.applicationDefault()
-      });
-      console.log(`Firebase Admin initialized with explicit project ID: ${firebaseConfig.projectId}`);
-    } else {
-      admin.initializeApp({
-        credential: admin.credential.applicationDefault()
-      });
-      console.log("Firebase Admin initialized using environment default project");
-    }
+    admin.initializeApp({
+      credential: admin.credential.applicationDefault()
+    });
+    console.log("Firebase Admin initialized");
   } catch (err: any) {
     console.error("Firebase Admin initialization failed completely:", err.message);
   }
 }
 
-// Get reference to the specific Firestore database
-let db: admin.firestore.Firestore;
-const dbId = firebaseConfig.firestoreDatabaseId;
-
-async function testConnection(database: admin.firestore.Firestore, name: string) {
-  console.log(`Testing connectivity for ${name}...`);
-  try {
-    // Only perform a read operation to test connectivity
-    await database.collection('test').doc('connection').get();
-    console.log(`Firestore connectivity test successful for ${name}`);
-    return true;
-  } catch (err: any) {
-    console.error(`Firestore connectivity test failed for ${name}:`, err.message);
-    return false;
-  }
-}
-
 async function initializeDb() {
+  const dbId = firebaseConfig.firestoreDatabaseId;
   console.log(`Targeting Database ID: ${dbId || '(default)'}`);
   
-  if (dbId) {
-    const specificDb = getFirestore(dbId);
-    const success = await testConnection(specificDb, `specific db (${dbId})`);
-    if (success) {
-      db = specificDb;
-      return;
-    }
-    console.log("Falling back to default database...");
+  try {
+    db = dbId ? getFirestore(dbId) : getFirestore();
+    await db.collection('test').doc('connection').get();
+    console.log(`Firestore connectivity test successful for ${dbId || 'default'}`);
+  } catch (err: any) {
+    console.error(`Firestore connectivity test failed:`, err.message);
+    throw err; // Re-throw to ensure we know it failed
   }
-  
-  const defaultDb = getFirestore();
-  await testConnection(defaultDb, "default database");
-  db = defaultDb;
 }
 
-initializeDb().catch(err => console.error("Critical database initialization error:", err.message));
+// Ensure DB is initialized before server start
+initializeDb().catch(err => {
+  console.error("Critical database initialization error:", err.message);
+  process.exit(1); 
+});
 
 
 const auth = admin.auth();
@@ -90,6 +67,24 @@ if (!TELEGRAM_ADMIN_CHAT_ID) {
 
 // Multi-user chat history: { [userId: string]: Message[] }
 const chatHistories: Record<string, any[]> = {};
+async function sendTelegramNotification(message: string) {
+  if (!TELEGRAM_BOT_TOKEN) return;
+  try {
+    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: adminChatId || TELEGRAM_ADMIN_CHAT_ID,
+        text: message,
+        parse_mode: 'HTML',
+      }),
+    });
+  } catch (e) {
+    console.error("Telegram notification failed", e);
+  }
+}
+
 // Map Telegram message IDs to User IDs to handle replies correctly
 const telegramMsgToUser: Record<number, string> = {};
 
@@ -328,6 +323,23 @@ async function startServer() {
     }
   });
 
+  // Update user status (block/limit)
+  app.post("/api/admin/users/:userId/status", verifyAdminToken, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { isBlocked, dailyDepositLimit } = req.body;
+      
+      const updateData: any = {};
+      if (typeof isBlocked === 'boolean') updateData.isBlocked = isBlocked;
+      if (typeof dailyDepositLimit === 'number') updateData.dailyDepositLimit = dailyDepositLimit;
+
+      await db.collection('users').doc(userId).update(updateData);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // --- Deposit & Referral Reward API ---
   app.post("/api/user/deposit/confirm", async (req, res) => {
     const { amount, idToken, trxId, senderNumber, method } = req.body;
@@ -342,7 +354,6 @@ async function startServer() {
       console.log("Verifying ID token...");
       const decodedToken = await auth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
-      console.log(`Deposit confirmation request from UID: ${uid}, Amount: ${amount}`);
       
       const userRef = db.collection('users').doc(uid);
       
@@ -354,6 +365,16 @@ async function startServer() {
         }
         
         const userData = userDoc.data()!;
+        
+        if (userData.isBlocked) {
+          throw new Error("আপনার অ্যাকাউন্ট ব্লক করা হয়েছে। দয়া করে সহায়তার সাথে যোগাযোগ করুন।");
+        }
+        
+        // Basic daily limit check (simplified for now: just checks against the total deposits in this request vs limit)
+        if (userData.dailyDepositLimit && (amount > userData.dailyDepositLimit)) {
+             throw new Error(`আপনার দৈনিক ডিপোজিট লিমিট ${userData.dailyDepositLimit} এর বেশি`);
+        }
+        
         const currentBalance = userData.balance || 0;
         const currentDeposits = userData.totalDeposits || 0;
         const referredBy = userData.referredBy;
@@ -437,20 +458,7 @@ async function startServer() {
       console.log("Transaction completed successfully!");
       
       // Notify Telegram
-      try {
-        const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-        await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: adminChatId || TELEGRAM_ADMIN_CHAT_ID,
-            text: `🎯 <b>New Deposit Confirmed!</b>\n\n👤 <b>User UID:</b> <code>${uid}</code>\n💰 <b>Amount:</b> ৳${amount}\n🏦 <b>Method:</b> ${method || 'Unknown'}\n📱 <b>Sender:</b> ${senderNumber || 'Unknown'}\n🔖 <b>TxID:</b> <code>${trxId || 'N/A'}</code>`,
-            parse_mode: 'HTML',
-          }),
-        });
-      } catch (e) {
-        console.error("Telegram notification failed", e);
-      }
+      await sendTelegramNotification(`🎯 <b>New Deposit Confirmed!</b>\n\n👤 <b>User UID:</b> <code>${uid}</code>\n💰 <b>Amount:</b> ৳${amount}\n🏦 <b>Method:</b> ${method || 'Unknown'}\n📱 <b>Sender:</b> ${senderNumber || 'Unknown'}\n🔖 <b>TxID:</b> <code>${trxId || 'N/A'}</code>`);
 
       const updatedUserDoc = await userRef.get();
       res.json({ success: true, balance: updatedUserDoc.data()?.balance });
@@ -461,8 +469,54 @@ async function startServer() {
     }
   });
 
+  // Generate Sales/Activity Report
+  app.post("/api/admin/reports/generate", verifyAdminToken, async (req, res) => {
+    try {
+        const { startDate, endDate } = req.body;
+        // Logic to fetch transactions and aggregate data goes here
+        // For now, returning a summary
+        const transactions = await db.collection('transactions').get();
+        const total = transactions.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
+        
+        const report = {
+            totalVolume: total,
+            count: transactions.size,
+            generatedAt: new Date().toISOString()
+        };
+        console.log("Generated Report:", JSON.stringify(report));
+        res.json({ success: true, report });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Save Report Preference
+  app.post("/api/admin/reports/settings", verifyAdminToken, async (req, res) => {
+      try {
+          const { type, frequency, recipientEmail } = req.body;
+          await db.collection('reports').add({ type, frequency, recipientEmail, createdAt: new Date().toISOString() });
+          res.json({ success: true, message: "Report settings saved" });
+      } catch (error: any) {
+          res.status(500).json({ error: error.message });
+      }
+  });
+
+  /* ... */
+
+  // Generic Telegram Event Notification API
+  app.post("/api/telegram/event", verifyAdminToken, async (req, res) => {
+    try {
+      const { event, details } = req.body;
+      const message = `🔔 <b>Event: ${event}</b>\n\n${details}`;
+      await sendTelegramNotification(message);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Admin API Middleware
-  const verifyAdminToken = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  async function verifyAdminToken(req: express.Request, res: express.Response, next: express.NextFunction) {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       res.status(401).json({ error: "Unauthorized: Missing or invalid token" });
@@ -489,7 +543,7 @@ async function startServer() {
     } catch (error) {
       res.status(401).json({ error: "Unauthorized: Invalid token" });
     }
-  };
+  }
 
   // --- Admin API Endpoints ---
   
@@ -499,6 +553,38 @@ async function startServer() {
       const snapshot = await db.collection('game_settings').get();
       const games = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       res.json({ success: true, count: games.length, games });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get all game providers
+  app.get("/api/admin/providers", verifyAdminToken, async (req, res) => {
+    try {
+      const snapshot = await db.collection('game_providers').get();
+      const providers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      res.json({ success: true, count: providers.length, providers });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Create or Update a game provider
+  app.post("/api/admin/providers", verifyAdminToken, async (req, res) => {
+    try {
+      const { id, name, apiKey, apiEndpoint, isActive } = req.body;
+      const providerId = id || name.toLowerCase().replace(/\s+/g, '_');
+      
+      const docRef = db.collection('game_providers').doc(providerId);
+      await docRef.set({
+        name,
+        apiKey,
+        apiEndpoint,
+        isActive: !!isActive,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
+      res.json({ success: true, id: providerId, message: "Provider updated successfully" });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -594,17 +680,31 @@ async function startServer() {
         }, { merge: true });
 
         // Special handling for rejection of withdrawals - refunding user
-        if (status === 'rejected' && txData.type === 'withdraw') {
+        if (status === 'rejected' && txData.type === 'withdrawal') {
           transaction.update(userRef, {
             balance: admin.firestore.FieldValue.increment(Math.abs(txData.amount))
           });
         }
 
-        // Special handling for approval of deposits - adding balance
+        // Special handling for approval of deposits - adding balance and VIP points
         if (status === 'completed' && txData.type === 'deposit') {
+          const depositAmount = txData.amount;
+          const currentPoints = userDoc.data()?.vipPoints || 0;
+          const newPoints = currentPoints + Math.floor(depositAmount / 100);
+          
+          // VIP Level Calculation
+          let newVipLevel = 0;
+          if (newPoints >= 10000) newVipLevel = 4; // Diamond
+          else if (newPoints >= 2000) newVipLevel = 3; // Platinum
+          else if (newPoints >= 500) newVipLevel = 2; // Gold
+          else if (newPoints >= 100) newVipLevel = 1; // Silver
+
           transaction.update(userRef, {
-            balance: admin.firestore.FieldValue.increment(txData.amount),
-            totalDeposits: admin.firestore.FieldValue.increment(txData.amount)
+            balance: admin.firestore.FieldValue.increment(depositAmount),
+            totalDeposits: admin.firestore.FieldValue.increment(depositAmount),
+            vipPoints: newPoints,
+            vipLevel: newVipLevel,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
           });
         }
       });
@@ -718,7 +818,7 @@ async function startServer() {
       // Create transaction record
       await db.collection('users').doc(userId).collection('transactions').add({
         method: 'System Admin',
-        type: type === 'add' ? 'bonus' : 'withdraw',
+        type: type === 'add' ? 'bonus' : 'withdrawal',
         amount: type === 'add' ? amount : -amount,
         date: new Date().toISOString(),
         status: 'সম্পন্ন',

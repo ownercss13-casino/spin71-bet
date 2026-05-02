@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Send, X, MessageCircle, User, Loader2, Trash2, Mail } from 'lucide-react';
 import { getAIResponse } from '../services/geminiService';
 import SupportContactForm from './SupportContactForm';
+import { db } from '../services/firebase';
+import { doc, onSnapshot, updateDoc, arrayUnion, serverTimestamp, setDoc, getDoc } from 'firebase/firestore';
 
 interface Message {
   id: string;
@@ -37,14 +39,22 @@ export default function SupportChat({
   useEffect(() => {
     if (!userData?.id || !isOpen) return;
     
-    if (chatHistory.length === 0) {
-      setChatHistory([{
-        id: '1',
-        text: 'হ্যালো! আমি আপনাকে কীভাবে সাহায্য করতে পারি?',
-        sender: 'agent',
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }]);
-    }
+    // Subscribe to support ticket
+    const unsub = onSnapshot(doc(db, 'support_tickets', userData.id), (doc) => {
+      if (doc.exists()) {
+        setChatHistory(doc.data().messages || []);
+      } else {
+        // Create initial ticket if it doesn't exist
+        setChatHistory([{
+          id: '1',
+          text: 'হ্যালো! আমি আপনাকে কীভাবে সাহায্য করতে পারি?',
+          sender: 'agent',
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }]);
+      }
+    });
+
+    return unsub;
   }, [userData?.id, isOpen]);
 
   useEffect(() => {
@@ -68,28 +78,66 @@ export default function SupportChat({
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
-    setChatHistory(prev => [...prev, userMsg]);
-
     try {
-      const aiResponseText = await getAIResponse(text, userData);
-      
-      const aiMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        text: aiResponseText,
-        sender: 'agent',
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      
-      setChatHistory(prev => [...prev, aiMsg]);
+      const ticketRef = doc(db, 'support_tickets', userData.id);
+      const ticketSnap = await getDoc(ticketRef);
+
+      if (!ticketSnap.exists()) {
+        await setDoc(ticketRef, {
+          userId: userData.id,
+          username: userData.username,
+          status: 'open',
+          lastMessage: text,
+          updatedAt: serverTimestamp(),
+          createdAt: serverTimestamp(),
+          messages: [userMsg]
+        });
+      } else {
+        await updateDoc(ticketRef, {
+          messages: arrayUnion(userMsg),
+          lastMessage: text,
+          updatedAt: serverTimestamp()
+        });
+      }
+
+      // Optional: Get AI response and save it too
+      try {
+        const aiResponseText = await getAIResponse(text, userData);
+        const aiMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          text: aiResponseText,
+          sender: 'agent',
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        
+        await updateDoc(ticketRef, {
+          messages: arrayUnion(aiMsg),
+          lastMessage: aiResponseText,
+          updatedAt: serverTimestamp()
+        });
+      } catch (aiErr) {
+        console.error("AI Response error:", aiErr);
+      }
       
     } catch (err) {
-      setChatError("মেসেজ পাঠানো সম্ভব হয়নি। (AI and Firebase are disconnected)");
+      setChatError("মেসেজ পাঠানো সম্ভব হয়নি। (Firebase connectivity issue)");
     }
   };
 
   const clearChat = async () => {
+    if (!userData?.id) return;
     if (window.confirm("আপনি কি নিশ্চিত যে আপনি চ্যাট হিস্ট্রি মুছে ফেলতে চান?")) {
-      setChatHistory([]);
+      try {
+        const ticketRef = doc(db, 'support_tickets', userData.id);
+        await updateDoc(ticketRef, {
+          messages: [],
+          lastMessage: "Chat cleared",
+          updatedAt: serverTimestamp()
+        });
+        setChatHistory([]);
+      } catch (err) {
+        console.error("Error clearing chat:", err);
+      }
     }
   };
 

@@ -1,42 +1,77 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Gift, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { db } from '../../services/firebase';
+import { doc, getDoc, updateDoc, increment, serverTimestamp, setDoc } from 'firebase/firestore';
 
 interface PromoCodeModalProps {
   isOpen: boolean;
   onClose: () => void;
   showToast: (msg: string, type?: any) => void;
   isAdmin?: boolean;
+  userData?: any;
 }
 
-export default function PromoCodeModal({ isOpen, onClose, showToast, isAdmin }: PromoCodeModalProps) {
+export default function PromoCodeModal({ isOpen, onClose, showToast, isAdmin, userData }: PromoCodeModalProps) {
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [bonusAmount, setBonusAmount] = useState(0);
 
-  const createPromoCode = async (code: string, amount: number, maxUses?: number, expireDays?: number, active?: boolean) => {
-    console.log(`Mock: Created promo code ${code} for ${amount}. Max uses: ${maxUses}, Expire in: ${expireDays} days. Active: ${active}`);
-    showToast(`প্রোমো কোড ${code} তৈরি হয়েছে (লোকাল)`, 'success');
-  };
-
   const handleClaim = async () => {
-    if (!code.trim() || isLoading) return;
+    if (!code.trim() || isLoading || !userData?.id) return;
     setIsLoading(true);
     setError(null);
     
     try {
-      const promoCode = code.trim().toUpperCase();
-      
-      // Mock logic
-      if (promoCode === 'WELCOME100') {
-        setBonusAmount(100);
-        setSuccess(true);
-        showToast("প্রোমো কোড সফলভাবে ব্যবহার করা হয়েছে!", "success");
-      } else {
+      const promoCodeId = code.trim().toUpperCase();
+      const promoRef = doc(db, 'promo_codes', promoCodeId);
+      const promoSnap = await getDoc(promoRef);
+
+      if (!promoSnap.exists()) {
         throw new Error("ভুল প্রোমো কোড (Invalid promo code)");
       }
+
+      const promoData = promoSnap.data();
+      if (!promoData.active) {
+        throw new Error("এই প্রোমো কোডটি আর সচল নেই (Promo code is inactive)");
+      }
+
+      if (promoData.usedCount >= promoData.maxUses) {
+        throw new Error("এই কোডটির ব্যবহারের সীমা শেষ হয়ে গেছে (Usage limit reached)");
+      }
+
+      // Check if user already used it (optional, would need a separate collection or array)
+      
+      // Update user balance
+      const userRef = doc(db, 'users', userData.id);
+      await updateDoc(userRef, {
+        balance: increment(promoData.amount),
+        updatedAt: serverTimestamp()
+      });
+
+      // Update promo used count
+      await updateDoc(promoRef, {
+        usedCount: increment(1)
+      });
+
+      // Notify Telegram
+      try {
+        await fetch('/api/telegram/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: `🎁 <b>Promo Code Used!</b>\n\n👤 <b>User:</b> <code>${userData?.username || 'Unknown'}</code> (UID: <code>${userData?.id}</code>)\n🎟️ <b>Code:</b> <code>${promoCodeId}</code>\n💰 <b>Bonus:</b> ৳${promoData.amount}`
+          })
+        });
+      } catch (err) {
+        console.error("Telegram notification error", err);
+      }
+
+      setBonusAmount(promoData.amount);
+      setSuccess(true);
+      showToast("প্রোমো কোড সফলভাবে ব্যবহার করা হয়েছে!", "success");
     } catch (err: any) {
       setError(err.message);
       showToast(err.message, "error");
@@ -134,8 +169,17 @@ export default function PromoCodeModal({ isOpen, onClose, showToast, isAdmin }: 
                           onClick={async () => {
                             setIsLoading(true);
                             try {
-                        await createPromoCode("WELCOME500", 500, 100, 5, true);
-                        await createPromoCode("SPIN71", 1000, 50, 7, true);
+                              const codes = [
+                                { code: "WELCOME500", amount: 500, maxUses: 100, expireDays: 5, active: true },
+                                { code: "SPIN71", amount: 1000, maxUses: 50, expireDays: 7, active: true }
+                              ];
+                              for (const c of codes) {
+                                await setDoc(doc(db, 'promo_codes', c.code), {
+                                  ...c,
+                                  createdAt: serverTimestamp(),
+                                  usedCount: 0
+                                });
+                              }
                               showToast("ডিফল্ট প্রোমো কোডগুলো তৈরি হয়েছে", "success");
                               setError(null);
                             } catch (e) {

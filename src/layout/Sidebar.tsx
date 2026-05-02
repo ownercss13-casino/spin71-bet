@@ -95,18 +95,6 @@ export default function Sidebar({
         {/* Sidebar Links */}
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto no-scrollbar">
           <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-4 mb-2">Navigation</p>
-          {(userData?.role === 'admin' || userData?.isAdmin === true) && (
-            <button
-              onClick={() => {
-                handleTabChange('admin');
-                onClose();
-              }}
-              className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all ${activeTab === 'admin' ? 'bg-rose-500 text-white font-bold shadow-lg shadow-rose-500/20' : 'text-[var(--text-muted)] hover:bg-rose-500/10 hover:text-rose-500'}`}
-            >
-              <Shield size={20} className="text-rose-500" />
-              <span className="font-black uppercase tracking-tight">Admin Dashboard</span>
-            </button>
-          )}
           {[
             { id: 'home', icon: Home, label: 'বাড়ি (Home)' },
             { id: 'wallet', icon: Wallet, label: 'ওয়ালেট (Wallet)' },
@@ -171,24 +159,35 @@ export default function Sidebar({
             <RefreshCw size={20} />
             <span>ইতিহাস (History)</span>
           </button>
-
-          <div className="h-px bg-teal-600/30 my-4"></div>
-
-          {/* Theme Switcher */}
-          <button 
-            onClick={toggleTheme}
-            className="w-full flex items-center gap-4 px-4 py-3 rounded-xl text-[var(--text-muted)] hover:bg-white/10 hover:text-[var(--text-main)] transition-all"
-          >
-            {theme === 'dark' ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} className="text-indigo-600" />}
-            <span>{theme === 'dark' ? 'লাইট মোড (Light Mode)' : 'ডার্ক মোড (Дарк Мод )'}</span>
-          </button>
         </nav>
 
         {/* Sidebar Footer */}
-        <div className="p-4 border-t border-teal-600/50">
+        <div className="p-4 border-t border-teal-600/50 space-y-3">
+          {/* Theme Switcher */}
+          <button 
+            onClick={toggleTheme}
+            className="w-full flex items-center gap-4 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-[var(--text-muted)] hover:bg-white/10 hover:text-[var(--text-main)] transition-all"
+          >
+            {theme === 'dark' ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} className="text-indigo-600" />}
+            <span className="font-bold">{theme === 'dark' ? 'লাইট মোড' : 'ডার্ক মোড'}</span>
+          </button>
+
+          {(userData?.role === 'admin' || userData?.isAdmin === true) && (
+            <button
+              onClick={() => {
+                handleTabChange('admin');
+                onClose();
+              }}
+              className="w-full flex items-center gap-4 px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 font-bold hover:bg-rose-500/20 hover:text-rose-300 transition-all"
+            >
+              <Shield size={20} />
+              <span className="font-bold">Admin Panel</span>
+            </button>
+          )}
+
           <button 
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 py-3 text-red-400 font-bold hover:bg-red-900/20 rounded-xl transition-all"
+            className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-red-600/20 to-red-900/20 text-red-500 font-bold hover:from-red-600/30 hover:to-red-900/30 rounded-xl border border-red-500/20 transition-all"
           >
             <LogOut size={18} />
             <span>লগ আউট</span>

@@ -18,6 +18,7 @@ import DepositRequiredModal from "./components/ui/DepositRequiredModal";
 import PermissionManager from "./layout/PermissionManager";
 import NotificationCenter from "./layout/NotificationCenter";
 import FAQView from "./views/FAQView";
+import BottomNav from "./components/BottomNav";
 import Sidebar from "./layout/Sidebar";
 import LeaderboardView from "./views/LeaderboardView";
 import AIAssistant from "./layout/AIAssistant";
@@ -1481,39 +1482,7 @@ export default function App() {
       </div>
 
       {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-[512px] mx-auto bg-[#062e24] border-t border-white/5 flex justify-between px-6 py-2 text-[10px] text-white/40 z-50 shadow-[0_-10px_20px_rgba(0,0,0,0.4)]">
-        {[
-          { id: 'home', icon: Home, label: 'বাড়ি' },
-          { id: 'bonus', icon: Gift, label: 'অফার', badge: 14 },
-          { id: 'invite', icon: Users, label: 'প্রচার' },
-          { id: 'deposit', icon: Wallet, label: 'জমা', badge: '+5%' },
-          { id: 'profile', icon: User, label: 'প্রোফাইল' },
-        ].map((item) => (
-          <div 
-            key={item.id}
-            onClick={() => handleTabChange(item.id as any)}
-            className={`flex flex-col items-center gap-1 cursor-pointer transition-all duration-300 relative group ${activeTab === item.id ? 'text-teal-400' : 'hover:text-white'}`}
-          >
-            <div className={`transition-transform duration-300 ${activeTab === item.id ? 'scale-110 -translate-y-1' : 'group-hover:scale-105'}`}>
-              <item.icon size={22} strokeWidth={activeTab === item.id ? 2.5 : 2} />
-            </div>
-            <span className={`font-bold transition-all duration-300 ${activeTab === item.id ? 'opacity-100 scale-100' : 'opacity-70 scale-90'}`}>
-              {item.label}
-            </span>
-            {item.badge && (
-              <div className={`absolute -top-1 -right-3 ${typeof item.badge === 'string' ? 'bg-green-500' : 'bg-red-600'} text-white text-[9px] font-black px-1 rounded-full border border-[#062e24] shadow-lg`}>
-                {item.badge}
-              </div>
-            )}
-            {activeTab === item.id && (
-              <motion.div 
-                layoutId="nav-glow"
-                className="absolute -top-2 w-10 h-10 bg-teal-500/20 blur-md rounded-full pointer-events-none"
-              />
-            )}
-          </div>
-        ))}
-      </div>
+      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
 
 
       {isLoggedIn && <PermissionManager />}
@@ -1548,7 +1517,8 @@ export default function App() {
         isOpen={showPromoModal}
         onClose={() => setShowPromoModal(false)}
         showToast={showToast}
-        isAdmin={true}
+        isAdmin={userData?.role === 'admin' || userData?.isAdmin === true}
+        userData={userData}
       />
 
       <DepositRequiredModal 
