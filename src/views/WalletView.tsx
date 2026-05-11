@@ -58,10 +58,19 @@ export default function WalletView({ balance, userData, onTabChange, onSubTabCha
       
       try {
         const transRef = collection(db, 'users', userData.id, 'transactions');
-        let q = query(transRef, orderBy('createdAt', 'desc'), limit(50));
+        let q = query(
+          transRef, 
+          orderBy('createdAt', 'desc'), 
+          limit(50)
+        );
         
         if (filter !== 'all') {
-          q = query(transRef, where('type', '==', filter), orderBy('createdAt', 'desc'), limit(50));
+          q = query(
+            transRef, 
+            where('type', '==', filter), 
+            orderBy('createdAt', 'desc'), 
+            limit(50)
+          );
         }
         
         const querySnapshot = await getDocs(q);

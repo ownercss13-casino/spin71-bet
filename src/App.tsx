@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from 'motion/react';
-import { auth, db } from './services/firebase';
+import { auth, db, getDb, switchToDefaultDb } from './services/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, collection, getDocs, onSnapshot, serverTimestamp, increment, query, orderBy, limit } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs, onSnapshot, serverTimestamp, increment, query, orderBy, limit, addDoc } from 'firebase/firestore';
+import SlotMachine from './components/SlotMachine/SlotMachine';
+import SplashScreen from "./components/ui/SplashScreen";
+import DailyRewardPopup from "./components/ui/DailyRewardPopup";
 import LoginPage from './views/LoginPage';
 import BonusCenter from './views/BonusCenter';
 import AdminPanelView from "./views/AdminPanelView";
 import AnalyticsView from "./views/AnalyticsView";
+import ActivityHistory from "./views/ActivityHistory";
 import ProfileView from "./views/ProfileView";
 import InviteView from "./views/InviteView";
 import HomeView from "./views/HomeView";
@@ -23,6 +27,8 @@ import Sidebar from "./layout/Sidebar";
 import LeaderboardView from "./views/LeaderboardView";
 import AIAssistant from "./layout/AIAssistant";
 import GlobalChat from "./layout/GlobalChat";
+import LearningProgressView from "./views/LearningProgressView";
+import SettingsView from "./views/SettingsView";
 import WinTicker from "./components/ui/WinTicker";
 import { GameGrid, Game } from "./components/ui/GameGrid";
 import { CasinoGallery } from "./components/ui/CasinoGallery";
@@ -59,7 +65,6 @@ import {
   Play,
   Info,
   ArrowLeft,
-  Plane as PlaneIcon,
   LogOut,
   Copy,
   Check,
@@ -85,15 +90,13 @@ export default function App() {
   const [iframeError, setIframeError] = useState(false);
   const [globalLogos, setGlobalLogos] = useState<Record<string, string>>({});
   const [globalNames, setGlobalNames] = useState<Record<string, string>>({});
-  const [globalUrls, setGlobalUrls] = useState<Record<string, string>>({
-    '5': 'https://aviator-game-url.com'
-  });
+  const [globalUrls, setGlobalUrls] = useState<Record<string, string>>({});
   const [globalOptions, setGlobalOptions] = useState<Record<string, string>>({});
   const [globalImages, setGlobalImages] = useState<Record<string, string>>({});
   const [balance, setBalance] = useState(0);
   const [allButtonName, setAllButtonName] = useState<string>("ALL");
-  const [casinoName, setCasinoName] = useState<string>("SPIN71.bet");
-  const [noticeText, setNoticeText] = useState<string>("আমাদের গেম উপভোগ করুন এবং বড় জয় নিশ্চিত করুন!");
+  const [casinoName, setCasinoName] = useState<string>("NEON GOLD SLOTS");
+  const [noticeText, setNoticeText] = useState<string>("আমাদের নতুন স্লট মেশিনে বড় জয় নিশ্চিত করুন!");
   const [toasts, setToasts] = useState<{ id: string; message: string; type: ToastType }[]>([]);
 
   enum OperationType {
@@ -114,25 +117,44 @@ export default function App() {
         emailVerified: auth.currentUser?.emailVerified,
       },
       operationType,
-      path
+      path,
+      projectId: 'gen-lang-client-0089977420' // Hardcoded for debugging
     };
-    console.error('Firestore Error: ', JSON.stringify(errInfo));
+    console.error('Firestore Error Detailed:', JSON.stringify(errInfo));
     return errInfo;
   }
 
   useEffect(() => {
     const testPath = 'config/main';
-    getDoc(doc(db, testPath)).then((snapshot) => {
-      console.log('Frontend Firestore check successful, doc exists:', snapshot.exists());
-      setDbStatus('success');
-    }).catch((err) => {
-      handleFirestoreError(err, OperationType.GET, testPath);
-      setDbStatus('error');
-    });
+    const checkDb = async () => {
+      try {
+        const snapshot = await getDoc(doc(getDb(), testPath));
+        console.log('Frontend Firestore check successful, doc exists:', snapshot.exists());
+        setDbStatus('success');
+      } catch (err: any) {
+        if (err.message.includes('NOT_FOUND') || err.code === 'not-found' || err.message.includes('database was not found') || err.code === 'permission-denied' || err.message.toLowerCase().includes('permission')) {
+          console.warn("[App] Database check failed (Not Found or Permission Denied), attempting fallback...");
+          try {
+            const fallbackDb = switchToDefaultDb();
+            const fallbackSnap = await getDoc(doc(fallbackDb, testPath));
+            console.log('Frontend Firestore fallback successful:', fallbackSnap.exists());
+            setDbStatus('success');
+          } catch (fallbackErr) {
+            console.error("[App] Database fallback also failed:", fallbackErr);
+            handleFirestoreError(fallbackErr, OperationType.GET, testPath);
+            setDbStatus('error');
+          }
+        } else {
+          handleFirestoreError(err, OperationType.GET, testPath);
+          setDbStatus('error');
+        }
+      }
+    };
+    checkDb();
   }, []);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'home' | 'profile' | 'invite' | 'deposit' | 'bonus' | 'wallet' | 'faq' | 'leaderboard' | 'terms' | 'analytics' | 'admin'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'slot' | 'profile' | 'invite' | 'deposit' | 'bonus' | 'wallet' | 'faq' | 'leaderboard' | 'terms' | 'analytics' | 'admin' | 'learning' | 'settings' | 'history'>('home');
   const [profileSubTab, setProfileSubTab] = useState<string>('dashboard');
 
   // Auto-hide splash screen
@@ -161,6 +183,10 @@ export default function App() {
           setActiveTab('bonus');
         } else if (subPath === 'referral') {
           setActiveTab('invite');
+        } else if (subPath === 'learning') {
+          setActiveTab('learning');
+        } else if (subPath === 'settings') {
+          setActiveTab('settings');
         } else {
           setActiveTab('profile');
           setProfileSubTab(subPath || 'dashboard');
@@ -186,6 +212,10 @@ export default function App() {
       newPath = '/member/bonus';
     } else if (activeTab === 'invite') {
       newPath = '/member/referral';
+    } else if (activeTab === 'learning') {
+      newPath = '/member/learning';
+    } else if (activeTab === 'settings') {
+      newPath = '/member/settings';
     } else if (activeTab === 'home') {
       newPath = '/';
     }
@@ -200,6 +230,8 @@ export default function App() {
   const [showGallery, setShowGallery] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showPromoModal, setShowPromoModal] = useState(false);
+  const [showDailyReward, setShowDailyReward] = useState(false);
+  const [dailyStreak, setDailyStreak] = useState(0);
   const [selectedOdds, setSelectedOdds] = useState(2.0);
   const [betGameName, setBetGameName] = useState("Casino Game");
 
@@ -263,6 +295,12 @@ export default function App() {
         showToast("গেম খেলতে লগইন করুন", "info");
         return;
       }
+
+      if (game.id === 'native_slot') {
+        setActiveTab('slot');
+        return;
+      }
+
       const hasDeposited = (userData?.totalDeposits && userData.totalDeposits > 0) || (userData?.balance && userData.balance > 0);
       if (!hasDeposited) {
         setShowDepositRequired(true);
@@ -282,7 +320,7 @@ export default function App() {
 
   useEffect(() => {
     if (isGameLoading && selectedGame) {
-      const isNative = !globalUrls[selectedGame.id] && selectedGame.id !== 'aviator' && selectedGame.id !== 'rocket_1' && selectedGame.provider !== 'Generic';
+      const isNative = !globalUrls[selectedGame.id] && selectedGame.id !== 'rocket_1' && selectedGame.provider !== 'Generic';
       // Just simulate load for 3 seconds either way for better UX
       const timer = setTimeout(() => {
         setIsGameLoading(false);
@@ -371,6 +409,15 @@ export default function App() {
     setUserData(user);
     setIsLoggedIn(true);
     localStorage.setItem('currentUser', JSON.stringify(user));
+    
+    // Notify Telegram about login
+    fetch('/api/telegram/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: `🔑 <b>User Session Started!</b>\n\n👤 <b>Username:</b> ${user.username || 'Unknown'}\n🔢 <b>UID:</b> <code>${user.id || user.uid || 'N/A'}</code>\n🌐 <b>App:</b> JETA9`
+      })
+    }).catch(e => console.error("Login notify error", e));
   };
 
   const handleLogout = async () => {
@@ -442,9 +489,9 @@ export default function App() {
   const handleUpdateGlobalGameLogo = async (gameId: string, logo: string) => {
     let finalLogo = logo;
     // Check if image is larger than 500KB (approx 680,000 characters in base64)
-    if (logo.startsWith('data:image/') && logo.length > 680000) {
+    if (logo.startsWith('data:image/') && logo.length > 200000) {
       showToast("ছবি রিসাইজ করা হচ্ছে (Compressing)...", "info");
-      finalLogo = await compressImage(logo, 1200, 1200, 0.7);
+      finalLogo = await compressImage(logo, 300, 400, 0.7); // Game logos in grid don't need to be huge
     }
 
     setGlobalLogos(prev => ({ ...prev, [gameId]: finalLogo }));
@@ -577,105 +624,42 @@ export default function App() {
     }
   };
 
-  const syncGameSettings = async () => {
+  // Fetch all app config data once
+  const loadAllAppConfig = async () => {
     try {
-      const querySnapshot = await getDocs(collection(db, 'game_settings'));
+      // Load game settings
+      const gameSettingsSnapshot = await getDocs(collection(db, 'game_settings'));
       const logos: Record<string, string> = {};
       const names: Record<string, string> = {};
       const urls: Record<string, string> = {};
       const options: Record<string, string> = {};
-
-      querySnapshot.forEach((doc) => {
+      gameSettingsSnapshot.forEach((doc) => {
         const item = doc.data();
         if (item.logo_url) logos[item.game_id] = item.logo_url;
         if (item.name) names[item.game_id] = item.name;
         if (item.game_url) urls[item.game_id] = item.game_url;
         if (item.provider_option) options[item.game_id] = item.provider_option;
       });
-
       setGlobalLogos(prev => ({ ...prev, ...logos }));
       setGlobalNames(prev => ({ ...prev, ...names }));
       setGlobalUrls(prev => ({ ...prev, ...urls }));
       setGlobalOptions(prev => ({ ...prev, ...options }));
-    } catch (err) {
-      console.error("Error syncing game settings:", err);
-    }
-  };
 
-  useEffect(() => {
-    syncGameSettings();
-    
-    // Subscribe to real-time changes
-    const unsubscribe = onSnapshot(collection(db, 'game_settings'), (snapshot) => {
-      const logos: Record<string, string> = {};
-      const names: Record<string, string> = {};
-      const urls: Record<string, string> = {};
-      const options: Record<string, string> = {};
-
-      snapshot.forEach((doc) => {
-        const item = doc.data();
-        if (item.logo_url) logos[item.game_id] = item.logo_url;
-        if (item.name) names[item.game_id] = item.name;
-        if (item.game_url) urls[item.game_id] = item.game_url;
-        if (item.provider_option) options[item.game_id] = item.provider_option;
-      });
-
-      setGlobalLogos(prev => ({ ...prev, ...logos }));
-      setGlobalNames(prev => ({ ...prev, ...names }));
-      setGlobalUrls(prev => ({ ...prev, ...urls }));
-      setGlobalOptions(prev => ({ ...prev, ...options }));
-    }, (error) => {
-      console.error("game_settings snapshot error:", error);
-    });
-
-    // Subscribe to global image changes - now using a collection
-    const unsubscribeImages = onSnapshot(collection(db, 'global_images'), (snapshot) => {
+      // Load global images
+      const imagesSnapshot = await getDocs(collection(db, 'global_images'));
       const images: Record<string, string> = {};
-      snapshot.forEach((doc) => {
+      imagesSnapshot.forEach((doc) => {
         const data = doc.data();
         if (data.url) {
           images[doc.id] = data.url;
         }
       });
       setGlobalImages(prev => ({ ...prev, ...images }));
-    }, (error) => {
-      console.error("global_images snapshot error:", error);
-    });
 
-    // Also migrate old images from document to collection if they exist
-    const migrateOldImages = async () => {
-      try {
-        const oldDocRef = doc(db, 'metadata', 'images');
-        const oldDoc = await getDoc(oldDocRef);
-        if (oldDoc.exists()) {
-          const data = oldDoc.data();
-          // We only do this if it hasn't been migrated or something
-          // This might hit the same error if we try to read it too many times? 
-          // No, reading is fine, writing was the problem.
-          for (const key in data) {
-            if (key !== 'updatedAt') {
-              // Only migrate if not already in global_images (avoiding infinite loops/redundancy)
-              const newDocRef = doc(db, 'global_images', key);
-              const newDoc = await getDoc(newDocRef);
-              if (!newDoc.exists()) {
-                await setDoc(newDocRef, { 
-                  url: data[key],
-                  updatedAt: data.updatedAt || new Date().toISOString()
-                });
-              }
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Error migrating old images:", err);
-      }
-    };
-    migrateOldImages();
-
-    // Subscribe to general settings
-    const unsubscribeSettings = onSnapshot(doc(db, 'metadata', 'settings'), (doc) => {
-      if (doc.exists()) {
-        const data = doc.data();
+      // Load general settings
+      const settingsDoc = await getDoc(doc(db, 'metadata', 'settings'));
+      if (settingsDoc.exists()) {
+        const data = settingsDoc.data();
         if (data?.allButtonName) setAllButtonName(data.allButtonName);
         if (data?.casinoName) setCasinoName(data.casinoName);
         if (data?.noticeText) setNoticeText(data.noticeText);
@@ -687,15 +671,14 @@ export default function App() {
         if (data?.minWithdraw !== undefined) setMinWithdraw(data.minWithdraw);
         if (data?.welcomeBonus !== undefined) setWelcomeBonus(data.welcomeBonus);
       }
-    }, (error) => {
-      console.error("metadata snapshot error:", error);
-    });
+    } catch (err) {
+      console.error("Error loading app config:", err);
+    }
+  };
 
-    return () => {
-      unsubscribe();
-      unsubscribeImages();
-      unsubscribeSettings();
-    };
+  useEffect(() => {
+    loadAllAppConfig();
+    // migrateOldImages() is removed as it was also likely triggering unnecessary reads/writes
   }, []);
 
   useEffect(() => {
@@ -840,44 +823,101 @@ export default function App() {
     }
   };
 
+  const handleUpdateUser = async (updates: any) => {
+    if (userData?.id) {
+      try {
+        const userRef = doc(db, 'users', userData.id);
+        await updateDoc(userRef, updates);
+        
+        const newUserData = { ...userData, ...updates };
+        setUserData(newUserData);
+        localStorage.setItem('currentUser', JSON.stringify(newUserData));
+        if (updates.balance !== undefined) {
+          setBalance(updates.balance);
+        }
+      } catch (e) {
+        console.error('Error updating user', e);
+        showToast("প্রোফাইল আপডেট করতে সমস্যা হয়েছে", "error");
+        throw e;
+      }
+    }
+  };
+
+  const handleAddTransaction = async (transaction: any) => {
+    if (userData?.id) {
+      try {
+        console.log("Attempting to add transaction:", transaction);
+        const txData = {
+          ...transaction,
+          userId: userData.id,
+          username: userData.username || 'Anonymous',
+          createdAt: serverTimestamp()
+        };
+
+        // Create in global transactions for admin to approve
+        const globalTxRef = doc(collection(db, 'transactions'));
+        console.log("Creating global transaction record at path: transactions/" + globalTxRef.id);
+        await setDoc(globalTxRef, txData);
+
+        // Also in user's subcollection for their own history
+        const userTxRef = doc(db, 'users', userData.id, 'transactions', globalTxRef.id);
+        console.log("Creating user-specific transaction record at path: users/" + userData.id + "/transactions/" + globalTxRef.id);
+        await setDoc(userTxRef, txData);
+        
+        console.log("Transaction records created successfully.");
+      } catch (e) {
+        console.error('CRITICAL: Error adding transaction to Firestore', e);
+        showToast("লেনদেন সংরক্ষণ করতে সমস্যা হয়েছে। দয়া করে আপনার ইন্টারনেট চেক করুন।", "error");
+        throw e;
+      }
+    } else {
+      console.error("Critical Error: handleAddTransaction called without userData.id");
+    }
+  };
+
   const handleDepositSuccess = async (amount: number, trxId?: string, senderNumber?: string, method?: string) => {
+    console.log("Deposit success triggered:", { amount, trxId, senderNumber, method });
     setShowDepositRequired(false);
     
     if (isLoggedIn && auth.currentUser) {
       try {
-        const idToken = await auth.currentUser.getIdToken();
-        const response = await fetch('/api/user/deposit/confirm', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ amount, idToken, trxId, senderNumber, method })
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || 'Failed to confirm deposit with server');
-        }
-
-        const result = await response.json();
+        const uid = auth.currentUser.uid;
+        console.log("Current Auth User UID:", uid);
         
-        if (result.success) {
-          const newBalance = result.balance;
-          setBalance(newBalance);
-          
-          // Refresh local user data
-          const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
-          if (userDoc.exists()) {
-            const updatedUser = { id: auth.currentUser.uid, ...userDoc.data() };
-            setUserData(updatedUser);
-            localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-          }
-          
-          showToast(`৳${amount} ডিপোজিট সফল হয়েছে!`, "success");
+        // Log transaction as pending
+        const txData = {
+          type: 'deposit',
+          amount: amount,
+          method: method || 'Direct Payment',
+          senderNumber: senderNumber || 'Unknown',
+          date: new Date().toISOString(),
+          status: 'pending',
+          statusColor: 'text-amber-400',
+          trxId: trxId || ('DEP_' + Date.now())
+        };
+        
+        await handleAddTransaction(txData);
+        
+        // Notify Telegram about the deposit request
+        try {
+          await fetch('/api/telegram/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: `💰 <b>New Deposit Request! (পেন্ডিং)</b>\n\n👤 <b>Username:</b> ${userData?.username || 'Unknown'}\n🔢 <b>UID:</b> <code>${uid}</code>\n💵 <b>Amount:</b> ৳${amount}\n🏦 <b>Method:</b> ${method || 'Unknown'}\n📱 <b>Sender:</b> ${senderNumber || 'Unknown'}\n🔖 <b>TxID:</b> <code>${trxId || 'N/A'}</code>`
+            })
+          });
+        } catch (tErr) {
+          console.error("Telegram notify failed", tErr);
         }
-      } catch (err) {
-        console.error("Error confirming deposit:", err);
-        showToast("ডিপোজিট প্রসেস করতে সমস্যা হয়েছে", "error");
+        
+        showToast(`৳${amount} ডিপোজিট রিকোয়েস্ট পাঠানো হয়েছে। অ্যাডমিন অ্যাপ্রুভ করার জন্য অপেক্ষা করুন।`, "success");
+      } catch (err: any) {
+        console.error("Internal process error during deposit log:", err);
+        showToast("ডিপোজিট প্রসেস করতে সমস্যা হয়েছে: " + err.message, "error");
       }
     } else {
+      console.warn("Unauthorized deposit attempt detected.");
       showToast("ডিপোজিট করতে লগইন করুন", "error");
     }
   };
@@ -897,11 +937,53 @@ export default function App() {
   };
 
   useEffect(() => {
-    // Keep deposit required open until user interacts
-  }, [showDepositRequired]);
+    const checkDailyReward = async () => {
+      if (isLoggedIn && userData) {
+        try {
+          const idToken = await auth.currentUser?.getIdToken();
+          // We can check if already claimed today by looking at userData
+          const lastClaimed = userData.lastClaimedReward;
+          const today = new Date().toISOString().split('T')[0];
+          
+          if (lastClaimed !== today) {
+             setDailyStreak(userData.dailyStreak || 0);
+             setShowDailyReward(true);
+          }
+        } catch (error) {
+          console.error("Error checking daily reward", error);
+        }
+      }
+    };
+    
+    if (isLoggedIn && !showSplash) {
+      checkDailyReward();
+    }
+  }, [isLoggedIn, showSplash, userData?.lastClaimedReward]);
+
+  const handleClaimDailyReward = async (amount: number) => {
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/game/rewards/daily', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken })
+      });
+      const data = await response.json();
+      if (data.success) {
+        showToast(`৳${amount} ডেইলি রিওয়ার্ড দাবি করা হয়েছে!`, "success");
+        setBalance(prev => prev + amount);
+        setUserData((prev: any) => ({ ...prev, lastClaimedReward: new Date().toISOString().split('T')[0] }));
+      } else {
+        showToast(data.error || "রিওয়ার্ড দাবি করতে সমস্যা হয়েছে", "error");
+      }
+    } catch (error) {
+       showToast("নেটওয়ার্ক সমস্যা", "error");
+    }
+  };
 
   useEffect(() => {
-    let unsubscribeUser: () => void;
+    let unsubscribeUser = () => {};
+    let unsubscribeNotifications = () => {};
     if (isLoggedIn && userData?.id) {
       const isAdminUser = userData?.role === 'admin' || userData?.isAdmin === true;
       unsubscribeUser = onSnapshot(doc(db, 'users', userData.id), (doc) => {
@@ -913,18 +995,28 @@ export default function App() {
       }, (error) => {
         console.error("User snapshot error:", error);
       });
+      
+      const notificationsRef = collection(db, 'users', userData.id, 'notifications');
+      unsubscribeNotifications = onSnapshot(notificationsRef, (snapshot) => {
+        let unread = 0;
+        snapshot.forEach(docSnap => {
+          if (!docSnap.data().read) unread++;
+        });
+        setUnreadNotificationsCount(unread);
+      }, (error) => {
+        console.error("Notifications snapshot error:", error);
+      });
     }
 
     return () => {
-      if (unsubscribeUser) {
-        unsubscribeUser();
-      }
+      unsubscribeUser();
+      unsubscribeNotifications();
       logUserActivity('session_end');
     };
   }, [isLoggedIn, userData?.id]);
 
   if (showSplash) {
-    return <GlobalLoader message={casinoName} subMessage="PREPARING YOUR PREMIUM EXPERIENCE" onSkip={() => setShowSplash(false)} />;
+    return <SplashScreen />;
   }
 
   if (isDataLoading && !showRegistrationSuccess) {
@@ -935,7 +1027,28 @@ export default function App() {
     return <GlobalLoader message="নিরাপত্তা নিশ্চিত করা হচ্ছে" subMessage="AUTH INITIALIZING..." />;
   }
 
-  // Remove the blocking login page check to allow guest browsing
+  if (!isLoggedIn || showRegistrationSuccess) {
+     return (
+        <div className="max-w-[512px] mx-auto bg-black min-h-[100dvh] relative">
+          <LoginPage 
+            onRegisterSuccess={() => {
+              setShowRegistrationSuccess(true);
+            }} 
+            onContinue={() => {
+              setShowRegistrationSuccess(false);
+            }} 
+            onLoginSuccess={(user) => {
+              handleLogin(user);
+            }}
+            showToast={showToast}
+            casinoName={casinoName}
+            isLoggedIn={isLoggedIn}
+            welcomeBonus={welcomeBonus}
+          />
+          <ToastContainer toasts={toasts} removeToast={removeToast} />
+        </div>
+     );
+  }
 
   if (activeTab === 'admin' && (userData?.role === 'admin' || userData?.isAdmin === true)) {
     return (
@@ -985,15 +1098,7 @@ export default function App() {
             userData={userData}
             activeTab={activeTab}
             handleTabChange={handleTabChange}
-            handleGameSelect={(game) => {
-              setSelectedGame(game);
-              setIsSidebarOpen(false);
-              if (game.url) {
-                 window.open(game.url, '_blank');
-              } else {
-                 setIsGameLoading(true);
-              }
-            }}
+            handleGameSelect={handleGameSelect}
             setIsSupportChatOpen={setIsSupportChatOpen}
             handleLogout={() => {
               handleLogout();
@@ -1026,6 +1131,26 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* Email Verification Banner */}
+      {isLoggedIn && !auth.currentUser?.emailVerified && auth.currentUser?.providerData[0]?.providerId === 'password' && (
+        <motion.div 
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          className="bg-rose-500 text-white px-4 py-2 text-[10px] font-bold flex items-center justify-between z-[190] shrink-0"
+        >
+          <div className="flex items-center gap-2">
+            <AlertCircle size={14} />
+            <span>অ্যাকাউন্ট ভেরিফাই নেই! এখনই ভেরিফাই করে নিরাপত্তা নিশ্চিত করুন।</span>
+          </div>
+          <button 
+            onClick={() => handleTabChange('profile')}
+            className="bg-white text-rose-600 px-3 py-1 rounded-full font-black uppercase text-[8px]"
+          >
+            Verify Now
+          </button>
+        </motion.div>
+      )}
+
       {/* Game Loader Overlay */}
       <AnimatePresence>
         {isGameLoading && selectedGame && (
@@ -1048,17 +1173,64 @@ export default function App() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 1.05 }}
-            className="fixed inset-0 z-[100] max-w-[512px] mx-auto bg-black flex items-center justify-center p-4"
+            className="fixed inset-0 z-[100] max-w-[512px] mx-auto bg-black flex flex-col"
           >
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-white mb-2">গেমে কাজ চলতেছে</h2>
-              <p className="text-gray-400">অনুগ্রহ করে পরে আবার চেষ্টা করুন|</p>
-              <button 
-                onClick={() => setSelectedGame(null)}
-                className="mt-6 px-6 py-2 bg-yellow-500 text-black font-bold rounded-full hover:bg-yellow-400 transition-colors"
-              >
-                ফিরে যান
-              </button>
+            {/* Header for Game View */}
+            <div className="flex items-center justify-between p-3 bg-[#111] border-b border-white/10 shrink-0">
+               <div className="flex items-center gap-2">
+                 <button 
+                  onClick={() => setSelectedGame(null)}
+                  className="p-1.5 hover:bg-white/10 rounded-full transition-colors text-white"
+                >
+                  <ChevronLeft size={24} />
+                </button>
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-none">Playing</span>
+                  <span className="text-sm font-black text-white italic tracking-tighter uppercase">
+                    {globalNames[selectedGame.id] || selectedGame.name}
+                  </span>
+                </div>
+               </div>
+               <div className="flex items-center gap-2">
+                 <div className="bg-yellow-500/10 px-2 py-1 rounded border border-yellow-500/20">
+                   <span className="text-[10px] font-bold text-yellow-500">৳ {balance.toLocaleString()}</span>
+                 </div>
+                 <button 
+                  onClick={() => setSelectedGame(null)}
+                  className="p-1.5 hover:bg-red-500/20 rounded-full transition-colors text-gray-400 hover:text-red-400"
+                >
+                  <X size={20} />
+                </button>
+               </div>
+            </div>
+
+            {/* Game Content */}
+            <div className="flex-1 relative bg-[#050505] overflow-hidden">
+              {globalUrls[selectedGame.id] ? (
+                <iframe 
+                  src={globalUrls[selectedGame.id]} 
+                  className="w-full h-full border-none"
+                  title="Game View"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center">
+                  <div className="w-20 h-20 bg-yellow-500/10 rounded-3xl flex items-center justify-center text-yellow-500 mb-6 border border-yellow-500/20 shadow-[0_0_30px_rgba(234,179,8,0.1)]">
+                    <Loader2 size={40} className="animate-spin" />
+                  </div>
+                  <h2 className="text-3xl font-black text-white italic uppercase tracking-tighter mb-2">গেমে কাজ চলতেছে</h2>
+                  <p className="text-gray-500 font-bold uppercase text-[10px] tracking-[0.2em] mb-8">(Work in progress)</p>
+                  <p className="text-gray-400 text-sm max-w-xs mx-auto mb-10 leading-relaxed font-medium">
+                    এই গেমটির ডেভেলপমেন্ট কাজ চলছে। শীঘ্রই এটি আপনাদের জন্য উন্মুক্ত করা হবে। অনুগ্রহ করে আমাদের অন্য গেমগুলো ট্রাই করুন।
+                  </p>
+                  <button 
+                    onClick={() => setSelectedGame(null)}
+                    className="px-10 py-4 bg-yellow-500 text-black font-black italic rounded-2xl hover:bg-yellow-400 transition-all shadow-[0_10px_20px_rgba(234,179,8,0.3)] uppercase tracking-widest text-sm"
+                  >
+                    ফিরে যান (Back to Home)
+                  </button>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
@@ -1067,6 +1239,28 @@ export default function App() {
       {/* Main Content Area */}
       <div className="relative min-h-[calc(100vh-120px)]">
         <AnimatePresence mode="wait">
+          {activeTab === 'learning' && (
+            <motion.div
+              key="learning"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2 }}
+            >
+              <LearningProgressView userData={userData} />
+            </motion.div>
+          )}
+          {activeTab === 'settings' && (
+            <motion.div
+              key="settings"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2 }}
+            >
+              <SettingsView userData={userData} />
+            </motion.div>
+          )}
           {activeTab === 'faq' && (
             <motion.div
               key="faq"
@@ -1143,8 +1337,32 @@ export default function App() {
                 showToast={showToast}
                 loading={isTabLoading}
                 isAdmin={userData?.role === 'admin' || userData?.isAdmin === true}
+                setIsSupportChatOpen={setIsSupportChatOpen}
               />
             </motion.div>
+          )}
+          {activeTab === 'slot' && (
+             <motion.div
+               key="slot"
+               initial={{ opacity: 0, y: 20 }}
+               animate={{ opacity: 1, y: 0 }}
+               exit={{ opacity: 0, y: -20 }}
+               transition={{ duration: 0.3 }}
+               className="w-full h-full"
+             >
+               <SlotMachine onBack={() => setActiveTab('home')} />
+             </motion.div>
+          )}
+          {activeTab === 'history' && (
+            <motion.div
+               key="history"
+               initial={{ opacity: 0, y: 20 }}
+               animate={{ opacity: 1, y: 0 }}
+               exit={{ opacity: 0, y: -20 }}
+               transition={{ duration: 0.3 }}
+             >
+               <ActivityHistory />
+             </motion.div>
           )}
           {activeTab === 'analytics' && (
             <motion.div
@@ -1167,50 +1385,11 @@ export default function App() {
             >
               <ProfileView 
                 onTabChange={handleTabChange} 
+                initialSubTab={profileSubTab as any}
                 balance={balance} 
                 userData={userData}
-                onUpdateUser={async (updates: any) => {
-                  if (userData?.id) {
-                    try {
-                      const userRef = doc(db, 'users', userData.id);
-                      await updateDoc(userRef, updates);
-                      
-                      const newUserData = { ...userData, ...updates };
-                      setUserData(newUserData);
-                      localStorage.setItem('currentUser', JSON.stringify(newUserData));
-                      if (updates.balance !== undefined) {
-                        setBalance(updates.balance);
-                      }
-                    } catch (e) {
-                      console.error('Error updating user', e);
-                      showToast("প্রোফাইল আপডেট করতে সমস্যা হয়েছে", "error");
-                      throw e;
-                    }
-                  }
-                }}
-                onAddTransaction={async (transaction: any) => {
-                  if (userData?.id) {
-                    try {
-                      const txRef = doc(collection(db, 'users', userData.id, 'transactions'));
-                      await setDoc(txRef, {
-                        ...transaction,
-                        createdAt: serverTimestamp()
-                      });
-
-                      // Duplicate to global transactions for admin if needed
-                      const globalTxRef = doc(collection(db, 'transactions'));
-                      await setDoc(globalTxRef, {
-                        ...transaction,
-                        userId: userData.id,
-                        username: userData.username,
-                        createdAt: serverTimestamp()
-                      });
-                    } catch (e) {
-                      console.error('Error adding transaction', e);
-                      showToast("লেনদেন সংরক্ষণ করতে সমস্যা হয়েছে", "error");
-                    }
-                  }
-                }}
+                onUpdateUser={handleUpdateUser}
+                onAddTransaction={handleAddTransaction}
                 onLogout={handleLogout} 
                 showToast={showToast} 
                 casinoName={casinoName} 
@@ -1225,7 +1404,6 @@ export default function App() {
                 updateGlobalGameOption={updateGlobalGameOption}
                 allButtonName={allButtonName}
                 updateAllButtonName={updateAllButtonName}
-                initialSubTab={profileSubTab as any}
                 minWithdraw={minWithdraw}
                 loading={isTabLoading}
               />
@@ -1255,28 +1433,12 @@ export default function App() {
                 balance={balance} 
                 onBalanceUpdate={setBalance} 
                 onTabChange={handleTabChange} 
-                onUpdateUser={async (updates: any) => {
-                  if (userData?.id) {
-                    try {
-                      const userRef = doc(db, 'users', userData.id);
-                      await updateDoc(userRef, updates);
-                      
-                      const newUserData = { ...userData, ...updates };
-                      setUserData(newUserData);
-                      localStorage.setItem('currentUser', JSON.stringify(newUserData));
-                      if (updates.balance !== undefined) {
-                        setBalance(updates.balance);
-                      }
-                    } catch (e) {
-                      console.error('Error updating user in bonus center', e);
-                      showToast("বোনাস আপডেট করতে সমস্যা হয়েছে", "error");
-                    }
-                  }
-                }}
+                onUpdateUser={handleUpdateUser}
                 onLogout={handleLogout}
                 showToast={showToast} 
                 welcomeBonus={welcomeBonus} 
                 onOpenPromoModal={() => setShowPromoModal(true)}
+                onAddTransaction={handleAddTransaction}
               />
             </motion.div>
           )}
@@ -1294,21 +1456,8 @@ export default function App() {
                 userData={userData} 
                 showToast={showToast} 
                 casinoName={casinoName}
-                onUpdateUser={async (updates: any) => {
-                  if (userData?.id) {
-                    const userRef = doc(db, 'users', userData.id);
-                    await updateDoc(userRef, updates);
-                    setUserData({ ...userData, ...updates });
-                  }
-                }}
-                onAddTransaction={async (transaction: any) => {
-                  if (userData?.id) {
-                    const txRef = doc(collection(db, 'users', userData.id, 'transactions'));
-                    await setDoc(txRef, { ...transaction, createdAt: serverTimestamp() });
-                    const globalTxRef = doc(collection(db, 'transactions'));
-                    await setDoc(globalTxRef, { ...transaction, userId: userData.id, username: userData.username, createdAt: serverTimestamp() });
-                  }
-                }}
+                onUpdateUser={handleUpdateUser}
+                onAddTransaction={handleAddTransaction}
               />
             </motion.div>
           )}
@@ -1407,111 +1556,46 @@ export default function App() {
         }}
       />
 
+      {/* Global Floating Action Buttons */}
+      <div className="fixed bottom-24 right-4 flex flex-col gap-3 z-[110]">
+         <a 
+           href={telegramLink}
+           target="_blank"
+           rel="noopener noreferrer"
+           className="w-12 h-12 bg-[#14253a] rounded-full flex flex-col items-center justify-center shadow-lg border border-yellow-500/50 group relative"
+         >
+            <Send size={20} className="text-[#fdd835]" />
+            <span className="text-[8px] text-white font-bold tracking-tighter">TELEGRAM</span>
+            <div className="absolute -top-1 -right-1 bg-red-600 text-white text-[8px] font-black px-1 rounded-full animate-bounce">1</div>
+         </a>
+         <button 
+           onClick={() => setIsSupportChatOpen(true)}
+           className="w-12 h-12 bg-[#0d6efd] rounded-full flex items-center justify-center shadow-lg text-white hover:scale-110 transition-transform active:scale-95"
+         >
+            <MessageSquare size={24} />
+         </button>
+      </div>
+
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
 
-      {/* Floating Telegram Support */}
-      <div className="fixed bottom-20 right-4 md:right-[calc(50%-13rem)] z-40 flex flex-col gap-3">
-        {/* Global Chat Trigger */}
-        <button 
-          onClick={() => setIsGlobalChatOpen(true)}
-          className="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(79,70,229,0.5)] hover:scale-110 transition-transform border-2 border-indigo-400 group relative"
-        >
-          <MessageCircle size={24} className="text-white" />
-          <span className="absolute right-full mr-3 bg-black text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none font-bold uppercase italic">
-            Global Chat
-          </span>
-          <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full border border-white flex items-center justify-center animate-pulse">
-            <span className="text-[8px] font-bold text-white">●</span>
-          </div>
-        </button>
-
-        {/* AI Assistant Trigger */}
-        <button 
-          onClick={() => setIsAIAssistantOpen(true)}
-          className="w-12 h-12 bg-gradient-to-br from-teal-600 to-teal-900 rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(20,184,166,0.6)] hover:scale-110 transition-transform border-2 border-teal-400/30 group relative"
-        >
-          <Bot size={24} className="text-teal-100" />
-          <span className="absolute right-full mr-3 bg-black text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none font-black italic">
-            BET APP AI
-          </span>
-          {/* Pulsing Dot */}
-          <div className="absolute top-0 right-0 w-3 h-3 bg-green-500 rounded-full border border-white animate-pulse"></div>
-        </button>
-
-        {/* Bet Slip Trigger */}
-        <button 
-          onClick={() => setShowPromoModal(true)}
-          className="w-12 h-12 bg-teal-500 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(20,184,166,0.5)] hover:scale-110 transition-transform border-2 border-white/20 group relative"
-        >
-          <Gift size={24} className="text-white" />
-          <span className="absolute right-full mr-3 bg-black/80 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none font-bold">
-            Promo Code
-          </span>
-          <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 rounded-full border border-white flex items-center justify-center">
-            <span className="text-[8px] font-bold text-white">1</span>
-          </div>
-        </button>
-
-        <a 
-          href={telegramLink} 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="w-12 h-12 bg-[#0088cc] rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(0,136,204,0.5)] hover:scale-110 transition-transform border-2 border-white/20 group relative"
-        >
-          <svg viewBox="0 0 24 24" className="w-6 h-6 fill-white" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.18-.357.223-.548.223l.188-2.85 5.18-4.686c.223-.195-.054-.285-.346-.096l-6.405 4.03-2.76-.863c-.6-.188-.61-.6.125-.89l10.78-4.154c.498-.188.938.118.786.914z"/>
-          </svg>
-          <span className="absolute right-full mr-3 bg-black/80 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-            Channel
-          </span>
-        </a>
-        <a 
-          href={telegramLink} 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="w-12 h-12 bg-[#0088cc] rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(0,136,204,0.5)] hover:scale-110 transition-transform border-2 border-white/20 group relative"
-        >
-          <svg viewBox="0 0 24 24" className="w-6 h-6 fill-white" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.18-.357.223-.548.223l.188-2.85 5.18-4.686c.223-.195-.054-.285-.346-.096l-6.405 4.03-2.76-.863c-.6-.188-.61-.6.125-.89l10.78-4.154c.498-.188.938.118.786.914z"/>
-          </svg>
-          <span className="absolute right-full mr-3 bg-black/80 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-            Support Bot
-          </span>
-        </a>
-      </div>
+      <AnimatePresence>
+        {showDailyReward && (
+          <DailyRewardPopup 
+            currentStreak={dailyStreak}
+            onClose={() => setShowDailyReward(false)}
+            onClaim={handleClaimDailyReward}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Bottom Navigation */}
-      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
+      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} unreadNotificationsCount={unreadNotificationsCount} />
 
 
       {isLoggedIn && <PermissionManager />}
 
-      <AnimatePresence>
-        {(showLoginModal || (!isLoggedIn && showRegistrationSuccess)) && (
-          <div className="fixed inset-0 z-[150] bg-black max-w-[512px] mx-auto overflow-y-auto">
-             <LoginPage 
-                onRegisterSuccess={() => {
-                  setShowRegistrationSuccess(false);
-                  setShowLoginModal(false);
-                  showToast("অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে!", "success");
-                }} 
-                onContinue={() => {
-                  setShowRegistrationSuccess(false);
-                  setShowLoginModal(false);
-                }} 
-                onLoginSuccess={(user) => {
-                  handleLogin(user);
-                  setShowLoginModal(false);
-                }}
-                showToast={showToast}
-                casinoName={casinoName}
-                isLoggedIn={isLoggedIn}
-                welcomeBonus={welcomeBonus}
-              />
-          </div>
-        )}
-      </AnimatePresence>
+
 
       <PromoCodeModal 
         isOpen={showPromoModal}

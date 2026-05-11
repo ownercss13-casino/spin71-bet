@@ -31,7 +31,7 @@ export default function GlobalChat({
   useEffect(() => {
     // Initial mock messages
     setMessages([
-      { id: '1', userId: '101', username: 'Robin***', text: 'Aviator-এ ১০x পেলাম! ধন্যবাদ SPIN71', time: '10:05 AM', isVIP: true },
+      { id: '1', userId: '101', username: 'Robin***', text: 'Rocket-এ ১০x পেলাম! ধন্যবাদ SPIN71', time: '10:05 AM', isVIP: true },
       { id: '2', userId: '102', username: 'Ashik***', text: 'ভাই বিডি পেমেন্ট কতক্ষণ লাগে?', time: '10:06 AM' },
       { id: '3', userId: '103', username: 'Admin', text: 'বিকাশ পেমেন্ট ৫-১০ মিনিট লাগে।', time: '10:07 AM', isVIP: true },
     ]);

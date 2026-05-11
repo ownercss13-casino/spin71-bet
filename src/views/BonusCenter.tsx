@@ -15,7 +15,8 @@ export default function BonusCenter({
   onLogout,
   showToast, 
   welcomeBonus = 507,
-  onOpenPromoModal
+  onOpenPromoModal,
+  onAddTransaction
 }: { 
   userData: any, 
   balance: number, 
@@ -25,7 +26,8 @@ export default function BonusCenter({
   onLogout: () => void,
   showToast: (msg: string, type?: ToastType) => void, 
   welcomeBonus?: number,
-  onOpenPromoModal: () => void
+  onOpenPromoModal: () => void,
+  onAddTransaction?: (trx: any) => Promise<void>
 }) {
   const [activeTab, setActiveTab] = useState('mission');
   const [subTab, setSubTab] = useState('new_player');
@@ -39,11 +41,25 @@ export default function BonusCenter({
     { id: 'cashback', label: 'ক্যাশব্যাক' },
   ];
 
-  const handleClaimReward = (amount: number) => {
-    showToast(`Successfully claimed ৳${amount}`, 'success');
-    onUpdateUser({
-      balance: balance + amount
-    });
+  const handleClaimReward = async (amount: number) => {
+    try {
+      showToast(`Successfully claimed ৳${amount}`, 'success');
+      await onUpdateUser({
+        balance: balance + amount
+      });
+      
+      if (onAddTransaction) {
+        await onAddTransaction({
+          type: 'bonus',
+          amount: amount,
+          status: 'completed',
+          description: 'Bonus center reward claim',
+          date: new Date().toISOString()
+        });
+      }
+    } catch (err) {
+      console.error("Claim error:", err);
+    }
   };
 
   return (

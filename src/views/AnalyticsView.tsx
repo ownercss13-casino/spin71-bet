@@ -49,7 +49,7 @@ export default function AnalyticsView({ balance, userData, onBack }: AnalyticsVi
   ];
 
   const gameDistribution = [
-    { name: 'Aviator', value: 45, color: '#f87171' },
+    { name: 'Rocket', value: 45, color: '#f87171' },
     { name: 'Slots', value: 25, color: '#60a5fa' },
     { name: 'Casino', value: 20, color: '#fbbf24' },
     { name: 'Others', value: 10, color: '#10b981' },
@@ -224,7 +224,7 @@ export default function AnalyticsView({ balance, userData, onBack }: AnalyticsVi
            <Zap className="text-yellow-500 mx-auto" size={40} />
            <h4 className="text-xl font-black text-white italic uppercase tracking-tighter">গড় জয়ের হার ২.৫গুণ বেড়েছে!</h4>
            <p className="text-gray-400 text-xs font-medium leading-relaxed">
-             আপনার গত মাসের তুলনায় এই মাসে জয়ের হার অনেক ভালো। বিশেষ করে Aviator গেমে আপনার পারফরম্যান্স অসাধারণ!
+             আপনার গত মাসের তুলনায় এই মাসে জয়ের হার অনেক ভালো। বিশেষ করে Rocket গেমে আপনার পারফরম্যান্স অসাধারণ!
            </p>
            <button className="w-full bg-yellow-500 text-black font-black italic uppercase tracking-widest py-4 rounded-3xl active:scale-95 transition-all shadow-xl shadow-yellow-500/20">
              টিপস দেখুন (Get Tips)

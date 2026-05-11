@@ -17,71 +17,122 @@ console.log("Server process starting... NODE_ENV:", process.env.NODE_ENV);
 
 // Initialize Firebase Admin
 let db: admin.firestore.Firestore;
+let firebaseApp: admin.app.App;
 
-if (!admin.apps?.length) {
+// Ensure we target the right project for credentials at the process level
+process.env.GOOGLE_CLOUD_PROJECT = firebaseConfig.projectId;
+process.env.GCLOUD_PROJECT = firebaseConfig.projectId;
+
+// Initialize Firebase Admin
+if (!admin.apps.length) {
   try {
+    // Standard initialization - let ADC (Application Default Credentials) handle it
     admin.initializeApp({
-      credential: admin.credential.applicationDefault()
+      projectId: firebaseConfig.projectId
     });
-    console.log("Firebase Admin initialized");
-  } catch (err: any) {
-    console.error("Firebase Admin initialization failed completely:", err.message);
+    console.log(`[Firebase] Initialized with project: ${firebaseConfig.projectId}`);
+  } catch (e: any) {
+    console.error("[Firebase] App initialization error:", e.message);
+    admin.initializeApp();
   }
 }
 
-async function initializeDb() {
-  const dbId = firebaseConfig.firestoreDatabaseId;
-  console.log(`Targeting Database ID: ${dbId || '(default)'}`);
-  
+firebaseApp = admin.app();
+const dbId = firebaseConfig.firestoreDatabaseId;
+
+// Initialize Firestore - prioritizing the config but allowing fallback
+let currentDbId = dbId;
+async function getVerifiedDb() {
   try {
-    db = dbId ? getFirestore(dbId) : getFirestore();
-    await db.collection('test').doc('connection').get();
-    console.log(`Firestore connectivity test successful for ${dbId || 'default'}`);
+    if (currentDbId && currentDbId !== '(default)') {
+      console.log(`[Firebase] Checking named database availability: ${currentDbId}...`);
+      const testDb = getFirestore(firebaseApp, currentDbId);
+      
+      // Use a timeout for verification to avoid blocking startup
+      const verifyPromise = testDb.collection('config').doc('main').get();
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 5000));
+      
+      const snap = await Promise.race([verifyPromise, timeoutPromise]) as admin.firestore.DocumentSnapshot;
+      console.log(`[Firebase] Verified named database: ${currentDbId}. Doc exists: ${snap.exists}`);
+      return testDb;
+    }
   } catch (err: any) {
-    console.error(`Firestore connectivity test failed:`, err.message);
-    throw err; // Re-throw to ensure we know it failed
+    const errorMsg = err.message || String(err);
+    console.error(`[Firebase] Verification failed for database ${currentDbId}:`, errorMsg);
+    
+    // Fallback if permission denied, not found, or timeout
+    if (errorMsg.includes('PERMISSION_DENIED') || errorMsg.includes('NOT_FOUND') || errorMsg === 'TIMEOUT' || errorMsg.includes('7') || errorMsg.includes('5')) {
+      console.warn(`[Firebase] Database ${currentDbId} is unusable, falling back to (default)`);
+      currentDbId = '(default)';
+    }
   }
+  
+  if (currentDbId === '(default)') {
+    console.log(`[Firebase] Initializing (default) database`);
+    return getFirestore(firebaseApp);
+  }
+  
+  return getFirestore(firebaseApp);
 }
 
-// Ensure DB is initialized before server start
-initializeDb().catch(err => {
-  console.error("Critical database initialization error:", err.message);
-  process.exit(1); 
-});
+// Initial placeholder, will be verified on first real use or in initializeGlobalConfig
+db = getFirestore(firebaseApp, (dbId && dbId !== '(default)') ? dbId : undefined);
 
 
 const auth = admin.auth();
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const TELEGRAM_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID;
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "7613844889:AAHwcf5uhCICxZMuRYpUUBNTNErGDmedopI";
+const TELEGRAM_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID || "-6543227982";
 
-// Track admin chat ID dynamically if provided by bot
-let adminChatId: string | null = TELEGRAM_ADMIN_CHAT_ID || null;
+// Storage for diagnostics
+let lastTelegramError: any = null;
+let lastTelegramSuccess: any = null;
+
+// Track admin chat ID dynamically if provided by bot, but keep a separate variable for system notifications
+let supportAdminChatId: string | null = null; 
 
 if (!TELEGRAM_BOT_TOKEN) {
   console.warn("TELEGRAM_BOT_TOKEN is missing. Telegram notifications will not work.");
 }
-if (!TELEGRAM_ADMIN_CHAT_ID) {
-  console.warn("TELEGRAM_ADMIN_CHAT_ID is missing. Telegram notifications will not work.");
-}
 
 // Multi-user chat history: { [userId: string]: Message[] }
 const chatHistories: Record<string, any[]> = {};
-async function sendTelegramNotification(message: string) {
-  if (!TELEGRAM_BOT_TOKEN) return;
+
+async function sendTelegramNotification(message: string, isSupportReply: boolean = false) {
+  if (!TELEGRAM_BOT_TOKEN) {
+    if (!lastTelegramError) console.warn("[Telegram] Bot token missing, notifications disabled.");
+    return;
+  }
+  
+  const targetChatId = isSupportReply ? (supportAdminChatId || TELEGRAM_ADMIN_CHAT_ID) : TELEGRAM_ADMIN_CHAT_ID;
+  
   try {
     const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-    await fetch(url, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        chat_id: adminChatId || TELEGRAM_ADMIN_CHAT_ID,
+        chat_id: targetChatId,
         text: message,
         parse_mode: 'HTML',
       }),
     });
-  } catch (e) {
-    console.error("Telegram notification failed", e);
+    
+    const responseData = await response.json() as any;
+    
+    if (!response.ok) {
+      if (response.status === 401) {
+        console.error("[Telegram] 401 Unauthorized: Bot token is invalid.");
+      } else {
+        console.error(`[Telegram] Error (${response.status}):`, JSON.stringify(responseData));
+      }
+      lastTelegramError = { timestamp: new Date().toISOString(), status: response.status, data: responseData };
+    } else {
+      console.log(`[Telegram] Successfully sent to ${targetChatId}`);
+      lastTelegramSuccess = { timestamp: new Date().toISOString(), targetChatId };
+    }
+  } catch (e: any) {
+    console.error(`[Telegram] Critical error:`, e.message);
   }
 }
 
@@ -99,35 +150,27 @@ function getChatHistory(userId: string) {
 
 async function pollTelegramUpdates() {
   if (!TELEGRAM_BOT_TOKEN) {
-    console.log("Telegram Bot Token not configured. Polling skipped.");
+    console.log("[Telegram] Polling disabled due to missing token.");
     return;
   }
 
   let offset = 0;
-  console.log("Starting Telegram polling...");
+  console.log("[Telegram] Starting polling loop...");
   while (true) {
     try {
       const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=${offset}&timeout=30`);
       
       if (!res.ok) {
         if (res.status === 401) {
-          console.error("Telegram Bot Token is invalid (401). Polling stopped.");
+          console.error("[Telegram] 401 Unauthorized while polling. Token is invalid. Stopping loop.");
           return; 
         }
-        if (res.status === 409) {
-          console.warn("Telegram polling conflict (409). Another instance might be running. Waiting...");
-          await new Promise(resolve => setTimeout(resolve, 10000));
-          continue;
-        }
-        console.warn(`Telegram API error! status: ${res.status}`);
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        await new Promise(resolve => setTimeout(resolve, 10000));
         continue;
       }
       
       const data = await res.json() as any;
-      
-      if (data.ok && data.result && data.result.length > 0) {
-        console.log(`Received ${data.result.length} Telegram updates.`);
+      if (data.ok && data.result) {
         for (const update of data.result) {
           offset = update.update_id + 1;
           
@@ -136,17 +179,13 @@ async function pollTelegramUpdates() {
             const text = update.message.text;
             const replyTo = update.message.reply_to_message;
             
-            // If it's a message from the admin (or anyone to the bot)
-            adminChatId = chatId;
+            supportAdminChatId = chatId;
             
-            let targetUserId = "84729104"; // Default fallback
+            let targetUserId = "84729104"; 
             
-            // Try to find which user this reply is for
             if (replyTo && telegramMsgToUser[replyTo.message_id]) {
               targetUserId = telegramMsgToUser[replyTo.message_id];
             } else {
-              // Try to extract user ID from the text if the admin didn't use "reply"
-              // Format: "[User: 84729104] Message"
               const match = text.match(/\[User:\s*(\d+)\]/);
               if (match) {
                 targetUserId = match[1];
@@ -156,16 +195,16 @@ async function pollTelegramUpdates() {
             const history = getChatHistory(targetUserId);
             history.push({
               id: Date.now() + Math.random(),
-              text: text.replace(/\[User:\s*\d+\]\s*/, ""), // Clean up the text if it had the tag
+              text: text.replace(/\[User:\s*\d+\]\s*/, ""), 
               sender: 'agent',
               time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
             });
           }
         }
       }
-    } catch (err) {
-      console.error("Telegram polling error:", err);
-      await new Promise(resolve => setTimeout(resolve, 5000));
+    } catch (err: any) {
+      console.error("[Telegram] Polling error:", err.message);
+      await new Promise(resolve => setTimeout(resolve, 15000));
     }
   }
 }
@@ -173,20 +212,97 @@ async function pollTelegramUpdates() {
 // Start polling in the background
 pollTelegramUpdates();
 
+async function initializeGlobalConfig() {
+  console.log("[Config] Starting initialization...");
+  try {
+    // Verify and potentially switch db to default
+    db = await getVerifiedDb();
+    
+    if (!db) {
+      console.error("[Config] Database instance is null after verification!");
+      return;
+    }
+
+    // 1. Initialize config/main
+    const configRef = db.collection('config').doc('main');
+    const snap = await configRef.get();
+    if (!snap.exists) {
+      console.log("[Config] Document 'config/main' missing. Initializing...");
+      await configRef.set({
+        casinoName: "SPIN71BET",
+        noticeText: "স্বাগতম SPIN71BET কেসিনো তে! শুভকামনা সবার জন্য।",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    }
+
+    // 2. Initialize metadata/settings (used by frontend)
+    const settingsRef = db.collection('metadata').doc('settings');
+    const settingsSnap = await settingsRef.get();
+    if (!settingsSnap.exists) {
+      console.log("[Config] Document 'metadata/settings' missing. Initializing...");
+      await settingsRef.set({
+        casinoName: "SPIN71BET",
+        noticeText: "স্বাগতম SPIN71BET কেসিনো তে! শুভকামনা সবার জন্য।",
+        allButtonName: "ALL",
+        welcomeBonus: 507,
+        minDeposit: 100,
+        minWithdraw: 100,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    }
+
+    console.log("[Config] Global configuration successfully verified.");
+  } catch (err: any) {
+    console.error("[Config] FATAL initialization error:", err.message);
+    
+    // Last ditch effort: if we still get NOT_FOUND here, force (default) and retry once
+    if (err.message.includes('NOT_FOUND') || err.message.includes('5')) {
+      console.warn("[Config] Received NOT_FOUND even after verification. Forcing (default) database fallback...");
+      try {
+        db = getFirestore(firebaseApp);
+        
+        await db.collection('config').doc('main').set({
+          casinoName: "SPIN71BET",
+          noticeText: "স্বাগতম SPIN71BET কেসিনো তে! শুভকামনা সবার জন্য।",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        await db.collection('metadata').doc('settings').set({
+          casinoName: "SPIN71BET",
+          noticeText: "স্বাগতম SPIN71BET কেসিনো তে! শুভকামনা সবার জন্য।",
+          allButtonName: "ALL",
+          welcomeBonus: 507,
+          minDeposit: 100,
+          minWithdraw: 100,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        console.log("[Config] Fallback initialization successful on (default) database.");
+      } catch (innerErr: any) {
+        console.error("[Config] Even fallback database failed:", innerErr.message);
+      }
+    }
+  }
+}
+
 async function startServer() {
+  console.log("[Server] Starting startServer sequence...");
+  
+  // Verify database BEFORE starting the server
+  try {
+    db = await getVerifiedDb();
+    console.log("[Firebase] Database instance confirmed.");
+  } catch (err: any) {
+    console.error("[Firebase] Fatal database initialization error, using defaults:", err.message);
+    db = getFirestore(firebaseApp);
+  }
+
   const app = express();
   const PORT = 3000;
 
-  // Add global request logging
-  app.use((req, res, next) => {
-    if (req.url.startsWith('/api')) {
-      console.log(`[API Request] ${new Date().toISOString()} - ${req.method} ${req.url}`);
-    }
-    next();
-  });
-
   app.use(express.json());
   app.use(cors());
+
   app.use(session({
     secret: SESSION_SECRET,
     resave: false,
@@ -194,43 +310,37 @@ async function startServer() {
     cookie: { secure: process.env.NODE_ENV === 'production' }
   }));
 
-  // API routes
+  // Initialize config asynchronously so it doesn't block the health check
+  initializeGlobalConfig().catch(err => console.error("[Config] Early init failed:", err.message));
+
+  // --- Health and Status
   app.get("/api/health", (req, res) => {
-    console.log("Health check hit");
     res.json({ 
       status: "ok", 
-      message: "Server is running!",
+      dbReady: !!db,
+      dbId: currentDbId,
       time: new Date().toISOString()
     });
   });
 
-  // TEST ROUTE: Simple ping to verify /api/external-fetch is reachable
-  app.get("/api/external-fetch/ping", (req, res) => {
-    console.log("[External Fetch] Ping received");
-    res.json({ success: true, message: "External fetch endpoint is reachable" });
-  });
-
-  // --- External API Proxy ---
-  // This allows the frontend to call external APIs securely
-  app.post(["/api/external-fetch", "/api/external-fetch/"], async (req: express.Request, res: express.Response) => {
+  // --- External API Proxy (MOVED UP FOR PRECEDENCE) ---
+  const proxyHandler = async (req: express.Request, res: express.Response) => {
     try {
-      console.log(`[Proxy Request] Target: ${req.body?.url}, Method: ${req.body?.method}`);
       const { url, method = 'GET', body, headers = {} } = req.body || {};
+      
+      console.log(`[Proxy] Target: ${url}, Method: ${method}`);
 
       if (!url) {
-        console.warn("[Proxy] Missing target URL in request body");
         return res.status(400).json({ error: "Target URL is required" });
       }
 
-      // Check if fetch is available (Node 18+)
-      if (typeof fetch === 'undefined') {
-        console.error("[Proxy] Global fetch is not available in this Node environment!");
-        return res.status(500).json({ error: "Server misconfiguration: fetch not available" });
+      const fetchFn = fetch || (global as any).fetch;
+      
+      if (!fetchFn) {
+        return res.status(500).json({ error: "Server misconfiguration: fetch function not found" });
       }
 
-      console.log(`[Proxy] Fetching ${method} ${url}`);
-      
-      const response = await fetch(url, {
+      const response = await fetchFn(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
@@ -238,36 +348,48 @@ async function startServer() {
           ...headers
         },
         body: (method !== 'GET' && method !== 'HEAD' && body) ? JSON.stringify(body) : undefined
-      }).catch(err => {
+      }).catch((err: any) => {
         console.error(`[Proxy] Fetch error for ${url}:`, err.message);
         throw err;
       });
 
-      console.log(`[Proxy] Response status from ${url}: ${response.status}`);
-      
       const contentType = response.headers.get('content-type') || '';
       let responseData: any;
       
       if (contentType.includes('application/json')) {
-        responseData = await response.json().catch(err => {
-          console.warn("[Proxy] Failed to parse JSON response:", err.message);
-          return { error: "Failed to parse JSON response from target" };
+        responseData = await response.json().catch((err: any) => {
+          return { error: "Failed to parse JSON response from target", details: err.message };
         });
       } else {
         const text = await response.text().catch(() => "");
-        console.log(`[Proxy] Non-JSON response received, length: ${text.length}`);
-        responseData = { text };
+        responseData = { text, contentType };
       }
       
       res.status(response.status).json(responseData);
     } catch (error: any) {
       console.error("[Proxy] Critical error:", error.message);
-      res.status(500).json({ 
-        error: "Failed to fetch from external API", 
-        details: error.message 
-      });
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          error: "Failed to fetch from external API", 
+          details: error.message 
+        });
+      }
     }
+  };
+
+  app.post("/api/external-fetch", proxyHandler);
+  app.post("/api/external-fetch/", proxyHandler);
+  app.post("/external-fetch", (req, res, next) => {
+    console.log("[DEBUG] /external-fetch hit without /api prefix. Redirecting to proxy handler.");
+    proxyHandler(req, res);
   });
+
+  // TEST ROUTE
+  app.get("/api/external-fetch/ping", (req, res) => {
+    res.json({ success: true, message: "External fetch endpoint is reachable" });
+  });
+  app.get("/api/external-fetch", (req, res) => res.status(405).json({ error: "Use POST for proxy requests" }));
+  app.get("/external-fetch", (req, res) => res.redirect("/api/external-fetch"));
 
   // --- Real-time Crypto Odds API (Simulated/Proxy example) ---
   app.get("/api/market/odds", async (req, res) => {
@@ -292,6 +414,16 @@ async function startServer() {
   });
 
   // --- Telegram API ---
+  app.get("/api/telegram/status", (req, res) => {
+    res.json({
+      configuredToken: TELEGRAM_BOT_TOKEN ? `${TELEGRAM_BOT_TOKEN.substring(0, 10)}...` : "MISSING",
+      configuredAdminId: TELEGRAM_ADMIN_CHAT_ID || "MISSING",
+      lastError: lastTelegramError,
+      lastSuccess: lastTelegramSuccess,
+      serverTime: new Date().toISOString()
+    });
+  });
+
   app.post("/api/telegram/send", async (req, res) => {
     try {
       const { message } = req.body;
@@ -299,24 +431,17 @@ async function startServer() {
         return res.status(400).json({ error: "Message is required" });
       }
 
-      const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: adminChatId || TELEGRAM_ADMIN_CHAT_ID,
-          text: message,
-          parse_mode: 'HTML',
-        }),
-      });
+      console.log(`[Telegram API] Manual send request received for message length ${message.length}`);
+      await sendTelegramNotification(message);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Failed to send Telegram message", errorText);
-        return res.status(500).json({ error: "Failed to send to Telegram" });
+      if (lastTelegramError && lastTelegramError.timestamp > new Date(Date.now() - 5000).toISOString()) {
+        return res.status(500).json({ 
+          error: "Failed to send to Telegram", 
+          details: lastTelegramError 
+        });
       }
 
-      res.json({ success: true });
+      res.json({ success: true, lastSuccess: lastTelegramSuccess });
     } catch (error: any) {
       console.error("Telegram send error:", error);
       res.status(500).json({ error: error.message });
@@ -499,6 +624,127 @@ async function startServer() {
       } catch (error: any) {
           res.status(500).json({ error: error.message });
       }
+  });
+
+  // --- Slot Machine Game API ---
+  app.post("/api/game/slot/spin", async (req, res) => {
+    const { betAmount, idToken } = req.body;
+    
+    if (!betAmount || typeof betAmount !== 'number' || betAmount <= 0 || !idToken) {
+      return res.status(400).json({ error: "Invalid bet amount or missing token" });
+    }
+
+    try {
+      const decodedToken = await auth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const userRef = db.collection('users').doc(uid);
+
+      // Spin Logic (Server Side)
+      const symbols = ['7', 'BAR', 'CHERRY', 'DIAMOND', 'GOLD', 'BELL'];
+      const reel1 = symbols[Math.floor(Math.random() * symbols.length)];
+      const reel2 = symbols[Math.floor(Math.random() * symbols.length)];
+      const reel3 = symbols[Math.floor(Math.random() * symbols.length)];
+      
+      const resultSymbols = [reel1, reel2, reel3];
+      
+      let winMultiplier = 0;
+      if (reel1 === reel2 && reel2 === reel3) {
+        // Jackpot / Major Win
+        const multipliers: any = {
+           '7': 50,
+           'BAR': 20,
+           'CHERRY': 10,
+           'DIAMOND': 100,
+           'GOLD': 30,
+           'BELL': 15
+        };
+        winMultiplier = multipliers[reel1];
+      } else if (reel1 === reel2 || reel2 === reel1 || reel1 === reel3) {
+        // Minor Win
+        winMultiplier = 2;
+      }
+
+      const winAmount = betAmount * winMultiplier;
+
+      await db.runTransaction(async (transaction) => {
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists) throw new Error("User missing");
+        
+        const userData = userDoc.data()!;
+        if (userData.balance < betAmount) throw new Error("ইনসাফিসিয়েন্ট ব্যালেন্স (Insufficient balance)");
+        
+        const newBalance = userData.balance - betAmount + winAmount;
+        
+        transaction.update(userRef, {
+          balance: newBalance,
+          updatedAt: new Date().toISOString()
+        });
+
+        // Log bet
+        const betRef = db.collection('bets').doc();
+        transaction.set(betRef, {
+          userId: uid,
+          betAmount,
+          winAmount,
+          symbols: resultSymbols,
+          gameType: 'slot',
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      });
+
+      res.json({
+        success: true,
+        symbols: resultSymbols,
+        winAmount,
+        multiplier: winMultiplier
+      });
+
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // --- Daily Reward API ---
+  app.post("/api/game/rewards/daily", async (req, res) => {
+    const { idToken } = req.body;
+    if (!idToken) return res.status(400).json({ error: "Missing token" });
+
+    try {
+      const decodedToken = await auth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const userRef = db.collection('users').doc(uid);
+      const rewardRef = db.collection('daily_rewards').doc(uid);
+
+      await db.runTransaction(async (transaction) => {
+        const rewardDoc = await transaction.get(rewardRef);
+        const now = new Date();
+        now.setHours(0,0,0,0);
+
+        if (rewardDoc.exists) {
+          const lastClaimed = new Date(rewardDoc.data()!.lastClaimed);
+          lastClaimed.setHours(0,0,0,0);
+          
+          if (now.getTime() === lastClaimed.getTime()) {
+            throw new Error("আজকের বোনাস আপনি সংগ্রহ করেছেন");
+          }
+        }
+
+        const bonus = 50; // Demo coins
+        transaction.update(userRef, {
+          balance: admin.firestore.FieldValue.increment(bonus)
+        });
+
+        transaction.set(rewardRef, {
+          userId: uid,
+          lastClaimed: new Date().toISOString(),
+          currentStreak: admin.firestore.FieldValue.increment(1)
+        }, { merge: true });
+      });
+
+      res.json({ success: true, bonus: 50 });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
   /* ... */
@@ -747,7 +993,7 @@ async function startServer() {
         avgSessionDuration: "3m 45s",
         topPages: [
           { path: "/", hits: 2450 },
-          { path: "/aviator", hits: 1280 },
+          { path: "/rocket", hits: 950 },
           { path: "/deposit", hits: 850 },
           { path: "/crash-game", hits: 620 },
           { path: "/profile", hits: 410 }
@@ -863,6 +1109,61 @@ async function startServer() {
     }
   });
 
+  // Create Notification
+  app.post("/api/admin/notifications", verifyAdminToken, async (req, res) => {
+    try {
+      const { title, message, type, url, targetUserId } = req.body;
+      if (!title || !message) {
+        res.status(400).json({ error: "Title and message are required" });
+        return;
+      }
+
+      if (targetUserId && targetUserId !== 'all') {
+        const notifRef = db.collection('users').doc(targetUserId).collection('notifications').doc();
+        await notifRef.set({
+          title,
+          message,
+          type: type || 'info',
+          actionUrl: url || '',
+          read: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      } else {
+        // Send to all users
+        const usersSnapshot = await db.collection('users').get();
+        const batches = [];
+        let currentBatch = db.batch();
+        let i = 0;
+        
+        usersSnapshot.forEach(doc => {
+          const notifRef = doc.ref.collection('notifications').doc();
+          currentBatch.set(notifRef, {
+            title,
+            message,
+            type: type || 'info',
+            actionUrl: url || '',
+            read: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          i++;
+          if (i % 500 === 0) { 
+            batches.push(currentBatch.commit());
+            currentBatch = db.batch();
+          }
+        });
+        
+        if (i % 500 !== 0) {
+          batches.push(currentBatch.commit());
+        }
+        await Promise.all(batches);
+      }
+
+      res.json({ success: true, message: "Notification sent successfully." });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Create Promo Code
   app.post("/api/admin/promos", verifyAdminToken, async (req, res) => {
     try {
@@ -935,13 +1236,13 @@ async function startServer() {
     };
     history.push(msg);
 
-    if (adminChatId) {
+    if (supportAdminChatId || TELEGRAM_ADMIN_CHAT_ID) {
       try {
         await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            chat_id: adminChatId,
+            chat_id: supportAdminChatId || TELEGRAM_ADMIN_CHAT_ID,
             text: `[User: ${userId}] ${text}`
           })
         });
@@ -1035,13 +1336,13 @@ async function startServer() {
     const history = getChatHistory(userId);
     history.push(userMsg);
 
-    if (adminChatId) {
+    if (supportAdminChatId || TELEGRAM_ADMIN_CHAT_ID) {
       try {
         const tgRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            chat_id: adminChatId,
+            chat_id: supportAdminChatId || TELEGRAM_ADMIN_CHAT_ID,
             text: `[User: ${userId}] ${text}`
           })
         });
@@ -1076,7 +1377,7 @@ async function startServer() {
     });
   });
 
-  // Vite middleware
+  // Vite and Static Middleware ORDER is critical
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -1085,14 +1386,28 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.use(express.static(distPath, {
+      setHeaders: (res, path) => {
+        if (path.endsWith('.js') || path.endsWith('.ts') || path.endsWith('.tsx')) {
+          res.setHeader('Content-Type', 'application/javascript');
+        }
+      }
+    }));
+    app.get('*', (req, res, next) => {
+      // Don't serve index.html for what looks like a missing asset/file
+      if (req.url.includes('.') && !req.url.endsWith('.html')) {
+        return res.status(404).send('Asset not found');
+      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    
+    // Start background loops after server is listening
+    initializeGlobalConfig().catch(err => console.error("Config initialization failed:", err));
+    pollTelegramUpdates().catch(err => console.error("Telegram polling failed to start:", err));
   });
 
   // Global Error Handlers
@@ -1104,4 +1419,6 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch(err => {
+  console.error("FATAL: startServer failed:", err);
+});

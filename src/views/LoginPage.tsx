@@ -36,6 +36,7 @@ const loginSchema = z.object({
 });
 
 const registerSchema = z.object({
+  fullName: z.string().min(3, 'পুুুুরো নাম দিন (Full Name required)'),
   username: z.string()
     .min(6, 'ইউজারনেম কমপক্ষে ৬ অক্ষরের হতে হবে (Min 6 chars)')
     .max(13, 'ইউজারনেম ১৩ অক্ষরের বেশি হতে পারবে না (Max 13 chars)')
@@ -261,6 +262,20 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
               date: new Date().toISOString(),
               createdAt: new Date().toISOString()
             });
+
+            // ADDED: Bonus for the new user
+            await updateDoc(doc(db, 'users', user.uid), {
+                balance: increment(50)
+            });
+            await setDoc(doc(collection(db, 'transactions')), {
+              type: 'bonus',
+              status: 'approved',
+              uid: user.uid,
+              amount: 50,
+              description: 'Referral Signup Bonus',
+              date: new Date().toISOString(),
+              createdAt: new Date().toISOString()
+            });
           } catch (e) {
             console.error("Inviter update failed:", e);
           }
@@ -346,6 +361,20 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
               uid: inviterUid,
               amount: 50,
               description: 'Referral Bonus (Google Signup)',
+              date: new Date().toISOString(),
+              createdAt: new Date().toISOString()
+            });
+            
+            // ADDED: Bonus for the new user
+            await updateDoc(doc(db, 'users', user.uid), {
+                balance: increment(50)
+            });
+            await setDoc(doc(collection(db, 'transactions')), {
+              type: 'bonus',
+              status: 'approved',
+              uid: user.uid,
+              amount: 50,
+              description: 'Referral Signup Bonus',
               date: new Date().toISOString(),
               createdAt: new Date().toISOString()
             });
@@ -482,6 +511,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       }
 
       const userData = {
+        fullName: data.fullName,
         username: data.username,
         email: data.email,
         phoneNumber: data.phoneNumber,
@@ -529,6 +559,20 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
             date: new Date().toISOString(),
             createdAt: new Date().toISOString()
           });
+          
+          // ADDED: Bonus for the new user
+          await updateDoc(doc(db, 'users', user.uid), {
+              balance: increment(50)
+          });
+          await setDoc(doc(collection(db, 'transactions')), {
+            type: 'bonus',
+            status: 'approved',
+            uid: user.uid,
+            amount: 50,
+            description: 'Referral Signup Bonus',
+            date: new Date().toISOString(),
+            createdAt: new Date().toISOString()
+          });
         } catch (e) {
           console.error("Inviter update failed:", e);
         }
@@ -569,17 +613,16 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
           <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)', backgroundSize: '10px 10px' }}></div>
         </div>
         <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black to-transparent"></div>
-        <button 
-          onClick={onContinue}
-          className="absolute top-6 right-6 z-20 w-10 h-10 bg-black/40 border border-white/10 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-black/80 transition-all backdrop-blur-md"
-        >
-          <X size={20} />
-        </button>
-        
         {/* Center Logo/Title in Banner */}
         <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pt-4">
+          <img 
+            src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/Flag_of_Bangladesh.svg/1000px-Flag_of_Bangladesh.svg.png" 
+            alt="Bangladesh Flag" 
+            className="h-10 w-auto rounded-md shadow-2xl mb-4 border-2 border-white/20"
+            referrerPolicy="no-referrer"
+          />
           <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600 drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)] italic tracking-tighter mb-2">
-            {casinoName}
+            JETA<span className="text-red-500">9</span>
           </h1>
           <div className="flex gap-1 items-center px-4 py-1.5 bg-green-900/50 border border-yellow-500/30 rounded-full backdrop-blur-sm">
             <Gift size={14} className="text-yellow-400" />
@@ -588,7 +631,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         </div>
       </div>
 
-      <div className="w-full max-w-md px-6 -mt-12 relative z-20 pb-12">
+      <div className="w-full max-w-md px-6 -mt-12 relative z-20 pb-24">
         {/* Auth Mode Toggle */}
         <div className="flex bg-[#0f172a]/80 backdrop-blur-xl p-1.5 rounded-2xl border border-white/5 mb-8 shadow-2xl relative">
           <button 
@@ -715,6 +758,23 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
               onSubmit={handleSubmitSignup(onEmailRegister)}
               className="space-y-4"
             >
+              {/* Full Name Field */}
+              <div className="space-y-2">
+                <div className="relative group">
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-yellow-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]"></div>
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-yellow-400 transition-colors">
+                    <User size={20} />
+                  </div>
+                  <input 
+                    {...registerSignup('fullName')}
+                    type="text" 
+                    placeholder="পুরো নাম দিন (Full Name)"
+                    className="w-full bg-[#111] border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white text-sm focus:border-yellow-500/50 outline-none transition-all placeholder:text-white/30 focus:bg-emerald-950/10 focus:shadow-[0_0_15px_rgba(234,179,8,0.1)]"
+                  />
+                </div>
+                {signupErrors.fullName && <p className="text-[10px] text-red-500 mt-1 ml-2 font-bold italic">! {signupErrors.fullName.message}</p>}
+              </div>
+
               {/* Username Field */}
               <div className="space-y-2">
                 <div className="relative group">
@@ -972,6 +1032,10 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
           </div>
         )}
       </AnimatePresence>
+      {/* Footer Branding Area */}
+      <div className="fixed bottom-0 left-0 right-0 bg-black py-4 text-center z-50 border-t border-white/10">
+        <p className="text-white font-bold tracking-widest text-lg">SPIN71 BET</p>
+      </div>
     </div>
   );
 }

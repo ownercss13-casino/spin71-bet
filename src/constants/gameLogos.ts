@@ -49,7 +49,6 @@ export const GAME_LOGO_URLS: Record<string, string> = {
   'pg_22': 'https://example.com/logos/pg/ways-qilin.png',
 
   // SPRIBE
-  '5': 'https://example.com/logos/spribe/aviator.png',
   'rocket_1': 'https://example.com/logos/spribe/space-rocket.png',
   'spribe_2': 'https://example.com/logos/spribe/mines.png',
   'spribe_3': 'https://example.com/logos/spribe/dice.png',

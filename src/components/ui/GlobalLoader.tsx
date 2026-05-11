@@ -65,102 +65,23 @@ export default function GlobalLoader({
         )}
       </div>
 
-      {/* Center Artwork */}
+      {/* Center Artwork - Logo Placeholder */}
       <div className="relative z-10 flex-1 flex items-center justify-center w-full">
         <motion.div 
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", bounce: 0.5 }}
-          className="relative w-64 h-64"
+          className="relative w-64 h-64 flex items-center justify-center"
         >
-          {/* Circular Orbit Lines */}
-          <div className="absolute inset-0 border border-white/20 rounded-full"></div>
-          <div className="absolute inset-4 border border-white/10 rounded-full"></div>
-          
-          {/* Floating Orange Circle */}
-          <motion.div 
-            animate={{ y: [-10, 10, -10] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute top-8 -left-4 w-6 h-6 bg-yellow-400 rounded-full border-2 border-yellow-200 shadow-[0_0_15px_rgba(250,204,21,0.5)]"
-          ></motion.div>
-
-          {/* Floating Coin Right */}
-          <motion.div 
-            animate={{ y: [10, -10, 10] }}
-            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute bottom-16 -right-6 w-14 h-14 bg-gradient-to-br from-yellow-300 to-yellow-600 rounded-full border-2 border-yellow-200 shadow-xl flex items-center justify-center transform rotate-12"
-          >
-            <div className="w-8 h-8 rounded-full border-2 border-yellow-200/50 flex items-center justify-center">
-              <span className="text-yellow-100 font-bold text-xs">ক</span>
-            </div>
-          </motion.div>
-
-          {/* Airplane floating top right */}
-          <motion.div
-            animate={{ x: [0, -10, 0], y: [0, -10, 0] }}
-            transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute top-1/4 -right-2 text-yellow-800/80 transform rotate-45"
-          >
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M21,16V14L13,9V3.5C13,2.67 12.33,2 11.5,2C10.67,2 10,2.67 10,3.5V9L2,14V16L10,13.5V19L8,20.5V22L11.5,21L15,22V20.5L13,19V13.5L21,16Z" />
-            </svg>
-          </motion.div>
-
-          {/* Center Crown */}
-          <div className="absolute inset-x-0 bottom-16 flex justify-center z-20">
-            <div className="relative">
-              <svg width="120" height="100" viewBox="0 0 100 100" className="drop-shadow-2xl">
-                {/* Crown Base */}
-                <path d="M10,80 L90,80 L80,90 L20,90 Z" fill="url(#crownGradient)" />
-                {/* Left Spike */}
-                <path d="M10,80 L0,40 L25,65 Z" fill="url(#redGradient)" stroke="#FFD700" strokeWidth="2" />
-                <circle cx="0" cy="35" r="5" fill="#FFF" stroke="#FFD700" strokeWidth="2" />
-                {/* Center Spike */}
-                <path d="M25,65 L50,10 L75,65 Z" fill="url(#redGradient)" stroke="#FFD700" strokeWidth="3" />
-                <circle cx="50" cy="5" r="7" fill="#FFF" stroke="#FFD700" strokeWidth="2" />
-                {/* Right Spike */}
-                <path d="M75,65 L100,40 L90,80 Z" fill="url(#redGradient)" stroke="#FFD700" strokeWidth="2" />
-                <circle cx="100" cy="35" r="5" fill="#FFF" stroke="#FFD700" strokeWidth="2" />
-
-                <defs>
-                  <linearGradient id="crownGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#FFD700" />
-                    <stop offset="100%" stopColor="#B8860B" />
-                  </linearGradient>
-                  <linearGradient id="redGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#ef4444" />
-                    <stop offset="100%" stopColor="#991b1b" />
-                  </linearGradient>
-                </defs>
-              </svg>
-            </div>
-          </div>
-
-          {/* Cards Left */}
-          <motion.div 
-            animate={{ rotate: [-10, -5, -10] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute bottom-16 left-0 w-20 h-28 bg-[#FFF9C4] rounded border border-[#FFD54F] shadow-2xl flex flex-col items-center justify-center transform -rotate-12 z-20"
-          >
-            <span className="text-red-600 font-black text-xl tracking-tighter">WILD</span>
-            <div className="w-8 h-8 bg-red-600 transform rotate-45 mt-2"></div>
-            <div className="absolute top-1 left-1 text-[8px] font-bold text-red-600">A</div>
-            <div className="absolute bottom-1 right-1 text-[8px] font-bold text-red-600 transform rotate-180">A</div>
-          </motion.div>
-
-          {/* Coins Base */}
-          <div className="absolute -bottom-4 inset-x-0 flex justify-center z-10">
-            <div className="flex gap-1 relative">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className={`relative flex flex-col items-center ${i === 1 ? 'z-20 -translate-y-2' : 'z-10'} ${i === 0 ? '-translate-x-2' : ''} ${i === 2 ? 'translate-x-2' : ''}`}>
-                  <div className="w-16 h-6 rounded-[100%] bg-yellow-400 border border-yellow-200 mt-[-8px]"></div>
-                  <div className="w-16 h-6 rounded-[100%] bg-yellow-500 border border-yellow-300 mt-[-20px]"></div>
-                  <div className="w-16 h-6 rounded-[100%] bg-yellow-600 border border-yellow-400 mt-[-20px]"></div>
-                </div>
-              ))}
-            </div>
-          </div>
-
+          {/* PLACEHOLDER FOR LOGO - User should upload logo.png to public/ folder */}
+          <img src="/logo.png" alt="SPIN71.bet Logo" className="w-full h-auto" onError={(e) => {
+             e.currentTarget.style.display = 'none';
+             // Fallback text if image not found
+             const fallback = document.createElement('div');
+             fallback.className = "text-4xl font-black text-yellow-300";
+             fallback.innerText = "SPIN71.BET";
+             e.currentTarget.parentNode?.appendChild(fallback);
+          }} />
         </motion.div>
       </div>
 

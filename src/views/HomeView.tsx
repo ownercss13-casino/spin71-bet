@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Trophy, Download, X, RefreshCw, ChevronRight, Play, Wallet, Users, Star, TrendingUp, History, User, Menu, Bell, Search, Volume2, Flame, Gamepad2, Hexagon, Tv, Club, Fish, Ticket, ChevronLeft, Mail, Sparkles, Zap } from 'lucide-react';
+import { Clock, Trophy, Download, X, RefreshCw, ChevronRight, Play, Wallet, Users, Star, TrendingUp, History, User, Menu, Bell, Search, Volume2, Flame, Gamepad2, Hexagon, Tv, Club, Fish, Ticket, ChevronLeft, Mail, Sparkles, Zap, Gift, Send, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GAME_IMAGES } from '../constants/gameAssets';
 import { GameGrid, games } from "../components/ui/GameGrid";
 import GlobalImage from '../components/ui/GlobalImage';
 import Skeleton from '../components/ui/Skeleton';
 import MarketTicker from '../components/ui/MarketTicker';
+import LiveWinsFeed from '../components/ui/LiveWinsFeed';
+import Banner from '../components/ui/Banner';
 
 function WinAnimation({ gameId }: { gameId: string }) {
   const [wins, setWins] = useState<{ id: number; amount: string; x: number; y: number }[]>([]);
@@ -88,6 +90,7 @@ interface HomeViewProps {
   isAdmin?: boolean;
   onNavigate?: (tab: string, subTab?: string) => void;
   onOpenLogin?: () => void;
+  setIsSupportChatOpen?: (open: boolean) => void;
 }
 
 export default function HomeView({ 
@@ -130,7 +133,8 @@ export default function HomeView({
   loading,
   isAdmin = false,
   onNavigate,
-  onOpenLogin
+  onOpenLogin,
+  setIsSupportChatOpen
 }: HomeViewProps) {
   const [editingCasinoName, setEditingCasinoName] = React.useState(false);
   const [tempCasinoName, setTempCasinoName] = React.useState(casinoName || "SPIN71.bet");
@@ -166,602 +170,110 @@ export default function HomeView({
   };
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-x-hidden">
-      {/* Main Header */}
-      <header className="flex items-center justify-between px-3 py-2 sticky top-0 z-40 bg-[var(--bg-main)] shadow-sm transition-colors duration-300">
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-x-hidden pb-20">
+      {/* Main Header - SPIN71.BET Style */}
+      <header className="flex items-center justify-between px-3 py-2 bg-[#14253a] sticky top-0 z-[100] border-b border-[#1e3a5f]">
         <div className="flex items-center gap-3">
-          <button onClick={() => setIsSidebarOpen(true)} className="text-[var(--text-main)] opacity-90 hover:opacity-100 transition-opacity">
+          <button className="text-[#90a4ae]" onClick={() => setIsSidebarOpen(true)}>
             <Menu size={24} />
           </button>
-          <div className="flex items-center gap-2">
-            {/* LOGO REMOVED PER USER REQUEST */}
-          </div>
+          <h1 
+            className="text-2xl font-black italic tracking-tighter"
+            style={{ color: '#fdd835', WebkitTextStroke: '1px #fdd835' }}
+          >
+            SPIN71.BET
+          </h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {userData ? (
-            <>
-              <div className="flex items-center gap-1.5 bg-[var(--bg-surface)] rounded-full pl-2 pr-1 py-1 border border-[var(--border-color)] shadow-inner relative transition-colors duration-300">
-                <div className="w-2 h-2 rounded-full bg-red-500 border border-red-300 animate-pulse"></div>
-                <span className="text-sm font-bold tracking-tight text-[var(--text-main)]">৳ {balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                <button 
-                  onClick={handleRefresh}
-                  className="p-0.5 hover:bg-black/10 rounded-full transition-colors"
-                >
-                  <RefreshCw size={14} className={`text-[var(--text-muted)] ${isRefreshing ? 'animate-spin' : ''}`} />
-                </button>
-                <span className="absolute -bottom-1 -left-1 bg-red-600 text-white text-[6px] font-bold px-1 rounded-full animate-pulse">LIVE</span>
+            <div className="flex items-center gap-2 bg-[#0d1a29] px-3 py-1.5 rounded-lg border border-[#1e3a5f]">
+              <p className="text-sm font-bold text-white">৳ {balance.toLocaleString()}</p>
+              <div 
+                className="w-7 h-7 rounded-full bg-[#fdd835] flex items-center justify-center text-black font-black text-xs cursor-pointer"
+                onClick={() => onNavigate?.('profile')}
+              >
+                {userData.username?.[0]?.toUpperCase() || 'U'}
               </div>
-              <div className="relative">
-                <button 
-                  onClick={() => onNavigate?.('deposit')}
-                  className="bg-white text-[#16a374] px-4 py-1 rounded-full text-sm font-bold shadow-md hover:scale-105 transition-transform active:scale-95"
-                >
-                  জমা
-                </button>
-                <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-white">
-                  +5%
-                </span>
-              </div>
-            </>
+            </div>
           ) : (
             <div className="flex items-center gap-2">
-               <button 
+              <button 
                 onClick={onOpenLogin}
-                className="text-[var(--text-main)] bg-[#1a1a1a] border border-[#333] px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-white/5 transition-all outline-none"
+                className="bg-[#0d6efd] px-4 py-1.5 rounded text-sm font-black text-white hover:opacity-90"
               >
-                লগইন
+                Login
               </button>
               <button 
                 onClick={onOpenLogin}
-                className="bg-green-600 text-white px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest shadow-[0_0_15px_rgba(22,163,74,0.3)] hover:scale-105 transition-all active:scale-95 outline-none"
+                className="bg-transparent border border-[#4f5b66] px-3 py-1.5 rounded text-sm font-black text-white hover:bg-white/10"
               >
-                নিবন্ধন
+                Register
               </button>
             </div>
           )}
-          <div className="relative">
-            <button 
-              onClick={() => setShowGallery(true)}
-              className="p-2.5 bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-600 rounded-full text-black shadow-[0_0_15px_rgba(234,179,8,0.7)] hover:scale-110 active:scale-95 transition-all flex items-center justify-center border-2 border-yellow-200/50"
-              title="Real Assets Gallery"
-            >
-              <Star size={20} className="fill-black" />
-            </button>
-            <span className="absolute -bottom-1 -right-1 bg-red-600 text-white text-[7px] font-bold px-1 rounded-full border border-white animate-bounce">REAL</span>
-          </div>
-          <div className="relative">
-            <button 
-              onClick={() => setIsNotificationCenterOpen(true)}
-              className="p-1 text-[var(--text-main)] opacity-90 hover:opacity-100 transition-opacity relative"
-            >
-              <Bell size={22} />
-              {unreadNotificationsCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 bg-red-600 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-[var(--bg-main)] animate-pulse">
-                  {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
-                </span>
-              )}
-            </button>
-          </div>
-          <Search size={22} className="text-[var(--text-main)] opacity-90" />
+          <button className="text-[#90a4ae] ml-1"><Search size={22} /></button>
         </div>
       </header>
 
-      {/* Market Ticker (API Capability Demo) */}
-      <div className="px-3 pt-2">
-        <MarketTicker />
+      {/* Hero Banner Area */}
+      <div className="px-3 py-3">
+         <Banner />
       </div>
 
-      {/* User Info Bar */}
-      <div className="bg-[var(--bg-surface)]/50 px-4 py-2 flex items-center justify-between border-b border-[var(--border-color)] backdrop-blur-sm sticky top-[52px] z-30 transition-colors duration-300">
-        <div className="flex items-center gap-2">
-          {loading ? (
-            <>
-              <Skeleton className="w-8 h-8 rounded-full" />
-              <div className="flex flex-col gap-1">
-                <Skeleton className="h-2 w-16" />
-                <Skeleton className="h-3 w-24" />
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-400 to-yellow-600 p-0.5 shadow-lg overflow-hidden cursor-pointer" onClick={() => onNavigate?.('profile')}>
-                <div className="w-full h-full bg-[var(--bg-main)] rounded-full flex items-center justify-center border-2 border-white overflow-hidden transition-colors duration-300">
-                  {userData?.profilePictureUrl ? (
-                    <img src={userData.profilePictureUrl} alt="Profile" className="w-full h-full object-cover" />
-                  ) : (
-                    <User size={14} className="text-white" />
-                  )}
-                </div>
-              </div>
-              <div className="flex flex-col cursor-pointer" onClick={() => onNavigate?.('profile')}>
-                <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-wider leading-none">স্বাগতম (Welcome)</span>
-                <span className="text-xs font-black text-[var(--text-main)] tracking-tight">{userData?.username || 'Guest Player'}</span>
-              </div>
-            </>
-          )}
+      {/* Scrolling Notice Bar */}
+      <div className="bg-[#1a2f4a] px-3 py-2 flex items-center gap-2 border-b border-[#1e3a5f]">
+        <div className="text-gray-400 group-hover:text-white"><Volume2 size={18}/></div>
+        <div className="flex-1 overflow-hidden relative h-4">
+          <div className="absolute whitespace-nowrap animate-marquee text-white text-xs font-bold">
+            🏆 SPIN71.BET 🏆 ⭐ প্রথম জমার জন্য ১০০% বোনাস! ⭐ {noticeText}
+          </div>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          {loading ? (
-            <>
-              <Skeleton className="h-2 w-12" />
-              <Skeleton className="h-3 w-20" />
-            </>
-          ) : (
-            <>
-              <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-wider leading-none">আইডি (ID)</span>
-              <span className="text-xs font-mono text-yellow-400 font-bold">{userData?.numericId || userData?.id?.substring(0, 8) || 'GUEST-MODE'}</span>
-            </>
-          )}
+        <div className="flex items-center gap-3 text-red-500">
+           <Gift size={18} />
+           <Mail size={18} />
         </div>
       </div>
 
-      {/* Hero Banner Section */}
-      <div className="p-2">
-        {loading ? (
-          <Skeleton className="w-full h-[220px] rounded-3xl" />
-        ) : (
-          <div className="relative h-[220px] rounded-3xl overflow-hidden border border-yellow-500/20 shadow-[0_0_30px_rgba(234,179,8,0.15)] group bg-[#050f0f]">
-            {/* Main Banner Image */}
-            <GlobalImage 
-              imageKey="hero_banner_host"
-              defaultUrl="https://picsum.photos/seed/casino_banner/800/400"
-              currentUrl={globalImages['hero_banner_host']}
-              alt="Promo Banner"
-              showToast={showToast}
-              updateGlobalImage={async (url) => {
-                if (updateGlobalImage) await updateGlobalImage('hero_banner_host', url);
-              }}
-              className="w-full h-full object-fill hover:scale-105 transition-transform duration-700"
-              containerClassName="absolute inset-0 w-full h-full pointer-events-auto"
-              isAdmin={isAdmin}
-            />
-            
-            {/* Simple Pagination Dots (Decorative) */}
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2 z-40 pointer-events-none">
-              <div className="w-6 h-1.5 rounded-full bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]"></div>
-              <div className="w-1.5 h-1.5 rounded-full bg-white/40 backdrop-blur"></div>
-              <div className="w-1.5 h-1.5 rounded-full bg-white/40 backdrop-blur"></div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Featured Games Section */}
-      <div className="px-2 mt-4 space-y-3">
-        <div className="flex items-center justify-between px-2">
-          <div className="flex items-center gap-2">
-             <div className="p-1.5 bg-yellow-500/20 rounded-lg text-yellow-500">
-               <Flame size={18} fill="currentColor" />
-             </div>
-             <h3 className="text-white font-black text-sm uppercase italic tracking-tighter">স্পেশাল গেম (Featured Games)</h3>
-          </div>
-          <div className="flex items-center gap-1.5 px-3 py-1 bg-yellow-500/10 border border-yellow-500/20 rounded-full">
-            <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(234,179,8,0.8)]"></div>
-            <span className="text-[10px] font-black text-yellow-500 uppercase">PROMOTED</span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4">
-          {loading ? (
-            <>
-              <Skeleton className="w-full h-36 rounded-2xl" />
-              <Skeleton className="w-full h-36 rounded-2xl" />
-            </>
-          ) : (
-            <>
-              {/* Aviator Promo Banner */}
-              <motion.div 
-                initial={{ opacity: 0, x: -20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => {
-                  const game = games.find(g => g.id === '5');
-                  if (game) handleGameSelect(game);
-                }}
-                className="relative h-36 bg-gradient-to-br from-red-900 to-red-950 rounded-2xl overflow-hidden border border-red-500/30 group cursor-pointer shadow-lg shadow-red-900/20"
-              >
-                <WinAnimation gameId="5" />
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
-                
-                <div className="relative z-10 flex h-full">
-                  <div className="w-[60%] p-5 flex flex-col justify-center">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="text-yellow-400 font-black text-[10px] flex items-center gap-0.5">
-                        <Star size={10} fill="currentColor" /> 5.0
-                      </div>
-                    </div>
-                    <h4 className="text-2xl font-black text-white italic leading-tight mb-2 tracking-tighter uppercase drop-shadow-lg">
-                      AVIATOR <br/>
-                      <span className="text-red-400">CRASH GAME</span>
-                    </h4>
-                    <div className="flex items-center gap-2">
-                       <div className="flex items-center gap-1 px-3 py-1 bg-white/10 rounded-full backdrop-blur-md border border-white/5">
-                         <Users size={12} className="text-white/60" />
-                         <span className="text-[9px] font-bold text-white">৩,৫০০+ খেলোয়াড়</span>
-                       </div>
-                       <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white shadow-lg animate-bounce">
-                         <Play size={14} fill="currentColor" className="ml-0.5" />
-                       </div>
-                    </div>
-                  </div>
-                  
-                  <div className="w-[40%] relative">
-                    <div className="absolute inset-0 bg-gradient-to-l from-red-600/20 to-transparent"></div>
-                    <div className="absolute inset-0 flex items-center justify-center p-4">
-                      <motion.img 
-                        animate={{ 
-                          y: [0, -10, 0],
-                          rotate: [0, 2, -2, 0]
-                        }}
-                        transition={{ 
-                          duration: 4, 
-                          repeat: Infinity,
-                          ease: "easeInOut"
-                        }}
-                        src={globalLogos['aviator'] || GAME_IMAGES.AVIATOR_LOGO} 
-                        alt="Aviator" 
-                        className="w-full h-full object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]"
-                      />
-                    </div>
-                  </div>
-                </div>
-                {/* Red Pulsing Aura */}
-                <div className="absolute top-1/2 left-0 w-32 h-32 bg-red-600/20 rounded-full blur-3xl -translate-y-1/2 -translate-x-1/2"></div>
-              </motion.div>
-
-              {/* Space Rocket Promo Banner */}
-              <motion.div 
-                initial={{ opacity: 0, x: 20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => {
-                  const game = games.find(g => g.id === 'rocket_1');
-                  if (game) handleGameSelect(game);
-                }}
-                className="relative h-36 bg-gradient-to-br from-indigo-900 to-[#0c0a2e] rounded-2xl overflow-hidden border border-indigo-500/30 group cursor-pointer shadow-lg shadow-indigo-900/20"
-              >
-                <WinAnimation gameId="rocket_1" />
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
-                
-                <div className="relative z-10 flex h-full">
-                  <div className="w-[60%] p-5 flex flex-col justify-center">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="text-teal-400 font-black text-[10px] flex items-center gap-0.5">
-                        <Zap size={10} fill="currentColor" /> X10000
-                      </div>
-                    </div>
-                    <h4 className="text-2xl font-black text-white italic leading-tight mb-2 tracking-tighter uppercase drop-shadow-lg">
-                      SPACE ROCKET <br/>
-                      <span className="text-teal-400">MEGA MULTIPLIER</span>
-                    </h4>
-                    <div className="flex items-center gap-2">
-                       <div className="flex items-center gap-1 px-3 py-1 bg-white/10 rounded-full backdrop-blur-md border border-white/5">
-                         <Users size={12} className="text-white/60" />
-                         <span className="text-[9px] font-bold text-white">১,২০০+ খেলোয়াড়</span>
-                       </div>
-                       <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white shadow-lg animate-pulse">
-                         <Play size={14} fill="currentColor" className="ml-0.5" />
-                       </div>
-                    </div>
-                  </div>
-                  
-                  <div className="w-[40%] relative">
-                    <div className="absolute inset-0 bg-gradient-to-l from-teal-500/20 to-transparent"></div>
-                    <div className="absolute inset-0 flex items-center justify-center p-4">
-                      <motion.div
-                        animate={{ 
-                          y: [0, -15, 0],
-                          scale: [1, 1.05, 1],
-                          filter: ["drop-shadow(0 0 10px rgba(45, 212, 191, 0.4))", "drop-shadow(0 0 25px rgba(45, 212, 191, 0.8))", "drop-shadow(0 0 10px rgba(45, 212, 191, 0.4))"]
-                        }}
-                        transition={{ 
-                          duration: 3, 
-                          repeat: Infinity,
-                          ease: "easeInOut"
-                        }}
-                        className="w-full h-full flex items-center justify-center"
-                      >
-                        <Zap size={60} className="text-teal-400 fill-teal-400 opacity-80" />
-                      </motion.div>
-                    </div>
-                  </div>
-                </div>
-                {/* Indigo Glow */}
-                <div className="absolute bottom-0 right-0 w-48 h-48 bg-teal-500/10 rounded-full blur-[80px] group-hover:bg-teal-500/20 transition-all"></div>
-              </motion.div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Live Winners Feed */}
-      <div className="px-2 mt-2">
-        <div className="bg-[#0a1e1e]/40 border border-yellow-500/10 rounded-2xl p-3 backdrop-blur-sm overflow-hidden relative">
-          <div className="flex items-center gap-2 mb-3 border-b border-white/5 pb-2">
-            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]"></div>
-            <h3 className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.2em]">লাইভ উইনার্স (Live Winners)</h3>
-          </div>
-          
-          <div className="h-24 overflow-hidden relative">
-            {loading ? (
-              <div className="space-y-2">
-                <Skeleton className="w-full h-12 rounded-xl" />
-                <Skeleton className="w-full h-12 rounded-xl" />
-              </div>
-            ) : (
-              <div className="animate-[scroll-vertical_15s_linear_infinite] hover:animate-none space-y-2">
-                {[
-                  { user: 'Pl***82', amount: '৳ ৫,৪০০', game: 'Super Ace' },
-                  { user: 'Ka***12', amount: '৳ ১২,০০০', game: 'Fortune Gems' },
-                  { user: 'Ab***09', amount: '৳ ২,৫০০', game: 'Aviator' },
-                  { user: 'Ro***44', amount: '৳ ৪৫,০০০', game: 'Money Coming' },
-                  { user: 'Sa***77', amount: '৳ ৮,৯০০', game: 'Boxing King' },
-                  { user: 'Mi***21', amount: '৳ ৩,২০০', game: 'Crazy 777' },
-                  { user: 'Ju***55', amount: '৳ ১৫,৬০০', game: 'Roma X' },
-                  // Duplicate for seamless scroll
-                  { user: 'Pl***82', amount: '৳ ৫,৪০০', game: 'Super Ace' },
-                  { user: 'Ka***12', amount: '৳ ১২,০০০', game: 'Fortune Gems' },
-                  { user: 'Ab***09', amount: '৳ ২,৫০০', game: 'Aviator' },
-                  { user: 'Ro***44', amount: '৳ ৪৫,০০০', game: 'Money Coming' },
-                  { user: 'Sa***77', amount: '৳ ৮,৯০০', game: 'Boxing King' },
-                  { user: 'Mi***21', amount: '৳ ৩,২০০', game: 'Crazy 777' },
-                  { user: 'Ju***55', amount: '৳ ১৫,৬০০', game: 'Roma X' },
-                ].map((win, i) => (
-                  <div key={i} className="flex items-center justify-between bg-white/5 p-2 rounded-xl border border-white/5">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-yellow-500/10 flex items-center justify-center text-yellow-500 border border-yellow-500/20">
-                        <User size={14} />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black text-white">{win.user}</p>
-                        <p className="text-[8px] text-slate-400 font-bold uppercase">{win.game}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs font-black text-green-400 italic">{win.amount}</p>
-                      <p className="text-[8px] text-slate-500 font-bold uppercase">জয়ী</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Referral Program Banner */}
-      <div className="px-2 mt-4">
-        <div 
-          className="relative overflow-hidden rounded-[32px] bg-gradient-to-br from-[#1a1a1a] via-[#2a2a2a] to-[#1a1a1a] border border-yellow-500/30 p-6 shadow-2xl group cursor-pointer"
-          onClick={() => onNavigate?.('invite')}
-        >
-          {/* Animated Background Orbs */}
-          <div className="absolute top-0 right-0 w-48 h-48 bg-yellow-500/10 rounded-full blur-[60px] -mr-24 -mt-24 group-hover:bg-yellow-500/20 transition-all duration-700"></div>
-          <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-[50px] -ml-16 -mb-16 group-hover:bg-indigo-500/20 transition-all duration-700"></div>
-          
-          <div className="relative z-10 flex items-center justify-between gap-4">
-            <div className="flex-1 space-y-2">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-yellow-500/20 flex items-center justify-center text-yellow-500 shadow-inner">
-                  <Users size={18} />
-                </div>
-                <span className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.2em] drop-[0_0_5px_rgba(234,179,8,0.3)]">REFER & EARN</span>
-              </div>
-              <h4 className="text-2xl font-black text-white italic tracking-tighter leading-none">বন্ধুদের আমন্ত্রণ জানান</h4>
-              <p className="text-xs text-slate-400 font-bold leading-tight">
-                আপনার রেফারেল লিঙ্কে জয়েন করলে পান <br/>
-                <span className="text-yellow-400 text-sm">৳ ৯৯৯ পর্যন্ত বোনাস পুরস্কার!</span>
-              </p>
-            </div>
-            
-            <div className="relative">
-              <div className="absolute inset-0 bg-yellow-500/20 blur-xl rounded-full animate-pulse"></div>
-              <button 
-                className="relative bg-yellow-500 text-black px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-tighter shadow-[0_4px_15px_rgba(234,179,8,0.4)] hover:scale-105 active:scale-95 transition-all outline-none"
-              >
-                শেয়ার 
-              </button>
-            </div>
-          </div>
-          
-          {/* Light sweep effect */}
-          <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-30">
-            <motion.div 
-              animate={{ x: ["-100%", "200%"] }}
-              transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-              className="w-full h-full bg-gradient-to-r from-transparent via-white/40 to-transparent -skew-x-12"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Recently Played Section */}
-      {(loading || recentlyPlayed.length > 0) && (
-        <div className="px-4 mt-2 mb-6 animate-in fade-in slide-in-from-left-4 duration-500">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-teal-500/20 flex items-center justify-center text-teal-400">
-                <Clock size={18} />
-              </div>
-              <h3 className="text-white font-black text-sm italic uppercase tracking-tight">Recently Played</h3>
-            </div>
-            <span className="text-[10px] text-teal-500 font-bold uppercase tracking-widest flex items-center gap-1.5">
-              {loading ? (
-                <div className="flex items-center gap-2 px-2 py-0.5 bg-yellow-500/10 rounded-full border border-yellow-500/20 animate-pulse">
-                  <RefreshCw size={10} className="animate-spin text-yellow-500" />
-                  <span className="text-[9px] font-black text-yellow-500 uppercase tracking-widest">Updating...</span>
-                </div>
-              ) : (
-                `${recentlyPlayed.length} Games`
-              )}
-            </span>
-          </div>
-          <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-            {loading ? (
-              [...Array(4)].map((_, i) => (
-                <div key={i} className="flex-shrink-0 w-24 aspect-[3/4] rounded-xl bg-gray-800/50 overflow-hidden relative border border-white/5">
-                  <div className="animate-pulse bg-teal-900/30 w-full h-full"></div>
-                </div>
-              ))
-            ) : (
-              recentlyPlayed.map((game) => (
-                <motion.div
-                  key={game.id}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => handleGameSelect(game)}
-                  className="flex-shrink-0 w-24 group cursor-pointer"
-                >
-                  <div className="relative aspect-[3/4] rounded-xl overflow-hidden border border-white/10 shadow-lg group-hover:border-teal-500/50 transition-all">
-                    <GlobalImage 
-                      imageKey={game.id === '1' ? 'aviator' : game.id} 
-                      defaultUrl={game.image} 
-                      currentUrl={globalLogos[game.id === '1' ? 'aviator' : game.id]}
-                      updateGlobalImage={async (url) => {
-                        await updateGlobalGameLogo(game.id === '1' ? 'aviator' : game.id, url);
-                      }}
-                      isAdmin={isAdmin}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-40 transition-opacity pointer-events-none"></div>
-                    <div className="absolute bottom-1 left-1 right-1 pointer-events-none">
-                      <p className="text-[8px] font-black text-white truncate text-center uppercase tracking-tighter">{globalNames[game.id] || game.name}</p>
-                    </div>
-                  </div>
-                </motion.div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Leaderboard Preview */}
-      <div className="px-4 mt-2">
-        <button 
-          onClick={() => setShowLeaderboard(true)}
-          className="w-full bg-gradient-to-r from-purple-900/40 to-blue-900/40 border border-white/10 rounded-2xl p-4 flex items-center justify-between group hover:border-white/30 transition-all"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center text-yellow-500">
-              <Trophy size={20} />
-            </div>
-            <div className="text-left">
-              <p className="text-white font-bold text-sm">Winner's Board</p>
-              <p className="text-gray-500 text-[10px] uppercase font-bold">Check top payouts</p>
-            </div>
-          </div>
-          <ChevronRight className="text-gray-500 group-hover:text-white transition-colors" />
-        </button>
-      </div>
-
-      {/* Marquee Announcement */}
-      <div className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--text-muted)] bg-[var(--bg-main)] mt-4 transition-colors duration-300">
-        <Volume2 size={18} className="shrink-0 text-[var(--text-muted)]" />
-        <div className="overflow-hidden whitespace-nowrap flex-1 relative h-5">
-          <p className="absolute animate-marquee text-[13px] text-[var(--text-main)]">
-            {noticeText}
-          </p>
-        </div>
-        <div className="relative shrink-0 ml-2">
-          <Mail size={22} className="text-[var(--text-main)]" />
-          <span className="absolute -top-1.5 -right-2 bg-red-600 text-white text-[9px] px-1 rounded-full border border-[var(--bg-main)]">
-            99+
-          </span>
-        </div>
-      </div>
-
-      {/* Search Bar */}
-      <div className="px-2 py-2">
-        <div className="relative">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-          <input 
-            type="text" 
-            placeholder="গেম খুঁজুন..." 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] rounded-full py-2 pl-10 pr-4 text-sm text-[var(--text-main)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--brand-primary)] transition-all duration-300 shadow-inner"
-          />
-          {searchQuery && (
-            <button 
-              onClick={() => setSearchQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
-            >
-              <X size={16} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Category Navigation */}
-      <motion.div 
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="flex overflow-x-auto gap-4 px-4 py-3 no-scrollbar bg-[#0a1e1e]/20 border-b border-white/5 sticky top-[92px] z-30 backdrop-blur-md transition-colors duration-300"
-      >
+      {/* Category Navigation - Circular Tabs */}
+      <div className="flex overflow-x-auto gap-4 px-3 py-4 no-scrollbar bg-[#0d1a29] border-b border-[#1e3a5f] sticky top-[53px] z-30 backdrop-blur-sm">
         {categories.map((cat, index) => (
-          <motion.div 
+          <div 
             key={cat.id}
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.1 + index * 0.05 }}
-            role="button"
-            tabIndex={0}
             onClick={() => setActiveCategory(cat.id)}
-            onKeyDown={(e) => { if(e.key === 'Enter' || e.key === ' ') setActiveCategory(cat.id); }}
-            className={`flex flex-col items-center gap-1 min-w-[50px] cursor-pointer transition-all ${activeCategory === cat.id ? 'scale-110 active:scale-100' : 'opacity-60'}`}
+            className={`flex flex-col items-center gap-1 min-w-[60px] cursor-pointer transition-all ${activeCategory === cat.id ? 'opacity-100' : 'opacity-60'}`}
           >
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${activeCategory === cat.id ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-black shadow-lg shadow-yellow-500/20' : 'bg-white/5 text-slate-400'}`}>
-              <cat.icon size={20} />
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all border ${activeCategory === cat.id ? 'border-[#00e5ff] text-[#00e5ff] shadow-[0_0_10px_rgba(0,229,255,0.2)]' : 'border-[#1e3a5f] bg-[#14253a] text-[#90a4ae]'}`}>
+              <cat.icon size={24} />
             </div>
-            <span className={`text-[10px] font-black uppercase tracking-tighter ${activeCategory === cat.id ? 'text-yellow-500' : 'text-slate-500'}`}>
-              {cat.label}
+            <span className={`text-[10px] font-bold ${activeCategory === cat.id ? 'text-[#00e5ff]' : 'text-[#90a4ae]'}`}>
+              {cat.id === 'স্লট' ? 'Slots' : cat.id === 'Live Casino' ? 'Live' : cat.id === 'Fishing Games' ? 'Fishing' : cat.label}
             </span>
-          </motion.div>
+            {activeCategory === cat.id && (
+              <div className="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[4px] border-t-[#00e5ff]"></div>
+            )}
+          </div>
         ))}
-      </motion.div>
+      </div>
 
       {/* Game Grid Section */}
       <motion.div 
         drag="x"
         dragConstraints={{ left: 0, right: 0 }}
         onDragEnd={handleSwipe}
-        className="px-2 pt-3 pb-6 relative"
+        className="px-3 pt-4 pb-6"
       >
         <AnimatePresence mode="wait">
           <motion.div
             key={activeCategory}
-            initial={{ opacity: 0, x: 20 }}
+            initial={{ opacity: 0, x: 10 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
+            exit={{ opacity: 0, x: -10 }}
             transition={{ duration: 0.2 }}
           >
             {/* Section Header */}
-            <div className="flex items-center justify-between mb-3 px-1">
-              <div className="flex items-center gap-1.5 text-lg font-bold text-[var(--text-main)]">
-                {activeCategory === 'পছন্দ' ? (
-                  <Star className="text-yellow-400 fill-yellow-400" size={20} />
-                ) : activeCategory === 'সব' ? (
-                  <Gamepad2 className="text-blue-400 fill-blue-400" size={20} />
-                ) : (
-                  <Flame className="text-[var(--brand-primary)] fill-[var(--brand-primary)]" size={20} />
-                )} 
-                {activeCategory}
-              </div>
-              <div className="flex items-center gap-1">
-                <button className="p-1 rounded bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors duration-300">
-                  <ChevronLeft size={16} />
-                </button>
-                <button 
-                  onClick={() => setActiveCategory('সব')}
-                  className={`px-4 py-1 rounded text-[13px] font-medium transition-colors duration-300 ${activeCategory === 'সব' ? 'bg-yellow-500 text-black' : 'bg-[var(--bg-surface)] text-[var(--text-muted)] hover:bg-[var(--bg-main)] hover:text-[var(--text-main)]'}`}
-                >
-                  সব
-                </button>
-                <button className="p-1 rounded bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors duration-300">
-                  <ChevronRight size={16} />
-                </button>
-              </div>
+            <div className="flex items-center gap-2 text-lg font-black text-white mb-4">
+               <Flame className="text-orange-600 fill-orange-600" size={24} />
+               {activeCategory === 'সব' ? 'All Games' : activeCategory === 'সেরা' ? 'Hot Games' : activeCategory === 'পছন্দ' ? 'Favs' : activeCategory}
             </div>
 
             {/* Grid */}
@@ -809,6 +321,22 @@ export default function HomeView({
           </motion.div>
         </AnimatePresence>
       </motion.div>
+
+      {/* Referral Program Banner - Simplified */}
+      <div className="px-3 mt-4">
+        <div 
+          className="relative overflow-hidden rounded-2xl bg-[#14253a] border border-[#1e3a5f] p-5 cursor-pointer"
+          onClick={() => onNavigate?.('invite')}
+        >
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-1">
+              <h4 className="text-xl font-black text-white italic tracking-tight">Refer & Earn</h4>
+              <p className="text-[10px] text-[#90a4ae] font-bold">Invite friends and get ৳108 bonus per person!</p>
+            </div>
+            <button className="bg-[#fdd835] text-black px-4 py-2 rounded-lg text-[10px] font-black uppercase">Invite</button>
+          </div>
+        </div>
+      </div>
 
       {/* Edit Casino Name Modal */}
       {editingCasinoName && (
@@ -858,12 +386,6 @@ const style = `
   }
   .animate-scroll-vertical:hover {
     animation-play-state: paused;
-  }
-  @keyframes fly-card {
-    0% { transform: translate(-30px, 20px) rotate(-30deg) scale(0.8); opacity: 0; }
-    20% { opacity: 1; }
-    80% { opacity: 1; }
-    100% { transform: translate(40px, -30px) rotate(-30deg) scale(1.2); opacity: 0; }
   }
 `;
 

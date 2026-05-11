@@ -76,7 +76,7 @@ export default function AIAssistant({
           Guidelines:
           1. Always reply in Bengali.
           2. Be professional, friendly, and helpful.
-          3. If the user asks for predictions, give them "Smart Tips" based on probability (e.g., "Aviator-এ ২.০x এ ক্যাশআউট করা নিরাপদ হতে পারে"). 
+          3. If the user asks for predictions, give them "Smart Tips" based on probability (e.g., "Rocket-এ ২.০x এ ক্যাশআউট করা নিরাপদ হতে পারে"). 
           4. Encourage responsible gaming.
           5. If asked about deposits, mention Nagad and Bkash are the fastest.
           6. Keep responses concise and engaging.
@@ -109,7 +109,7 @@ export default function AIAssistant({
   const suggestions = [
     "আজকের লাকি গেম কোনটি?",
     "ডিপোজিট করার নিয়ম কী?",
-    "এভিয়েটর গেমের টিপস দিন",
+    "রকেট গেমের টিপস দিন",
     "আমার ব্যালেন্স কত?"
   ];
 

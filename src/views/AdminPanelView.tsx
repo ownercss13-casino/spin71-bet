@@ -10,6 +10,7 @@ import {
   increment, 
   serverTimestamp,
   setDoc,
+  addDoc,
   getDocs,
   getDoc,
   arrayUnion
@@ -35,6 +36,7 @@ import {
   Gamepad2,
   Clock,
   LayoutDashboard,
+  LayoutGrid,
   LogOut,
   Image as ImageIcon,
   MessageSquare,
@@ -46,7 +48,10 @@ import {
   Trash2,
   AlertCircle,
   Send,
-  X
+  X,
+  Bell,
+  MessageCircle,
+  History as HistoryIcon
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -95,7 +100,7 @@ interface AdminPanelViewProps {
 
 export default function AdminPanelView(props: AdminPanelViewProps) {
   const { onBack, showToast, userData } = props;
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'deposits' | 'withdrawals' | 'games' | 'settings' | 'promo' | 'support'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'deposits' | 'withdrawals' | 'games' | 'settings' | 'promo' | 'support' | 'notifications'>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -104,6 +109,9 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [trafficStats, setTrafficStats] = useState<any>(null);
   const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [messagingUser, setMessagingUser] = useState<any>(null);
+  const [messageText, setMessageText] = useState('');
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
 
   useEffect(() => {
     const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
@@ -113,11 +121,20 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
       console.error("Users list onSnapshot error:", error);
     });
 
-    const unsubTrxs = onSnapshot(query(collection(db, 'transactions'), orderBy('createdAt', 'desc')), (snapshot) => {
+    const unsubTrxs = onSnapshot(collection(db, 'transactions'), (snapshot) => {
       const trxList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // Sort in memory by createdAt (desc)
+      trxList.sort((a: any, b: any) => {
+        const timeA = a.createdAt?.seconds || 0;
+        const timeB = b.createdAt?.seconds || 0;
+        return timeB - timeA;
+      });
       setTransactions(trxList);
     }, (error) => {
       console.error("Transactions list onSnapshot error:", error);
+      if (error.message.includes('index')) {
+        showToast("Firestore Index missing for transactions. Check console for link.", "error");
+      }
     });
 
     // Simulated traffic stats
@@ -154,24 +171,67 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
     setIsLoading(true);
     try {
       const userRef = doc(db, 'users', trx.userId);
+      const userSnap = await getDoc(userRef);
       const trxRef = doc(db, 'transactions', trx.id);
+      const userTrxRef = doc(db, 'users', trx.userId, 'transactions', trx.id);
 
       if (trx.type === 'deposit') {
+        const depositAmount = Number(trx.amount);
         await updateDoc(userRef, {
-          balance: increment(trx.amount),
-          totalDeposits: increment(trx.amount),
+          balance: increment(depositAmount),
+          totalDeposits: increment(depositAmount),
           updatedAt: serverTimestamp()
         });
+
+        // Handle Referral Bonus
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          if (userData.referredBy) {
+            const bonusAmount = depositAmount * 0.1; // 10% bonus
+            const referrerRef = doc(db, 'users', userData.referredBy);
+            
+            await updateDoc(referrerRef, {
+              balance: increment(bonusAmount),
+              totalReferralEarnings: increment(bonusAmount)
+            });
+
+            const bonusTrxData = {
+              userId: userData.referredBy,
+              username: 'System', 
+              type: 'referral_bonus',
+              amount: bonusAmount,
+              status: 'approved',
+              description: `Referral bonus from ${userData.username || trx.userId}`,
+              createdAt: serverTimestamp(),
+              fromUser: userData.username || trx.userId,
+              fromUserId: trx.userId
+            };
+
+            const newBonusRef = doc(collection(db, 'transactions'));
+            await setDoc(newBonusRef, bonusTrxData);
+            await setDoc(doc(db, 'users', userData.referredBy, 'transactions', newBonusRef.id), bonusTrxData);
+          }
+        }
       } else if (trx.type === 'withdrawal') {
+        // Balance already deducted in ProfileView.tsx
         await updateDoc(userRef, {
           totalWithdrawals: increment(trx.amount),
           updatedAt: serverTimestamp()
         });
       }
 
-      await updateDoc(trxRef, { status: 'approved', approvedAt: serverTimestamp() });
+      const updates = { status: 'approved', approvedAt: serverTimestamp() };
+      await updateDoc(trxRef, updates);
+      try {
+        await updateDoc(userTrxRef, updates);
+      } catch (e) {
+        // Might fail if not existing in subcollection (legacy)
+        console.warn("Sub-collection trx update failed", e);
+      }
+      
       showToast('Transaction Approved!', 'success');
     } catch (err) {
+      console.error("Approval error:", err);
       showToast('Approval failed', 'error');
     } finally {
       setIsLoading(false);
@@ -184,15 +244,24 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
     try {
       const userRef = doc(db, 'users', trx.userId);
       const trxRef = doc(db, 'transactions', trx.id);
+      const userTrxRef = doc(db, 'users', trx.userId, 'transactions', trx.id);
 
       if (trx.type === 'withdrawal') {
+        // Refund balance
         await updateDoc(userRef, {
           balance: increment(trx.amount),
           updatedAt: serverTimestamp()
         });
       }
 
-      await updateDoc(trxRef, { status: 'rejected', rejectedAt: serverTimestamp() });
+      const updates = { status: 'rejected', rejectedAt: serverTimestamp() };
+      await updateDoc(trxRef, updates);
+      try {
+        await updateDoc(userTrxRef, updates);
+      } catch (e) {
+        console.warn("Sub-collection trx update failed", e);
+      }
+      
       showToast('Transaction Rejected', 'warning');
     } catch (err) {
       showToast('Rejection failed', 'error');
@@ -225,6 +294,18 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
     }
   };
 
+  const handleUpdateRole = async (userId: string, newRole: string) => {
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        role: newRole,
+        updatedAt: serverTimestamp()
+      });
+      showToast('Role updated successfully', 'success');
+    } catch (err) {
+      showToast('Failed to update role', 'error');
+    }
+  };
+
   const filteredUsers = users.filter(u => 
     u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
     u.id.toLowerCase().includes(searchQuery.toLowerCase())
@@ -234,11 +315,12 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
   const pendingWithdrawals = transactions.filter(t => t.type === 'withdrawal' && t.status === 'pending');
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
     { id: 'users', label: 'User Management', icon: Users },
     { id: 'deposits', label: 'Deposits', icon: Wallet, badge: pendingDeposits.length },
     { id: 'withdrawals', label: 'Withdrawals', icon: DollarSign, badge: pendingWithdrawals.length },
     { id: 'promo', label: 'Promotions', icon: Gift },
+    { id: 'notifications', label: 'Push Notifications', icon: Bell },
     { id: 'support', label: 'Support Inbox', icon: MessageSquare },
     { id: 'games', label: 'Game Settings', icon: Gamepad2 },
     { id: 'settings', label: 'Global Setup', icon: Settings }
@@ -246,54 +328,50 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
 
   return (
     <div className="flex h-screen bg-[#115e59] overflow-hidden font-sans text-white">
-      {/* Sidebar */}
-      <aside className={`${isSidebarOpen ? 'w-64' : 'w-20'} bg-[#0a4a44] transition-all duration-300 flex flex-col z-50 border-r border-white/5`}>
-        <div className="p-6 flex items-center gap-3 border-b border-white/5">
-          <div className="w-10 h-10 bg-[#16a374] rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0">
-            <Shield className="text-white" size={20} />
+      {/* Slim Sidebar (Icon-only as per screenshot) */}
+      <aside className="w-16 md:w-20 bg-[#0a4a44] flex flex-col items-center py-6 z-50 border-r border-white/5 shrink-0">
+        <div className="mb-10">
+          <div className="w-10 h-10 bg-[#16a374]/20 rounded-xl flex items-center justify-center text-emerald-400 group cursor-pointer hover:bg-[#16a374] hover:text-white transition-all shadow-lg shadow-emerald-500/10 border border-emerald-400/20">
+            <Shield size={22} />
           </div>
-          {isSidebarOpen && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="overflow-hidden whitespace-nowrap">
-              <h2 className="text-white font-black text-lg tracking-tight uppercase">Admin<span className="text-emerald-400">Panel</span></h2>
-              <p className="text-[10px] text-teal-300 font-bold uppercase tracking-widest">Management Suite</p>
-            </motion.div>
-          )}
         </div>
 
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto no-scrollbar">
+        <nav className="flex-1 w-full px-2 space-y-4 overflow-y-auto no-scrollbar flex flex-col items-center">
           {navItems.map((item) => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id as any)}
-              className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all relative group ${
+              className={`w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-xl transition-all relative group ${
                 activeTab === item.id 
                   ? 'bg-[#16a374] text-white shadow-lg shadow-emerald-500/20' 
                   : 'text-teal-300 hover:bg-white/5 hover:text-white'
               }`}
             >
               <item.icon size={20} className="shrink-0" />
-              {isSidebarOpen && <span className="font-bold text-sm">{item.label}</span>}
+              
               {item.badge ? (
-                <div className={`absolute right-2 bg-rose-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full border-2 border-[#0a4a44] group-hover:border-white/10 transition-colors ${!isSidebarOpen && 'scale-75 -top-1 -right-1'}`}>
+                <div className="absolute -top-1 -right-1 bg-rose-500 text-white text-[8px] font-black w-4 h-4 flex items-center justify-center rounded-full border-2 border-[#0a4a44] transition-colors">
                   {item.badge}
                 </div>
               ) : null}
-              {!isSidebarOpen && (
-                <div className="absolute left-full ml-4 bg-[#0a4a44] text-white text-[10px] px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap font-black uppercase tracking-widest shadow-xl border border-white/10">
-                  {item.label}
-                </div>
-              )}
+
+              {/* Tooltip on Hover */}
+              <div className="absolute left-full ml-4 bg-[#0a4a44] text-white text-[10px] px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap font-black uppercase tracking-widest shadow-xl border border-white/10 z-50">
+                {item.label}
+              </div>
             </button>
           ))}
         </nav>
 
-        <div className="p-4 border-t border-white/5">
+        <div className="mt-auto px-2">
           <button 
             onClick={onBack}
-            className="w-full flex items-center gap-3 p-3 rounded-xl text-rose-400 hover:bg-rose-500/10 transition-all font-bold text-sm"
+            className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-xl text-rose-400 hover:bg-rose-500/10 transition-all group relative"
           >
             <LogOut size={20} />
-            {isSidebarOpen && <span>Exit Dashboard</span>}
+            <div className="absolute left-full ml-4 bg-[#0a4a44] text-white text-[10px] px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap font-black uppercase tracking-widest shadow-xl border border-white/10 z-50">
+              Exit Dashboard
+            </div>
           </button>
         </div>
       </aside>
@@ -301,15 +379,9 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="h-20 bg-[#0d9488] border-b border-white/10 flex items-center justify-between px-8 shrink-0">
+        <header className="h-16 md:h-20 bg-[#0d9488] border-b border-white/10 flex items-center justify-between px-4 md:px-8 shrink-0">
           <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-2 hover:bg-white/10 rounded-xl transition-colors text-teal-100"
-            >
-              <ArrowLeft className={`transition-transform duration-300 ${!isSidebarOpen && 'rotate-180'}`} size={20} />
-            </button>
-            <h1 className="text-xl font-black text-white uppercase tracking-tight">
+            <h1 className="text-lg md:text-xl font-black text-white uppercase tracking-tight">
               {navItems.find(i => i.id === activeTab)?.label}
             </h1>
           </div>
@@ -343,7 +415,9 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
                   setSearchQuery={setSearchQuery}
                   onToggleBan={handleToggleUserBan}
                   onAdjustBalance={handleAdjustBalance}
+                  onUpdateRole={handleUpdateRole}
                   onSelectUser={setSelectedUser}
+                  onMessageUser={setMessagingUser}
                   onAddUser={props.onAddUser}
                 />
               )}
@@ -368,6 +442,7 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
               {activeTab === 'games' && <GameManagement {...props} />}
               {activeTab === 'settings' && <GlobalSettings {...props} />}
               {activeTab === 'promo' && <PromoManagement showToast={showToast} />}
+              {activeTab === 'notifications' && <NotificationManagement showToast={showToast} users={users} />}
               {activeTab === 'support' && <SupportInbox showToast={showToast} />}
             </motion.div>
           </AnimatePresence>
@@ -390,6 +465,94 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
           }}
           onAdjustBalance={handleAdjustBalance}
         />
+      )}
+
+      {/* Message User Modal */}
+      {messagingUser && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setMessagingUser(null)} />
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-[#0d9488] w-full max-w-lg rounded-[40px] shadow-2xl relative overflow-hidden flex flex-col border border-emerald-500/20"
+          >
+            <div className="p-8 border-b border-white/5 flex items-center justify-between bg-black/10">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+                  <MessageCircle size={24} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white uppercase tracking-tight">Direct Message</h3>
+                  <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Target: {messagingUser.username}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setMessagingUser(null)} 
+                className="p-2 hover:bg-white/10 rounded-2xl text-teal-100 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="p-8 space-y-6">
+              <div className="space-y-4">
+                 <label className="block text-xs font-black text-teal-200 uppercase tracking-[0.2em] ml-1">Your Message Content</label>
+                 <textarea 
+                   value={messageText}
+                   onChange={(e) => setMessageText(e.target.value)}
+                   placeholder="Type your private message to the user here..."
+                   rows={6}
+                   className="w-full bg-black/20 border border-white/10 rounded-3xl px-6 py-5 text-sm font-bold text-white focus:outline-none focus:border-emerald-500 resize-none shadow-inner"
+                 />
+              </div>
+
+              <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl">
+                 <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest leading-relaxed">
+                   This message will appear in the user's "Notifications" area. 
+                   They will be able to see it the next time they log in or refresh.
+                 </p>
+              </div>
+            </div>
+
+            <div className="p-8 pt-0 flex gap-4">
+               <button 
+                  onClick={() => setMessagingUser(null)}
+                  className="flex-1 px-6 py-4 rounded-2xl border border-white/10 text-teal-200 font-black text-xs uppercase tracking-widest hover:bg-white/5 transition-all"
+               >
+                 Cancel
+               </button>
+               <button 
+                  disabled={!messageText.trim() || isSendingMessage}
+                  onClick={async () => {
+                    setIsSendingMessage(true);
+                    try {
+                      // Send notification to user
+                      const notifRef = doc(collection(db, 'users', messagingUser.id, 'notifications'));
+                      await setDoc(notifRef, {
+                        title: 'Admin Message / অ্যাডমিন মেসেজ',
+                        message: messageText.trim(),
+                        type: 'message',
+                        read: false,
+                        createdAt: serverTimestamp()
+                      });
+                      
+                      showToast('Message sent successfully!', 'success');
+                      setMessagingUser(null);
+                      setMessageText('');
+                    } catch (err) {
+                      showToast('Failed to send message', 'error');
+                    } finally {
+                      setIsSendingMessage(false);
+                    }
+                  }}
+                  className="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2"
+               >
+                 {isSendingMessage ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                 Send Message
+               </button>
+            </div>
+          </motion.div>
+        </div>
       )}
     </div>
   );
@@ -512,7 +675,7 @@ function MetricCard({ label, value, icon: Icon, color }: any) {
   );
 }
 
-function UserManagement({ users, searchQuery, setSearchQuery, onToggleBan, onAdjustBalance, onSelectUser, onAddUser }: any) {
+function UserManagement({ users, searchQuery, setSearchQuery, onToggleBan, onAdjustBalance, onUpdateRole, onSelectUser, onMessageUser, onAddUser }: any) {
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [newUserData, setNewUserData] = useState({ username: '', password: '', role: 'user', balance: 0 });
   const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest');
@@ -660,7 +823,15 @@ function UserManagement({ users, searchQuery, setSearchQuery, onToggleBan, onAdj
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="text-xs font-bold text-teal-300 uppercase">{user.role || 'user'}</span>
+                    <select
+                      value={user.role || 'user'}
+                      onChange={(e) => onUpdateRole(user.id, e.target.value)}
+                      className="bg-[#0a4a44] border border-white/10 rounded-lg px-3 py-1.5 text-[10px] font-black text-teal-100 uppercase tracking-widest outline-none focus:border-emerald-500 appearance-none cursor-pointer hover:bg-white/5 transition-all"
+                    >
+                      <option value="user">User</option>
+                      <option value="agent">Agent</option>
+                      <option value="admin">Admin</option>
+                    </select>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
@@ -670,6 +841,13 @@ function UserManagement({ users, searchQuery, setSearchQuery, onToggleBan, onAdj
                         title="Edit User"
                       >
                         <Settings size={18} />
+                      </button>
+                      <button 
+                        onClick={() => onMessageUser(user)}
+                        className="p-2 hover:bg-white/10 text-emerald-400 hover:text-white rounded-lg transition-all"
+                        title="Message User"
+                      >
+                        <MessageSquare size={18} />
                       </button>
                       <button 
                          onClick={() => onToggleBan(user)}
@@ -939,11 +1117,16 @@ function TransactionList({ title, trxs, onApprove, onReject, isLoading }: any) {
 
 function GameManagement(props: AdminPanelViewProps) {
   const games = [
-    { id: '1', title: 'Aviator', defaultIcon: 'Plane' },
-    { id: '2', title: 'Rocket', defaultIcon: 'Zap' },
-    { id: '3', title: 'Slots', defaultIcon: 'Gamepad2' },
-    { id: '4', title: 'Crash', defaultIcon: 'Activity' },
-    { id: '5', title: 'Aviator Premium', defaultIcon: 'Shield' }
+    { id: '2', title: 'Rocket (Original)', category: 'Original' },
+    { id: '3', title: 'Slots Deluxe', category: 'Slots' },
+    { id: '4', title: 'Crash Mania', category: 'Original' },
+    { id: '6', title: 'Mines', category: 'Original' },
+    { id: '7', title: 'Plinko', category: 'Original' },
+    { id: '8', title: 'Fishing King', category: 'Fishing' },
+    { id: '9', title: 'Live Baccarat', category: 'Live' },
+    { id: '10', title: 'Roulette Master', category: 'Table' },
+    { id: '11', title: 'Evolution Live', category: 'Live' },
+    { id: '12', title: 'PP Slots', category: 'Slots' }
   ];
 
   return (
@@ -1001,11 +1184,20 @@ function GameManagement(props: AdminPanelViewProps) {
               <div>
                 <label className="text-[9px] font-black text-teal-300 uppercase tracking-widest block mb-1">Win Logic Config</label>
                 <input 
-                  defaultValue={props.globalOptions[game.id] || ''}
-                  onBlur={(e) => props.updateGlobalGameOption(game.id, e.target.value)}
-                  className="w-full bg-black/20 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-teal-100 focus:outline-none focus:border-emerald-500"
-                  placeholder="e.g. rate:85;max_mult:100"
+                   defaultValue={props.globalOptions[game.id] || ''}
+                   onBlur={(e) => props.updateGlobalGameOption(game.id, e.target.value)}
+                   className="w-full bg-black/20 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-teal-100 focus:outline-none focus:border-emerald-500"
+                   placeholder="e.g. rate:85;max_mult:100"
                 />
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t border-white/10">
+                <span className="text-[10px] font-black text-teal-300 uppercase tracking-widest">Active Status</span>
+                <button 
+                  onClick={() => props.updateGlobalGameOption(`${game.id}_active`, props.globalOptions[`${game.id}_active`] === 'false' ? 'true' : 'false')}
+                  className={`w-12 h-6 rounded-full relative transition-all ${props.globalOptions[`${game.id}_active`] !== 'false' ? 'bg-emerald-500' : 'bg-rose-500'}`}
+                >
+                  <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${props.globalOptions[`${game.id}_active`] !== 'false' ? 'right-1' : 'left-1'}`} />
+                </button>
               </div>
             </div>
           </div>
@@ -1021,6 +1213,140 @@ function GameManagement(props: AdminPanelViewProps) {
             <p className="text-xs font-bold text-teal-300 mt-1">Changes made here are global and affect all users instantly. Use responsibly to manage game risk and RTP (Return to Player) rates.</p>
          </div>
       </div>
+    </div>
+  );
+}
+
+function NotificationManagement({ showToast, users }: { showToast: any, users: any[] }) {
+  const [targetUserId, setTargetUserId] = useState<string>('all');
+  const [title, setTitle] = useState('');
+  const [message, setMessage] = useState('');
+  const [type, setType] = useState('info');
+  const [url, setUrl] = useState('');
+  const [isSending, setIsSending] = useState(false);
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !message.trim()) {
+      showToast('Title and message are required', 'error');
+      return;
+    }
+    
+    setIsSending(true);
+    try {
+      const res = await fetch('/api/admin/notifications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('adminToken') || 'owner.css13'}`
+        },
+        body: JSON.stringify({
+          targetUserId,
+          title,
+          message,
+          type,
+          url
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Notification sent successfully', 'success');
+        setTitle('');
+        setMessage('');
+        setUrl('');
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  return (
+    <div className="bg-[#0d9488] p-6 rounded-[32px] shadow-xl border border-white/5 max-w-2xl mx-auto">
+      <div className="flex items-center gap-4 mb-6 pb-4 border-b border-white/10">
+        <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-teal-300">
+          <Bell size={24} />
+        </div>
+        <div>
+          <h2 className="text-xl font-black text-white italic uppercase tracking-tighter">Send Notifications</h2>
+          <p className="text-teal-200 text-xs font-bold">Broadcast alerts, bonuses, and updates to users.</p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSend} className="space-y-4">
+        <div>
+          <label className="block text-xs font-bold text-teal-200 mb-1 uppercase tracking-widest">Target User</label>
+          <select 
+            value={targetUserId}
+            onChange={(e) => setTargetUserId(e.target.value)}
+            className="w-full bg-[#062e24] text-white p-3 rounded-xl border border-white/10 focus:outline-none focus:border-white/30"
+          >
+            <option value="all">All Users (Broadcast)</option>
+            {users.map(u => (
+              <option key={u.id} value={u.id}>{u.username || u.phone || u.email || u.id}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold text-teal-200 mb-1 uppercase tracking-widest">Notification Type</label>
+          <select 
+            value={type}
+            onChange={(e) => setType(e.target.value)}
+            className="w-full bg-[#062e24] text-white p-3 rounded-xl border border-white/10 focus:outline-none focus:border-white/30"
+          >
+            <option value="info">Info</option>
+            <option value="bonus">Bonus / Gift</option>
+            <option value="promotion">Promotion</option>
+            <option value="account">Account Alert</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold text-teal-200 mb-1 uppercase tracking-widest">Title</label>
+          <input
+            type="text"
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            className="w-full bg-[#062e24] text-white p-3 rounded-xl border border-white/10 focus:outline-none focus:border-white/30"
+            placeholder="e.g. You received a Bonus!"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold text-teal-200 mb-1 uppercase tracking-widest">Message</label>
+          <textarea
+            value={message}
+            onChange={e => setMessage(e.target.value)}
+            className="w-full bg-[#062e24] text-white p-3 rounded-xl border border-white/10 focus:outline-none focus:border-white/30 min-h-[100px]"
+            placeholder="Write your message here..."
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold text-teal-200 mb-1 uppercase tracking-widest">Action URL (Optional)</label>
+          <input
+            type="text"
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            className="w-full bg-[#062e24] text-white p-3 rounded-xl border border-white/10 focus:outline-none focus:border-white/30"
+            placeholder="e.g. /member/wallet or tab:deposit"
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={isSending}
+          className="w-full bg-yellow-500 hover:bg-yellow-400 text-black py-4 rounded-xl font-bold italic uppercase transition-colors"
+        >
+          {isSending ? 'Sending...' : 'Send Notification'}
+        </button>
+      </form>
     </div>
   );
 }
@@ -1143,6 +1469,65 @@ function GlobalSettings(props: AdminPanelViewProps) {
                   className="w-full bg-black/20 border border-white/10 rounded-2xl px-12 py-4 text-sm font-bold text-white focus:outline-none focus:border-emerald-500"
                   placeholder="https://t.me/..."
                 />
+              </div>
+            </div>
+            {/* Telegram Bot Tester */}
+            <div className="pt-2 space-y-4">
+              <div className="bg-slate-900/50 p-4 rounded-xl border border-white/5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Telegram Connection</h3>
+                  <button 
+                    onClick={async () => {
+                      try {
+                        const response = await fetch('/api/telegram/status');
+                        const data = await response.json();
+                        console.log("Telegram Status:", data);
+                        props.showToast(`Admin ID: ${data.configuredAdminId}`, 'info');
+                        if (data.lastError) {
+                          alert(`Last Error: ${JSON.stringify(data.lastError, null, 2)}`);
+                        } else if (data.lastSuccess) {
+                          props.showToast('Last send was successful!', 'success');
+                        }
+                      } catch (e) {
+                         props.showToast('Failed to fetch status', 'error');
+                      }
+                    }}
+                    className="text-[10px] font-bold text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
+                  >
+                    <Activity size={12} />
+                    Check Status
+                  </button>
+                </div>
+                <button 
+                  onClick={async () => {
+                    try {
+                      props.showToast('Sending test message...', 'info');
+                      const response = await fetch('/api/telegram/send', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: `🔔 <b>Test Notification from Admin Panel!</b>\n\n🕒 <b>Time:</b> ${new Date().toLocaleString()}\n✅ Your Telegram Bot is properly connected to this ID.` })
+                      });
+                      
+                      const data = await response.json();
+                      if (response.ok) {
+                        props.showToast('Test message sent! Check Telegram.', 'success');
+                      } else {
+                        const details = data.details?.response?.description || data.error || 'Unknown error';
+                        props.showToast(`Error: ${details}`, 'error');
+                        alert(`Telegram details: ${JSON.stringify(data.details, null, 2)}`);
+                      }
+                    } catch (e) {
+                      props.showToast('Connection error while sending test message.', 'error');
+                    }
+                  }}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
+                >
+                  <Send size={16} />
+                  Ping Telegram Bot
+                </button>
+                <p className="text-[10px] text-slate-500 mt-3 text-center italic">
+                  Bot will send to ID: <span className="text-slate-300 select-all font-mono">-6543227982</span>
+                </p>
               </div>
             </div>
         </div>

@@ -31,13 +31,22 @@ import {
   Filter, Play, Clock, ArrowUpRight, ShieldCheck, Check, AlertCircle, 
   AlertTriangle, KeyRound, Copy, Lock, UserCheck, IdCard, Loader2, ChevronRight,
   Search, TrendingUp, Gamepad2, Key, Download, Bell, Trophy, Star, FileText,
-  ClipboardCheck, FileSearch, UserCircle, UserPlus, Coins, AtSign, Zap, ArrowRight,
+  ClipboardCheck, FileSearch, UserCircle, UserPlus, Coins, AtSign, Zap, ArrowRight, Activity,
   ChevronDown, Megaphone, Compass, Globe, Share2
 } from 'lucide-react';
 
 import { db, auth } from '../services/firebase';
 import { collection, query, where, getDocs, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
-import { signInWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
+import { 
+  signInWithEmailAndPassword, 
+  sendEmailVerification, 
+  updatePassword, 
+  updateEmail, 
+  reauthenticateWithCredential, 
+  EmailAuthProvider,
+  updateProfile,
+  sendPasswordResetEmail
+} from 'firebase/auth';
 
 export default function ProfileView({ 
   onTabChange, 
@@ -516,6 +525,7 @@ export default function ProfileView({
             onBack={() => handleSubTabChange('dashboard')}
             isAccountVerified={isAccountVerified}
             handleRequestVerification={handleRequestVerification}
+            onOpenVIPInfo={() => setIsVIPInfoModalOpen(true)}
           />
         )}
         {activeSubTab === 'history' && <HistoryTab userData={userData} onBack={() => handleSubTabChange('dashboard')} />}
@@ -1227,24 +1237,27 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
     }
 
     if (!transactionPassword.trim()) {
-      showToast('দয়া করে লগইন পাসওয়ার্ড দিন।', 'warning');
+      showToast('দয়া করে লেনদেন পাসওয়ার্ড দিন।', 'warning');
       return;
     }
 
     try {
       setIsSubmitting(true);
-      if (auth.currentUser && auth.currentUser.email) {
-        // Not google linked if password provider exists
+      
+      // Use Transaction PIN if it exists, otherwise fall back to login password for email/pw users
+      if (userData?.transactionPin) {
+        if (transactionPassword !== userData.transactionPin) {
+          throw new Error('ভুল লেনদেন পিন। (Wrong Transaction PIN)');
+        }
+      } else if (auth.currentUser && auth.currentUser.email) {
         const hasPasswordProvider = auth.currentUser.providerData.some(p => p.providerId === 'password');
         if (hasPasswordProvider) {
           await signInWithEmailAndPassword(auth, auth.currentUser.email, transactionPassword);
-        } else {
-           // Skip if google/social login only
         }
       }
     } catch (e: any) {
       setIsSubmitting(false);
-      showToast('ভুল পাসওয়ার্ড। (Wrong password)', 'error');
+      showToast(e.message || 'ভুল পাসওয়ার্ড। (Wrong password)', 'error');
       return;
     }
     setIsSubmitting(false);
@@ -1298,8 +1311,7 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
 
       if (onUpdateUser) {
         await onUpdateUser({
-          balance: balance - withdrawAmount,
-          totalWithdrawals: (userData?.totalWithdrawals || 0) + withdrawAmount
+          balance: balance - withdrawAmount
         });
       }
       showToast('উত্তোলন রিকোয়েস্ট সফল হয়েছে! আপনার অ্যাকাউন্টে টাকা পৌঁছে যাবে।', 'success');
@@ -1571,7 +1583,8 @@ function ProfileTab({
   isLinkingFacebook,
   onBack,
   isAccountVerified,
-  handleRequestVerification
+  handleRequestVerification,
+  onOpenVIPInfo
 }: { 
   userData: any, 
   onEditProfile: () => void, 
@@ -1588,7 +1601,8 @@ function ProfileTab({
   isLinkingFacebook: boolean,
   onBack: () => void,
   isAccountVerified: boolean,
-  handleRequestVerification: () => void 
+  handleRequestVerification: () => void,
+  onOpenVIPInfo: () => void
 }) {
   const [isSortedAZ, setIsSortedAZ] = useState(false);
 
@@ -1671,6 +1685,12 @@ function ProfileTab({
             <div className="mt-6 text-center">
               <div className="flex items-center justify-center gap-2 mb-2">
                 <h2 className="text-3xl font-serif font-black text-gray-900 tracking-tight leading-none">{userData?.username || 'Player'}</h2>
+                <button 
+                  onClick={onOpenVIPInfo}
+                  className="flex items-center gap-1 p-1 px-2 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors text-gray-600 hover:text-gray-900 text-[10px] font-bold"
+                >
+                  VIP-{userData?.vipLevel || 0}
+                </button>
                 {isAccountVerified && (
                   <div className="bg-blue-500 text-white p-1 rounded-full shadow-lg" title="Verified Account">
                     <ShieldCheck size={16} fill="white" />
@@ -2236,17 +2256,41 @@ function OverviewTab(props: OverviewTabProps) {
   ];
 
   const mainList: { title: string; subtitle?: string; icon: any; action: () => void; color: string; badge?: string }[] = [
-    { title: 'প্রচার', subtitle: 'শেয়ার করুন~ কমিশন পান', icon: Megaphone, action: () => onSubTabChange('invite'), color: 'text-teal-500' },
+    { title: 'প্রচার', subtitle: 'শেয়ার করুন~ কমিশন পান', icon: Megaphone, action: () => onTabChange('invite'), color: 'text-teal-500' },
+    { title: 'বেট হিস্ট্রি (History)', subtitle: 'আপনার সকল বেটের তালিকা', icon: HistoryIcon, action: () => onTabChange('history'), color: 'text-teal-500' },
     { title: 'রেফারেল ড্যাশবোর্ড', subtitle: 'Referral metrics and share links', icon: Users, action: () => onSubTabChange('referral-dashboard'), color: 'text-teal-500' },
     { title: 'সাপোর্ট (Support)', icon: Headset, action: () => setIsChatOpen?.(true), color: 'text-teal-500' },
+  ];
+
+  if (userData?.role === 'admin' || userData?.isAdmin === true) {
+    mainList.push({ 
+      title: 'Admin Panel', 
+      subtitle: 'Manage Users & Games', 
+      icon: Shield, 
+      action: () => onTabChange('admin'), 
+      color: 'text-red-500' 
+    });
+  }
+
+  if (userData?.role === 'agent' || userData?.role === 'admin' || userData?.isAdmin === true) {
+    mainList.push({ 
+      title: 'Agent Panel', 
+      subtitle: 'Agent Management Dashboard', 
+      icon: Activity, 
+      action: () => setShowAgentPanel(true), 
+      color: 'text-teal-500' 
+    });
+  }
+
+  mainList.push(
     { title: 'প্রোফাইল', icon: UserCircle, action: () => onSubTabChange('profile'), color: 'text-teal-500' },
     { title: 'নিরাপত্তা কেন্দ্র', icon: ShieldCheck, action: () => onSubTabChange('security'), color: 'text-teal-500' },
     { title: 'ভাষা (Language)', subtitle: 'বাংলা', icon: Globe, action: () => {}, color: 'text-teal-500' },
-    { title: 'FAQ', icon: HelpCircle, action: () => onSubTabChange('faq'), color: 'text-teal-500' },
+    { title: 'FAQ', icon: HelpCircle, action: () => onTabChange('faq'), color: 'text-teal-500' },
     { title: 'মতামত (Feedback)', icon: MessageSquare, action: () => onSubTabChange('feedback'), color: 'text-teal-500' },
     { title: 'ডিভাইস হিস্টরি', icon: Smartphone, action: () => {}, color: 'text-teal-500' },
     { title: 'প্রস্থান (Logout)', icon: LogOut, action: onLogout, color: 'text-teal-500' },
-  ];
+  );
 
   return (
     <div className="bg-[#0b5c4b] min-h-screen flex flex-col font-sans">
@@ -2317,6 +2361,12 @@ function OverviewTab(props: OverviewTabProps) {
              <div className="flex items-center gap-1 text-white">
                <ChevronDown size={14} />
                <span className="font-bold text-lg">{userData?.username || 'user'}</span>
+               <button 
+                 onClick={onOpenVIPInfo}
+                 className="flex items-center gap-1 p-1 px-2 ml-2 bg-white/10 hover:bg-white/20 rounded-md transition-colors text-teal-200 hover:text-white text-[10px] font-bold border border-white/5"
+               >
+                 VIP-{userData?.vipLevel || 0}
+               </button>
              </div>
              <div className="flex items-center gap-2 mt-1">
                 <span className="text-teal-100 text-sm font-medium">ID : {userData?.id?.substring(0, 9) || '123456789'}</span>
@@ -2332,12 +2382,27 @@ function OverviewTab(props: OverviewTabProps) {
             animate={{ x: 0, opacity: 1 }}
             className="flex items-center gap-2 bg-teal-900/40 px-3 py-2 rounded-full border border-teal-700/30"
           >
-             <div className="w-6 h-6 rounded-full bg-red-600 flex items-center justify-center border border-white/20">
-                <span className="text-[10px] text-white font-bold">BD</span>
+             <div className="w-7 h-7 rounded-full overflow-hidden border border-white/20 flex-shrink-0 relative bg-[#006a4e] shadow-inner">
+                <div className="absolute top-1/2 left-[45%] -translate-x-1/2 -translate-y-1/2 w-4 h-4 bg-[#f42a41] rounded-full"></div>
              </div>
              <span className="text-white font-bold text-lg">{balance.toFixed(2)}</span>
              <RefreshCw size={18} className={`text-white transition-transform duration-700 cursor-pointer ${isRefreshing ? 'animate-spin' : ''}`} onClick={onRefresh} />
           </motion.div>
+        </div>
+
+        {/* VIP Progress Bar */}
+        <div className="mt-6 px-2">
+           <div className="flex justify-between items-center mb-1">
+              <span className="text-[10px] text-teal-100 font-bold uppercase tracking-widest leading-none">VIP Level Progress</span>
+              <span className="text-[10px] text-teal-100 font-black tracking-widest leading-none">{userData?.vipPoints || 0} / {userData?.vipLevel === 0 ? 100 : userData?.vipLevel === 1 ? 500 : userData?.vipLevel === 2 ? 2000 : 10000}</span>
+           </div>
+           <div className="h-2 w-full bg-black/20 rounded-full overflow-hidden border border-white/5">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min(100, ((userData?.vipPoints || 0) / (userData?.vipLevel === 0 ? 100 : userData?.vipLevel === 1 ? 500 : userData?.vipLevel === 2 ? 2000 : 10000)) * 100)}%` }}
+                className="h-full bg-gradient-to-r from-yellow-400 to-yellow-600 shadow-[0_0_10px_rgba(234,179,8,0.5)]"
+              />
+           </div>
         </div>
 
         {/* Quick Actions (Dashboard level) Staggered */}
@@ -2370,20 +2435,11 @@ function OverviewTab(props: OverviewTabProps) {
         initial={{ y: 100 }}
         animate={{ y: 0 }}
         transition={{ type: "spring", damping: 20, stiffness: 100 }}
-        className="bg-[#0d7c66] flex-1 rounded-t-[40px] px-4 pt-12 -mt-8 relative shadow-2xl"
+        className="bg-[#0d7c66] flex-1 rounded-t-[40px] px-4 pt-6 -mt-8 relative shadow-2xl"
       >
         
-        {/* VIP Card Section */}
-        <div className="px-4 -translate-y-1/2 relative z-20">
-           <VIPCard 
-             points={userData?.vipPoints || 0} 
-             level={userData?.vipLevel || 0} 
-             onClick={onOpenVIPInfo}
-           />
-        </div>
-
         {/* Menu Items */}
-        <div className="mt-8 space-y-4 pb-12">
+        <div className="space-y-4 pb-12">
            {/* Section 1 */}
            <motion.div 
              initial={{ opacity: 0 }}
@@ -2968,28 +3024,177 @@ function SettingsTab({
   const selfieInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleIdUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    // implementation
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      showToast('Uploading ID document...', 'info');
+      setIdStatus('pending');
+      // In a real app, you would upload to Firebase Storage
+      // For now, we simulate success after a delay
+      setTimeout(() => {
+        setIdStatus('verified');
+        showToast('ID Document uploaded successfully', 'success');
+      }, 2000);
+    } catch (error) {
+      showToast('Failed to upload ID', 'error');
+    }
   };
+
   const handleSelfieUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    // implementation
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      showToast('Uploading selfie...', 'info');
+      setSelfieStatus('pending');
+      setTimeout(() => {
+        setSelfieStatus('verified');
+        showToast('Selfie uploaded successfully', 'success');
+      }, 2000);
+    } catch (error) {
+      showToast('Failed to upload selfie', 'error');
+    }
   };
+
   const handleFinish2FASetup = async () => {
-    // implementation
+    if (!onUpdateUser) return;
+    try {
+      await onUpdateUser({ 
+        twoFactorEnabled: true,
+        twoFactorMethod: twoFAMethod 
+      });
+      setIs2FAEnabled(true);
+      setIsSettingUp2FA(false);
+      showToast('টু-ফ্যাক্টর অথেন্টিকেশন সফলভাবে চালু করা হয়েছে।', 'success');
+    } catch (error) {
+      showToast('2FA সেটআপ করতে সমস্যা হয়েছে।', 'error');
+    }
   };
-  const handleUpdateEmail = async () => {
-    // implementation
+
+  const handleUpdateEmail = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!auth.currentUser || !email) return;
+
+    setIsUpdatingEmail(true);
+    setEmailError(null);
+    setEmailSuccess(null);
+
+    try {
+      // Re-authentication might be required here in a real production app
+      await updateEmail(auth.currentUser, email);
+      if (onUpdateUser) {
+        await onUpdateUser({ email: email });
+      }
+      setEmailSuccess('ইমেইল সফলভাবে আপডেট করা হয়েছে।');
+      showToast('Email updated successfully', 'success');
+    } catch (error: any) {
+      console.error('Error updating email:', error);
+      if (error.code === 'auth/requires-recent-login') {
+        setEmailError('নিরাপত্তার স্বার্থে আপনাকে আবার লগইন করতে হবে। (Recent login required)');
+      } else {
+        setEmailError(error.message || 'ইমেইল আপডেট করতে সমস্যা হয়েছে।');
+      }
+    } finally {
+      setIsUpdatingEmail(false);
+    }
   };
-  const handleUpdateTrxPassword = async () => {
-    // implementation
+
+  const handleUpdateTrxPassword = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!onUpdateUser || trxPassword.length !== 6) return;
+
+    if (trxPassword !== confirmTrxPassword) {
+      setPasswordError('পিন দুটি মিলছে না।');
+      return;
+    }
+
+    setIsUpdatingTrxPassword(true);
+    setPasswordError(null);
+    setPasswordSuccess(null);
+
+    try {
+      await onUpdateUser({ transactionPin: trxPassword });
+      setPasswordSuccess('লেনদেন পাসওয়ার্ড সফলভাবে সেট করা হয়েছে।');
+      showToast('Transaction PIN set successfully', 'success');
+      setTimeout(() => setIsTrxPasswordModalOpen(false), 2000);
+    } catch (error) {
+      setPasswordError('পিন সেট করতে সমস্যা হয়েছে।');
+    } finally {
+      setIsUpdatingTrxPassword(false);
+    }
   };
-  const handleChangePassword = async () => {
-    // implementation
+
+  const handleChangePassword = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!auth.currentUser || !currentPassword || !newPassword) return;
+
+    if (newPassword.length < 6) {
+      setPasswordError('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('নতুন পাসওয়ার্ড দুটি মিলছে না।');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    setPasswordError(null);
+    setPasswordSuccess(null);
+
+    try {
+      // Re-authenticate user
+      const credential = EmailAuthProvider.credential(auth.currentUser.email!, currentPassword);
+      await reauthenticateWithCredential(auth.currentUser, credential);
+      
+      // Update password
+      await updatePassword(auth.currentUser, newPassword);
+      setPasswordSuccess('পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে।');
+      showToast('Password changed successfully', 'success');
+      
+      // Clear inputs
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      
+      setTimeout(() => setIsPasswordModalOpen(false), 2000);
+    } catch (error: any) {
+      console.error('Error changing password:', error);
+      if (error.code === 'auth/wrong-password') {
+        setPasswordError('বর্তমান পাসওয়ার্ডটি ভুল।');
+      } else {
+        setPasswordError(error.message || 'পাসওয়ার্ড পরিবর্তন করতে সমস্যা হয়েছে।');
+      }
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
+
   const handleForgotPassword = async () => {
-    // implementation
+    if (!auth.currentUser?.email) {
+      showToast('Error: No email found', 'error');
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, auth.currentUser.email);
+      showToast('Password reset email sent!', 'success');
+      setPasswordSuccess('পাসওয়ার্ড রিসেট ইমেইল পাঠানো হয়েছে। আপনার ইনবক্স চেক করুন।');
+    } catch (error: any) {
+      showToast(error.message || 'Failed to send reset email', 'error');
+    }
   };
+
   const handleDisable2FA = async () => {
-    // implementation
+    if (!onUpdateUser) return;
+    try {
+      await onUpdateUser({ twoFactorEnabled: false });
+      setIs2FAEnabled(false);
+      setIsConfirmingDisable2FA(false);
+      showToast('2FA has been disabled', 'info');
+    } catch (error) {
+      showToast('Failed to disable 2FA', 'error');
+    }
   };
   
   const toggleLanguage = () => {

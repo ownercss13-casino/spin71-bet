@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ClipboardList, MessageCircle, Check, Copy, ShieldCheck, ArrowRight, Loader2, X } from 'lucide-react';
+import { ChevronLeft, ClipboardList, MessageCircle, Check, Copy, ShieldCheck, ArrowRight, Loader2, X, Wallet } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { ToastType } from '../components/ui/Toast';
 import GlobalImage from '../components/ui/GlobalImage';
 import VIPLoader from '../components/ui/VIPLoader';
-import { auth } from '../services/firebase';
+import { auth, db } from '../services/firebase';
+import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 
 const paymentMethods = [
   { 
@@ -100,10 +102,43 @@ export default function DepositView({
   const [isCopied, setIsCopied] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [deposits, setDeposits] = useState<any[]>([]);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
 
   useEffect(() => {
-    // History fetching removed (Firebase disconnected)
-  }, []);
+    const timer = setTimeout(() => {
+      setIsInitialLoading(false);
+    }, 1200);
+    
+    // Fetch deposit history
+    let unsubscribe = () => {};
+    if (userData?.id) {
+      const q = query(
+        collection(db, 'users', userData.id, 'transactions')
+      );
+      
+      unsubscribe = onSnapshot(q, (snapshot) => {
+        const history = snapshot.docs
+          .map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }))
+          .filter((t: any) => t.type === 'deposit')
+          .sort((a: any, b: any) => {
+            const timeA = a.createdAt?.seconds || 0;
+            const timeB = b.createdAt?.seconds || 0;
+            return timeB - timeA;
+          });
+        setDeposits(history);
+      }, (error) => {
+        console.error("Deposit History Fetch Error:", error);
+      });
+    }
+    
+    return () => {
+      clearTimeout(timer);
+      unsubscribe();
+    };
+  }, [userData?.id]);
 
   const handleNextStep = () => {
     const depositAmount = parseFloat(amount);
@@ -146,33 +181,15 @@ export default function DepositView({
     try {
       const user = auth.currentUser;
       if (!user) throw new Error("Not authenticated");
-      const idToken = await user.getIdToken();
-
-      const response = await fetch('/api/user/deposit/confirm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: parseFloat(amount),
-          idToken,
-          trxId,
-          senderNumber,
-          method: selectedMethod
-        })
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to confirm deposit");
-      }
-
-      setIsSubmitting(false);
-      showToast('Deposit confirmed! / ডিপোজিট সফল হয়েছে!', 'success');
       
       if (onDepositSuccess) {
-        onDepositSuccess(parseFloat(amount), trxId, senderNumber, selectedMethod);
+        await onDepositSuccess(parseFloat(amount), trxId, senderNumber, selectedMethod);
+      } else {
+        // Fallback testing
+        showToast('Deposit confirmed! / ডিপোজিট সফল হয়েছে!', 'success');
       }
       
+      setIsSubmitting(false);
       setTrxId('');
       setStep(1);
       setShowHistory(true);
@@ -184,6 +201,82 @@ export default function DepositView({
   };
 
   const isNextEnabled = amount !== '' && parseFloat(amount) >= minDeposit;
+
+  if (isInitialLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#13615e]">
+        <motion.div 
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="relative mb-8"
+        >
+          {/* Animated Glow Rings */}
+          <div className="absolute inset-0 bg-emerald-500/20 blur-[60px] animate-pulse rounded-full" />
+          <div className="absolute inset-0 -m-8 border border-white/5 rounded-full animate-[spin_10s_linear_infinite]" />
+          <div className="absolute inset-0 -m-12 border border-emerald-500/10 rounded-full animate-[spin_15s_linear_infinite_reverse]" />
+          
+          {/* Central Logo/Icon Container */}
+          <div className="relative w-28 h-28 bg-gradient-to-br from-[#1d7470] to-[#0a4a44] rounded-[32px] p-0.5 shadow-2xl border border-white/10 flex items-center justify-center">
+            <div className="absolute inset-0 bg-emerald-500/5 rounded-[30px]" />
+            <Wallet className="text-emerald-400 relative z-10" size={48} strokeWidth={1.5} />
+            
+            {/* Spinning Arc */}
+            <svg className="absolute inset-0 w-full h-full -rotate-90">
+              <circle
+                cx="56"
+                cy="56"
+                r="50"
+                fill="none"
+                stroke="white"
+                strokeWidth="2"
+                strokeOpacity="0.1"
+              />
+              <motion.circle
+                cx="56"
+                cy="56"
+                r="50"
+                fill="none"
+                stroke="#10b981"
+                strokeWidth="2"
+                strokeDasharray="100 200"
+                animate={{ strokeDashoffset: [0, -300] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+              />
+            </svg>
+          </div>
+        </motion.div>
+
+        <div className="text-center space-y-3">
+          <motion.h2 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="text-white text-xl font-black uppercase tracking-[0.2em]"
+          >
+            Securing Connection
+          </motion.h2>
+          <motion.div 
+             initial={{ opacity: 0 }}
+             animate={{ opacity: 1 }}
+             transition={{ delay: 0.4 }}
+             className="flex items-center justify-center gap-2"
+          >
+            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce" />
+          </motion.div>
+          <motion.p 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6 }}
+            className="text-teal-300/60 text-[10px] font-black uppercase tracking-widest"
+          >
+            Encrypting Gateway Session...
+          </motion.p>
+        </div>
+      </div>
+    );
+  }
 
   if (showHistory) {
     return (

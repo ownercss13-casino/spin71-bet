@@ -1,6 +1,9 @@
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "MY_GEMINI_API_KEY";
+const APP_URL = (typeof process !== 'undefined' && process.env && process.env.APP_URL) ? process.env.APP_URL : "MY_APP_URL";
+
+const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
 export const getAIResponse = async (message: string, userData?: any) => {
   try {

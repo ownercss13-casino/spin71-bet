@@ -1,5 +1,4 @@
 export const GAME_IMAGES = {
-  AVIATOR_LOGO: "https://storage.googleapis.com/genai-studio-user-uploads/projects/ais-dev-wxllhxlbpwpt7cv6zg665n/uploads/1743526563604-image.png",
   CRASH_GAME: "https://picsum.photos/seed/crash/400/600",
   SUPER_ACE: "https://picsum.photos/seed/cards/400/600",
   SUPER_ACE_2: "https://picsum.photos/seed/poker/400/600",

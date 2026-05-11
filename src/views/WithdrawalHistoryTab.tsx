@@ -33,15 +33,17 @@ export default function WithdrawalHistoryTab({ userData, onBack }: WithdrawalHis
     }
 
     const q = query(
-      collection(db, 'transactions'), 
-      where('userId', '==', userData.id),
-      where('type', '==', 'withdrawal')
+      collection(db, 'users', userData.id, 'transactions')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => {
-        const d = doc.data();
-        let dateStr = 'Just now';
+      const data = snapshot.docs
+        .map(doc => {
+          const d = doc.data();
+          // Filter in memory
+          if (d.type !== 'withdrawal') return null;
+          
+          let dateStr = 'Just now';
         let timestamp = 0;
         
         const createdAt = d.createdAt;
@@ -67,7 +69,7 @@ export default function WithdrawalHistoryTab({ userData, onBack }: WithdrawalHis
           accountNumber: d.accountNumber,
           _timestamp: timestamp
         } as Withdrawal;
-      });
+      }).filter(Boolean) as Withdrawal[];
 
       setWithdrawals(data);
       setIsLoading(false);

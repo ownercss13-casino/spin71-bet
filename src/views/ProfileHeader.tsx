@@ -58,6 +58,13 @@ export default function ProfileHeader({ userData, profilePic, fileInputRef, hand
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <h2 className="text-2xl font-black text-[var(--text-main)] drop-shadow-md tracking-tight">{userData?.username || profileData?.username || "Player"}</h2>
+            {userData?.role && userData.role !== 'user' && (
+              <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest border ${
+                userData.role === 'admin' ? 'bg-rose-500/20 text-rose-400 border-rose-500/30' : 'bg-emerald-500/30 text-emerald-400 border-emerald-500/30'
+              }`}>
+                {userData.role}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2 mt-1">
             <p className="text-[var(--text-muted)] text-sm font-medium opacity-90">ID: {userData?.id || profileData?.id || "84729104"}</p>

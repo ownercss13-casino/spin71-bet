@@ -26,10 +26,13 @@ class ApiService {
    * Universal fetch helper with error handling
    */
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
-    // Use relative URL for API requests to avoid origin issues in iframes
-    const fullUrl = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint}`;
+    // Ensure endpoint has leading slash
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
     
-    console.log(`[ApiService] Requesting: ${endpoint}, Full URL: ${fullUrl}`);
+    // Use relative URL for API requests to avoid origin issues in iframes
+    const fullUrl = cleanEndpoint.startsWith('http') ? cleanEndpoint : `${this.baseUrl}${cleanEndpoint}`;
+    
+    console.log(`[ApiService] Full URL: ${fullUrl}`);
     
     try {
       console.log(`[ApiService] Fetching: ${fullUrl}`, { 
@@ -50,11 +53,23 @@ class ApiService {
       let data: any;
 
       if (contentType && contentType.includes('application/json')) {
-        data = await response.json();
+        try {
+          data = await response.json();
+        } catch (parseError: any) {
+          console.error(`[ApiService] JSON parse error from ${endpoint}:`, parseError);
+          const rawText = await response.text().catch(() => 'unavailable');
+          throw new Error(`Failed to parse JSON response. Content-Type was ${contentType}, but content was: ${rawText.substring(0, 100)}`);
+        }
       } else {
-        const text = await response.text();
+        const text = await response.text().catch(() => "could not read body");
         console.warn(`Non-JSON response from ${endpoint}:`, text.substring(0, 100));
-        throw new Error(`Expected JSON but received ${contentType || 'text'}. Server might be misconfigured or returning an error page.`);
+        
+        // If it looks like HTML, it might be the SPA fallback
+        if (text.trim().startsWith('<!DOCTYPE html>') || text.trim().startsWith('<html')) {
+          throw new Error(`The API returned an HTML page instead of JSON. This usually means the route doesn't exist or the server crashed. URL: ${fullUrl}`);
+        }
+        
+        throw new Error(`Expected JSON but received ${contentType || 'text'}. Content: ${text.substring(0, 50)}...`);
       }
 
       if (!response.ok) {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Star, Plane as PlaneIcon, Info, Camera, Edit2, X, Upload } from 'lucide-react';
+import { Star, Info, Camera, Edit2, X, Upload } from 'lucide-react';
 import Skeleton from './Skeleton';
 import { GAME_IMAGES } from '../../constants/gameAssets';
 import { GAME_LOGO_URLS } from '../../constants/gameLogos';
@@ -20,6 +20,7 @@ export interface Game {
 }
 
 export const games: Game[] = [
+  { id: 'native_slot', name: 'Neon Gold Slots', provider: 'Native', image: 'https://picsum.photos/seed/nslot/400/600', category: 'স্লট', isHot: true, isVIP: true, bgColor: 'from-yellow-600 to-red-900', providerColor: 'bg-yellow-500' },
   // JILI (12)
   { id: 'jili_1', name: 'Super Ace', provider: 'JILI', image: GAME_LOGO_URLS['jili_1'] || 'https://picsum.photos/seed/jili1/400/600', category: 'স্লট', isHot: true, bgColor: 'from-yellow-600 to-green-600' },
   { id: 'jili_2', name: 'Golden Empire', provider: 'JILI', image: GAME_LOGO_URLS['jili_2'] || 'https://picsum.photos/seed/jili2/400/600', category: 'স্লট', isHot: true, bgColor: 'from-yellow-500 to-yellow-700' },
@@ -89,7 +90,6 @@ export const games: Game[] = [
   { id: 'jbd_18', name: 'Wild West', provider: 'JBD', image: 'https://picsum.photos/seed/jbd18/400/600', category: 'স্লট', isHot: true, bgColor: 'from-brown-600 to-orange-800' },
 
   // SPRIBE (8)
-  { id: '5', name: 'Aviator', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe1/400/600', category: 'ক্র্যাশ', isHot: true, isVIP: true, bgColor: 'from-gray-800 to-red-900' },
   { id: 'rocket_1', name: 'Space Rocket', provider: 'SPRIBE', image: 'https://picsum.photos/seed/rocket1/400/600', category: 'ক্র্যাশ', isHot: true, bgColor: 'from-blue-900 to-indigo-950' },
   { id: 'spribe_2', name: 'Mines', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe2/400/600', category: 'মিনি গেম', bgColor: 'from-blue-600 to-blue-900' },
   { id: 'spribe_3', name: 'Dice', provider: 'SPRIBE', image: 'https://picsum.photos/seed/spribe3/400/600', category: 'মিনি গেম', bgColor: 'from-purple-500 to-purple-800' },
@@ -237,133 +237,75 @@ const GameCard: React.FC<GameCardProps> = ({
 }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const displayImage = globalLogo || game.image || `https://picsum.photos/seed/${game.id}/400/600`;
   const displayName = globalName || game.name;
   const displayOption = globalOption || game.provider;
   const displayUrl = globalUrl || '#';
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && onLogoChange) {
-      const reader = new FileReader();
-      reader.onerror = () => {
-        if (showToast) showToast("ছবিটি পড়তে সমস্যা হয়েছে।", "error");
-      };
-      reader.onloadend = () => {
-        onLogoChange(game.id, reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
+  // Specific gradients for SPIN71.BET layout
+  const getGradient = () => {
+    if (game.id.includes('jili_1')) return 'from-[#d81b60] to-[#ad1457]'; // Super Ace
+    if (game.id.includes('spribe_12') || game.name === 'Aviator') return 'from-[#43a047] to-[#2e7d32]';
+    if (game.id.includes('jili_22')) return 'from-[#039be5] to-[#0277bd]'; // Pirate Legends equivalent
+    return game.bgColor || 'from-[#14253a] to-[#0d1a29]';
   };
-
-  const isAviator = game.provider === 'CRASH' && game.id === '5';
 
   return (
     <div 
       onClick={() => onSelect(game)}
-      className={`rounded-xl overflow-hidden relative aspect-square bg-gradient-to-b ${game.bgColor || 'from-gray-800 to-gray-900'} shadow-md group cursor-pointer border border-white/10 transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_20px_30px_rgba(0,0,0,0.5),0_0_15px_rgba(255,255,255,0.1)] hover:border-white/30 active:scale-95`}
+      className="flex flex-col gap-1 cursor-pointer group"
     >
-      {/* Skeleton Loader */}
-      {!imageLoaded && !imageError && (
-        <div className="absolute inset-0 z-10">
-          <Skeleton className="w-full h-full" />
+      <div className={`relative aspect-square rounded-2xl overflow-hidden bg-gradient-to-b ${getGradient()} border border-white/5 shadow-lg shadow-black/20`}>
+        <div className="absolute inset-0 flex items-center justify-center p-2">
+          <GlobalImage 
+            imageKey={`game_logo_${game.id}`}
+            defaultUrl={displayImage}
+            currentUrl={globalLogo}
+            alt={game.name}
+            className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500"
+            isAdmin={isAdmin}
+            updateGlobalImage={async (url) => { if (onLogoChange) onLogoChange(game.id, url); }}
+          />
         </div>
-      )}
-      
-      <div className="absolute inset-0 z-0">
-        <GlobalImage 
-          imageKey={`game_logo_${game.id}`}
-          defaultUrl={game.image || `https://picsum.photos/seed/${game.id}/400/600`}
-          currentUrl={globalLogo}
-          alt={game.name}
-          showToast={showToast as any}
-          className="w-full h-full object-cover transition-all duration-700 opacity-90 group-hover:opacity-100 group-hover:scale-110"
-          isAdmin={true}
-          updateGlobalImage={async (url) => {
-            if (onLogoChange) {
-              onLogoChange(game.id, url);
-            }
-          }}
-        />
+
+        {/* Tags and Icons */}
+        <div className="absolute top-2 right-2 z-10 text-[#90a4ae] group-hover:text-white transition-colors" onClick={(e) => onToggleFavorite(e, game.id)}>
+          <Star size={14} className={isFavorite ? "text-yellow-400 fill-yellow-400" : ""} />
+        </div>
+
+        {game.id.includes('jili') && (
+          <div className="absolute bottom-1 right-2 text-[8px] font-black text-red-500 italic z-10">JILI</div>
+        )}
+
+        {game.id.includes('jili_22') && (
+          <div className="absolute top-0 right-0 bg-purple-800 text-white text-[8px] font-bold px-2 py-0.5 rounded-bl-lg z-10">B BUY</div>
+        )}
+
+        {/* Admin Edit Trigger */}
+        {isAdmin && (
+           <div 
+             onClick={(e) => {
+               e.stopPropagation();
+               setEditingGame({
+                 gameId: game.id,
+                 name: displayName,
+                 logo: displayImage,
+                 url: displayUrl,
+                 option: displayOption
+               });
+             }}
+             className="absolute top-2 left-2 bg-yellow-500 text-black p-1 rounded-lg opacity-0 group-hover:opacity-100 z-20 transition-opacity"
+           >
+             <Edit2 size={10} />
+           </div>
+        )}
       </div>
 
-      <motion.div 
-        onClick={(e) => onToggleFavorite(e, game.id)}
-        className="absolute top-1.5 right-1.5 bg-black/40 rounded-full p-1.5 backdrop-blur-sm z-30 cursor-pointer group-hover:bg-black/60"
-        whileTap={{ scale: 0.8 }}
-        whileHover={{ scale: 1.1 }}
-      >
-        <motion.div
-          initial={false}
-          animate={{
-            scale: isFavorite ? [1, 1.4, 1] : [1, 0.8, 1],
-            rotate: isFavorite ? [0, 15, -15, 0] : 0,
-          }}
-          transition={{ duration: 0.4, ease: "easeInOut" }}
-        >
-          <Star size={14} className={isFavorite ? "text-yellow-400 fill-yellow-400 drop-shadow-[0_0_5px_rgba(250,204,21,0.6)]" : "text-gray-300"} />
-        </motion.div>
-      </motion.div>
-
-      {isAviator && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          <div className="relative group-hover:scale-125 transition-transform duration-500">
-            <svg 
-              viewBox="0 0 120 80" 
-              className="w-20 h-16 drop-shadow-[0_0_15px_rgba(239,68,68,0.8)] animate-[fly-card_3s_linear_infinite]"
-            >
-              <defs>
-                <linearGradient id="planeBodyGradCard" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#ff4d4d" />
-                  <stop offset="100%" stopColor="#990000" />
-                </linearGradient>
-                <linearGradient id="wingGradCard" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="#ff6666" />
-                  <stop offset="100%" stopColor="#cc0000" />
-                </linearGradient>
-              </defs>
-              
-              {/* Main Body */}
-              <path d="M10,40 Q30,35 60,35 L100,38 L110,40 L100,42 L60,45 Q30,45 10,40 Z" fill="url(#planeBodyGradCard)" stroke="#fff" strokeWidth="1.5" />
-              {/* Cockpit */}
-              <path d="M45,35 Q55,25 75,35 Z" fill="#87ceeb" stroke="#fff" strokeWidth="1" opacity="0.9" />
-              {/* Main Wing */}
-              <path d="M40,40 L20,65 L50,65 L70,40 Z" fill="url(#wingGradCard)" stroke="#fff" strokeWidth="1.5" />
-              {/* Tail Wing */}
-              <path d="M15,40 L5,25 L25,25 L30,40 Z" fill="url(#wingGradCard)" stroke="#fff" strokeWidth="1.5" />
-              {/* Propeller Hub */}
-              <circle cx="110" cy="40" r="3" fill="#333" stroke="#fff" strokeWidth="1" />
-            </svg>
-            <div className="absolute -top-1 -right-1 bg-red-600 text-white text-[7px] font-bold px-1 rounded-sm animate-pulse">REAL</div>
-          </div>
-        </div>
-      )}
-
-      {/* Change Name/Details Button */}
-      <div 
-        onClick={(e) => {
-          e.stopPropagation();
-          setEditingGame({
-            gameId: game.id,
-            name: displayName,
-            logo: displayImage,
-            url: displayUrl,
-            option: displayOption
-          });
-        }}
-        className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/80 to-transparent pt-8 pb-2 px-1 flex items-center justify-center gap-1 z-20 group/name cursor-pointer"
-      >
-        <span className="text-[10px] font-bold text-white drop-shadow-md group-hover:text-yellow-400 transition-colors truncate max-w-[80%] uppercase tracking-tighter">
-          {displayName}
-        </span>
-        <div className="bg-yellow-500/20 p-1 rounded transition-all hover:bg-yellow-500/40">
-          <Edit2 size={10} className="text-yellow-400" />
-        </div>
+      <div className="text-center px-1">
+        <p className="text-[11px] font-bold text-white truncate truncate leading-tight uppercase tracking-tighter">{displayName}</p>
+        <p className="text-[8px] text-[#90a4ae] truncate leading-tight">{displayOption}</p>
       </div>
-      {/* Hover Glow Effect */}
-      <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/0 to-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
     </div>
   );
 };
@@ -443,6 +385,9 @@ export const GameGrid: React.FC<GameGridProps> = ({
     const isFav = favorites.includes(game.id);
     const matchesProvider = selectedProvider === 'ALL' || game.provider === selectedProvider;
     
+    const isActive = globalOptions[`${game.id}_active`] !== 'false';
+    const matchesActivity = isActive || isAdmin;
+    
     const matchesCategory = 
       category === 'সব' || 
       game.category === category || 
@@ -451,7 +396,7 @@ export const GameGrid: React.FC<GameGridProps> = ({
     
     const matchesSearch = game.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           game.provider.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch && matchesProvider;
+    return matchesCategory && matchesSearch && matchesProvider && matchesActivity;
   });
 
   return (
@@ -680,17 +625,4 @@ export const GameGrid: React.FC<GameGridProps> = ({
   );
 };
 
-const style = `
-  @keyframes fly-card {
-    0% { transform: translate(-30px, 20px) rotate(-30deg) scale(0.8); opacity: 0; }
-    20% { opacity: 1; }
-    80% { opacity: 1; }
-    100% { transform: translate(40px, -30px) rotate(-30deg) scale(1.2); opacity: 0; }
-  }
-`;
-
-if (typeof document !== 'undefined') {
-  const styleTag = document.createElement('style');
-  styleTag.innerHTML = style;
-  document.head.appendChild(styleTag);
-}
+export default GameGrid;

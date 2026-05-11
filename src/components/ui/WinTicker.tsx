@@ -3,7 +3,7 @@ import { Trophy, TrendingUp, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const WINNERS = [
-  { name: 'Robin***', amount: 4500, game: 'Aviator' },
+  { name: 'Robin***', amount: 4500, game: 'Rocket' },
   { name: 'Ashik***', amount: 12000, game: 'Cricket' },
   { name: 'Sumon***', amount: 2500, game: 'Super Ace' },
   { name: 'Kushal***', amount: 8900, game: 'Crazy Time' },

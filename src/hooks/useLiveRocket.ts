@@ -50,7 +50,7 @@ export function useLiveRocket() {
         const startTime = current.startTime;
         const elapsed = (now - startTime) / 1000;
         
-        // Slightly different growth curve for Rocket: 1.08^t (faster than Aviator's 1.06)
+        // Growth curve for Rocket: 1.08^t
         const nextMultiplier = Number(Math.pow(1.08, elapsed).toFixed(2));
         
         if (nextMultiplier >= current.crashPoint) {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, User, Copy, Home, Users, Send, Star, Wallet, RefreshCw, LogOut, Moon, Sun, MessageCircle, Facebook, Shield } from 'lucide-react';
+import { X, User, Copy, Home, Users, Send, Star, Wallet, RefreshCw, LogOut, Moon, Sun, MessageCircle, Facebook, Shield, BookOpen, Settings } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface SidebarProps {
@@ -38,7 +38,6 @@ export default function Sidebar({
   toggleTheme
 }: SidebarProps) {
   const games = [
-    { id: '1', name: 'Aviator', icon: Star },
     { id: '2', name: 'Rocket', icon: Star },
     { id: '3', name: 'Slots', icon: Star },
   ];
@@ -100,6 +99,8 @@ export default function Sidebar({
             { id: 'wallet', icon: Wallet, label: 'ওয়ালেট (Wallet)' },
             { id: 'profile', icon: User, label: 'প্রোফাইল (Profile)' },
             { id: 'invite', icon: Users, label: 'আমন্ত্রণ (Invite)' },
+            { id: 'learning', icon: BookOpen, label: 'লার্নিং (Learning)' },
+            { id: 'settings', icon: Settings, label: 'সেটিংস (Settings)' },
             { id: 'faq', icon: MessageCircle, label: 'সাধারণ প্রশ্ন (FAQ)' },
             { id: 'terms', icon: Shield, label: 'শর্তাবলী (Terms)' },
             { id: 'telegram', icon: Send, label: 'টেলিগ্রাম (Telegram)' },

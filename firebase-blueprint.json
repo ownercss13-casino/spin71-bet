@@ -5,7 +5,10 @@
       "description": "Store user account information, balance, and levels.",
       "type": "object",
       "properties": {
+        "fullName": { "type": "string" },
         "username": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phoneNumber": { "type": "string" },
         "balance": { "type": "number" },
         "totalDeposits": { "type": "number" },
         "totalWithdrawals": { "type": "number" },
@@ -70,6 +73,29 @@
         "globalLogos": { "type": "object" },
         "globalNames": { "type": "object" }
       }
+    },
+    "SlotBet": {
+      "title": "Slot Machine Bet",
+      "description": "Record of a slot spin and its outcome.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "betAmount": { "type": "number" },
+        "winAmount": { "type": "number" },
+        "symbols": { "type": "array" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "betAmount", "winAmount"]
+    },
+    "DailyReward": {
+      "title": "Daily Reward Claim",
+      "description": "Tracking daily login bonuses.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "lastClaimed": { "type": "string", "format": "date-time" },
+        "currentStreak": { "type": "integer" }
+      }
     }
   },
   "firestore": {
@@ -92,6 +118,14 @@
     "/config/main": {
       "schema": "GlobalConfig",
       "description": "The main global configuration document."
+    },
+    "/slot_bets/{betId}": {
+      "schema": "SlotBet",
+      "description": "History of slot machine spins."
+    },
+    "/daily_rewards/{userId}": {
+      "schema": "DailyReward",
+      "description": "Daily reward status per user."
     },
     "/admins/{adminId}": {
       "schema": "object",

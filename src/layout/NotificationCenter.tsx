@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bell, X, Trash2, CheckCircle2, Info, Gift, AlertCircle, ChevronRight, Clock } from 'lucide-react';
+import { db, auth } from '../services/firebase';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 export interface Notification {
   id?: string;
@@ -25,39 +27,58 @@ export default function NotificationCenter({ isOpen, onClose, userData, onAction
   const [notificationToDelete, setNotificationToDelete] = useState<string | null>(null);
 
   useEffect(() => {
-    // Mock notifications
-    const mockNotifications: Notification[] = [
-      {
-        id: 'n1',
-        title: 'বোনাস আপডেট',
-        message: 'আপনি ৫0৭ টাকা ওয়েলকাম বোনাস পেয়েছেন!',
-        type: 'bonus',
-        read: false,
-        createdAt: new Date(Date.now() - 3600000)
-      },
-      {
-        id: 'n2',
-        title: 'নতুন গেম রিলিজ',
-        message: 'এভিয়েটর গেম এখন লাইভ! এখনই খেলুন।',
-        type: 'promotion',
-        read: true,
-        createdAt: new Date(Date.now() - 86400000)
-      }
-    ];
-    setNotifications(mockNotifications);
-  }, [isOpen]);
+    if (!userData?.uid) return;
+    
+    const notificationsRef = collection(db, 'users', userData.uid, 'notifications');
+    const q = query(notificationsRef, orderBy('createdAt', 'desc'));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetchedLocals: Notification[] = snapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          title: data.title,
+          message: data.message,
+          type: data.type,
+          read: data.read,
+          actionUrl: data.actionUrl,
+          createdAt: data.createdAt ? data.createdAt.toDate() : new Date()
+        } as Notification;
+      });
+      setNotifications(fetchedLocals);
+    });
+    
+    return () => unsubscribe();
+  }, [userData?.uid]);
 
   const filteredNotifications = activeFilter === 'all' 
     ? notifications 
     : notifications.filter(n => !n.read);
 
-  const handleMarkAsRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  const handleMarkAsRead = async (id: string) => {
+    if (!userData?.uid) return;
+    try {
+      await updateDoc(doc(db, 'users', userData.uid, 'notifications', id), {
+        read: true
+      });
+    } catch (e) {
+      console.error("Failed to mark notification as read", e);
+    }
   };
 
   const handleDelete = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     setNotificationToDelete(id);
+  };
+  
+  const confirmDelete = async () => {
+    if (!notificationToDelete || !userData?.uid) return;
+    try {
+      await deleteDoc(doc(db, 'users', userData.uid, 'notifications', notificationToDelete));
+      setNotificationToDelete(null);
+    } catch (e) {
+      console.error("Failed to delete notification", e);
+    }
   };
 
   const getIcon = (type: string) => {
@@ -206,10 +227,7 @@ export default function NotificationCenter({ isOpen, onClose, userData, onAction
             <div className="flex gap-4">
               <button onClick={() => setNotificationToDelete(null)} className="flex-1 py-2 rounded-xl bg-white/10 text-white font-bold">Cancel</button>
               <button 
-                onClick={() => {
-                  setNotifications(prev => prev.filter(n => n.id !== notificationToDelete));
-                  setNotificationToDelete(null);
-                }} 
+                onClick={confirmDelete} 
                 className="flex-1 py-2 rounded-xl bg-red-600 text-white font-bold"
               >
                 Delete
