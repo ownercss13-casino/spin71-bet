@@ -20,7 +20,6 @@ export interface Game {
 }
 
 export const games: Game[] = [
-  { id: 'native_slot', name: 'Neon Gold Slots', provider: 'Native', image: 'https://picsum.photos/seed/nslot/400/600', category: 'স্লট', isHot: true, isVIP: true, bgColor: 'from-yellow-600 to-red-900', providerColor: 'bg-yellow-500' },
   // JILI (12)
   { id: 'jili_1', name: 'Super Ace', provider: 'JILI', image: GAME_LOGO_URLS['jili_1'] || 'https://picsum.photos/seed/jili1/400/600', category: 'স্লট', isHot: true, bgColor: 'from-yellow-600 to-green-600' },
   { id: 'jili_2', name: 'Golden Empire', provider: 'JILI', image: GAME_LOGO_URLS['jili_2'] || 'https://picsum.photos/seed/jili2/400/600', category: 'স্লট', isHot: true, bgColor: 'from-yellow-500 to-yellow-700' },

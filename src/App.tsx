@@ -95,7 +95,7 @@ export default function App() {
   const [globalImages, setGlobalImages] = useState<Record<string, string>>({});
   const [balance, setBalance] = useState(0);
   const [allButtonName, setAllButtonName] = useState<string>("ALL");
-  const [casinoName, setCasinoName] = useState<string>("NEON GOLD SLOTS");
+  const [casinoName, setCasinoName] = useState<string>("SPIN71.BET");
   const [noticeText, setNoticeText] = useState<string>("আমাদের নতুন স্লট মেশিনে বড় জয় নিশ্চিত করুন!");
   const [toasts, setToasts] = useState<{ id: string; message: string; type: ToastType }[]>([]);
 
