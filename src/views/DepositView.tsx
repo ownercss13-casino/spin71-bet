@@ -495,7 +495,7 @@ export default function DepositView({
         ) : (
           <div className="min-h-screen bg-white font-sans relative pb-20">
             {/* Header Section */}
-            <div className="bg-[#0b5c4b] text-white p-4">
+            <div className="bg-[#0d1a29] text-white p-4">
               <h2 className="text-2xl font-bold">BDT {amount}</h2>
               <p className="text-sm font-medium mt-1">কম বা বেশি ক্যাশআউট করবেন না</p>
             </div>

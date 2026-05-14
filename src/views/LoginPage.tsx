@@ -21,7 +21,8 @@ import {
   Smartphone,
   ShieldCheck,
   ChevronLeft,
-  Gift
+  Gift,
+  Crown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useForm } from 'react-hook-form';
@@ -36,13 +37,10 @@ const loginSchema = z.object({
 });
 
 const registerSchema = z.object({
-  fullName: z.string().min(3, 'পুুুুরো নাম দিন (Full Name required)'),
   username: z.string()
     .min(6, 'ইউজারনেম কমপক্ষে ৬ অক্ষরের হতে হবে (Min 6 chars)')
     .max(13, 'ইউজারনেম ১৩ অক্ষরের বেশি হতে পারবে না (Max 13 chars)')
     .regex(/^[a-zA-Z0-9]+$/, 'বিশেষ চিহ্ন বা স্পেস ছাড়া অক্ষর দিন (Only letters and numbers)'),
-  email: z.string().email('সঠিক ইমেইল দিন (Invalid email)'),
-  phoneNumber: z.string().min(11, 'সঠিক মোবাইল নম্বর দিন (Invalid phone number)'),
   password: z.string()
     .min(8, 'পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের হতে হবে (Min 8 chars)')
     .regex(/[A-Z]/, 'কমপক্ষে একটি বড় হাতের অক্ষর থাকতে হবে (Must have an uppercase letter)')
@@ -89,9 +87,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
-  const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot-password'>(() => {
-    return localStorage.getItem('referralCode') ? 'register' : 'login';
-  });
+  const [authMode, setAuthMode] = useState<'login' | 'forgot-password' | 'vip-register'>('login');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [rememberPassword, setRememberPassword] = useState(() => {
@@ -130,13 +126,6 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     }
   }, [rememberPassword, authMode, setValueLogin]);
 
-  const { 
-    register: registerSignup, 
-    handleSubmit: handleSubmitSignup, 
-    formState: { errors: signupErrors } 
-  } = useForm<RegisterFormValues>({
-    resolver: zodResolver(registerSchema)
-  });
 
   const { 
     register: registerReset, 
@@ -221,6 +210,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
           email: user.email || "",
           balance: 507,
           role: 'user',
+          totalDeposits: 0,
           createdAt: new Date().toISOString(),
           profilePictureUrl: defaultAvatarBase64,
           referredBy: inviterUid,
@@ -323,6 +313,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
           email: user.email || "",
           balance: 507,
           role: 'user',
+          totalDeposits: 0,
           createdAt: new Date().toISOString(),
           profilePictureUrl: defaultAvatarBase64,
           referredBy: inviterUid,
@@ -466,129 +457,6 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     }
   };
 
-  const onEmailRegister = async (data: RegisterFormValues) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      // Check for existing username
-      const usersRef = collection(db, 'users');
-      const qUsername = query(usersRef, where('username', '==', data.username), limit(1));
-      const snapUsername = await getDocs(qUsername);
-      
-      if (!snapUsername.empty) {
-        throw new Error("এই ইউজারনেমটি ইতিমধ্যে ব্যবহার করা হয়েছে (Username already taken)");
-      }
-
-      // Check for existing phone
-      const qPhone = query(usersRef, where('phoneNumber', '==', data.phoneNumber), limit(1));
-      const snapPhone = await getDocs(qPhone);
-      
-      if (!snapPhone.empty) {
-        throw new Error("এই ফোন নম্বরটি ইতিমধ্যে ব্যবহার করা হয়েছে (Phone already registered)");
-      }
-
-      const email = data.email;
-      const result = await createUserWithEmailAndPassword(auth, email, data.password);
-      const user = result.user;
-      
-      await updateProfile(user, { displayName: data.username });
-
-      const inviterCode = localStorage.getItem('referralCode');
-      
-      // Find inviter by referral code
-      let inviterUid = null;
-      if (inviterCode) {
-         console.log("Locating inviter by referral code:", inviterCode);
-         const usersRef = collection(db, 'users');
-         const q = query(usersRef, where('referralCode', '==', inviterCode), limit(1));
-         const snap = await getDocs(q);
-         if (!snap.empty) {
-           inviterUid = snap.docs[0].id;
-           console.log("Inviter found:", inviterUid);
-         } else {
-           console.log("No inviter found for code.");
-         }
-      }
-
-      const userData = {
-        fullName: data.fullName,
-        username: data.username,
-        email: data.email,
-        phoneNumber: data.phoneNumber,
-        balance: 507,
-        role: 'user',
-        createdAt: new Date().toISOString(),
-        profilePictureUrl: defaultAvatarBase64,
-        referredBy: inviterUid,
-        referralCode: generateReferralCode(),
-        referralCount: 0,
-        validReferralCount: 0,
-        totalReferralEarnings: 0
-      };
-
-      await setDoc(doc(db, 'users', user.uid), userData);
-      
-      // Notify Telegram
-      try {
-        await fetch('/api/telegram/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: `🎉 <b>New User Registered!</b>\n\n👤 <b>Username:</b> ${data.username}\n📞 <b>Phone:</b> ${data.phoneNumber}\n🔢 <b>UID:</b> <code>${user.uid}</code>\n🤝 <b>Referred By:</b> <code>${inviterUid || 'None'}</code>`
-          })
-        });
-      } catch (err) {
-        console.error("Telegram notification error", err);
-      }
-
-      if (inviterUid) {
-        try {
-          const inviterRef = doc(db, 'users', inviterUid);
-          await updateDoc(inviterRef, {
-            referralCount: increment(1),
-            validReferralCount: increment(1),
-            balance: increment(50),
-            totalReferralEarnings: increment(50)
-          });
-          await setDoc(doc(collection(db, 'transactions')), {
-            type: 'bonus',
-            status: 'approved',
-            uid: inviterUid,
-            amount: 50,
-            description: 'Referral Bonus (Email Signup)',
-            date: new Date().toISOString(),
-            createdAt: new Date().toISOString()
-          });
-          
-          // ADDED: Bonus for the new user
-          await updateDoc(doc(db, 'users', user.uid), {
-              balance: increment(50)
-          });
-          await setDoc(doc(collection(db, 'transactions')), {
-            type: 'bonus',
-            status: 'approved',
-            uid: user.uid,
-            amount: 50,
-            description: 'Referral Signup Bonus',
-            date: new Date().toISOString(),
-            createdAt: new Date().toISOString()
-          });
-        } catch (e) {
-          console.error("Inviter update failed:", e);
-        }
-        localStorage.removeItem('referralCode');
-      }
-      
-      setIsLoading(false);
-      onLoginSuccess({ id: user.uid, ...userData });
-      onRegisterSuccess();
-      showToast("অ্যাকাউন্ট তৈরি সফল হয়েছে", "success");
-    } catch (err: any) {
-      handleAuthError(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const onPasswordReset = async (data: ResetFormValues) => {
     setIsLoading(true);
@@ -605,26 +473,27 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
   };
 
   return (
-    <div className="min-h-[100dvh] bg-black flex flex-col items-center relative overflow-x-hidden font-sans safe-top safe-bottom">
+    <div className="min-h-[100dvh] bg-[#0a0f0d] flex flex-col items-center relative overflow-x-hidden font-sans safe-top safe-bottom">
+      
       {/* Header Banner */}
       <div className="w-full relative h-[250px] sm:h-[280px]">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#115e3c] to-black">
+        <div className="absolute inset-0 bg-gradient-to-b from-[#115e3c] to-[#0a0f0d]">
           {/* Subtle pattern overlay */}
-          <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)', backgroundSize: '10px 10px' }}></div>
+          <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)', backgroundSize: '10px 10px' }}></div>
         </div>
-        <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black to-transparent"></div>
+        <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#0a0f0d] to-transparent"></div>
         {/* Center Logo/Title in Banner */}
         <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pt-4">
           <img 
             src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/Flag_of_Bangladesh.svg/1000px-Flag_of_Bangladesh.svg.png" 
             alt="Bangladesh Flag" 
-            className="h-10 w-auto rounded-md shadow-2xl mb-4 border-2 border-white/20"
+            className="h-10 w-auto rounded-md shadow-2xl mb-4 border-2 border-yellow-500/20"
             referrerPolicy="no-referrer"
           />
-          <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600 drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)] italic tracking-tighter mb-2">
+          <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)] italic tracking-tighter mb-2">
             JETA<span className="text-red-500">9</span>
           </h1>
-          <div className="flex gap-1 items-center px-4 py-1.5 bg-green-900/50 border border-yellow-500/30 rounded-full backdrop-blur-sm">
+          <div className="flex gap-1 items-center px-4 py-1.5 bg-[#115e3c]/40 border border-yellow-500/30 rounded-full backdrop-blur-sm">
             <Gift size={14} className="text-yellow-400" />
             <span className="text-yellow-400 font-bold text-xs">স্বাগতম বোনাস ৳{welcomeBonus}</span>
           </div>
@@ -632,27 +501,6 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       </div>
 
       <div className="w-full max-w-md px-6 -mt-12 relative z-20 pb-24">
-        {/* Auth Mode Toggle */}
-        <div className="flex bg-[#0f172a]/80 backdrop-blur-xl p-1.5 rounded-2xl border border-white/5 mb-8 shadow-2xl relative">
-          <button 
-            onClick={() => setAuthMode('login')}
-            className={`flex-1 py-3.5 rounded-xl text-sm font-black transition-all duration-300 relative z-10 ${authMode === 'login' ? 'text-black shadow-lg shadow-yellow-500/20' : 'text-white/50 hover:text-white'}`}
-          >
-            {authMode === 'login' && (
-              <motion.div layoutId="auth-tab" className="absolute inset-0 bg-gradient-to-r from-yellow-400 to-yellow-600 rounded-xl -z-10" />
-            )}
-            লগইন
-          </button>
-          <button 
-            onClick={() => setAuthMode('register')}
-            className={`flex-1 py-3.5 rounded-xl text-sm font-black transition-all duration-300 relative z-10 ${authMode === 'register' ? 'text-black shadow-lg shadow-yellow-500/20' : 'text-white/50 hover:text-white'}`}
-          >
-            {authMode === 'register' && (
-              <motion.div layoutId="auth-tab" className="absolute inset-0 bg-gradient-to-r from-yellow-400 to-yellow-600 rounded-xl -z-10" />
-            )}
-            নিবন্ধন
-          </button>
-        </div>
 
         {/* Error Display */}
         {error && (
@@ -749,144 +597,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
             </motion.form>
           )}
 
-          {authMode === 'register' && (
-            <motion.form
-              key="register"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              onSubmit={handleSubmitSignup(onEmailRegister)}
-              className="space-y-4"
-            >
-              {/* Full Name Field */}
-              <div className="space-y-2">
-                <div className="relative group">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-yellow-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]"></div>
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-yellow-400 transition-colors">
-                    <User size={20} />
-                  </div>
-                  <input 
-                    {...registerSignup('fullName')}
-                    type="text" 
-                    placeholder="পুরো নাম দিন (Full Name)"
-                    className="w-full bg-[#111] border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white text-sm focus:border-yellow-500/50 outline-none transition-all placeholder:text-white/30 focus:bg-emerald-950/10 focus:shadow-[0_0_15px_rgba(234,179,8,0.1)]"
-                  />
-                </div>
-                {signupErrors.fullName && <p className="text-[10px] text-red-500 mt-1 ml-2 font-bold italic">! {signupErrors.fullName.message}</p>}
-              </div>
 
-              {/* Username Field */}
-              <div className="space-y-2">
-                <div className="relative group">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-yellow-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]"></div>
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-yellow-400 transition-colors">
-                    <User size={20} />
-                  </div>
-                  <input 
-                    {...registerSignup('username')}
-                    type="text" 
-                    placeholder="দয়া করে ব্যবহারকারী নাম দিন"
-                    className="w-full bg-[#111] border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white text-sm focus:border-yellow-500/50 outline-none transition-all placeholder:text-white/30 focus:bg-emerald-950/10 focus:shadow-[0_0_15px_rgba(234,179,8,0.1)]"
-                  />
-                </div>
-                {signupErrors.username && <p className="text-[10px] text-red-500 mt-1 ml-2 font-bold italic">! {signupErrors.username.message}</p>}
-              </div>
-
-              {/* Email Field */}
-              <div className="space-y-1">
-                <div className="relative group">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-yellow-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]"></div>
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-yellow-400 transition-colors">
-                    <Mail size={20} />
-                  </div>
-                  <input 
-                    {...registerSignup('email')}
-                    type="email" 
-                    placeholder="ইমেইল এড্রেস"
-                    className="w-full bg-[#111] border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white text-sm focus:border-yellow-500/50 outline-none transition-all placeholder:text-white/30 focus:bg-emerald-950/10 focus:shadow-[0_0_15px_rgba(234,179,8,0.1)]"
-                  />
-                </div>
-                {signupErrors.email && <p className="text-[10px] text-red-500 mt-1 ml-2 font-bold italic">! {signupErrors.email.message}</p>}
-              </div>
-
-              {/* Password Field */}
-              <div className="relative group">
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-yellow-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]"></div>
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-yellow-400 transition-colors">
-                  <Lock size={20} />
-                </div>
-                <input 
-                  {...registerSignup('password')}
-                  type={showPassword ? "text" : "password"} 
-                  placeholder="পাসওয়ার্ড"
-                  className="w-full bg-[#111] border border-white/10 rounded-xl py-4 pl-12 pr-12 text-white text-sm focus:border-yellow-500/50 outline-none transition-all placeholder:text-white/30 focus:bg-emerald-950/10 focus:shadow-[0_0_15px_rgba(234,179,8,0.1)]"
-                />
-                <button 
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-yellow-400 transition-colors"
-                >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-              <p className="text-[10px] text-white/40 ml-2">কমপক্ষে ৮ অক্ষর, একটি বড় হাতের অক্ষর, একটি সংখ্যা ও বিশেষ চিহ্ন থাকতে হবে।</p>
-              {signupErrors.password && <p className="text-[10px] text-red-500 mt-1 ml-2 font-bold italic">! {signupErrors.password.message}</p>}
-
-              {/* Confirm Password Field */}
-              <div className="relative group">
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-yellow-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]"></div>
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-yellow-400 transition-colors">
-                  <Lock size={20} />
-                </div>
-                <input 
-                  {...registerSignup('confirmPassword')}
-                  type={showConfirmPassword ? "text" : "password"} 
-                  placeholder="পাসওয়ার্ড নিশ্চিত করুন"
-                  className="w-full bg-[#111] border border-white/10 rounded-xl py-4 pl-12 pr-12 text-white text-sm focus:border-yellow-500/50 outline-none transition-all placeholder:text-white/30 focus:bg-emerald-950/10 focus:shadow-[0_0_15px_rgba(234,179,8,0.1)]"
-                />
-                <button 
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-yellow-400 transition-colors"
-                >
-                  {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-
-              {/* Mobile Number Field */}
-              <div className="space-y-1">
-                <div className="relative group">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-yellow-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]"></div>
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-yellow-400 transition-colors">
-                    <Smartphone size={20} />
-                  </div>
-                  <input 
-                    {...registerSignup('phoneNumber')}
-                    type="tel" 
-                    placeholder="মোবাইল নম্বর"
-                    className="w-full bg-[#111] border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white text-sm focus:border-yellow-500/50 outline-none transition-all placeholder:text-white/30 focus:bg-emerald-950/10 focus:shadow-[0_0_15px_rgba(234,179,8,0.1)]"
-                  />
-                </div>
-                {signupErrors.phoneNumber && <p className="text-[10px] text-red-500 mt-1 ml-2 font-bold italic">! {signupErrors.phoneNumber.message}</p>}
-              </div>
-
-              <div className="flex gap-4 pt-4">
-                <button 
-                  type="submit"
-                  disabled={isLoading}
-                  className="flex-1 bg-gradient-to-b from-[#25ab5e] to-[#0c6b32] py-4 rounded-xl text-white font-black text-lg shadow-[0_4px_15px_rgba(37,171,94,0.3)] hover:scale-[1.02] transition-all active:scale-95 flex items-center justify-center border border-emerald-400/30"
-                >
-                  {isLoading ? <Loader2 size={24} className="animate-spin" /> : 'নিবন্ধন'}
-                </button>
-                <button 
-                  type="reset"
-                  className="flex-1 bg-black/40 border border-[#25ab5e] py-4 rounded-xl text-[#25ab5e] font-black text-lg hover:bg-[#25ab5e]/10 transition-all active:scale-95"
-                >
-                  রিসেট
-                </button>
-              </div>
-            </motion.form>
-          )}
           {authMode === 'forgot-password' && (
             <motion.form
               key="forgot-password"
@@ -965,19 +676,6 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
           </div>
         </div>
 
-        {/* Toggle Auth Mode */}
-        <div className="mt-12 text-center pb-8">
-          <button 
-            onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
-            className="text-white/60 text-sm font-medium"
-          >
-            {authMode === 'login' ? (
-              <>এখনও কোনও অ্যাকাউন্ট নেই? <span className="text-green-500 font-bold">সাইন আপ</span></>
-            ) : (
-              <>ইতিমধ্যে একটি অ্যাকাউন্ট আছে? <span className="text-green-500 font-bold">লগইন</span></>
-            )}
-          </button>
-        </div>
       </div>
 
       {/* Success Popup */}
@@ -1008,8 +706,8 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
                 <p className="text-teal-400 font-bold text-lg mb-8">আপনার নিবন্ধন সফল হয়েছে</p>
 
                 <div className="bg-white/5 rounded-2xl p-4 mb-8 border border-white/5">
-                  <p className="text-gray-500 text-[10px] uppercase font-black tracking-widest mb-1">Welcome Bonus</p>
-                  <p className="text-yellow-400 text-3xl font-black">৳ {welcomeBonus.toFixed(2)}</p>
+                  <p className="text-gray-500 text-[10px] uppercase font-black tracking-widest mb-1">Registration Bonus</p>
+                  <p className="text-yellow-400 text-3xl font-black">৳ {isLoggedIn && auth.currentUser ? (authMode === 'vip-register' ? '707.00' : '507.00') : welcomeBonus.toFixed(2)}</p>
                 </div>
 
                 <button 
@@ -1034,7 +732,13 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       </AnimatePresence>
       {/* Footer Branding Area */}
       <div className="fixed bottom-0 left-0 right-0 bg-black py-4 text-center z-50 border-t border-white/10">
-        <p className="text-white font-bold tracking-widest text-lg">SPIN71 BET</p>
+        <div className="flex justify-center h-[24px]">
+          <img 
+             src="https://www.image2url.com/r2/default/images/1778760980937-340930dd-a7b6-4cbe-9ce0-331bc57c1614.png" 
+             alt="SPIN71 BET"
+             className="h-full w-auto object-contain opacity-80" 
+          />
+        </div>
       </div>
     </div>
   );

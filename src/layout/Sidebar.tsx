@@ -44,7 +44,7 @@ export default function Sidebar({
 
   return (
     <div 
-      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm transition-opacity"
+      className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm transition-opacity"
       onClick={onClose}
     >
       <motion.div 
@@ -57,8 +57,12 @@ export default function Sidebar({
         {/* Sidebar Header */}
         <div className="p-6 bg-gradient-to-b from-[#0f766e] to-[var(--bg-card)] border-b border-teal-600/50">
           <div className="flex items-center justify-between mb-6">
-            <div className="text-2xl font-black italic tracking-tighter bg-gradient-to-b from-yellow-200 via-yellow-400 to-yellow-600 text-transparent bg-clip-text">
-              {casinoName}
+            <div className="h-[30px] max-w-[120px]">
+              <img 
+                src="https://www.image2url.com/r2/default/images/1778760980937-340930dd-a7b6-4cbe-9ce0-331bc57c1614.png" 
+                alt={casinoName}
+                className="h-full w-auto object-contain drop-shadow-[0_0_8px_rgba(253,216,53,0.3)]" 
+              />
             </div>
             <button onClick={onClose} className="text-teal-200 hover:text-white">
               <X size={24} />

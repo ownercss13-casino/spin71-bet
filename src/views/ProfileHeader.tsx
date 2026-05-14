@@ -29,7 +29,7 @@ export default function ProfileHeader({ userData, profilePic, fileInputRef, hand
         {onShareProgress && (
           <button
             onClick={onShareProgress}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-teal-500 to-teal-400 text-black font-bold text-sm rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all"
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-yellow-500 to-yellow-400 text-black font-bold text-sm rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all"
           >
             <Share2 size={16} />
             <span className="hidden sm:inline">প্রগ্রেস শেয়ার</span>
@@ -47,7 +47,7 @@ export default function ProfileHeader({ userData, profilePic, fileInputRef, hand
               )}
             </div>
             <div className="absolute bottom-1 right-1 bg-white p-1.5 rounded-full shadow-lg">
-              <Camera size={16} className="text-teal-600" />
+              <Camera size={16} className="text-yellow-600" />
             </div>
           </div>
           <input type="file" ref={fileInputRef} onChange={handleProfilePicChange} accept="image/*" className="hidden" />

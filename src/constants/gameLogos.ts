@@ -1,75 +1,37 @@
 
 export const GAME_LOGO_URLS: Record<string, string> = {
   // JILI
-  'jili_1': 'https://example.com/logos/jili/super-ace.png',
-  'jili_2': 'https://example.com/logos/jili/golden-empire.png',
-  'jili_3': 'https://example.com/logos/jili/fortune-gems.png',
-  'jili_4': 'https://example.com/logos/jili/boxing-king.png',
-  'jili_5': 'https://example.com/logos/jili/money-coming.png',
-  'jili_6': 'https://example.com/logos/jili/charge-buffalo.png',
-  'jili_7': 'https://example.com/logos/jili/magic-lamp.png',
-  'jili_8': 'https://example.com/logos/jili/ali-baba.png',
-  'jili_9': 'https://example.com/logos/jili/crazy-777.png',
-  'jili_10': 'https://example.com/logos/jili/seven-seven-seven.png',
-  'jili_11': 'https://example.com/logos/jili/roma-x.png',
-  'jili_12': 'https://example.com/logos/jili/jungle-king.png',
-  'jili_13': 'https://example.com/logos/jili/crazy-hunter.png',
-  'jili_14': 'https://example.com/logos/jili/gem-party.png',
-  'jili_15': 'https://example.com/logos/jili/dragon-quest.png',
-  'jili_16': 'https://example.com/logos/jili/happy-taxi.png',
-  'jili_17': 'https://example.com/logos/jili/super-rich.png',
-  'jili_18': 'https://example.com/logos/jili/wild-ace.png',
-  'jili_19': 'https://example.com/logos/jili/bao-boon-chin.png',
-  'jili_20': 'https://example.com/logos/jili/night-city.png',
-  'jili_21': 'https://example.com/logos/jili/seven-seven-seven-2.png',
-  'jili_22': 'https://example.com/logos/jili/agent-ace.png',
+  'jili_1': 'https://www.jilislot.com/wp-content/uploads/2021/08/Golden-Empire.png',
+  'jili_2': 'https://www.jilislot.com/wp-content/uploads/2021/08/Fortune-Gems.png',
+  'jili_3': 'https://www.jilislot.com/wp-content/uploads/2021/08/Boxing-King.png',
+  'jili_4': 'https://www.jilislot.com/wp-content/uploads/2021/08/Money-Coming.png',
+  'jili_5': 'https://www.jilislot.com/wp-content/uploads/2021/08/Charge-Buffalo.png',
+  'jili_6': 'https://www.jilislot.com/wp-content/uploads/2021/08/Magic-Lamp.png',
+  'jili_7': 'https://www.jilislot.com/wp-content/uploads/2021/08/Ali-Baba.png',
+  'jili_8': 'https://www.jilislot.com/wp-content/uploads/2021/08/Crazy-777.png',
+  'jili_9': 'https://www.jilislot.com/wp-content/uploads/2021/08/Roma-X.png',
+  'jili_10': 'https://www.jilislot.com/wp-content/uploads/2021/08/Jungle-King.png',
 
   // PG
-  'pg_1': 'https://example.com/logos/pg/mahjong-ways.png',
-  'pg_2': 'https://example.com/logos/pg/mahjong-ways-2.png',
-  'pg_3': 'https://example.com/logos/pg/treasure-aztec.png',
-  'pg_4': 'https://example.com/logos/pg/lucky-neko.png',
-  'pg_5': 'https://example.com/logos/pg/wild-bandito.png',
-  'pg_6': 'https://example.com/logos/pg/dreams-macau.png',
-  'pg_7': 'https://example.com/logos/pg/caishen-wins.png',
-  'pg_8': 'https://example.com/logos/pg/egypts-book.png',
-  'pg_9': 'https://example.com/logos/pg/ganesha-fortune.png',
-  'pg_10': 'https://example.com/logos/pg/double-fortune.png',
-  'pg_11': 'https://example.com/logos/pg/dragon-hatch.png',
-  'pg_12': 'https://example.com/logos/pg/medusa.png',
-  'pg_13': 'https://example.com/logos/pg/heist-stakes.png',
-  'pg_14': 'https://example.com/logos/pg/candy-burst.png',
-  'pg_15': 'https://example.com/logos/pg/phoenix-rises.png',
-  'pg_16': 'https://example.com/logos/pg/circus-delight.png',
-  'pg_17': 'https://example.com/logos/pg/mahjong-ways-3.png',
-  'pg_18': 'https://example.com/logos/pg/fortune-gods.png',
-  'pg_19': 'https://example.com/logos/pg/gem-saviour.png',
-  'pg_20': 'https://example.com/logos/pg/hood-vs-wolf.png',
-  'pg_21': 'https://example.com/logos/pg/bikini-paradise.png',
-  'pg_22': 'https://example.com/logos/pg/ways-qilin.png',
+  'pg_1': 'https://www.pgsoft.com/en/games/68/poster/', // Mahjong Ways
+  'pg_2': 'https://www.pgsoft.com/en/games/74/poster/', // Mahjong Ways 2
+  'pg_3': 'https://www.pgsoft.com/en/games/84/poster/', // Treasure of Aztec
+  'pg_4': 'https://www.pgsoft.com/en/games/87/poster/', // Lucky Neko
+  'pg_5': 'https://www.pgsoft.com/en/games/98/poster/', // Wild Bandito
+  'pg_6': 'https://www.pgsoft.com/en/games/71/poster/', // Dreams of Macau
+  'pg_7': 'https://www.pgsoft.com/en/games/60/poster/', // Caishen Wins
+  'pg_8': 'https://www.pgsoft.com/en/games/111/poster/', // Ganesha Fortune
+  'pg_9': 'https://www.pgsoft.com/en/games/104/poster/', // Double Fortune
+  'pg_10': 'https://www.pgsoft.com/en/games/83/poster/', // Dragon Hatch
 
   // SPRIBE
-  'rocket_1': 'https://example.com/logos/spribe/space-rocket.png',
-  'spribe_2': 'https://example.com/logos/spribe/mines.png',
-  'spribe_3': 'https://example.com/logos/spribe/dice.png',
-  'spribe_4': 'https://example.com/logos/spribe/mini-roulette.png',
-  'spribe_5': 'https://example.com/logos/spribe/hilo.png',
-  'spribe_6': 'https://example.com/logos/spribe/plinko.png',
-  'spribe_7': 'https://example.com/logos/spribe/goal.png',
-  'spribe_8': 'https://example.com/logos/spribe/keno.png',
-  'spribe_9': 'https://example.com/logos/spribe/balloon.png',
-  'spribe_10': 'https://example.com/logos/spribe/coin-field.png',
-  'spribe_11': 'https://example.com/logos/spribe/scratch.png',
-  'spribe_12': 'https://example.com/logos/spribe/lucky-plane.png',
-  'spribe_13': 'https://example.com/logos/spribe/turbo-mines.png',
-  'spribe_14': 'https://example.com/logos/spribe/neon-dice.png',
-  'spribe_15': 'https://example.com/logos/spribe/space-hunt.png',
-  'spribe_16': 'https://example.com/logos/spribe/speed-roll.png',
-  'spribe_17': 'https://example.com/logos/spribe/tower.png',
-  'spribe_18': 'https://example.com/logos/spribe/crystal.png',
+  'rocket_1': 'https://spribe.co/games/aviator-logo.png',
+  'spribe_2': 'https://spribe.co/games/mines-logo.png',
+  'spribe_3': 'https://spribe.co/games/dice-logo.png',
+  'spribe_4': 'https://spribe.co/games/hilo-logo.png',
+  'spribe_5': 'https://spribe.co/games/plinko-logo.png',
 
   // Evolution Casino
-  'evo_1': 'https://example.com/logos/evolution/crazy-time.png',
-  'evo_2': 'https://example.com/logos/evolution/lightning-roulette.png',
-  // ... and so on
+  'evo_1': 'https://www.evolution.com/wp-content/uploads/2020/06/Crazy-Time.png',
+  'evo_2': 'https://www.evolution.com/wp-content/uploads/2020/06/Lightning-Roulette.png',
 };

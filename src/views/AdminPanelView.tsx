@@ -66,6 +66,7 @@ import {
   Cell
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
+import { games, PROVIDERS } from '../constants/games';
 
 interface AdminPanelViewProps {
   onBack: () => void;
@@ -294,6 +295,28 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
     }
   };
 
+  const handleDeleteAllUsers = async () => {
+    if (!window.confirm('WARNING: Are you sure you want to delete ALL users? This action is irreversible.')) return;
+    
+    setIsLoading(true);
+    try {
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+      for (const userDoc of usersSnapshot.docs) {
+        // Here we would ideally delete the user document AND their subcollections.
+        // For simplicity, we just delete the main user doc, but be aware this leaves subcollections orphaned.
+        // In a real production app, use a Firebase Function for atomic cleanup.
+        await updateDoc(userDoc.ref, { status: 'deleted', deletedAt: serverTimestamp() });
+        // Instead of outright deletion, setting a status is safer until verified
+      }
+      showToast('All users have been marked as deleted.', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to delete users', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleUpdateRole = async (userId: string, newRole: string) => {
     try {
       await updateDoc(doc(db, 'users', userId), {
@@ -419,6 +442,7 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
                   onSelectUser={setSelectedUser}
                   onMessageUser={setMessagingUser}
                   onAddUser={props.onAddUser}
+                  onDeleteAllUsers={handleDeleteAllUsers}
                 />
               )}
               {activeTab === 'deposits' && (
@@ -675,7 +699,7 @@ function MetricCard({ label, value, icon: Icon, color }: any) {
   );
 }
 
-function UserManagement({ users, searchQuery, setSearchQuery, onToggleBan, onAdjustBalance, onUpdateRole, onSelectUser, onMessageUser, onAddUser }: any) {
+function UserManagement({ users, searchQuery, setSearchQuery, onToggleBan, onAdjustBalance, onUpdateRole, onSelectUser, onMessageUser, onAddUser, onDeleteAllUsers }: any) {
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [newUserData, setNewUserData] = useState({ username: '', password: '', role: 'user', balance: 0 });
   const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest');
@@ -732,6 +756,13 @@ function UserManagement({ users, searchQuery, setSearchQuery, onToggleBan, onAdj
         >
           <UserPlus size={18} />
           Add New User
+        </button>
+        <button 
+          onClick={onDeleteAllUsers}
+          className="bg-rose-600 hover:bg-rose-700 text-white px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-rose-500/20"
+        >
+          <Trash2 size={18} />
+          Delete All Users
         </button>
       </div>
 
@@ -1116,23 +1147,52 @@ function TransactionList({ title, trxs, onApprove, onReject, isLoading }: any) {
 }
 
 function GameManagement(props: AdminPanelViewProps) {
-  const games = [
-    { id: '2', title: 'Rocket (Original)', category: 'Original' },
-    { id: '3', title: 'Slots Deluxe', category: 'Slots' },
-    { id: '4', title: 'Crash Mania', category: 'Original' },
-    { id: '6', title: 'Mines', category: 'Original' },
-    { id: '7', title: 'Plinko', category: 'Original' },
-    { id: '8', title: 'Fishing King', category: 'Fishing' },
-    { id: '9', title: 'Live Baccarat', category: 'Live' },
-    { id: '10', title: 'Roulette Master', category: 'Table' },
-    { id: '11', title: 'Evolution Live', category: 'Live' },
-    { id: '12', title: 'PP Slots', category: 'Slots' }
-  ];
+  const [selectedProvider, setSelectedProvider] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredGames = games.filter(game => {
+    const matchesProvider = selectedProvider === 'ALL' || game.provider === selectedProvider;
+    const matchesSearch = game.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          game.id.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesProvider && matchesSearch;
+  });
 
   return (
     <div className="space-y-6">
+      {/* Filters */}
+      <div className="flex flex-col gap-4 mb-8">
+        <div className="relative group">
+          <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-teal-400 group-focus-within:text-emerald-400 transition-colors">
+            <Search size={18} />
+          </div>
+          <input 
+            type="text"
+            placeholder="গেমের নাম বা আইডি দিয়ে খুঁজুন..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-[#0d9488]/50 border border-white/10 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold text-white placeholder-teal-300 focus:outline-none focus:border-emerald-500 transition-all shadow-inner"
+          />
+        </div>
+
+        <div className="flex overflow-x-auto gap-2 pb-2 no-scrollbar">
+          {PROVIDERS.map(p => (
+            <button
+              key={p.id}
+              onClick={() => setSelectedProvider(p.id)}
+              className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all shrink-0 ${
+                selectedProvider === p.id 
+                ? 'bg-yellow-500 text-black shadow-[0_0_15px_rgba(234,179,8,0.3)]' 
+                : 'bg-white/5 text-teal-300 hover:bg-white/10'
+              }`}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {games.map(game => (
+        {filteredGames.map(game => (
           <div key={game.id} className="bg-[#0d9488] p-6 rounded-[32px] border border-white/10 shadow-xl space-y-4">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 bg-white/5 rounded-2xl overflow-hidden relative border border-white/10 group">
@@ -1141,6 +1201,7 @@ function GameManagement(props: AdminPanelViewProps) {
                 ) : (
                    <div className="w-full h-full flex items-center justify-center text-teal-300">
                       <ImageIcon size={24} />
+                      <img src={game.image} alt="Ref" className="absolute inset-0 opacity-20 pointer-events-none object-cover" />
                    </div>
                 )}
                 <label className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
@@ -1162,7 +1223,7 @@ function GameManagement(props: AdminPanelViewProps) {
               </div>
               <div className="flex-1">
                 <input 
-                  defaultValue={props.globalNames[game.id] || game.title}
+                  defaultValue={props.globalNames[game.id] || game.name}
                   onBlur={(e) => props.updateGlobalGameName(game.id, e.target.value)}
                   className="w-full bg-transparent border-b border-white/10 focus:border-emerald-500 text-sm font-black text-white uppercase tracking-tight outline-none py-1"
                   placeholder="Game Name"
@@ -1234,31 +1295,56 @@ function NotificationManagement({ showToast, users }: { showToast: any, users: a
     
     setIsSending(true);
     try {
-      const res = await fetch('/api/admin/notifications', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('adminToken') || 'owner.css13'}`
-        },
-        body: JSON.stringify({
-          targetUserId,
+      if (targetUserId === 'all') {
+        // Global notification
+        const usersSnapshot = await getDocs(collection(db, 'users'));
+        let count = 0;
+        const promises = [];
+        for (const userDoc of usersSnapshot.docs) {
+          const timestamp = new Date().toISOString();
+          const notifData = {
+            title,
+            message,
+            type,
+            url,
+            read: false,
+            createdAt: timestamp,
+            date: timestamp
+          };
+          const notifRef = doc(collection(db, 'users', userDoc.id, 'notifications'));
+          promises.push(setDoc(notifRef, notifData));
+          
+          count++;
+          if (count % 100 === 0) {
+            await Promise.all(promises);
+            promises.length = 0;
+          }
+        }
+        if (promises.length > 0) {
+          await Promise.all(promises);
+        }
+      } else {
+        // Personal notification
+        const timestamp = new Date().toISOString();
+        const notifData = {
           title,
           message,
           type,
-          url
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast('Notification sent successfully', 'success');
-        setTitle('');
-        setMessage('');
-        setUrl('');
-      } else {
-        throw new Error(data.error);
+          url,
+          read: false,
+          createdAt: timestamp,
+          date: timestamp
+        };
+        const notifRef = doc(collection(db, 'users', targetUserId, 'notifications'));
+        await setDoc(notifRef, notifData);
       }
+      
+      showToast('Notification sent successfully', 'success');
+      setTitle('');
+      setMessage('');
+      setUrl('');
     } catch (err: any) {
-      showToast(err.message, 'error');
+      showToast(err.message || "Failed to send notification", 'error');
     } finally {
       setIsSending(false);
     }
@@ -1357,7 +1443,7 @@ function GlobalSettings(props: AdminPanelViewProps) {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await updateDoc(doc(db, 'metadata', 'settings'), {
+      await setDoc(doc(db, 'metadata', 'settings'), {
         casinoName: props.casinoName,
         noticeText: props.noticeText,
         minDeposit: props.minDeposit,
@@ -1365,7 +1451,18 @@ function GlobalSettings(props: AdminPanelViewProps) {
         welcomeBonus: props.welcomeBonus,
         telegramLink: props.telegramLink,
         updatedAt: serverTimestamp()
-      });
+      }, { merge: true });
+      
+      try {
+        await setDoc(doc(db, 'config', 'main'), {
+          casinoName: props.casinoName,
+          noticeText: props.noticeText,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (e) {
+        console.warn("Could not save config/main", e);
+      }
+      
       props.showToast('Global settings updated!', 'success');
     } catch (err) {
       console.error("Save settings error:", err);

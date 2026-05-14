@@ -193,7 +193,7 @@ export default function LearningProgressView({ userData }: LearningProgressViewP
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: "100%", opacity: 0 }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="bg-[#0b5c4b] border-t sm:border border-teal-700/50 rounded-t-[40px] sm:rounded-[40px] p-6 sm:p-8 w-full max-w-lg relative shadow-2xl overflow-hidden max-h-[85vh] flex flex-col"
+              className="bg-[#0d1a29] border-t sm:border border-[#1e3a5f]/50 rounded-t-[40px] sm:rounded-[40px] p-6 sm:p-8 w-full max-w-lg relative shadow-2xl overflow-hidden max-h-[85vh] flex flex-col"
               onClick={e => e.stopPropagation()}
             >
               <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-6 sm:hidden"></div>

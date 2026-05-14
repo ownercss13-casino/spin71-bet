@@ -172,53 +172,76 @@ export default function HomeView({
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-x-hidden pb-20">
       {/* Main Header - SPIN71.BET Style */}
-      <header className="flex items-center justify-between px-3 py-2 bg-[#14253a] sticky top-0 z-[100] border-b border-[#1e3a5f]">
+      <header className="flex items-center justify-between px-4 py-3 bg-[#0d1a29] sticky top-0 z-[110] border-b border-[#1e3a5f] shadow-lg backdrop-blur-md">
         <div className="flex items-center gap-3">
-          <button className="text-[#90a4ae]" onClick={() => setIsSidebarOpen(true)}>
-            <Menu size={24} />
-          </button>
-          <h1 
-            className="text-2xl font-black italic tracking-tighter"
-            style={{ color: '#fdd835', WebkitTextStroke: '1px #fdd835' }}
+          <button 
+            className="text-[#90a4ae] hover:text-[#00e5ff] transition-colors p-1" 
+            onClick={() => setIsSidebarOpen(true)}
           >
-            SPIN71.BET
-          </h1>
+            <Menu size={26} />
+          </button>
+          <div className="flex flex-col items-center justify-center ml-2 pt-2 pb-1 gap-3">
+            <img 
+              src="https://www.image2url.com/r2/default/images/1778760980937-340930dd-a7b6-4cbe-9ce0-331bc57c1614.png" 
+              alt="Logo"
+              className="h-[60px] md:h-[70px] w-auto object-contain drop-shadow-[0_0_10px_rgba(253,216,53,0.4)] transform scale-125" 
+            />
+            <span className="text-[12px] md:text-[14px] font-black text-transparent bg-clip-text bg-gradient-to-r from-[#fdd835] via-white to-[#fdd835] tracking-[0.2em] drop-shadow-md">
+              SPIN71
+            </span>
+          </div>
         </div>
+        
         <div className="flex items-center gap-2">
           {userData ? (
-            <div className="flex items-center gap-2 bg-[#0d1a29] px-3 py-1.5 rounded-lg border border-[#1e3a5f]">
-              <p className="text-sm font-bold text-white">৳ {balance.toLocaleString()}</p>
-              <div 
-                className="w-7 h-7 rounded-full bg-[#fdd835] flex items-center justify-center text-black font-black text-xs cursor-pointer"
-                onClick={() => onNavigate?.('profile')}
-              >
-                {userData.username?.[0]?.toUpperCase() || 'U'}
+            <div 
+              className="flex items-center gap-2 bg-gradient-to-r from-[#14253a] to-[#0d1a29] px-3 py-1.5 rounded-2xl border border-yellow-500/30 shadow-[0_0_15px_rgba(0,0,0,0.5)] active:scale-95 transition-transform"
+              onClick={() => onNavigate?.('wallet')}
+            >
+              <div className="flex flex-col items-end">
+                <span className="text-[10px] text-gray-500 font-black tracking-tighter leading-none">BALANCE</span>
+                <p className="text-sm font-black text-[#fdd835] tracking-tight">৳ {balance.toLocaleString()}</p>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 p-[1px] shadow-lg">
+                <div 
+                  className="w-full h-full rounded-full bg-[#0d1a29] flex items-center justify-center text-[#fdd835] font-black text-xs"
+                >
+                  {userData.username?.[0]?.toUpperCase() || 'U'}
+                </div>
               </div>
             </div>
           ) : (
             <div className="flex items-center gap-2">
               <button 
                 onClick={onOpenLogin}
-                className="bg-[#0d6efd] px-4 py-1.5 rounded text-sm font-black text-white hover:opacity-90"
+                className="bg-transparent border border-[#1e3a5f] px-4 py-2 rounded-xl text-[10px] font-black text-[#90a4ae] hover:text-white transition-colors"
               >
-                Login
+                LOGIN
               </button>
               <button 
                 onClick={onOpenLogin}
-                className="bg-transparent border border-[#4f5b66] px-3 py-1.5 rounded text-sm font-black text-white hover:bg-white/10"
+                className="bg-gradient-to-r from-yellow-400 to-yellow-600 px-5 py-2 rounded-xl text-[10px] font-black text-black hover:scale-105 transition-transform"
               >
-                Register
+                JOIN NOW
               </button>
             </div>
           )}
-          <button className="text-[#90a4ae] ml-1"><Search size={22} /></button>
+          <button 
+            className="w-10 h-10 flex items-center justify-center text-[#90a4ae] hover:text-[#00e5ff] transition-colors relative"
+            onClick={() => setIsNotificationCenterOpen(true)}
+          >
+            <Bell size={22} />
+            {unreadNotificationsCount > 0 && (
+              <span className="absolute top-2 right-2 w-4 h-4 bg-red-600 text-white text-[8px] font-black flex items-center justify-center rounded-full border border-[#0d1a29]">
+                {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+              </span>
+            )}
+          </button>
         </div>
       </header>
 
       {/* Hero Banner Area */}
-      <div className="px-3 py-3">
-         <Banner />
-      </div>
+      {/* Banner removed as requested */}
 
       {/* Scrolling Notice Bar */}
       <div className="bg-[#1a2f4a] px-3 py-2 flex items-center gap-2 border-b border-[#1e3a5f]">

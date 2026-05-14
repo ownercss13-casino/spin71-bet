@@ -220,7 +220,7 @@ export default function WithdrawalHistoryTab({ userData, onBack }: WithdrawalHis
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="bg-[#0b5c4b] border border-teal-700/50 rounded-[40px] p-8 w-full max-w-sm relative shadow-2xl overflow-hidden shadow-orange-500/5"
+              className="bg-[#0d1a29] border border-[#1e3a5f]/50 rounded-[40px] p-8 w-full max-w-sm relative shadow-2xl overflow-hidden shadow-orange-500/5"
               onClick={e => e.stopPropagation()}
             >
               <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/5 rounded-full blur-3xl -mr-16 -mt-16"></div>

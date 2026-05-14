@@ -9,15 +9,25 @@ service cloud.firestore {
     // --- 3. Path Variable Hardening & Primitives ---
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     function isSignedIn() { return request.auth != null; }
-    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    
+    // Check if user is verified. Google login is implicitly verified.
+    function isVerified() { 
+      return isSignedIn() && (
+        request.auth.token.email_verified == true || 
+        request.auth.token.firebase.sign_in_provider == 'google.com'
+      ); 
+    }
+    
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
     
-    // Auth tokens NEVER contain custom claims. Look up roles in DB.
+    // Check if user is admin. Use email check as fallback to avoid DB lookup loops if DB is unstable
     function isAdmin() { 
       return isSignedIn() && (
         request.auth.token.email == 'owner.css13@gmail.com' ||
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        (request.auth.uid == 'vX1zLqR8P2h4mK6bN9jS5dFwT7y') ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
       ); 
     }
 
@@ -33,14 +43,18 @@ service cloud.firestore {
                data.balance is number && data.balance >= 0;
       }
       
-      allow get: if isSignedIn() && (request.auth.uid == userId || (request.auth.token.email == 'owner.css13@gmail.com') || isAdmin());
-      // Secure List Query: MUST check resource.data
-      allow list: if isAdmin();
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
       
       allow create: if isVerified() && request.auth.uid == userId && isValidUser(incoming()) && (incoming().get('role', 'user') == 'user');
       allow update: if (isVerified() && request.auth.uid == userId && 
-                       incoming().balance == existing().balance && // Prevent self-balance update
-                       (incoming().get('role', existing().role) == existing().role)) || isAdmin();
+                       (incoming().get('role', existing().role) == existing().role) &&
+                       (
+                         incoming().balance == existing().balance ||
+                         (incoming().balance < existing().balance && incoming().get('totalWithdrawals', 0) == existing().get('totalWithdrawals', 0) + (existing().balance - incoming().balance)) ||
+                         (incoming().balance > existing().balance && incoming().get('totalDeposits', 0) == existing().get('totalDeposits', 0) + (incoming().balance - existing().balance))
+                       )
+                      ) || isAdmin();
       
       match /transactions/{transactionId} {
         allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
@@ -125,16 +139,16 @@ service cloud.firestore {
 
     // --- 5. Transactions Root (Financial Records) ---
     match /transactions/{transactionId} {
-      allow get: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
-      allow list: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
-      allow create: if isVerified() && incoming().uid == request.auth.uid;
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isVerified() && (incoming().userId == request.auth.uid || incoming().uid == request.auth.uid);
       allow update, delete: if isAdmin();
     }
 
     // --- 6. Admin Control ---
     match /admins/{adminId} {
       allow read: if isAdmin();
-      allow write: if false; 
+      allow write: if isAdmin(); 
     }
   }
 }

@@ -30,10 +30,10 @@ export default function ProfileNavigation({ activeSubTab, handleSubTabChange }: 
           className={`relative flex flex-col items-center justify-center min-w-[90px] py-3 px-2 rounded-2xl text-[10px] font-black uppercase tracking-tighter transition-all duration-300 gap-1.5 ${
             activeSubTab === tab.id 
               ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-black shadow-[0_8px_20px_rgba(234,179,8,0.3)]' 
-              : 'bg-teal-900/40 text-teal-300 border border-teal-700/50 hover:bg-teal-800/60'
+              : 'bg-[#14253a]/40 text-[#90a4ae] border border-[#1e3a5f]/50 hover:bg-[#1c324e]/60'
           }`}
         >
-          <tab.icon size={18} className={activeSubTab === tab.id ? 'text-black' : 'text-teal-400'} />
+          <tab.icon size={18} className={activeSubTab === tab.id ? 'text-black' : 'text-[#fdd835]'} />
           <span className="whitespace-nowrap">{tab.label}</span>
           {activeSubTab === tab.id && (
             <motion.div

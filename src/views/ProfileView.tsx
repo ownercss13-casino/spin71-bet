@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 
 import { db, auth } from '../services/firebase';
-import { collection, query, where, getDocs, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, onSnapshot, serverTimestamp, runTransaction, doc } from 'firebase/firestore';
 import { 
   signInWithEmailAndPassword, 
   sendEmailVerification, 
@@ -458,7 +458,7 @@ export default function ProfileView({
   const profileData = userData;
 
   return (
-    <div className="flex-1 flex flex-col overflow-y-auto pb-20 bg-[#0b5c4b]">
+    <div className="flex-1 flex flex-col overflow-y-auto pb-20 bg-[#0d1a29]">
       {selectedImage && (
         <ImageCropper 
           image={selectedImage} 
@@ -567,9 +567,9 @@ export default function ProfileView({
                 <Gift size={32} />
               </div>
               <h3 className="text-2xl font-black text-white italic">পুরস্কার সেন্টার</h3>
-              <p className="text-teal-400 text-xs font-bold uppercase tracking-widest mt-2">Reward Center</p>
+              <p className="text-[#90a4ae] text-xs font-bold uppercase tracking-widest mt-2">Reward Center</p>
             </div>
-            <p className="text-teal-300 text-sm">আপনার বোনাস এবং পুরস্কার এখানে দেখুন।</p>
+            <p className="text-white/70 text-sm">আপনার বোনাস এবং পুরস্কার এখানে দেখুন।</p>
             <button onClick={() => onTabChange('bonus')} className="w-full bg-yellow-500 text-black font-black italic uppercase tracking-widest py-4 rounded-2xl shadow-xl shadow-yellow-500/20">বোনাস সেন্টারে যান</button>
           </div>
         )}
@@ -586,11 +586,11 @@ export default function ProfileView({
                 <Percent size={32} />
               </div>
               <h3 className="text-2xl font-black text-white italic">রিবেট (Rebate)</h3>
-              <p className="text-teal-400 text-xs font-bold uppercase tracking-widest mt-2">Cashback & Commission</p>
+              <p className="text-[#90a4ae] text-xs font-bold uppercase tracking-widest mt-2">Cashback & Commission</p>
             </div>
-            <p className="text-teal-300 text-sm">আপনার ক্যাশব্যাক এবং কমিশন এখানে দেখুন।</p>
-            <div className="bg-teal-900/20 p-8 rounded-[32px] border border-teal-800/30 shadow-inner">
-              <p className="text-teal-500 text-[10px] uppercase font-black tracking-[0.2em] mb-2">মোট রিবেট আয়</p>
+            <p className="text-white/70 text-sm">আপনার ক্যাশব্যাক এবং কমিশন এখানে দেখুন।</p>
+            <div className="bg-[#14253a]/20 p-8 rounded-[32px] border border-[#1e3a5f]/30 shadow-inner">
+              <p className="text-[#90a4ae] text-[10px] uppercase font-black tracking-[0.2em] mb-2">মোট রিবেট আয়</p>
               <p className="text-4xl font-black text-white italic">৳ {totals.rebate.toLocaleString()}</p>
             </div>
           </div>
@@ -1194,6 +1194,7 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
   const [accountNumber, setAccountNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [verificationStep, setVerificationStep] = useState(false);
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [captchaCode, setCaptchaCode] = useState('');
   const [userCaptcha, setUserCaptcha] = useState('');
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
@@ -1262,9 +1263,8 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
     }
     setIsSubmitting(false);
 
-    // Move to verification step
-    generateCaptcha();
-    setVerificationStep(true);
+    // Show confirmation modal
+    setShowConfirmationModal(true);
   };
 
   const confirmWithdraw = async () => {
@@ -1275,49 +1275,69 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
     }
 
     setIsSubmitting(true);
-    const trxId = `WTH-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
     const withdrawAmount = parseFloat(amount);
     const selectedCard = bankCards[currentCardIndex] || bankCards[0];
 
     try {
-      // Simulate real bank/crypto communication time for VIP feel
-      await new Promise(resolve => setTimeout(resolve, 3500));
+      const user = auth.currentUser;
+      if (!user) throw new Error("ব্যবহারকারী লগইন অবস্থায় নেই");
 
-      // Send Telegram Notification
-      try {
-        await fetch('/api/telegram/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: `💸 <b>New Withdrawal Request!</b>\n\n👤 <b>User:</b> <code>${userData?.id || 'Unknown'}</code>\n💰 <b>Amount:</b> ৳${withdrawAmount}\n🏦 <b>Method:</b> ${selectedCard?.bankName || 'Bank Card'}\n💳 <b>Account:</b> ${selectedCard?.accountNumber || ''}\n🔖 <b>TxID:</b> <code>${trxId}</code>`
-          })
+      const uid = user.uid;
+      const userRef = doc(db, 'users', uid);
+      const targetMethod = selectedCard?.bankName || 'Bank Card';
+      const targetAccount = selectedCard?.accountNumber || '';
+      const newTrxId = `WTH-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
+      await runTransaction(db, async (transaction) => {
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists()) throw new Error("User not found");
+        
+        const userData = userDoc.data() as any;
+        if (userData.isBlocked) throw new Error("আপনার অ্যাকাউন্ট ব্লক করা হয়েছে");
+        
+        const currentBalance = userData.balance || 0;
+        if (currentBalance < withdrawAmount) {
+          throw new Error("অপর্যাপ্ত ব্যালেন্স (Insufficient balance)");
+        }
+
+        const currentWithdrawals = userData.totalWithdrawals || 0;
+        
+        // 1. Deduct balance
+        transaction.update(userRef, {
+          balance: currentBalance - withdrawAmount,
+          totalWithdrawals: currentWithdrawals + withdrawAmount,
+          updatedAt: serverTimestamp()
         });
-      } catch (err) {
-        console.error("Telegram notification error", err);
-      }
-
-      if (onAddTransaction) {
-        await onAddTransaction({
-          trxId,
+        
+        // 2. Create withdrawal transaction in global collection
+        const txData = {
+          trxId: newTrxId,
           type: 'withdrawal',
-          amount: withdrawAmount,
-          method: selectedCard?.bankName || 'Bank Card',
-          accountNumber: selectedCard?.accountNumber || '',
+          amount: -withdrawAmount,
+          method: targetMethod,
+          accountNumber: targetAccount,
           status: 'pending',
           statusColor: 'text-amber-600',
-          createdAt: new Date().toISOString()
-        });
+          userId: uid,
+          username: userData.username || 'Anonymous',
+          createdAt: serverTimestamp(),
+          date: new Date().toISOString()
+        };
+        
+        const globalTxRef = doc(db, 'transactions', newTrxId);
+        transaction.set(globalTxRef, txData);
+      });
+
+      // Synchronize frontend balance if possible via the onUpdateUser callback
+      if (onUpdateUser) {
+         onUpdateUser({ balance: balance - withdrawAmount });
       }
 
-      if (onUpdateUser) {
-        await onUpdateUser({
-          balance: balance - withdrawAmount
-        });
-      }
       showToast('উত্তোলন রিকোয়েস্ট সফল হয়েছে! আপনার অ্যাকাউন্টে টাকা পৌঁছে যাবে।', 'success');
       onBack();
-    } catch (error) {
-      showToast('উত্তোলন রিকোয়েস্ট ব্যর্থ হয়েছে। আবার চেষ্টা করুন।', 'error');
+    } catch (error: any) {
+      console.error("Withdrawal error:", error);
+      showToast(error.message || 'উত্তোলন রিকোয়েস্ট ব্যর্থ হয়েছে। আবার চেষ্টা করুন।', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -1536,6 +1556,66 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
         )}
       </div>
       <VIPLoader isVisible={isSubmitting} type="withdraw" />
+      
+      {/* Confirmation Modal */}
+      {showConfirmationModal && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-[#1d7470] rounded-xl p-6 w-full max-w-sm border border-[#319b96]/30 shadow-2xl"
+          >
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-[#ffc107]/20 text-[#ffc107] rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-white">Confirm Withdrawal</h3>
+              <p className="text-white/70 text-sm mt-1">Please review your withdrawal details</p>
+            </div>
+
+            <div className="bg-[#21817d] rounded-lg p-4 space-y-3 mb-6">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-white/70">Amount:</span>
+                <span className="text-white font-bold text-lg">৳ {amount}</span>
+              </div>
+              <div className="h-[1px] bg-white/10" />
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-white/70">Method:</span>
+                <span className="text-[#ffc107] font-bold">{bankCards[currentCardIndex]?.bankName || 'Bank Card'}</span>
+              </div>
+              <div className="h-[1px] bg-white/10" />
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-white/70">Account:</span>
+                <span className="text-white font-bold">{bankCards[currentCardIndex]?.accountNumber || ''}</span>
+              </div>
+              <div className="h-[1px] bg-white/10" />
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-white/70">Name:</span>
+                <span className="text-white font-bold">{bankCards[currentCardIndex]?.accountHolderName || ''}</span>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setShowConfirmationModal(false)}
+                className="flex-1 py-3 rounded text-white font-bold bg-[#b64b14] hover:bg-[#de5b1a] transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  setShowConfirmationModal(false);
+                  generateCaptcha();
+                  setVerificationStep(true);
+                }}
+                className="flex-1 py-3 rounded text-white font-bold bg-[#f5661d] hover:bg-[#de5b1a] transition-colors"
+              >
+                Proceed
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1641,12 +1721,12 @@ function ProfileTab({
   }, [userData, isSortedAZ]);
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-6 duration-700 bg-[#FBFBFB] min-h-screen pb-24 font-sans relative overflow-x-hidden">
+    <div className="animate-in fade-in slide-in-from-bottom-6 duration-700 bg-[#0d1a29] min-h-screen pb-24 font-sans relative overflow-x-hidden">
       {/* Dynamic Background Elements */}
       <div className="absolute top-0 right-[-20%] w-96 h-96 bg-amber-100/30 rounded-full blur-[100px] -z-10 animate-float" />
       
       {/* Header */}
-      <div className="backdrop-blur-xl bg-white/60 px-6 py-4 flex items-center sticky top-0 z-[60] border-b border-white/20">
+      <div className="backdrop-blur-xl bg-[#14253a]/60 px-6 py-4 flex items-center sticky top-0 z-[60] border-b border-[#1e3a5f]/20">
         <button 
           onClick={onBack} 
           className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-gray-800 hover:scale-110 active:scale-95 transition-all"
@@ -1936,8 +2016,8 @@ function DepositHistoryTab({ userData, onBack }: { userData?: any, onBack: () =>
             ))
         ) : (
           <div className="bg-teal-900/20 p-8 rounded-[32px] border border-teal-800/30 text-center shadow-inner">
-            <ArrowDownLeft size={48} className="text-teal-700 mx-auto mb-4" />
-            <p className="text-teal-400 text-sm font-bold">কোনো জমার রেকর্ড নেই</p>
+            <ArrowDownLeft size={48} className="text-[#1c324e] mx-auto mb-4" />
+            <p className="text-[#90a4ae] text-sm font-bold">কোনো জমার রেকর্ড নেই</p>
           </div>
         )}
       </div>
@@ -2043,8 +2123,8 @@ function AccountRecordTab({ userData, onBack }: { userData?: any, onBack: () => 
             ))
         ) : (
           <div className="bg-teal-900/20 p-8 rounded-[32px] border border-teal-800/30 text-center shadow-inner">
-            <ClipboardList size={48} className="text-teal-700 mx-auto mb-4" />
-            <p className="text-teal-400 text-sm font-bold">কোনো অ্যাকাউন্টের রেকর্ড নেই</p>
+            <ClipboardList size={48} className="text-[#1c324e] mx-auto mb-4" />
+            <p className="text-[#90a4ae] text-sm font-bold">কোনো অ্যাকাউন্টের রেকর্ড নেই</p>
           </div>
         )}
       </div>
@@ -2256,10 +2336,10 @@ function OverviewTab(props: OverviewTabProps) {
   ];
 
   const mainList: { title: string; subtitle?: string; icon: any; action: () => void; color: string; badge?: string }[] = [
-    { title: 'প্রচার', subtitle: 'শেয়ার করুন~ কমিশন পান', icon: Megaphone, action: () => onTabChange('invite'), color: 'text-teal-500' },
-    { title: 'বেট হিস্ট্রি (History)', subtitle: 'আপনার সকল বেটের তালিকা', icon: HistoryIcon, action: () => onTabChange('history'), color: 'text-teal-500' },
-    { title: 'রেফারেল ড্যাশবোর্ড', subtitle: 'Referral metrics and share links', icon: Users, action: () => onSubTabChange('referral-dashboard'), color: 'text-teal-500' },
-    { title: 'সাপোর্ট (Support)', icon: Headset, action: () => setIsChatOpen?.(true), color: 'text-teal-500' },
+    { title: 'প্রচার', subtitle: 'শেয়ার করুন~ কমিশন পান', icon: Megaphone, action: () => onTabChange('invite'), color: 'text-yellow-500' },
+    { title: 'বেট হিস্ট্রি (History)', subtitle: 'আপনার সকল বেটের তালিকা', icon: HistoryIcon, action: () => onTabChange('history'), color: 'text-yellow-500' },
+    { title: 'রেফারেল ড্যাশবোর্ড', subtitle: 'Referral metrics and share links', icon: Users, action: () => onSubTabChange('referral-dashboard'), color: 'text-yellow-500' },
+    { title: 'সাপোর্ট (Support)', icon: Headset, action: () => setIsChatOpen?.(true), color: 'text-yellow-500' },
   ];
 
   if (userData?.role === 'admin' || userData?.isAdmin === true) {
@@ -2283,17 +2363,17 @@ function OverviewTab(props: OverviewTabProps) {
   }
 
   mainList.push(
-    { title: 'প্রোফাইল', icon: UserCircle, action: () => onSubTabChange('profile'), color: 'text-teal-500' },
-    { title: 'নিরাপত্তা কেন্দ্র', icon: ShieldCheck, action: () => onSubTabChange('security'), color: 'text-teal-500' },
-    { title: 'ভাষা (Language)', subtitle: 'বাংলা', icon: Globe, action: () => {}, color: 'text-teal-500' },
-    { title: 'FAQ', icon: HelpCircle, action: () => onTabChange('faq'), color: 'text-teal-500' },
-    { title: 'মতামত (Feedback)', icon: MessageSquare, action: () => onSubTabChange('feedback'), color: 'text-teal-500' },
-    { title: 'ডিভাইস হিস্টরি', icon: Smartphone, action: () => {}, color: 'text-teal-500' },
-    { title: 'প্রস্থান (Logout)', icon: LogOut, action: onLogout, color: 'text-teal-500' },
+    { title: 'প্রোফাইল', icon: UserCircle, action: () => onSubTabChange('profile'), color: 'text-yellow-500' },
+    { title: 'নিরাপত্তা কেন্দ্র', icon: ShieldCheck, action: () => onSubTabChange('security'), color: 'text-yellow-500' },
+    { title: 'ভাষা (Language)', subtitle: 'বাংলা', icon: Globe, action: () => {}, color: 'text-yellow-500' },
+    { title: 'FAQ', icon: HelpCircle, action: () => onTabChange('faq'), color: 'text-yellow-500' },
+    { title: 'মতামত (Feedback)', icon: MessageSquare, action: () => onSubTabChange('feedback'), color: 'text-yellow-500' },
+    { title: 'ডিভাইস হিস্টরি', icon: Smartphone, action: () => {}, color: 'text-yellow-500' },
+    { title: 'প্রস্থান (Logout)', icon: LogOut, action: onLogout, color: 'text-yellow-500' },
   );
 
   return (
-    <div className="bg-[#0b5c4b] min-h-screen flex flex-col font-sans">
+    <div className="bg-[#0d1a29] min-h-screen flex flex-col font-sans">
       {/* 1. Top Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
@@ -2322,7 +2402,7 @@ function OverviewTab(props: OverviewTabProps) {
              <button onClick={() => setIsNotificationCenterOpen?.(true)} className="text-white relative">
                <MessageCircle size={28} />
                {unreadNotificationsCount > 0 && (
-                 <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#0b5c4b] animate-pulse">
+                 <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#0d1a29] animate-pulse">
                    {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}
                  </span>
                )}
@@ -2354,7 +2434,7 @@ function OverviewTab(props: OverviewTabProps) {
              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-white rounded-full flex items-center justify-center shadow-md cursor-pointer" onClick={onEditProfilePic}>
                <Camera size={14} className="text-teal-700" />
              </div>
-             <div className="absolute top-0 left-0 w-3 h-3 bg-red-500 rounded-full border-2 border-[#0b5c4b]" />
+             <div className="absolute top-0 left-0 w-3 h-3 bg-red-500 rounded-full border-2 border-[#0d1a29]" />
           </motion.div>
           
           <div className="flex-1">
@@ -2435,7 +2515,7 @@ function OverviewTab(props: OverviewTabProps) {
         initial={{ y: 100 }}
         animate={{ y: 0 }}
         transition={{ type: "spring", damping: 20, stiffness: 100 }}
-        className="bg-[#0d7c66] flex-1 rounded-t-[40px] px-4 pt-6 -mt-8 relative shadow-2xl"
+        className="bg-[#0d1a29] flex-1 rounded-t-[40px] px-4 pt-6 -mt-8 relative shadow-2xl"
       >
         
         {/* Menu Items */}
@@ -2445,7 +2525,7 @@ function OverviewTab(props: OverviewTabProps) {
              initial={{ opacity: 0 }}
              animate={{ opacity: 1 }}
              transition={{ delay: 0.4 }}
-             className="bg-[#0b5c4b]/30 rounded-[24px] overflow-hidden"
+             className="bg-[#14253a]/30 rounded-[24px] overflow-hidden"
            >
               {menuRows.map((item, idx) => (
                 <button 
@@ -3393,40 +3473,40 @@ function SettingsTab({
   return (
     <div className="space-y-6">
       {/* Security Center Section */}
-      <div className="bg-teal-900/40 rounded-[36px] border border-teal-700/50 overflow-hidden shadow-xl">
-        <div className="p-6 border-b border-teal-800/50 flex items-center justify-between bg-black/20">
+      <div className="bg-[#14253a]/40 rounded-[36px] border border-[#1e3a5f]/50 overflow-hidden shadow-xl">
+        <div className="p-6 border-b border-[#1c324e]/50 flex items-center justify-between bg-black/20">
           <h3 className="font-black text-white italic flex items-center gap-3 text-sm uppercase tracking-wider">
             <ShieldCheck size={22} className="text-yellow-500" /> নিরাপত্তা কেন্দ্র (Security Center)
           </h3>
         </div>
-        <div className="divide-y divide-teal-800/30">
+        <div className="divide-y border-[#1c324e]/30">
           {/* Password Change */}
           <button 
             onClick={() => setIsPasswordModalOpen(true)}
-            className="w-full flex items-center justify-between p-6 hover:bg-teal-800/30 transition-colors group"
+            className="w-full flex items-center justify-between p-6 hover:bg-[#1c324e]/30 transition-colors group"
           >
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-xl bg-teal-950 border border-teal-800 flex items-center justify-center text-teal-400 group-hover:text-yellow-500 transition-colors">
+              <div className="w-10 h-10 rounded-xl bg-[#0d1a29] border border-[#1e3a5f] flex items-center justify-center text-[#fdd835] group-hover:text-yellow-500 transition-colors">
                 <KeyRound size={20} />
               </div>
               <div className="text-left">
                 <p className="text-sm text-white font-bold">লগইন পাসওয়ার্ড</p>
-                <p className="text-[10px] text-teal-500 uppercase tracking-widest font-black">Change Login Password</p>
+                <p className="text-[10px] text-[#90a4ae] uppercase tracking-widest font-black">Change Login Password</p>
               </div>
             </div>
-            <ChevronRight size={20} className="text-teal-600" />
+            <ChevronRight size={20} className="text-[#1e3a5f]" />
           </button>
 
           {/* 2FA Section */}
           <div className="p-6 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-teal-950 border border-teal-800 flex items-center justify-center text-teal-400">
+                <div className="w-10 h-10 rounded-xl bg-[#0d1a29] border border-[#1e3a5f] flex items-center justify-center text-[#fdd835]">
                   <Shield size={20} />
                 </div>
                 <div>
                   <p className="text-sm text-white font-bold">টু-ফ্যাক্টর অথেন্টিকেশন</p>
-                  <p className="text-[10px] text-teal-500 uppercase tracking-widest font-black">Two-Factor Authentication (2FA)</p>
+                  <p className="text-[10px] text-[#90a4ae] uppercase tracking-widest font-black">Two-Factor Authentication (2FA)</p>
                 </div>
               </div>
               <div 

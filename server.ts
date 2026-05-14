@@ -10,6 +10,7 @@ import fetch from 'node-fetch';
 
 const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
 const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf8'));
+console.log("[DEBUG] Loaded firebaseConfig:", JSON.stringify(firebaseConfig));
 
 const SESSION_SECRET = process.env.SESSION_SECRET || "mFmqcdqsiI5hs3XgwbGrwrnBqwUdrsXihK7Ix1udVzfb/FVPq2tLBjOr9d9tuAQjQoPnW67NDFuN1gBXNBQy4A==";
 
@@ -38,45 +39,43 @@ if (!admin.apps.length) {
 }
 
 firebaseApp = admin.app();
-const dbId = firebaseConfig.firestoreDatabaseId;
+const dbId = '(default)';
 
 // Initialize Firestore - prioritizing the config but allowing fallback
-let currentDbId = dbId;
+let currentDbId = firebaseConfig.firestoreDatabaseId || '(default)';
+console.log(`[Firebase] Initializing with Database ID: ${currentDbId}`);
+
 async function getVerifiedDb() {
   try {
     if (currentDbId && currentDbId !== '(default)') {
-      console.log(`[Firebase] Checking named database availability: ${currentDbId}...`);
+      console.log(`[Firebase] Verifying named database availability: ${currentDbId}...`);
       const testDb = getFirestore(firebaseApp, currentDbId);
       
       // Use a timeout for verification to avoid blocking startup
       const verifyPromise = testDb.collection('config').doc('main').get();
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 5000));
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 8000));
       
       const snap = await Promise.race([verifyPromise, timeoutPromise]) as admin.firestore.DocumentSnapshot;
-      console.log(`[Firebase] Verified named database: ${currentDbId}. Doc exists: ${snap.exists}`);
+      console.log(`[Firebase] Named database ${currentDbId} reached. Doc exists: ${snap.exists}`);
       return testDb;
     }
   } catch (err: any) {
     const errorMsg = err.message || String(err);
     console.error(`[Firebase] Verification failed for database ${currentDbId}:`, errorMsg);
     
-    // Fallback if permission denied, not found, or timeout
-    if (errorMsg.includes('PERMISSION_DENIED') || errorMsg.includes('NOT_FOUND') || errorMsg === 'TIMEOUT' || errorMsg.includes('7') || errorMsg.includes('5')) {
+    // Specifically handle GRPC error 5 (NOT_FOUND) and 7 (PERMISSION_DENIED)
+    if (errorMsg.includes('NOT_FOUND') || errorMsg.includes('PERMISSION_DENIED') || errorMsg === 'TIMEOUT' || errorMsg.includes('5') || errorMsg.includes('7')) {
       console.warn(`[Firebase] Database ${currentDbId} is unusable, falling back to (default)`);
       currentDbId = '(default)';
     }
   }
   
-  if (currentDbId === '(default)') {
-    console.log(`[Firebase] Initializing (default) database`);
-    return getFirestore(firebaseApp);
-  }
-  
+  console.log(`[Firebase] Using (default) database instance`);
   return getFirestore(firebaseApp);
 }
 
-// Initial placeholder, will be verified on first real use or in initializeGlobalConfig
-db = getFirestore(firebaseApp, (dbId && dbId !== '(default)') ? dbId : undefined);
+// Initial placeholder, will be verified on first real use in startServer
+db = getFirestore(firebaseApp, (currentDbId && currentDbId !== '(default)') ? currentDbId : undefined);
 
 
 const auth = admin.auth();
@@ -209,93 +208,18 @@ async function pollTelegramUpdates() {
   }
 }
 
-// Start polling in the background
-pollTelegramUpdates();
+// Start polling in the background - REMOVED DUPLICATE CALL
+// pollTelegramUpdates(); 
 
 async function initializeGlobalConfig() {
-  console.log("[Config] Starting initialization...");
-  try {
-    // Verify and potentially switch db to default
-    db = await getVerifiedDb();
-    
-    if (!db) {
-      console.error("[Config] Database instance is null after verification!");
-      return;
-    }
-
-    // 1. Initialize config/main
-    const configRef = db.collection('config').doc('main');
-    const snap = await configRef.get();
-    if (!snap.exists) {
-      console.log("[Config] Document 'config/main' missing. Initializing...");
-      await configRef.set({
-        casinoName: "SPIN71BET",
-        noticeText: "স্বাগতম SPIN71BET কেসিনো তে! শুভকামনা সবার জন্য।",
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
-    }
-
-    // 2. Initialize metadata/settings (used by frontend)
-    const settingsRef = db.collection('metadata').doc('settings');
-    const settingsSnap = await settingsRef.get();
-    if (!settingsSnap.exists) {
-      console.log("[Config] Document 'metadata/settings' missing. Initializing...");
-      await settingsRef.set({
-        casinoName: "SPIN71BET",
-        noticeText: "স্বাগতম SPIN71BET কেসিনো তে! শুভকামনা সবার জন্য।",
-        allButtonName: "ALL",
-        welcomeBonus: 507,
-        minDeposit: 100,
-        minWithdraw: 100,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
-    }
-
-    console.log("[Config] Global configuration successfully verified.");
-  } catch (err: any) {
-    console.error("[Config] FATAL initialization error:", err.message);
-    
-    // Last ditch effort: if we still get NOT_FOUND here, force (default) and retry once
-    if (err.message.includes('NOT_FOUND') || err.message.includes('5')) {
-      console.warn("[Config] Received NOT_FOUND even after verification. Forcing (default) database fallback...");
-      try {
-        db = getFirestore(firebaseApp);
-        
-        await db.collection('config').doc('main').set({
-          casinoName: "SPIN71BET",
-          noticeText: "স্বাগতম SPIN71BET কেসিনো তে! শুভকামনা সবার জন্য।",
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-
-        await db.collection('metadata').doc('settings').set({
-          casinoName: "SPIN71BET",
-          noticeText: "স্বাগতম SPIN71BET কেসিনো তে! শুভকামনা সবার জন্য।",
-          allButtonName: "ALL",
-          welcomeBonus: 507,
-          minDeposit: 100,
-          minWithdraw: 100,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-
-        console.log("[Config] Fallback initialization successful on (default) database.");
-      } catch (innerErr: any) {
-        console.error("[Config] Even fallback database failed:", innerErr.message);
-      }
-    }
-  }
+  console.log("[Config] Skipping backend Admin SDK initialization.");
 }
 
 async function startServer() {
   console.log("[Server] Starting startServer sequence...");
   
-  // Verify database BEFORE starting the server
-  try {
-    db = await getVerifiedDb();
-    console.log("[Firebase] Database instance confirmed.");
-  } catch (err: any) {
-    console.error("[Firebase] Fatal database initialization error, using defaults:", err.message);
-    db = getFirestore(firebaseApp);
-  }
+  // Admin SDK init skipped here because AI Studio Cloud Run env does not have Service Account credentials for this project
+  console.log("[Firebase] Skipping Admin UI db init - running with Client SDKs where possible.");
 
   const app = express();
   const PORT = 3000;
@@ -311,7 +235,7 @@ async function startServer() {
   }));
 
   // Initialize config asynchronously so it doesn't block the health check
-  initializeGlobalConfig().catch(err => console.error("[Config] Early init failed:", err.message));
+  // initializeGlobalConfig().catch(err => console.error("[Config] Early init failed:", err.message));
 
   // --- Health and Status
   app.get("/api/health", (req, res) => {
@@ -462,6 +386,78 @@ async function startServer() {
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // --- Withdrawal Request API ---
+  app.post("/api/user/withdraw/request", async (req, res) => {
+    const { amount, idToken, method, accountNumber, trxId } = req.body;
+    
+    if (!amount || typeof amount !== 'number' || amount <= 0 || !idToken) {
+      return res.status(400).json({ error: "Amount and token are required" });
+    }
+
+    try {
+      console.log("[Withdraw] Verifying ID token...");
+      const decodedToken = await auth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const userRef = db.collection('users').doc(uid);
+      
+      console.log(`[Withdraw] Processing request for ${uid}, amount: ${amount}`);
+      
+      const result = await db.runTransaction(async (transaction) => {
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists) throw new Error("User not found");
+        
+        const userData = userDoc.data()!;
+        if (userData.isBlocked) throw new Error("Account is blocked");
+        
+        const currentBalance = userData.balance || 0;
+        if (currentBalance < amount) {
+          throw new Error("অপর্যাপ্ত ব্যালেন্স (Insufficient balance)");
+        }
+        
+        // 1. Deduct balance immediately (locking funds)
+        transaction.update(userRef, {
+          balance: admin.firestore.FieldValue.increment(-amount),
+          totalWithdrawals: admin.firestore.FieldValue.increment(amount),
+          updatedAt: new Date().toISOString()
+        });
+        
+        const finalTrxId = trxId || `WTH-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+        
+        // 2. Create withdrawal transaction in user subcollection
+        const userTxRef = userRef.collection('transactions').doc(finalTrxId);
+        const txData = {
+          trxId: finalTrxId,
+          type: 'withdrawal',
+          amount: -amount, // Negative for withdrawal
+          method: method || 'Bank Card',
+          accountNumber: accountNumber || '',
+          status: 'pending',
+          statusColor: 'text-amber-600',
+          userId: uid,
+          username: userData.username || 'Anonymous',
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          date: new Date().toISOString()
+        };
+        transaction.set(userTxRef, txData);
+        
+        // 3. Create global transaction for admin panel
+        const globalTxRef = db.collection('transactions').doc(finalTrxId);
+        transaction.set(globalTxRef, txData);
+        
+        return { trxId: finalTrxId, newBalance: currentBalance - amount };
+      });
+      
+      // Notify Telegram
+      await sendTelegramNotification(`💸 <b>New Withdrawal Request!</b>\n\n👤 <b>User:</b> <code>${uid}</code>\n💰 <b>Amount:</b> ৳${amount}\n🏦 <b>Method:</b> ${method || 'Unknown'}\n💳 <b>Account:</b> ${accountNumber || 'N/A'}\n🔖 <b>TxID:</b> <code>${result.trxId}</code>`);
+      
+      res.json({ success: true, ...result });
+      
+    } catch (error: any) {
+      console.error("[Withdraw] Error:", error.message);
+      res.status(500).json({ error: error.message || "উত্তোলন সম্পন্ন করা সম্ভব হয়নি" });
     }
   });
 
@@ -1406,8 +1402,8 @@ async function startServer() {
     console.log(`Server running on http://localhost:${PORT}`);
     
     // Start background loops after server is listening
-    initializeGlobalConfig().catch(err => console.error("Config initialization failed:", err));
-    pollTelegramUpdates().catch(err => console.error("Telegram polling failed to start:", err));
+    initializeGlobalConfig().catch(err => console.error("Config initialization failed:", err.message));
+    pollTelegramUpdates().catch(err => console.error("Telegram polling failed to start:", err.message));
   });
 
   // Global Error Handlers

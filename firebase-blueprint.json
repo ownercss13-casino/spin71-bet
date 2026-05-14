@@ -96,12 +96,29 @@
         "lastClaimed": { "type": "string", "format": "date-time" },
         "currentStreak": { "type": "integer" }
       }
+    },
+    "GameSetting": {
+      "title": "Game Visual Configuration",
+      "description": "Store game logos, names, and custom URLs.",
+      "type": "object",
+      "properties": {
+        "game_id": { "type": "string" },
+        "name": { "type": "string" },
+        "logo_url": { "type": "string" },
+        "game_url": { "type": "string" },
+        "provider_option": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "User",
       "description": "User documents keyed by their Firebase Auth UID."
+    },
+    "/game_settings/{gameId}": {
+      "schema": "GameSetting",
+      "description": "Visual settings and URLs for individual games."
     },
     "/game_providers/{providerId}": {
       "schema": "GameProvider",

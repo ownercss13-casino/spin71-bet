@@ -1,27 +1,36 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 
-let dbInstance = getFirestore(app, (firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)') ? firebaseConfig.firestoreDatabaseId : undefined);
+console.log("[Firebase] Initializing Firestore with DB ID:", firebaseConfig.firestoreDatabaseId);
 
-// Using a wrapper object to ensure all components see the updated instance
-export const firestoreWrapper = {
-  get instance() {
-    return dbInstance;
-  }
-};
+// Handle (default) database ID
+const dbId = firebaseConfig.firestoreDatabaseId === '(default)' ? undefined : firebaseConfig.firestoreDatabaseId;
+
+// Initialize Firestore with specific settings to improve stability in restricted environments
+let dbInstance = initializeFirestore(app, {
+  cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+  experimentalForceLongPolling: true, // Often helps in sandboxed/proxy environments
+}, dbId);
+
+console.log("[Firebase] Firestore initialized successfully");
 
 export const getDb = () => dbInstance;
 
 export const switchToDefaultDb = () => {
   console.warn("[Firebase] Switching frontend to (default) database...");
-  dbInstance = getFirestore(app);
+  try {
+    dbInstance = getFirestore(app);
+    console.log("[Firebase] Successfully switched to (default) instance");
+  } catch (err) {
+    console.error("[Firebase] Fatal: Failed to switch instance:", err);
+  }
   return dbInstance;
 };
 
 export const auth = getAuth(app);
-export { dbInstance as db }; // This name is still exported but might be stale; getDb() is better
+export { dbInstance as db }; 
 export default app;

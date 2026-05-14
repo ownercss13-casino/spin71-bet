@@ -30,7 +30,12 @@ class ApiService {
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
     
     // Use relative URL for API requests to avoid origin issues in iframes
-    const fullUrl = cleanEndpoint.startsWith('http') ? cleanEndpoint : `${this.baseUrl}${cleanEndpoint}`;
+    let fullUrl = cleanEndpoint;
+    if (!cleanEndpoint.startsWith('http')) {
+        if (!cleanEndpoint.startsWith(this.baseUrl)) {
+            fullUrl = `${this.baseUrl}${cleanEndpoint}`;
+        }
+    }
     
     console.log(`[ApiService] Full URL: ${fullUrl}`);
     
@@ -81,6 +86,14 @@ class ApiService {
       console.error(`API Request Error [${endpoint}]:`, error);
       return { success: false, error: error.message || 'Something went wrong' };
     }
+  }
+
+  public async get<T>(endpoint: string, headers: Record<string, string> = {}): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, { method: 'GET', headers });
+  }
+
+  public async post<T>(endpoint: string, body: any, headers: Record<string, string> = {}): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, { method: 'POST', body: JSON.stringify(body), headers });
   }
 
   /**

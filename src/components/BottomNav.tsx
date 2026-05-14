@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Gift, Users, User, Trophy } from 'lucide-react';
+import { Home, Gift, Users, User, Trophy, Wallet } from 'lucide-react';
 
 interface TabItem {
   id: string;
@@ -18,7 +18,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange, unreadNot
   const tabs: TabItem[] = [
     { id: 'home', icon: Home, label: 'Home' },
     { id: 'bonus', icon: Gift, label: 'Promotion' },
-    { id: 'invite', icon: Users, label: 'Agent' },
+    { id: 'wallet', icon: Wallet, label: 'Wallet' },
     { id: 'prize', icon: Trophy, label: 'Prize' },
     { id: 'profile', icon: User, label: 'Member' },
   ];

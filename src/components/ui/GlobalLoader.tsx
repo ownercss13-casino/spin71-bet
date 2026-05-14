@@ -7,51 +7,57 @@ interface GlobalLoaderProps {
   subMessage?: string;
   type?: 'initial' | 'data' | 'transition';
   onSkip?: () => void;
+  onRetry?: () => void;
+  showRetry?: boolean;
 }
 
 export default function GlobalLoader({ 
   message = "SPIN71BET", 
   subMessage = "PREPARING YOUR PREMIUM EXPERIENCE", 
   type = 'initial',
-  onSkip
+  onSkip,
+  onRetry,
+  showRetry = false
 }: GlobalLoaderProps) {
   const [progress, setProgress] = useState(0);
+  const [autoShowRetry, setAutoShowRetry] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
       setProgress(prev => {
-        if (prev >= 100) return 100;
-        const inc = Math.random() * 8;
-        return Math.min(prev + inc, 100);
+        if (prev >= 98) return 98; // Stay near 100 but don't finish until data is ready
+        const inc = Math.random() * 4;
+        return Math.min(prev + inc, 98);
       });
-    }, 150);
+    }, 200);
+
+    // Show retry button after 15 seconds of waiting
+    const retryTimer = setTimeout(() => {
+      setAutoShowRetry(true);
+    }, 15000);
 
     return () => {
       clearInterval(timer);
+      clearTimeout(retryTimer);
     };
   }, []);
 
   return (
-    <div className="fixed inset-0 z-[2000] bg-gradient-to-b from-[#25ab5e] to-[#0c6b32] flex flex-col items-center justify-between p-6 text-center overflow-hidden">
+    <div className="fixed inset-0 z-[2000] bg-gradient-to-b from-[#1a2f4a] to-[#0d1a29] flex flex-col items-center justify-between p-6 text-center overflow-hidden font-sans">
       {/* Background Decor */}
       <div 
-        className="absolute inset-0 opacity-10 pointer-events-none" 
+        className="absolute inset-0 opacity-[0.03] pointer-events-none" 
         style={{ 
-          backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', 
-          backgroundSize: '20px 20px' 
+          backgroundImage: 'radial-gradient(circle at 2px 2px, #eab308 1px, transparent 0)', 
+          backgroundSize: '24px 24px' 
         }}
       ></div>
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-emerald-400/20 rounded-full blur-[80px] pointer-events-none"></div>
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-yellow-500/5 rounded-full blur-[100px] pointer-events-none"></div>
 
       {/* Top Header */}
       <div className="w-full flex justify-between items-start relative z-20 mt-4">
         <div className="flex-1 flex justify-center relative">
-          <div className="relative">
-            <h1 className="text-4xl sm:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600 drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)] tracking-tighter italic">
-              {message}
-            </h1>
-            <div className="absolute -top-3 -left-4 bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow-lg transform -rotate-12">REAL</div>
-          </div>
+          {/* Title removed per request */}
         </div>
         
         {/* Skip Button */}
@@ -66,23 +72,27 @@ export default function GlobalLoader({
       </div>
 
       {/* Center Artwork - Logo Placeholder */}
-      <div className="relative z-10 flex-1 flex items-center justify-center w-full">
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center w-full">
         <motion.div 
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", bounce: 0.5 }}
           className="relative w-64 h-64 flex items-center justify-center"
         >
-          {/* PLACEHOLDER FOR LOGO - User should upload logo.png to public/ folder */}
-          <img src="/logo.png" alt="SPIN71.bet Logo" className="w-full h-auto" onError={(e) => {
-             e.currentTarget.style.display = 'none';
-             // Fallback text if image not found
-             const fallback = document.createElement('div');
-             fallback.className = "text-4xl font-black text-yellow-300";
-             fallback.innerText = "SPIN71.BET";
-             e.currentTarget.parentNode?.appendChild(fallback);
-          }} />
+          <img 
+            src="https://www.image2url.com/r2/default/images/1778760980937-340930dd-a7b6-4cbe-9ce0-331bc57c1614.png" 
+            alt="SPIN71.BET" 
+            className="w-full h-auto object-contain drop-shadow-[0_0_15px_rgba(253,216,53,0.3)]" 
+          />
         </motion.div>
+        <motion.h2 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="mt-2 text-4xl sm:text-5xl font-black italic tracking-wider text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600 drop-shadow-[0_4px_10px_rgba(234,179,8,0.3)]"
+        >
+          SPIN71
+        </motion.h2>
       </div>
 
       {/* Loading Progress Section */}
@@ -100,13 +110,22 @@ export default function GlobalLoader({
         </div>
 
         <div className="flex flex-col items-center gap-1">
-          <div className="flex items-center gap-2">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-400 animate-spin">
-              <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
-            </svg>
-            <span className="text-yellow-400/90 text-[10px] font-bold tracking-[0.2em]">লোডিং হচ্ছে... (LOADING...)</span>
-          </div>
-          <span className="text-teal-900/60 font-black text-[9px] uppercase tracking-widest bg-black/20 px-3 py-1 rounded-full text-center mt-1 text-white/50">{subMessage}</span>
+          {/* Loading texts removed per request */}
+          {(showRetry || autoShowRetry) && (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-4 flex flex-col items-center gap-2"
+            >
+              <p className="text-[10px] text-rose-400 font-bold">নেটওয়ার্ক সমস্যা হচ্ছে?</p>
+              <button 
+                onClick={() => onRetry ? onRetry() : window.location.reload()}
+                className="px-6 py-2 bg-yellow-500 text-black text-[10px] font-black rounded-lg shadow-lg hover:bg-yellow-400 transition-all uppercase tracking-widest"
+              >
+                আবার চেষ্টা করুন (RETRY)
+              </button>
+            </motion.div>
+          )}
         </div>
       </div>
     </div>
