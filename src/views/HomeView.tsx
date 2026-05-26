@@ -5,9 +5,7 @@ import { GAME_IMAGES } from '../constants/gameAssets';
 import { GameGrid, games } from "../components/ui/GameGrid";
 import GlobalImage from '../components/ui/GlobalImage';
 import Skeleton from '../components/ui/Skeleton';
-import MarketTicker from '../components/ui/MarketTicker';
-import LiveWinsFeed from '../components/ui/LiveWinsFeed';
-import Banner from '../components/ui/Banner';
+import LiveBetsTicker from '../components/LiveBetsTicker';
 
 function WinAnimation({ gameId }: { gameId: string }) {
   const [wins, setWins] = useState<{ id: number; amount: string; x: number; y: number }[]>([]);
@@ -89,7 +87,7 @@ interface HomeViewProps {
   loading?: boolean;
   isAdmin?: boolean;
   onNavigate?: (tab: string, subTab?: string) => void;
-  onOpenLogin?: () => void;
+  onOpenLogin?: (mode?: 'login' | 'register') => void;
   setIsSupportChatOpen?: (open: boolean) => void;
 }
 
@@ -142,6 +140,7 @@ export default function HomeView({
   const categories = [
     { id: 'সব', icon: Gamepad2, label: 'সব' },
     { id: 'সেরা', icon: Flame, label: 'সেরা' },
+    { id: 'ক্র্যাশ', icon: TrendingUp, label: 'ক্র্যাশ' },
     { id: 'পছন্দ', icon: Star, label: 'পছন্দ' },
     { id: 'স্লট', icon: Gamepad2, label: 'স্লট' },
     { id: 'Live Casino', icon: Tv, label: 'Live Casino' },
@@ -182,9 +181,10 @@ export default function HomeView({
           </button>
           <div className="flex flex-col items-center justify-center ml-2 pt-2 pb-1 gap-3">
             <img 
-              src="https://www.image2url.com/r2/default/images/1778760980937-340930dd-a7b6-4cbe-9ce0-331bc57c1614.png" 
+              src="/apple-touch-icon.png?v=6" 
               alt="Logo"
               className="h-[60px] md:h-[70px] w-auto object-contain drop-shadow-[0_0_10px_rgba(253,216,53,0.4)] transform scale-125" 
+              referrerPolicy="no-referrer"
             />
             <span className="text-[12px] md:text-[14px] font-black text-transparent bg-clip-text bg-gradient-to-r from-[#fdd835] via-white to-[#fdd835] tracking-[0.2em] drop-shadow-md">
               SPIN71
@@ -193,50 +193,52 @@ export default function HomeView({
         </div>
         
         <div className="flex items-center gap-2">
-          {userData ? (
-            <div 
-              className="flex items-center gap-2 bg-gradient-to-r from-[#14253a] to-[#0d1a29] px-3 py-1.5 rounded-2xl border border-yellow-500/30 shadow-[0_0_15px_rgba(0,0,0,0.5)] active:scale-95 transition-transform"
-              onClick={() => onNavigate?.('wallet')}
-            >
-              <div className="flex flex-col items-end">
-                <span className="text-[10px] text-gray-500 font-black tracking-tighter leading-none">BALANCE</span>
-                <p className="text-sm font-black text-[#fdd835] tracking-tight">৳ {balance.toLocaleString()}</p>
-              </div>
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 p-[1px] shadow-lg">
-                <div 
-                  className="w-full h-full rounded-full bg-[#0d1a29] flex items-center justify-center text-[#fdd835] font-black text-xs"
-                >
-                  {userData.username?.[0]?.toUpperCase() || 'U'}
-                </div>
-              </div>
-            </div>
-          ) : (
+          {!userData ? (
             <div className="flex items-center gap-2">
               <button 
-                onClick={onOpenLogin}
+                onClick={() => onOpenLogin?.('login')}
                 className="bg-transparent border border-[#1e3a5f] px-4 py-2 rounded-xl text-[10px] font-black text-[#90a4ae] hover:text-white transition-colors"
               >
                 LOGIN
               </button>
               <button 
-                onClick={onOpenLogin}
+                onClick={() => onOpenLogin?.('register')}
                 className="bg-gradient-to-r from-yellow-400 to-yellow-600 px-5 py-2 rounded-xl text-[10px] font-black text-black hover:scale-105 transition-transform"
               >
                 JOIN NOW
               </button>
             </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <div 
+                className="flex items-center gap-2 bg-gradient-to-r from-[#14253a] to-[#0d1a29] px-3 py-1.5 rounded-2xl border border-yellow-500/30 shadow-[0_0_15px_rgba(0,0,0,0.5)] active:scale-95 transition-transform cursor-pointer"
+                onClick={() => onNavigate?.('wallet')}
+              >
+                <div className="flex flex-col items-end">
+                  <span className="text-[10px] text-gray-500 font-black tracking-tighter leading-none">BALANCE</span>
+                  <p className="text-sm font-black text-[#fdd835] tracking-tight">৳ {balance.toLocaleString()}</p>
+                </div>
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 p-[1px] shadow-lg">
+                  <div 
+                    className="w-full h-full rounded-full bg-[#0d1a29] flex items-center justify-center text-[#fdd835] font-black text-xs"
+                  >
+                    {userData.username?.[0]?.toUpperCase() || 'U'}
+                  </div>
+                </div>
+              </div>
+              <button 
+                className="w-10 h-10 flex items-center justify-center text-[#90a4ae] hover:text-[#00e5ff] transition-colors relative"
+                onClick={() => setIsNotificationCenterOpen(true)}
+              >
+                <Bell size={22} />
+                {unreadNotificationsCount > 0 && (
+                  <span className="absolute top-2 right-2 w-4 h-4 bg-red-600 text-white text-[8px] font-black flex items-center justify-center rounded-full border border-[#0d1a29]">
+                    {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+                  </span>
+                )}
+              </button>
+            </div>
           )}
-          <button 
-            className="w-10 h-10 flex items-center justify-center text-[#90a4ae] hover:text-[#00e5ff] transition-colors relative"
-            onClick={() => setIsNotificationCenterOpen(true)}
-          >
-            <Bell size={22} />
-            {unreadNotificationsCount > 0 && (
-              <span className="absolute top-2 right-2 w-4 h-4 bg-red-600 text-white text-[8px] font-black flex items-center justify-center rounded-full border border-[#0d1a29]">
-                {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
-              </span>
-            )}
-          </button>
         </div>
       </header>
 
@@ -257,6 +259,30 @@ export default function HomeView({
         </div>
       </div>
 
+      {/* Game Search Bar */}
+      <div className="px-3 pt-3 pb-1 bg-[#0d1a29]">
+        <div className="relative flex items-center">
+          <div className="absolute left-3.5 text-gray-400 pointer-events-none">
+            <Search size={16} />
+          </div>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="গেম বা প্রোভাইডার সার্চ করুন (যেমন: Aviator, JILI)..."
+            className="w-full bg-[#14253a] border border-[#1e3a5f] hover:border-[#00e5ff]/50 focus:border-[#00e5ff] text-white pl-10 pr-10 py-2.5 rounded-xl text-xs font-bold focus:outline-none focus:ring-1 focus:ring-[#00e5ff]/30 placeholder-gray-500 transition-all shadow-[0_4px_12px_rgba(0,0,0,0.3)]"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3.5 text-gray-400 hover:text-white transition-colors"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Category Navigation - Circular Tabs */}
       <div className="flex overflow-x-auto gap-4 px-3 py-4 no-scrollbar bg-[#0d1a29] border-b border-[#1e3a5f] sticky top-[53px] z-30 backdrop-blur-sm">
         {categories.map((cat, index) => (
@@ -269,7 +295,7 @@ export default function HomeView({
               <cat.icon size={24} />
             </div>
             <span className={`text-[10px] font-bold ${activeCategory === cat.id ? 'text-[#00e5ff]' : 'text-[#90a4ae]'}`}>
-              {cat.id === 'স্লট' ? 'Slots' : cat.id === 'Live Casino' ? 'Live' : cat.id === 'Fishing Games' ? 'Fishing' : cat.label}
+              {cat.id === 'স্লট' ? 'Slots' : cat.id === 'Live Casino' ? 'Live' : cat.id === 'Fishing Games' ? 'Fishing' : cat.id === 'ক্র্যাশ' ? 'Crash' : cat.label}
             </span>
             {activeCategory === cat.id && (
               <div className="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[4px] border-t-[#00e5ff]"></div>
@@ -344,6 +370,15 @@ export default function HomeView({
           </motion.div>
         </AnimatePresence>
       </motion.div>
+
+      {/* Live Bets and High Rollers Ticker */}
+      <div className="px-3">
+        <LiveBetsTicker 
+          userData={userData} 
+          onOpenLogin={onOpenLogin} 
+          showToast={showToast} 
+        />
+      </div>
 
       {/* Referral Program Banner - Simplified */}
       <div className="px-3 mt-4">

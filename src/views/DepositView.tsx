@@ -1,11 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ClipboardList, MessageCircle, Check, Copy, ShieldCheck, ArrowRight, Loader2, X, Wallet } from 'lucide-react';
+import { 
+  ChevronLeft, 
+  ClipboardList, 
+  MessageCircle, 
+  Check, 
+  Copy, 
+  ShieldCheck, 
+  ArrowRight, 
+  Loader2, 
+  X, 
+  Wallet, 
+  AlertTriangle, 
+  Clock, 
+  Coins, 
+  HelpCircle, 
+  Activity, 
+  Info, 
+  Lock 
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ToastType } from '../components/ui/Toast';
 import GlobalImage from '../components/ui/GlobalImage';
 import VIPLoader from '../components/ui/VIPLoader';
 import { auth, db } from '../services/firebase';
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, limit } from 'firebase/firestore';
 
 const paymentMethods = [
   { 
@@ -53,7 +71,7 @@ const paymentMethods = [
   { 
     id: 'bank', 
     name: 'Bank Transfer', 
-    label: 'ব্যান্ড ট্রান্সফার',
+    label: 'ব্যাংক ট্রান্সফার',
     logo: 'https://icon-library.com/images/bank-icon-vector/bank-icon-vector-1.jpg',
     number: '123456789'
   }
@@ -103,6 +121,8 @@ export default function DepositView({
   const [showHistory, setShowHistory] = useState(false);
   const [deposits, setDeposits] = useState<any[]>([]);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [showTrxTutorial, setShowTrxTutorial] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -110,35 +130,52 @@ export default function DepositView({
     }, 1200);
     
     // Fetch deposit history
-    let unsubscribe = () => {};
     if (userData?.id) {
-      const q = query(
-        collection(db, 'users', userData.id, 'transactions')
-      );
-      
-      unsubscribe = onSnapshot(q, (snapshot) => {
-        const history = snapshot.docs
-          .map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }))
-          .filter((t: any) => t.type === 'deposit')
-          .sort((a: any, b: any) => {
-            const timeA = a.createdAt?.seconds || 0;
-            const timeB = b.createdAt?.seconds || 0;
-            return timeB - timeA;
-          });
-        setDeposits(history);
-      }, (error) => {
-        console.error("Deposit History Fetch Error:", error);
-      });
+      const fetchHistory = async () => {
+        try {
+          const q = query(collection(db, 'users', userData.id, 'transactions'), orderBy('createdAt', 'desc'), limit(50));
+          const snapshot = await getDocs(q);
+          const history = snapshot.docs
+            .map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }))
+            .filter((t: any) => t.type === 'deposit');
+          setDeposits(history);
+        } catch (error) {
+          console.error("Deposit History Fetch Error:", error);
+        }
+      };
+      fetchHistory();
     }
     
     return () => {
       clearTimeout(timer);
-      unsubscribe();
     };
   }, [userData?.id]);
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (step === 2) {
+      setTimeLeft(600); // reset to 10 minutes (600 seconds)
+      const interval = setInterval(() => {
+        setTimeLeft(prev => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [step]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const secs = (seconds % 60).toString().padStart(2, '0');
+    return `${mins}:${secs}`;
+  };
 
   const handleNextStep = () => {
     const depositAmount = parseFloat(amount);
@@ -182,6 +219,22 @@ export default function DepositView({
       const user = auth.currentUser;
       if (!user) throw new Error("Not authenticated");
       
+      // Artificial deluxe processing delay to let the VIP payment gateway animations play smoothly
+      await new Promise(resolve => setTimeout(resolve, 3200));
+      
+      // Notify Telegram
+      await fetch('/api/telegram/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'Deposit',
+          userId: user.uid,
+          username: userData.username,
+          balance: userData.balance + parseFloat(amount),
+          details: `Amount: ${parseFloat(amount)}, Method: ${selectedMethod}`
+        })
+      });
+
       if (onDepositSuccess) {
         await onDepositSuccess(parseFloat(amount), trxId, senderNumber, selectedMethod);
       } else {
@@ -202,23 +255,35 @@ export default function DepositView({
 
   const isNextEnabled = amount !== '' && parseFloat(amount) >= minDeposit;
 
+  // Real-time Number validation helper
+  const isSenderValid = () => {
+    const clean = senderNumber.trim();
+    if (selectedMethod === 'upi') return clean.length > 3;
+    if (selectedMethod === 'bank') return clean.length >= 8;
+    return clean.length === 11 && clean.startsWith('01');
+  };
+
   if (isInitialLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-[#13615e]">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#111] relative select-none font-sans overflow-hidden">
+        {/* Luxury Background Graphics */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(33,129,125,0.15)_0%,transparent_70%)]" />
+        <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#21817d]/30 to-transparent" />
+        
         <motion.div 
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           className="relative mb-8"
         >
           {/* Animated Glow Rings */}
-          <div className="absolute inset-0 bg-emerald-500/20 blur-[60px] animate-pulse rounded-full" />
-          <div className="absolute inset-0 -m-8 border border-white/5 rounded-full animate-[spin_10s_linear_infinite]" />
-          <div className="absolute inset-0 -m-12 border border-emerald-500/10 rounded-full animate-[spin_15s_linear_infinite_reverse]" />
+          <div className="absolute inset-0 bg-emerald-500/10 blur-[90px] animate-pulse rounded-full" />
+          <div className="absolute inset-0 -m-8 border border-[#21817d]/20 rounded-full animate-[spin_12s_linear_infinite]" />
+          <div className="absolute inset-0 -m-12 border border-[#21817d]/10 rounded-full animate-[spin_18s_linear_infinite_reverse]" />
           
           {/* Central Logo/Icon Container */}
           <div className="relative w-28 h-28 bg-gradient-to-br from-[#1d7470] to-[#0a4a44] rounded-[32px] p-0.5 shadow-2xl border border-white/10 flex items-center justify-center">
             <div className="absolute inset-0 bg-emerald-500/5 rounded-[30px]" />
-            <Wallet className="text-emerald-400 relative z-10" size={48} strokeWidth={1.5} />
+            <Wallet className="text-[#3ed0ca] relative z-10 animate-bounce" size={48} strokeWidth={1.5} />
             
             {/* Spinning Arc */}
             <svg className="absolute inset-0 w-full h-full -rotate-90">
@@ -229,47 +294,49 @@ export default function DepositView({
                 fill="none"
                 stroke="white"
                 strokeWidth="2"
-                strokeOpacity="0.1"
+                strokeOpacity="0.05"
               />
               <motion.circle
                 cx="56"
                 cy="56"
                 r="50"
                 fill="none"
-                stroke="#10b981"
-                strokeWidth="2"
+                stroke="#3ed0ca"
+                strokeWidth="2.5"
                 strokeDasharray="100 200"
                 animate={{ strokeDashoffset: [0, -300] }}
-                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                transition={{ duration: 1.8, repeat: Infinity, ease: "linear" }}
               />
             </svg>
           </div>
         </motion.div>
 
-        <div className="text-center space-y-3">
+        <div className="text-center space-y-3 z-10 px-6">
           <motion.h2 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="text-white text-xl font-black uppercase tracking-[0.2em]"
+            className="text-white text-xl font-black uppercase tracking-[0.25em]"
           >
             Securing Connection
           </motion.h2>
+          
           <motion.div 
              initial={{ opacity: 0 }}
              animate={{ opacity: 1 }}
              transition={{ delay: 0.4 }}
              className="flex items-center justify-center gap-2"
           >
-            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
-            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
-            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce" />
+            <span className="w-2 h-2 rounded-full bg-[#3ed0ca] animate-bounce [animation-delay:-0.3s]" />
+            <span className="w-2 h-2 rounded-full bg-[#3ed0ca] animate-bounce [animation-delay:-0.15s]" />
+            <span className="w-2 h-2 rounded-full bg-[#3ed0ca] animate-bounce" />
           </motion.div>
+
           <motion.p 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6 }}
-            className="text-teal-300/60 text-[10px] font-black uppercase tracking-widest"
+            className="text-teal-300/60 text-[10px] font-black uppercase tracking-widest leading-relaxed"
           >
             Encrypting Gateway Session...
           </motion.p>
@@ -280,35 +347,80 @@ export default function DepositView({
 
   if (showHistory) {
     return (
-      <div className="flex flex-col min-h-screen bg-[#21817d] font-sans">
-        <header className="bg-[#5abeb9] text-[#13615e] p-4 flex items-center justify-between sticky top-0 z-50">
+      <div className="flex flex-col min-h-screen bg-[#111] font-sans text-white relative">
+        <header className="bg-[#1a1a1a] border-b border-white/5 p-4 flex items-center justify-between sticky top-0 z-50">
           <div className="flex items-center gap-4 w-full relative">
-            <button onClick={() => setShowHistory(false)} className="absolute left-0 p-1">
-              <ChevronLeft size={28} />
+            <button 
+              onClick={() => setShowHistory(false)} 
+              className="absolute left-0 p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-full transition-all"
+            >
+              <ChevronLeft size={24} />
             </button>
-            <h1 className="text-xl font-bold w-full text-center">Deposit History</h1>
+            <h1 className="text-lg font-black text-center w-full uppercase tracking-wider">Deposit History</h1>
           </div>
         </header>
-        <div className="flex bg-[#2f8e8a]">
-          <button onClick={() => setShowHistory(false)} className="flex-1 py-3 font-bold text-center text-white/70 bg-[#2f8e8a]">Deposit</button>
-          <button className="flex-1 py-3 font-bold text-center text-white bg-[#21817d]">Deposit History</button>
+
+        <div className="flex bg-[#161616] border-b border-white/5 p-1 sticky top-[57px] z-45">
+          <button 
+            onClick={() => setShowHistory(false)} 
+            className="flex-1 py-3 text-xs font-black uppercase tracking-wider text-gray-500 hover:text-white transition-all rounded-xl"
+          >
+            Deposit Form
+          </button>
+          <button 
+            className="flex-1 py-3 text-xs font-black uppercase tracking-wider text-[#3ed0ca] bg-white/5 rounded-xl border border-[#3ed0ca]/15 shadow-inner"
+          >
+            History List
+          </button>
         </div>
+
         <main className="p-4 space-y-3 flex-1 overflow-y-auto">
-          {deposits.length > 0 ? deposits.map(d => (
-            <div key={d.id} className="p-4 bg-[#1d7470] rounded-xl flex justify-between items-center text-white">
-              <div>
-                <p className="font-bold uppercase">{d.method}</p>
-                <p className="text-xs text-white/70">{d.trxId}</p>
+          {deposits.length > 0 ? (
+            deposits.map(d => (
+              <div 
+                key={d.id} 
+                className="p-4 bg-gradient-to-r from-white/5 to-transparent border border-white/5 hover:border-white/10 rounded-2xl flex justify-between items-center transition-all"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-sm uppercase text-gray-200">
+                      {paymentMethods.find(m => m.id === d.method)?.label || d.method}
+                    </span>
+                    <span className="text-[9px] font-black tracking-widest text-[#3ed0ca] bg-[#3ed0ca]/10 px-2 py-0.5 rounded border border-[#3ed0ca]/10 uppercase">
+                      {d.method}
+                    </span>
+                  </div>
+                  <p className="font-mono text-[10px] text-gray-500 select-all break-all">{d.trxId}</p>
+                  {d.senderNumber && (
+                    <p className="text-[10px] text-gray-400">
+                      From: <span className="font-mono text-gray-300 font-bold">{d.senderNumber}</span>
+                    </p>
+                  )}
+                  {d.date && (
+                    <p className="text-[9px] text-gray-600 font-medium">
+                      {new Date(d.date).toLocaleString('bn-BD')}
+                    </p>
+                  )}
+                </div>
+                <div className="text-right space-y-1">
+                  <p className="font-black text-base text-[#3ed0ca]">৳{d.amount}</p>
+                  <p className={`text-[10px] font-black tracking-wider uppercase px-2 py-0.5 rounded-full inline-block ${
+                    d.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 
+                    d.status === 'rejected' ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 
+                    'bg-amber-500/10 text-amber-500 border border-amber-500/20 animate-pulse'
+                  }`}>
+                    {d.status === 'approved' ? 'সফল' : d.status === 'rejected' ? 'বাতিল' : 'পেন্ডিং'}
+                  </p>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="font-bold text-green-400">৳{d.amount}</p>
-                <p className={`text-xs ${d.status === 'approved' ? 'text-green-500' : d.status === 'rejected' ? 'text-red-500' : 'text-yellow-500'}`}>
-                  {d.status === 'approved' ? 'সফল' : d.status === 'rejected' ? 'বাতিল' : 'পেন্ডিং'}
-                </p>
+            ))
+          ) : (
+            <div className="text-center py-24 space-y-3">
+              <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto text-gray-500">
+                <ClipboardList size={32} />
               </div>
+              <p className="text-sm font-bold text-gray-500 tracking-wide">কোনো ডিপোজিট ইতিহাস পাওয়া যায়নি</p>
             </div>
-          )) : (
-            <div className="text-center py-20 text-white/50">কোনো ইতিহাস পাওয়া যায়নি</div>
           )}
         </main>
       </div>
@@ -316,333 +428,507 @@ export default function DepositView({
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#21817d] font-sans">
+    <div className="flex flex-col min-h-screen bg-[#111] font-sans text-white select-none">
       {/* Header */}
-      <header className="bg-[#5abeb9] text-[#13615e] p-4 flex items-center justify-between sticky top-0 z-50">
+      <header className="bg-[#161616] border-b border-white/5 p-4 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-4 w-full relative">
-          <button onClick={() => step === 2 ? setStep(1) : onTabChange('home')} className="absolute left-0 p-1">
-            <ChevronLeft size={28} />
+          <button 
+            onClick={() => step === 2 ? setStep(1) : onTabChange('home')} 
+            className="absolute left-0 p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-full transition-all"
+          >
+            <ChevronLeft size={24} />
           </button>
-          <h1 className="text-xl font-bold w-full text-center">{step === 1 ? 'Deposit' : 'Payment'}</h1>
+          <h1 className="text-md font-black uppercase tracking-widest text-center w-full">
+            {step === 1 ? 'Deposit Portal' : 'Payment Verification'}
+          </h1>
         </div>
       </header>
 
       {step === 1 && (
-        <div className="flex bg-[#2f8e8a]">
-          <button className="flex-1 py-3 font-bold text-center text-white bg-[#21817d]">Deposit</button>
-          <button onClick={() => setShowHistory(true)} className="flex-1 py-3 font-bold text-center text-white/70 bg-[#2f8e8a]">Deposit History</button>
+        <div className="flex bg-[#161616] border-b border-white/5 p-1 sticky top-[57px] z-45">
+          <button 
+            className="flex-1 py-3 text-xs font-black uppercase tracking-wider text-[#3ed0ca] bg-white/5 rounded-xl border border-[#3ed0ca]/15 shadow-inner"
+          >
+            Deposit Form
+          </button>
+          <button 
+            onClick={() => setShowHistory(true)} 
+            className="flex-1 py-3 text-xs font-black uppercase tracking-wider text-gray-500 hover:text-white transition-all rounded-xl"
+          >
+            Deposit History
+          </button>
         </div>
       )}
 
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto pb-24">
         {step === 1 ? (
-          <>
-            {/* Deposit Mode */}
-            <section className="p-4 bg-[#21817d]">
-              <div className="grid grid-cols-2 gap-3">
-                {paymentMethods.map((method) => (
-                  <div
-                    key={method.id}
-                    onClick={() => setSelectedMethod(method.id)}
-                    className={`relative p-3 rounded-xl border-2 transition-all cursor-pointer flex flex-col items-center justify-center gap-2 h-24 ${
-                      selectedMethod === method.id 
-                        ? 'border-[#ffc107] bg-[#1d7470]' 
-                        : 'border-transparent bg-[#1d7470]'
-                    }`}
-                  >
-                    <div className="w-10 h-10 flex items-center justify-center bg-white rounded p-1 flex-shrink-0">
-                      <GlobalImage 
-                        imageKey={`payment_logo_${method.id}`}
-                        defaultUrl={method.logo}
-                        currentUrl={globalImages[`payment_logo_${method.id}`]}
-                        alt={method.name}
-                        showToast={showToast}
-                        className="max-w-full max-h-full object-contain"
-                        isAdmin={false}
-                        updateGlobalImage={(url) => onUpdateGlobalImage ? onUpdateGlobalImage(`payment_logo_${method.id}`, url) : Promise.resolve()}
-                      />
-                    </div>
-                    <div className="text-center">
-                      <p className={`text-[13px] font-bold ${selectedMethod === method.id ? 'text-white' : 'text-white/80'}`}>
-                        {method.name}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+          <div className="p-4 space-y-6">
+            {/* Step indicators */}
+            <div className="flex items-center justify-between px-2 py-1 bg-white/5 rounded-2xl border border-white/5">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-[#3ed0ca] text-black font-black text-xs flex items-center justify-center">1</span>
+                <span className="text-[11px] font-black uppercase tracking-wider text-[#3ed0ca]">ডিপোজিট বিবরণ</span>
               </div>
-            </section>
+              <div className="w-8 h-[1px] bg-white/10" />
+              <div className="flex items-center gap-2 opacity-55">
+                <span className="w-6 h-6 rounded-full bg-white/10 text-gray-400 font-bold text-xs flex items-center justify-center">2</span>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">লেনদেন নিশ্চিতকরণ</span>
+              </div>
+            </div>
+
+            {/* Payment Method Selection Group */}
+            <div className="space-y-2.5">
+              <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest block ml-1">১. পেমেন্ট মেথড নির্বাচন করুন</h3>
+              <div className="grid grid-cols-2 gap-3">
+                {paymentMethods.map((method) => {
+                  const isActive = selectedMethod === method.id;
+                  return (
+                    <div
+                      key={method.id}
+                      onClick={() => setSelectedMethod(method.id)}
+                      className={`relative p-4 rounded-3xl border-2 transition-all cursor-pointer flex flex-col items-center justify-center gap-2 h-28 group overflow-hidden ${
+                        isActive 
+                          ? 'border-[#ffc107] bg-gradient-to-br from-[#ffc107]/10 to-transparent shadow-[0_0_20px_rgba(255,193,7,0.15)] bg-[#1c1c1c]' 
+                          : 'border-white/5 bg-[#161616] hover:bg-[#1a1a1a] hover:border-white/10'
+                      }`}
+                    >
+                      {isActive && (
+                        <div className="absolute top-2.5 right-2.5 w-4 h-4 rounded-full bg-[#ffc107] flex items-center justify-center">
+                          <Check size={10} className="text-black" strokeWidth={4} />
+                        </div>
+                      )}
+                      
+                      <div className="w-11 h-11 flex items-center justify-center bg-white rounded-2xl p-1.5 flex-shrink-0 group-hover:scale-105 transition-all shadow-inner">
+                        <GlobalImage 
+                          imageKey={`payment_logo_${method.id}`}
+                          defaultUrl={method.logo}
+                          currentUrl={globalImages[`payment_logo_${method.id}`]}
+                          alt={method.name}
+                          showToast={showToast}
+                          className="max-w-full max-h-full object-contain"
+                          isAdmin={false}
+                          updateGlobalImage={(url) => onUpdateGlobalImage ? onUpdateGlobalImage(`payment_logo_${method.id}`, url) : Promise.resolve()}
+                        />
+                      </div>
+                      
+                      <div className="text-center">
+                        <p className={`text-[12px] font-black uppercase tracking-wider ${isActive ? 'text-[#ffc107]' : 'text-gray-300'}`}>
+                          {method.name}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
 
             {/* Payment Channel */}
-            <section className="p-4 bg-[#21817d] border-t border-[#319b96]/30">
-              <div className="grid grid-cols-3 gap-2">
-                {channels.map((channel) => (
-                  <button
-                    key={channel.id}
-                    onClick={() => setSelectedChannel(channel.id)}
-                    className={`py-2 px-1 rounded border-2 text-[12px] font-bold transition-all flex items-center justify-center gap-1 ${
-                      selectedChannel === channel.id ? 'border-[#ffc107] text-[#ffc107] bg-[#1d7470]' : 'border-transparent text-white bg-[#1d7470]'
-                    }`}
-                  >
-                    {selectedChannel === channel.id && <Check size={12} strokeWidth={3} />} {channel.name}
-                  </button>
-                ))}
+            <div className="space-y-2.5 border-t border-white/5 pt-5">
+              <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest block ml-1">২. গেটওয়ে চ্যানেল নির্বাচন</h3>
+              <div className="grid grid-cols-2 gap-2">
+                {channels.map((channel) => {
+                  const isActive = selectedChannel === channel.id;
+                  return (
+                    <button
+                      key={channel.id}
+                      onClick={() => setSelectedChannel(channel.id)}
+                      className={`py-3 px-2 rounded-2xl border-2 text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${
+                        isActive 
+                          ? 'border-[#3ed0ca] text-[#3ed0ca] bg-[#3ed0ca]/10 shadow-[0_0_15px_rgba(62,208,202,0.1)]' 
+                          : 'border-white/5 text-gray-400 bg-[#161616] hover:text-white'
+                      }`}
+                    >
+                      {isActive && <Check size={12} strokeWidth={4} />}
+                      {channel.name}
+                    </button>
+                  );
+                })}
               </div>
-            </section>
+            </div>
 
-            {/* Deposit Amount */}
-            <section className="p-4 bg-[#21817d] border-t border-[#319b96]/30">
-              <div className="flex items-center gap-2 mb-4">
-                <h2 className="text-white font-bold text-sm">Deposit Amount</h2>
-                <div className="relative flex-1">
-                  <input
-                    type="text"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="300 - 30,000"
-                    className="w-full bg-[#1d7470] rounded py-2 px-3 text-white font-bold text-sm focus:outline-none placeholder:text-white/30 text-right pr-6"
-                  />
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-red-500">*</span>
-                </div>
+            {/* Deposit Amount Input */}
+            <div className="space-y-3.5 border-t border-white/5 pt-5">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">৩. ডিপোজিট পরিমাণ</h3>
+                <span className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">সর্বনিম্ন: ৳{minDeposit}</span>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {quickAmounts.map((amt) => (
-                  <button
-                    key={amt}
-                    onClick={() => setAmount(amt.toString())}
-                    className={`flex-1 min-w-[30%] py-2.5 rounded border text-[13px] font-bold transition-all ${
-                      amount === amt.toString() ? 'border-[#ffc107] text-[#ffc107] bg-[#1d7470]' : 'border-transparent text-white/90 bg-[#1d7470]'
-                    }`}
-                  >
-                    {amt.toLocaleString()}
-                  </button>
-                ))}
+              
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-black text-gray-500">৳</span>
+                <input
+                  type="number"
+                  pattern="[0-9]*"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder={`${minDeposit} - 30,000`}
+                  className="w-full bg-[#161616] border border-white/5 focus:border-[#3ed0ca]/30 rounded-2xl py-4.5 pl-9 pr-6 text-white font-black text-xl focus:outline-none placeholder:text-gray-600 tracking-wider"
+                />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-amber-500">*</span>
               </div>
-            </section>
 
-            {/* Activities */}
-            <section className="p-4 space-y-4 bg-[#21817d] border-t border-[#319b96]/30">
+              {/* Quick selectors */}
+              <div className="grid grid-cols-4 gap-2">
+                {quickAmounts.map((amt) => {
+                  const isActive = amount === amt.toString();
+                  return (
+                    <button
+                      key={amt}
+                      onClick={() => setAmount(amt.toString())}
+                      className={`py-2 rounded-xl border text-[11px] font-black transition-all ${
+                        isActive 
+                          ? 'border-[#ffc107] text-[#ffc107] bg-[#ffc107]/5 font-black' 
+                          : 'border-white/5 text-gray-400 bg-[#161616] hover:text-white'
+                      }`}
+                    >
+                      ৳{amt.toLocaleString()}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Offer / Claim bonus */}
+            <div className="space-y-3.5 border-t border-white/5 pt-5">
               <div>
-                <h2 className="text-white font-bold text-lg mb-1">Would you like to claim your bonus?</h2>
-                <p className="text-white/70 text-xs text-left mb-3">Please select your bonus.</p>
+                <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest block ml-1">৪. বোনাস অফার চয়ন করুন</h3>
               </div>
               
               <div className="space-y-3">
                 <button 
                   onClick={() => setSelectedBonus('daily8')}
-                  className={`w-full p-4 rounded border flex items-start gap-3 transition-all ${
-                    selectedBonus === 'daily8' ? 'border-[#ffc107] bg-[#1d7470]' : 'border-transparent bg-[#1d7470]'
+                  className={`w-full p-4 rounded-2xl border-2 flex items-start gap-3.5 transition-all text-left relative overflow-hidden ${
+                    selectedBonus === 'daily8' 
+                      ? 'border-[#ffc107] bg-[#ffc107]/5 shadow-[0_0_20px_rgba(255,193,7,0.1)]' 
+                      : 'border-white/5 bg-[#161616] hover:bg-[#1a1a1a]'
                   }`}
                 >
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                    selectedBonus === 'daily8' ? 'border-[#ffc107]' : 'border-gray-400'
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                    selectedBonus === 'daily8' ? 'border-[#ffc107]' : 'border-gray-600'
                   }`}>
-                    {selectedBonus === 'daily8' && <div className="w-2 h-2 rounded-full bg-[#ffc107]"></div>}
+                    {selectedBonus === 'daily8' && <div className="w-2.5 h-2.5 rounded-full bg-[#ffc107]"></div>}
                   </div>
-                  <div className="text-left w-full flex flex-col justify-center">
-                    <div className="flex justify-between items-center w-full">
-                      <span className={`block font-bold text-[13px] ${selectedBonus === 'daily8' ? 'text-[#ffc107]' : 'text-white'}`}>Daily Deposit Rewards 100%</span>
-                      <span className="text-white/60 text-xs font-bold">b=200</span>
+                  <div className="flex-1">
+                    <div className="flex justify-between items-center">
+                      <span className={`block font-black text-sm ${selectedBonus === 'daily8' ? 'text-[#ffc107]' : 'text-gray-200'}`}>
+                        Daily Deposit Reward 100%
+                      </span>
+                      <span className="text-[10px] font-black text-yellow-500 bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/20">
+                        b=200
+                      </span>
                     </div>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#ffc107]"></div>
-                      <span className="text-white/60 text-[10px] uppercase font-bold tracking-wider">Due Date : 2024-12-31</span>
-                    </div>
-                    <div className="w-full text-center mt-3">
-                      <span className="text-white/40 text-[10px] font-bold tracking-wider uppercase">Read More ▼</span>
+                    <p className="text-gray-500 text-[10px] mt-1 leading-relaxed">
+                      প্রথম দৈনিক ডিপোজিট অফারে ১০০% অতিরিক্ত বোনাস উপভোগ করুন।
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-2.5 text-gray-600 text-[9px] font-bold uppercase tracking-wider">
+                      <Clock size={10} />
+                      <span>মেয়াদ : ২০২৬-১২-৩১</span>
                     </div>
                   </div>
                 </button>
 
                 <button 
                   onClick={() => setSelectedBonus('none')}
-                  className={`w-full p-4 rounded border flex items-center justify-center gap-3 transition-all relative ${
-                    selectedBonus === 'none' ? 'border-[#ffc107] bg-[#319b96]' : 'border-transparent bg-[#1d7470]'
+                  className={`w-full py-4.5 rounded-2xl border-2 flex items-center justify-center gap-3 transition-all relative ${
+                    selectedBonus === 'none' 
+                      ? 'border-[#ffc107] bg-white/5' 
+                      : 'border-white/5 bg-[#161616] hover:bg-[#1a1a1a]'
                   }`}
                 >
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2">
-                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                      selectedBonus === 'none' ? 'border-[#ffc107]' : 'border-gray-400'
+                  <div className="absolute left-4">
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                      selectedBonus === 'none' ? 'border-[#ffc107]' : 'border-gray-600'
                     }`}>
-                      {selectedBonus === 'none' && <div className="w-2 h-2 rounded-full bg-[#ffc107]"></div>}
+                      {selectedBonus === 'none' && <div className="w-2.5 h-2.5 rounded-full bg-[#ffc107]"></div>}
                     </div>
                   </div>
-                  <span className={`font-bold text-base ${selectedBonus === 'none' ? 'text-white' : 'text-white/80'}`}>Disclaim</span>
+                  <span className={`font-black text-xs uppercase tracking-widest ${selectedBonus === 'none' ? 'text-white font-black' : 'text-gray-500'}`}>
+                    বোনাস ছাড়া খেলবো (Disclaim Bonus)
+                  </span>
                 </button>
               </div>
-
-              <div className="pt-2">
-                <button 
-                  onClick={handleNextStep}
-                  disabled={!isNextEnabled}
-                  className={`w-full py-3.5 font-bold text-lg rounded-[8px] transition-all flex items-center justify-center gap-3 shadow-lg ${
-                    isNextEnabled 
-                      ? 'bg-[#f5661d] text-white hover:bg-[#de5b1a]' 
-                      : 'bg-[#b64b14] text-white/50 cursor-not-allowed'
-                  }`}
-                >
-                  Submit
-                </button>
-              </div>
-              
-              <div className="flex items-center justify-center gap-1 text-white/80 mb-20">
-                <div className="w-4 h-4 bg-white/20 rounded-full flex items-center justify-center font-bold text-[10px]">
-                  !
-                </div>
-                <span className="text-xs font-bold">Notice</span>
-              </div>
-            </section>
-          </>
-        ) : (
-          <div className="min-h-screen bg-white font-sans relative pb-20">
-            {/* Header Section */}
-            <div className="bg-[#0d1a29] text-white p-4">
-              <h2 className="text-2xl font-bold">BDT {amount}</h2>
-              <p className="text-sm font-medium mt-1">কম বা বেশি ক্যাশআউট করবেন না</p>
             </div>
 
-            <div className="p-4 space-y-5">
-              {/* Warning Messages */}
-              <div className="text-center space-y-1">
-                <p className="text-red-500 font-bold text-sm">
-                  If you change the amount (BDT {amount}), you won't get the credit
+            {/* Next trigger CTA */}
+            <div className="pt-4">
+              <button 
+                onClick={handleNextStep}
+                disabled={!isNextEnabled}
+                className={`w-full py-4 font-black text-xs uppercase tracking-widest rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg active:scale-95 ${
+                  isNextEnabled 
+                    ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-black shadow-[0_5px_15px_rgba(234,179,8,0.25)]' 
+                    : 'bg-white/5 text-gray-600 cursor-not-allowed border border-white/5 shadow-inner'
+                }`}
+              >
+                <span>নিশ্চিত করুন এবং পরবর্তী ধাপে যান</span>
+                <ArrowRight size={14} strokeWidth={3} />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 space-y-6">
+            {/* Step indicators */}
+            <div className="flex items-center justify-between px-2 py-1 bg-white/5 rounded-2xl border border-white/5">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-white/10 text-gray-500 font-bold text-xs flex items-center justify-center">1</span>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500">ডিপোজিট বিবরণ</span>
+              </div>
+              <div className="w-8 h-[1px] bg-white/10" />
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-[#3ed0ca] text-black font-black text-xs flex items-center justify-center">2</span>
+                <span className="text-[11px] font-black uppercase tracking-wider text-[#3ed0ca]">লেনদেন নিশ্চিতকরণ</span>
+              </div>
+            </div>
+
+            {/* Premium Countdown Clock */}
+            <div className="bg-[#1c1c1c] border border-white/5 rounded-3xl p-4 flex items-center justify-between relative overflow-hidden">
+              <div className="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-[#3ed0ca]/5 to-transparent pointer-events-none" />
+              <div className="space-y-0.5">
+                <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">অর্ডার পরিশোধের সুনির্দিষ্ট সময়</p>
+                <p className="text-gray-300 text-xs font-semibold">অনুগ্রহ করে নিম্নোক্ত সময়ের মধ্যে ক্যাশআউট করুন</p>
+              </div>
+              
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl border ${
+                timeLeft < 120 
+                  ? 'bg-red-500/10 border-red-500/20 text-red-400 animate-pulse' 
+                  : 'bg-[#3ed0ca]/10 border-[#3ed0ca]/20 text-[#3ed0ca]'
+              }`}>
+                <Clock size={14} className={timeLeft < 120 ? 'animate-bounce' : ''} />
+                <span className="font-mono text-base font-black tracking-wider">{formatTime(timeLeft)}</span>
+              </div>
+            </div>
+
+            {/* Error Rules Warnings */}
+            <div className="border border-red-500/25 bg-red-500/5 rounded-3xl p-4 flex items-start gap-3">
+              <AlertTriangle className="text-red-500 flex-shrink-0 mt-0.5" size={18} />
+              <div className="space-y-1">
+                <p className="text-red-400 font-black text-xs leading-normal">
+                  সতর্কতা: টাকার পরিমাণ কম বা বেশি ক্যাশআউট করবেন না!
                 </p>
-                <p className="text-red-500 font-bold text-sm leading-tight">
-                  আপনি যদি টাকার পরিমাণ পরিবর্তন করেন (BDT {amount}), আপনি ক্রেডিট পেতে সক্ষম হবেন না।
+                <p className="text-[10px] text-gray-400 leading-normal">
+                  আপনি যদি টাকার পরিমাণ পরিবর্তন করেন (৳{amount}-এর পরিবর্তে অন্য কোনো অঙ্ক পাঠান), তাহলে পেমেন্ট স্বয়ংক্রিয় প্রসেস হবে না।
                 </p>
               </div>
+            </div>
 
-              {/* Deposit Banner */}
-              <div className="bg-[#f25c3a] p-3 flex items-center justify-center gap-3 shadow-sm rounded-sm">
-                <div className="w-10 h-10 bg-white rounded-full p-1 flex items-center justify-center">
-                  <GlobalImage 
-                    imageKey={`payment_logo_${selectedMethod}`}
-                    defaultUrl={paymentMethods.find(m => m.id === selectedMethod)?.logo || ''}
-                    currentUrl={globalImages[`payment_logo_${selectedMethod}`]}
-                    alt="Logo"
-                    showToast={showToast}
-                    className="w-full h-full object-contain"
-                    isAdmin={false}
-                  />
+            {/* Prominent Receipt/Voucher Summary card */}
+            <div className="bg-gradient-to-b from-[#222] to-[#1c1c1c] border border-white/15 rounded-3xl overflow-hidden shadow-2xl relative">
+              <div className="p-4 border-b border-white/5 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-white rounded-full p-1.5 flex items-center justify-center shadow-lg">
+                    <GlobalImage 
+                      imageKey={`payment_logo_${selectedMethod}`}
+                      defaultUrl={paymentMethods.find(m => m.id === selectedMethod)?.logo || ''}
+                      currentUrl={globalImages[`payment_logo_${selectedMethod}`]}
+                      alt="Logo"
+                      showToast={showToast}
+                      className="w-full h-full object-contain"
+                      isAdmin={false}
+                    />
+                  </div>
+                  <span className="text-xs font-black uppercase tracking-widest text-white">
+                    {paymentMethods.find(m => m.id === selectedMethod)?.name} Deposit Order
+                  </span>
                 </div>
-                <span className="text-white text-lg font-bold uppercase tracking-wide">
-                  {paymentMethods.find(m => m.id === selectedMethod)?.name} Deposit
+                
+                <span className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                  Active Order
                 </span>
               </div>
 
-              {/* Wallet No Section */}
+              <div className="p-6 text-center space-y-1 bg-black/20">
+                <span className="text-[10px] text-gray-500 uppercase font-black tracking-widest">সঠিক ক্যাশআউট পরিমাণ</span>
+                <p className="text-4xl font-black text-[#ffc107] tracking-tight">৳ {amount}</p>
+              </div>
+            </div>
+
+            {/* Cashout Account Details Area */}
+            <div className="bg-[#161616] border border-white/5 rounded-3xl p-5 space-y-4">
               <div className="space-y-1">
-                <label className="block text-base font-bold text-gray-900">
-                  {selectedMethod === 'bank' ? 'Account Details' : selectedMethod === 'upi' ? 'UPI ID' : 'Wallet No'} <span className="text-red-500">*</span>
-                </label>
-                <p className="text-gray-500 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <span>১. নিচে দেয়া নাম্বারে ক্যাশআউট করুন</span>
+                    <span className="text-[9px] text-yellow-500 bg-yellow-500/10 px-2 py-0.5 rounded font-black border border-yellow-500/20 uppercase tracking-tight">শুধুমাত্র ক্যাশআউট</span>
+                  </span>
+                </div>
+                
+                <p className="text-[10px] text-gray-500 leading-normal">
                   {selectedMethod === 'bank' 
                     ? 'এই ব্যাংক একাউন্টে টাকা পাঠান' 
                     : selectedMethod === 'upi' 
                       ? 'এই UPI ID-তে পেমেন্ট করুন' 
                       : `এই ${paymentMethods.find(m => m.id === selectedMethod)?.name} নাম্বারে শুধুমাত্র ক্যাশআউট গ্রহণ করা হয়`}
                 </p>
-                <div className="flex items-center gap-2 mt-2 bg-gray-50 p-4 rounded-lg border border-gray-100">
-                  <span className="text-xl font-black text-red-600 flex-1 break-all">
-                    {newAccountNumber}
-                  </span>
-                  <button 
-                    onClick={() => {
-                      navigator.clipboard.writeText(newAccountNumber);
-                      setIsCopied(true);
-                      showToast('Copied to clipboard!', 'success');
-                      setTimeout(() => setIsCopied(false), 2000);
-                    }}
-                    className="bg-green-500 text-white p-2 rounded-lg shadow-sm active:scale-95 transition-transform"
-                  >
-                    <Copy size={20} />
-                  </button>
-                </div>
-                {selectedMethod === 'bank' && (
-                  <p className="text-xs text-amber-600 font-bold mt-1">Note: Please send the exact amount as BDT {amount}</p>
-                )}
               </div>
 
-              {/* TrxID Section */}
-              <div className="space-y-4">
-                <div className="space-y-1">
-                  <label className="block text-base font-bold text-gray-900">
-                    Sender Number (আপনার মোবাইল নাম্বার) <span className="text-red-500">*</span>
+              <div className="flex items-center justify-between gap-3 bg-black/40 border border-white/5 p-4 rounded-2xl">
+                <span className="text-lg font-black text-red-500 tracking-wider break-all select-all font-mono">
+                  {newAccountNumber}
+                </span>
+                
+                <button 
+                  onClick={() => {
+                    navigator.clipboard.writeText(newAccountNumber);
+                    setIsCopied(true);
+                    showToast('নাম্বার কপি করা হয়েছে!', 'success');
+                    setTimeout(() => setIsCopied(false), 2000);
+                  }}
+                  className={`px-4 py-2 border rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 ${
+                    isCopied 
+                      ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400' 
+                      : 'border-white/15 bg-white/5 hover:bg-white/10 text-white'
+                  }`}
+                >
+                  {isCopied ? <Check size={12} strokeWidth={3} /> : <Copy size={12} />}
+                  <span>{isCopied ? 'কপি হয়েছে' : 'কপি করুন'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Inputs Area */}
+            <div className="bg-[#161616] border border-white/5 rounded-3xl p-5 space-y-5">
+              {/* Sender Number Field */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center ml-1">
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest">
+                    ২. আপনার পেমেন্ট নম্বর <span className="text-red-500 font-bold">*</span>
                   </label>
-                  <p className="text-gray-500 text-sm">যে নাম্বার থেকে টাকা পাঠিয়েছেন তা লিখুন</p>
+                  {isSenderValid() && (
+                    <span className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 uppercase tracking-tight flex items-center gap-1">
+                      <Check size={10} strokeWidth={4} /> Validated
+                    </span>
+                  )}
+                </div>
+                <input 
+                  type="text" 
+                  pattern="[0-9]*"
+                  value={senderNumber}
+                  onChange={(e) => setSenderNumber(e.target.value)}
+                  placeholder="যে নাম্বার থেকে টাকা পাঠিয়েছেন (১১ ডিজিট)"
+                  className="w-full p-4 bg-black/30 border border-white/5 focus:border-[#3ed0ca]/30 focus:outline-none rounded-2xl text-base font-black text-gray-100 placeholder:text-gray-600 font-mono tracking-widest text-center"
+                />
+              </div>
+
+              {/* Transaction ID Field */}
+              <div className="space-y-2.5">
+                <div className="flex justify-between items-center ml-1">
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest">
+                    ৩. ট্রানজেকশন আইডি (TrxID) <span className="text-red-500 font-bold">*</span>
+                  </label>
+                  {trxId.trim().length >= 8 && (
+                    <span className="text-[9px] font-black text-[#ffc107] bg-yellow-500/10 px-1.5 py-0.5 rounded border border-yellow-500/20 uppercase tracking-tight flex items-center gap-1 animate-pulse">
+                      Ready to Submit
+                    </span>
+                  )}
+                </div>
+
+                <div className="relative">
                   <input 
                     type="text" 
-                    value={senderNumber}
-                    onChange={(e) => setSenderNumber(e.target.value)}
-                    placeholder="আপনার নাম্বারটি লিখুন"
-                    className="w-full p-3 bg-white border border-gray-300 rounded focus:outline-none text-base font-bold text-gray-900 placeholder:text-gray-400 placeholder:font-normal text-center"
+                    value={trxId}
+                    onChange={(e) => setTrxId(e.target.value)}
+                    placeholder="এখানে ৮ থেকে ১০ ডিজিটের TrxID দিন"
+                    className="w-full p-4 bg-black/30 border-2 border-red-500/40 focus:border-red-500 rounded-2xl text-lg font-black text-red-500 placeholder:text-gray-700 tracking-widest text-center uppercase font-mono transition-colors"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="block text-base font-bold text-gray-900">
-                    Transaction ID (TrxID) <span className="text-red-500">*(required)</span>
-                  </label>
-                  <p className="text-gray-500 text-sm">ক্যাশআউটের TrxID নাম্বারটি লিখুন (প্রয়োজন)</p>
-                  <div className="mt-2 text-[#2196f3] text-xs text-center mb-1 cursor-pointer hover:underline">
-                    Click to see how to get TrxID/কিভাবে TrxID পেতে হয় তা দেখতে ক্লিক করুন
-                  </div>
-                  <div className="relative">
-                    <input 
-                      type="text" 
-                      value={trxId}
-                      onChange={(e) => setTrxId(e.target.value)}
-                      placeholder="এখানে Transaction ID দিন"
-                      className="w-full p-3 bg-white border-2 border-red-500 rounded focus:border-red-600 focus:outline-none text-lg font-black text-red-600 placeholder:text-gray-300 placeholder:font-normal text-center uppercase"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Time Warning */}
-              <div className="text-center space-y-1 border-t border-b border-gray-100 py-4">
-                <p className="text-gray-900 text-sm">Please do not pay beyond the following time</p>
-                <p className="text-gray-900 text-sm">অনুগ্রহ করে নিম্নলিখিত সময়ের বেশি অর্থ প্রদান করবেন না</p>
-                <p className="text-red-500 font-bold text-lg mt-2">2026-12-31 23:59:59</p>
-              </div>
-
-              {/* Confirm Button */}
-              <div className="pt-2">
-                <button 
-                  disabled={isSubmitting}
-                  onClick={handleDeposit}
-                  className="w-full py-3 border border-gray-300 rounded-full bg-white text-gray-600 font-bold text-base hover:bg-gray-50 transition-colors active:scale-95 flex items-center justify-center shadow-sm"
+                {/* Tutorial Accordion Block Header clickable */}
+                <div 
+                  onClick={() => setShowTrxTutorial(!showTrxTutorial)}
+                  className="bg-white/5 rounded-2xl p-3 flex items-center justify-between cursor-pointer border border-white/5 hover:bg-white/10 transition-all"
                 >
-                  {isSubmitting ? <Loader2 className="animate-spin" /> : 'Submit/নিশ্চিত'}
-                </button>
-              </div>
+                  <span className="text-[10px] font-black uppercase text-gray-300 tracking-wider flex items-center gap-1.5">
+                    <HelpCircle size={14} className="text-[#3ed0ca]" />
+                    <span>কিভাবে TrxID খুঁজে বের করবেন? (নির্দেশিকা)</span>
+                  </span>
+                  
+                  <span className="text-[10px] font-black text-teal-400 uppercase">
+                    {showTrxTutorial ? 'লুকান ▲' : 'দেখুন ▼'}
+                  </span>
+                </div>
 
-              {/* Footer Warning Section */}
-              <div className="space-y-2 pt-2 border-t border-gray-100 mt-4">
-                <div className="flex items-center gap-2 text-amber-600 mb-2">
-                  <ShieldCheck size={20} />
-                  <h4 className="text-base font-bold">Privacy & Security</h4>
-                </div>
-                <p className="text-gray-600 text-[13px] leading-relaxed">
-                  আপনার পেমেন্ট নিরাপদ রাখতে সর্বদা সঠিক <span className="font-bold text-red-500">Transaction ID</span> এবং <span className="font-bold text-red-500">আপনার নাম্বারটি</span> প্রদান করবেন। ভুল তথ্য প্রদান করলে ডিপোজিট সফল হবে না।
-                </p>
-                
-                <div className="bg-blue-50 p-4 rounded-xl mt-6 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white">
-                      <MessageCircle size={24} />
-                    </div>
-                    <div>
-                      <p className="font-bold text-blue-900 text-sm">Need Help?</p>
-                      <p className="text-blue-700 text-xs text-left">পেমেন্ট নিয়ে সমস্যা? চ্যাট করুণ</p>
-                    </div>
+                {/* Tutorial Body Content */}
+                <AnimatePresence>
+                  {showTrxTutorial && (
+                    <motion.div 
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden bg-[#181818]/60 border border-white/5 rounded-2xl"
+                    >
+                      <div className="p-4 space-y-4 text-xs text-gray-400 leading-relaxed font-black">
+                        <div className="space-y-1.5">
+                          <p className="text-[#ffc107] uppercase text-[10px] block font-black">বিকাশ (bKash) মোবাইল অ্যাপ:</p>
+                          <p className="font-medium text-[11px] text-gray-300">
+                            ১. ক্যাশআউট শেষ হলে স্ক্রিনে '১-অঙ্কের TrxID' দেখতে পাবেন।
+                          </p>
+                          <p className="font-medium text-[11px] text-gray-300">
+                            ২. অথবা বিকাশ অ্যাপের মেনু (উপরের ডান কোণায়) থেকে "লেনদেন" নির্বাচন করুন।
+                          </p>
+                        </div>
+                        
+                        <div className="h-[1px] bg-white/5" />
+
+                        <div className="space-y-1.5">
+                          <p className="text-[#ffc107] uppercase text-[10px] block font-black">নগদ (Nagad) মোবাইল অ্যাপ:</p>
+                          <p className="font-medium text-[11px] text-gray-300">
+                            ১. লেনদেন শেষে রিসিটের উপরে 'TrxID' বা ট্রানজেকশন আইডি দেখতে পরবেন।
+                          </p>
+                          <p className="font-medium text-[11px] text-gray-300">
+                            ২. অথবা নগদ মেনু থেকে "ইতিহাস বা লেনদেন" ক্লিক করলেই ট্রানজেকশন আইডি দেখতে পাবেন।
+                          </p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+
+            {/* Confirm Payment Submission CTA */}
+            <div className="pt-2">
+              <button 
+                disabled={isSubmitting || !senderNumber.trim() || !trxId.trim()}
+                onClick={handleDeposit}
+                className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 disabled:from-white/5 disabled:to-white/5 text-black disabled:text-gray-600 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-1.5 shadow-[0_5px_15px_rgba(16,185,129,0.1)]"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="animate-spin text-gray-500" size={16} />
+                ) : (
+                  <>
+                    <ShieldCheck size={14} strokeWidth={3} />
+                    <span>পেমেন্ট রিকোয়েস্ট সাবমিট করুন</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Privacy Shield footer block */}
+            <div className="pt-2 border-t border-white/5 space-y-2">
+              <div className="flex items-center gap-2 text-emerald-400">
+                <ShieldCheck size={18} />
+                <h4 className="text-xs font-black uppercase tracking-wider">Privacy & Security Shield</h4>
+              </div>
+              <p className="text-gray-500 text-[10px] leading-relaxed">
+                আপনার পেমেন্ট নিরাপদ রাখতে সর্বদা সঠিক এবং নিজের ব্যবহৃত <span className="font-black text-red-400">Transaction ID</span> এবং <span className="font-black text-red-400">পেমেন্ট নম্বর</span> প্রদান করবেন। ভুল তথ্য প্রদান করলে ডিপোজিট সফল হবে না।
+              </p>
+              
+              {/* Support Telegram option */}
+              <div className="bg-white/5 border border-white/5 p-4 rounded-3xl mt-6 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-[#3ed0ca]/10 border border-[#3ed0ca]/15 rounded-full flex items-center justify-center text-[#3ed0ca]">
+                    <MessageCircle size={20} />
                   </div>
-                  <button 
-                    onClick={() => window.open(globalImages['telegram_link'] || 'https://t.me/your_support', '_blank')}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-sm"
-                  >
-                    Live Chat
-                  </button>
+                  <div className="text-left">
+                    <p className="font-black text-gray-200 text-xs uppercase tracking-wider">Live Support</p>
+                    <p className="text-gray-500 text-[10px] font-semibold">পেমেন্ট সম্পর্কিত যেকোনো প্রয়োজনে চ্যাট করুণ</p>
+                  </div>
                 </div>
+                <button 
+                  onClick={() => window.open(globalImages['telegram_link'] || 'https://t.me/your_support', '_blank')}
+                  className="bg-[#3ed0ca] text-black hover:bg-[#32b5af] px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95"
+                >
+                  Live Telegram
+                </button>
               </div>
             </div>
           </div>
@@ -651,28 +937,33 @@ export default function DepositView({
 
       {/* Confirmation Modal */}
       {showConfirmModal && (
-        <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl w-full max-w-sm overflow-hidden flex flex-col items-center">
-            <div className="p-6 text-center space-y-2">
-              <p className="text-gray-900 font-bold text-[15px]">
-                This order can only be submitted once, please confirm your Transaction ID: <span className="text-red-500">{trxId}</span> is correct!
-              </p>
-              <p className="text-gray-900 font-bold text-[15px]">
-                এই অর্ডারটি শুধুমাত্র একবার জমা দেওয়া যাবে, অনুগ্রহ করে নিশ্চিত করুন যে আপনার লেনদেন আইডি: <span className="text-red-500">{trxId}</span> সঠিক!
-              </p>
+        <div className="fixed inset-0 z-[6022] bg-black/85 flex items-center justify-center p-4 backdrop-blur-sm select-none">
+          <div className="bg-[#1a1a1a] border border-white/5 rounded-3xl w-full max-w-xs overflow-hidden flex flex-col items-center shadow-2xl animate-[scaleIn_0.2s_ease-out]">
+            <div className="p-6 text-center space-y-3.5">
+              <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mx-auto text-red-500 animate-pulse">
+                <AlertTriangle size={24} />
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-gray-200 font-black text-xs leading-normal">
+                  এই পেমেন্ট রিকোয়েস্টটি শুধুমাত্র একবার জমা দেওয়া যাবে!
+                </p>
+                <p className="text-gray-400 text-[10px] leading-normal font-medium">
+                  অনুগ্রহ করে নিশ্চিত করুন যে আপনার ট্রানজেকশন আইডি (TrxID): <span className="text-red-500 font-mono font-black break-all select-all">{trxId}</span> সঠিক!
+                </p>
+              </div>
             </div>
-            <div className="flex border-t w-full">
+            <div className="flex border-t border-white/5 w-full">
               <button 
                 onClick={() => setShowConfirmModal(false)}
-                className="flex-1 py-4 text-center text-gray-500 font-bold border-r hover:bg-gray-50"
+                className="flex-1 py-4 text-center text-xs font-black uppercase tracking-widest text-gray-500 hover:text-white hover:bg-white/5 transition-all"
               >
-                cancel/বাতিল
+                বাতিল (Cancel)
               </button>
               <button 
                 onClick={confirmDeposit}
-                className="flex-1 py-4 text-center text-[#1d7470] font-bold hover:bg-gray-50"
+                className="flex-1 py-4 text-center text-xs font-black uppercase tracking-widest text-[#3ed0ca] hover:bg-white/5 border-l border-white/5 transition-all"
               >
-                confirm/জমা
+                জমা (Confirm)
               </button>
             </div>
           </div>

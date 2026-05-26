@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
+import { ChevronDown, ChevronUp, HelpCircle, Search, X } from 'lucide-react';
 
 interface FAQItem {
   question: string;
@@ -50,8 +50,14 @@ const faqData: FAQSection[] = [
   }
 ];
 
-const AccordionItem = ({ item }: { item: FAQItem }) => {
+const AccordionItem = ({ item, forceOpen }: { item: FAQItem; forceOpen?: boolean }) => {
   const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    if (forceOpen) {
+      setIsOpen(true);
+    }
+  }, [forceOpen]);
 
   return (
     <div className="border-b border-white/10 last:border-0">
@@ -60,10 +66,10 @@ const AccordionItem = ({ item }: { item: FAQItem }) => {
         className="w-full flex justify-between items-center py-4 text-left text-white font-medium hover:text-yellow-500 transition-colors"
       >
         {item.question}
-        {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        {isOpen || forceOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
       </button>
       <AnimatePresence>
-        {isOpen && (
+        {(isOpen || forceOpen) && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
@@ -79,23 +85,68 @@ const AccordionItem = ({ item }: { item: FAQItem }) => {
 };
 
 export default function FAQView() {
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredFaqData = faqData.map(section => {
+    const matchedItems = section.items.filter(item => 
+      item.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.answer.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    return {
+      ...section,
+      items: matchedItems
+    };
+  }).filter(section => section.items.length > 0);
+
   return (
     <div className="p-4 space-y-6">
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center gap-3 mb-4">
         <HelpCircle className="text-yellow-500" size={28} />
         <h1 className="text-2xl font-bold text-white">সচরাচর জিজ্ঞাসিত প্রশ্ন (FAQ)</h1>
       </div>
-      
-      {faqData.map((section, idx) => (
-        <div key={idx} className="bg-gray-900 rounded-2xl p-5 border border-white/10">
-          <h2 className="text-lg font-bold text-yellow-500 mb-2">{section.title}</h2>
-          <div className="space-y-1">
-            {section.items.map((item, itemIdx) => (
-              <AccordionItem key={itemIdx} item={item} />
-            ))}
-          </div>
+
+      {/* FAQ Search Bar */}
+      <div className="relative flex items-center mb-6">
+        <div className="absolute left-3.5 text-gray-400 pointer-events-none">
+          <Search size={16} />
         </div>
-      ))}
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="প্রশ্ন বা উত্তর খুঁজুন..."
+          className="w-full bg-[#14253a] border border-[#1e3a5f] hover:border-[#00e5ff]/50 focus:border-[#00e5ff] text-white pl-10 pr-10 py-2.5 rounded-xl text-xs font-bold focus:outline-none focus:ring-1 focus:ring-[#00e5ff]/30 placeholder-gray-500 transition-all shadow-[0_4px_12px_rgba(0,0,0,0.3)]"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery("")}
+            className="absolute right-3.5 text-gray-400 hover:text-white transition-colors"
+          >
+            <X size={16} />
+          </button>
+        )}
+      </div>
+      
+      {filteredFaqData.length > 0 ? (
+        filteredFaqData.map((section, idx) => (
+          <div key={idx} className="bg-gray-900 rounded-2xl p-5 border border-white/10">
+            <h2 className="text-lg font-bold text-yellow-500 mb-2">{section.title}</h2>
+            <div className="space-y-1">
+              {section.items.map((item, itemIdx) => (
+                <AccordionItem 
+                  key={itemIdx} 
+                  item={item} 
+                  forceOpen={searchQuery.length > 0} 
+                />
+              ))}
+            </div>
+          </div>
+        ))
+      ) : (
+        <div className="text-center py-10 text-gray-500 text-sm">
+          আপনার খোঁজা প্রশ্নটি পাওয়া যায়নি। অন্য কিছু লিখে চেষ্টা করুন।
+        </div>
+      )}
     </div>
   );
 }

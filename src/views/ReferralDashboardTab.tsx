@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit, startAfter } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { 
   ArrowLeft, Copy, Facebook, Send, MessageCircle, 
-  Users, CheckCircle, DollarSign, Clock, User 
+  Users, CheckCircle, DollarSign, Clock, User,
+  Trophy, Medal, TrendingUp
 } from 'lucide-react';
 import { ToastType } from '../components/ui/Toast';
 
@@ -16,7 +17,87 @@ interface ReferralDashboardTabProps {
 
 export default function ReferralDashboardTab({ userData, showToast, onBack }: ReferralDashboardTabProps) {
   const [referrals, setReferrals] = useState<any[]>([]);
+  const [topReferrers, setTopReferrers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isTopLoading, setIsTopLoading] = useState(true);
+  const [lastVisible, setLastVisible] = useState<any>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const PAGE_SIZE = 15;
+
+  const fetchReferrals = async (isFirstLoad = true) => {
+    if (!userData?.id) return;
+    if (isFirstLoad) setIsLoading(true);
+    
+    try {
+      let q = query(
+        collection(db, 'users'), 
+        where('referredBy', '==', userData.id),
+        orderBy('createdAt', 'desc'),
+        limit(PAGE_SIZE)
+      );
+
+      if (!isFirstLoad && lastVisible) {
+        q = query(
+          collection(db, 'users'), 
+          where('referredBy', '==', userData.id),
+          orderBy('createdAt', 'desc'),
+          startAfter(lastVisible),
+          limit(PAGE_SIZE)
+        );
+      }
+
+      const querySnapshot = await getDocs(q);
+      const list = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      if (isFirstLoad) {
+        setReferrals(list);
+      } else {
+        setReferrals(prev => [...prev, ...list]);
+      }
+
+      setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1]);
+      setHasMore(querySnapshot.docs.length === PAGE_SIZE);
+    } catch (error) {
+      console.error("Error fetching referrals:", error);
+    } finally {
+      if (isFirstLoad) setIsLoading(false);
+    }
+  };
+
+  const fetchTopReferrers = async () => {
+    try {
+      setIsTopLoading(true);
+      const q = query(
+        collection(db, 'users'),
+        orderBy('totalReferralEarnings', 'desc'),
+        limit(10)
+      );
+      const snapshot = await getDocs(q);
+      const list = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })).filter((u: any) => (u.totalReferralEarnings || 0) > 0);
+      setTopReferrers(list);
+    } catch (error) {
+      console.error("Error fetching top referrers:", error);
+    } finally {
+      setIsTopLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchReferrals(true);
+    fetchTopReferrers();
+  }, [userData?.id]);
+
+  const loadMore = () => {
+    if (!isLoading && hasMore) {
+      fetchReferrals(false);
+    }
+  };
 
   // Stats
   const totalReferrals = referrals.length;
@@ -25,34 +106,6 @@ export default function ReferralDashboardTab({ userData, showToast, onBack }: Re
 
   const referralCode = userData?.referralCode || (userData?.id ? userData.id.substring(0, 6).toUpperCase() : 'SPIN71');
   const referralLink = `${window.location.origin}/?ref=${referralCode}`;
-
-  useEffect(() => {
-    if (userData?.id) {
-      const fetchReferrals = async () => {
-        setIsLoading(true);
-        try {
-          const q = query(
-            collection(db, 'users'), 
-            where('referredBy', '==', userData.id),
-            orderBy('createdAt', 'desc')
-          );
-          const querySnapshot = await getDocs(q);
-          const list = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }));
-          setReferrals(list);
-        } catch (error) {
-          console.error("Error fetching referrals:", error);
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      fetchReferrals();
-    } else {
-      setIsLoading(false);
-    }
-  }, [userData?.id]);
 
   const copyLink = () => {
     navigator.clipboard.writeText(referralLink);
@@ -159,6 +212,70 @@ export default function ReferralDashboardTab({ userData, showToast, onBack }: Re
           </div>
         </div>
 
+        {/* Agent Ranking Leaderboard */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-indigo-50/30">
+            <h3 className="font-bold text-gray-800 flex items-center gap-2 uppercase tracking-tight text-sm">
+              <Trophy size={18} className="text-yellow-600" /> Agent Ranking (Top 10)
+            </h3>
+            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-1">
+              <TrendingUp size={12} /> Live Leaders
+            </span>
+          </div>
+          
+          {isTopLoading ? (
+            <div className="p-10 flex justify-center">
+              <div className="w-8 h-8 border-4 border-yellow-200 border-t-yellow-600 rounded-full animate-spin"></div>
+            </div>
+          ) : topReferrers.length === 0 ? (
+            <div className="p-8 text-center text-gray-400">
+              <Medal size={32} className="mx-auto mb-2 opacity-20" />
+              <p className="text-[10px] font-bold uppercase">Ranking will appear here soon</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {topReferrers.map((agent, idx) => {
+                return (
+                  <motion.div 
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    key={agent.id} 
+                    className={`p-4 flex items-center justify-between transition-colors ${idx === 0 ? 'bg-yellow-50/30' : ''}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${
+                        idx === 0 ? 'bg-yellow-400 text-white shadow-lg shadow-yellow-400/30 ring-2 ring-yellow-400/20' : 
+                        idx === 1 ? 'bg-gray-300 text-white' :
+                        idx === 2 ? 'bg-amber-600/30 text-amber-700' :
+                        'bg-gray-100 text-gray-500'
+                      }`}>
+                        {idx === 0 ? <Trophy size={14} /> : idx + 1}
+                      </div>
+                      <div>
+                        <p className={`text-sm font-bold ${idx === 0 ? 'text-gray-900' : 'text-gray-800'}`}>
+                          {agent.username ? `${agent.username.substring(0, 3)}***${agent.username.slice(-2)}` : 'Agent'}
+                        </p>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                          Certified Partner
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-sm font-black ${idx === 0 ? 'text-green-600' : 'text-gray-900'}`}>
+                        ৳{(agent.totalReferralEarnings || 0).toLocaleString()}
+                      </p>
+                      <p className="text-[9px] text-gray-400 font-bold uppercase">
+                        Commission
+                      </p>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         {/* Referred Users List */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
@@ -222,6 +339,16 @@ export default function ReferralDashboardTab({ userData, showToast, onBack }: Re
                   </motion.div>
                 );
               })}
+
+              {hasMore && (
+                <button
+                  onClick={loadMore}
+                  disabled={isLoading}
+                  className="w-full py-4 text-xs font-bold text-indigo-600 hover:bg-indigo-50 transition-colors border-t border-gray-100 disabled:opacity-50"
+                >
+                  {isLoading ? 'Loading...' : 'Load More Referrals'}
+                </button>
+              )}
             </div>
           )}
         </div>

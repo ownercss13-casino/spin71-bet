@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Coins, Trophy, Clock, Star, Gift, User, History, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Coins, Trophy, Clock, Star, Gift, User, History, ArrowRight, ArrowLeft, X } from 'lucide-react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import Reel from './Reel';
 import { useFirebase } from '../../hooks/useFirebase';
 
 interface SlotMachineProps {
   onBack?: () => void;
+  balance: number;
+  onBalanceUpdate: (newBalance: number, persist?: boolean) => void;
+  showToast: (message: string, type?: any) => void;
+  userData: any;
 }
 
-const SlotMachine: React.FC<SlotMachineProps> = ({ onBack }) => {
-  const { user, db, auth } = useFirebase();
-  const [balance, setBalance] = useState(0);
+const SlotMachine: React.FC<SlotMachineProps> = ({ onBack, balance, onBalanceUpdate, showToast, userData }) => {
+  const { db, auth } = useFirebase();
   const [betAmount, setBetAmount] = useState(10);
   const [isSpinning, setIsSpinning] = useState(false);
   const [autoSpin, setAutoSpin] = useState(false);
@@ -31,15 +34,6 @@ const SlotMachine: React.FC<SlotMachineProps> = ({ onBack }) => {
     }
     return () => clearTimeout(timer);
   }, [autoSpin, isSpinning, balance, betAmount]);
-
-  useEffect(() => {
-    if (user) {
-      const unsub = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
-        if (docSnap.exists()) setBalance(docSnap.data()?.balance || 0);
-      });
-      return () => unsub();
-    }
-  }, [user, db]);
 
   const handleSpin = async () => {
     if (balance < betAmount || isSpinning) {
@@ -69,6 +63,11 @@ const SlotMachine: React.FC<SlotMachineProps> = ({ onBack }) => {
           setResults(data.symbols);
           setWinAmount(data.winAmount);
           if (data.winAmount > 0) setShowWin(true);
+          
+          // Force update the local balance for immediate feedback
+          if (data.newBalance !== undefined) {
+             onBalanceUpdate(data.newBalance, false);
+          }
         }
       }, spinDuration);
 
@@ -81,13 +80,24 @@ const SlotMachine: React.FC<SlotMachineProps> = ({ onBack }) => {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-[#0a0505] p-4 text-white overflow-hidden relative">
-      {/* Back Button */}
+      {/* Top Banner / Logo */}
+      <div className="absolute top-0 left-0 right-0 h-16 flex items-center justify-center z-20 pointer-events-none">
+        <img 
+          src="/apple-touch-icon.png?v=6" 
+          alt="Casino Logo"
+          className="h-10 opacity-90 drop-shadow-[0_0_10px_rgba(253,216,53,0.3)]"
+          referrerPolicy="no-referrer"
+        />
+      </div>
+
+      {/* Close Button - × */}
       {onBack && (
         <button 
           onClick={onBack}
-          className="absolute top-6 left-6 z-20 p-2 bg-white/5 hover:bg-white/10 rounded-full border border-white/10 transition-all text-gray-400 hover:text-white"
+          className="absolute top-4 right-4 z-50 w-12 h-12 flex items-center justify-center bg-red-600/20 hover:bg-red-600 rounded-full border border-red-500/30 transition-all text-white shadow-[0_0_20px_rgba(220,38,38,0.4)] group"
+          title="Exit Game"
         >
-          <ArrowLeft size={24} />
+          <X size={28} className="group-hover:scale-110 transition-transform" />
         </button>
       )}
       

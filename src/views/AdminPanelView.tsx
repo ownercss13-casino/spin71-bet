@@ -13,7 +13,12 @@ import {
   addDoc,
   getDocs,
   getDoc,
-  arrayUnion
+  arrayUnion,
+  writeBatch,
+  deleteDoc,
+  where,
+  limit,
+  startAfter
 } from 'firebase/firestore';
 import { 
   Users, 
@@ -51,7 +56,15 @@ import {
   X,
   Bell,
   MessageCircle,
-  History as HistoryIcon
+  Smartphone,
+  ShieldCheck,
+  History as HistoryIcon,
+  Trash,
+  Menu,
+  ChevronLeft,
+  ChevronRight,
+  Power,
+  Zap
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -101,84 +114,166 @@ interface AdminPanelViewProps {
 
 export default function AdminPanelView(props: AdminPanelViewProps) {
   const { onBack, showToast, userData } = props;
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'deposits' | 'withdrawals' | 'games' | 'settings' | 'promo' | 'support' | 'notifications'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'deposits' | 'withdrawals' | 'games' | 'settings' | 'promo' | 'support' | 'notifications' | 'maintenance'>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   
   const [users, setUsers] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [usersLastVisible, setUsersLastVisible] = useState<any>(null);
+  const [trxsLastVisible, setTrxsLastVisible] = useState<any>(null);
+  const [hasMoreUsers, setHasMoreUsers] = useState(true);
+  const [hasMoreTrxs, setHasMoreTrxs] = useState(true);
+  const PAGE_SIZE_USERS = 50;
+  const PAGE_SIZE_TRXS = 50;
+  
   const [trafficStats, setTrafficStats] = useState<any>(null);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [messagingUser, setMessagingUser] = useState<any>(null);
+  const [bonusModalUser, setBonusModalUser] = useState<any>(null);
   const [messageText, setMessageText] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
 
-  useEffect(() => {
-    const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-      const userList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setUsers(userList);
-    }, (error) => {
-      console.error("Users list onSnapshot error:", error);
-    });
+  const [isRefreshingData, setIsRefreshingData] = useState(false);
 
-    const unsubTrxs = onSnapshot(collection(db, 'transactions'), (snapshot) => {
-      const trxList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      // Sort in memory by createdAt (desc)
-      trxList.sort((a: any, b: any) => {
-        const timeA = a.createdAt?.seconds || 0;
-        const timeB = b.createdAt?.seconds || 0;
-        return timeB - timeA;
-      });
-      setTransactions(trxList);
-    }, (error) => {
-      console.error("Transactions list onSnapshot error:", error);
-      if (error.message.includes('index')) {
-        showToast("Firestore Index missing for transactions. Check console for link.", "error");
+  const fetchUsers = async (isFirstLoad = true) => {
+    if (props.userData?.role !== 'admin' && props.userData?.isAdmin !== true) return;
+    if (isFirstLoad) setIsRefreshingData(true);
+    try {
+      let q = query(
+        collection(db, 'users'), 
+        orderBy('createdAt', 'desc'),
+        limit(PAGE_SIZE_USERS)
+      );
+
+      if (!isFirstLoad && usersLastVisible) {
+        q = query(
+          collection(db, 'users'), 
+          orderBy('createdAt', 'desc'),
+          startAfter(usersLastVisible),
+          limit(PAGE_SIZE_USERS)
+        );
       }
-    });
 
-    // Simulated traffic stats
-    setTrafficStats({
-      totalPageViews: 5432,
-      uniqueVisitors: 1245,
-      bounceRate: "42.5%",
-      avgSessionDuration: "3m 45s",
-      dailyTraffic: [
-        { name: "Mon", visitors: 110, views: 500 },
-        { name: "Tue", visitors: 130, views: 600 },
-        { name: "Wed", visitors: 150, views: 750 },
-        { name: "Thu", visitors: 140, views: 700 },
-        { name: "Fri", visitors: 180, views: 950 },
-        { name: "Sat", visitors: 220, views: 1200 },
-        { name: "Sun", visitors: 210, views: 1100 }
-      ],
-      trafficSources: [
-        { name: "Direct", value: 45, color: "#10b981" },
-        { name: "Search", value: 30, color: "#3b82f6" },
-        { name: "Referral", value: 15, color: "#f59e0b" },
-        { name: "Social", value: 10, color: "#ef4444" }
-      ]
-    });
+      const snapshot = await getDocs(q);
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    return () => {
-      unsubUsers();
-      unsubTrxs();
-    };
-  }, []);
+      if (isFirstLoad) {
+        setUsers(list);
+      } else {
+        setUsers(prev => [...prev, ...list]);
+      }
+
+      setUsersLastVisible(snapshot.docs[snapshot.docs.length - 1]);
+      setHasMoreUsers(snapshot.docs.length === PAGE_SIZE_USERS);
+    } catch (err) {
+      console.error("Fetch users error:", err);
+    } finally {
+      if (isFirstLoad) setIsRefreshingData(false);
+    }
+  };
+
+  const fetchTransactions = async (isFirstLoad = true) => {
+    if (props.userData?.role !== 'admin' && props.userData?.isAdmin !== true) return;
+    if (isFirstLoad) setIsRefreshingData(true);
+    try {
+      let q = query(
+        collection(db, 'transactions'), 
+        orderBy('createdAt', 'desc'),
+        limit(PAGE_SIZE_TRXS)
+      );
+
+      if (!isFirstLoad && trxsLastVisible) {
+        q = query(
+          collection(db, 'transactions'), 
+          orderBy('createdAt', 'desc'),
+          startAfter(trxsLastVisible),
+          limit(PAGE_SIZE_TRXS)
+        );
+      }
+
+      const snapshot = await getDocs(q);
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      if (isFirstLoad) {
+        setTransactions(list);
+      } else {
+        setTransactions(prev => [...prev, ...list]);
+      }
+
+      setTrxsLastVisible(snapshot.docs[snapshot.docs.length - 1]);
+      setHasMoreTrxs(snapshot.docs.length === PAGE_SIZE_TRXS);
+    } catch (err) {
+      console.error("Fetch transactions error:", err);
+    } finally {
+      if (isFirstLoad) setIsRefreshingData(false);
+    }
+  };
+
+  const fetchAdminData = async () => {
+    if (props.userData?.role !== 'admin' && props.userData?.isAdmin !== true) return;
+    setIsRefreshingData(true);
+    try {
+      await Promise.all([
+        fetchUsers(true),
+        fetchTransactions(true)
+      ]);
+
+      // Restore simulated traffic stats
+      setTrafficStats({
+        totalPageViews: 5432,
+        uniqueVisitors: 1245,
+        bounceRate: "42.5%",
+        avgSessionDuration: "3m 45s",
+        dailyTraffic: [
+          { name: "Mon", visitors: 110, views: 500 },
+          { name: "Tue", visitors: 130, views: 600 },
+          { name: "Wed", visitors: 150, views: 750 },
+          { name: "Thu", visitors: 140, views: 700 },
+          { name: "Fri", visitors: 180, views: 950 },
+          { name: "Sat", visitors: 220, views: 1200 },
+          { name: "Sun", visitors: 210, views: 1100 }
+        ],
+        trafficSources: [
+          { name: "Direct", value: 45, color: "#10b981" },
+          { name: "Search", value: 30, color: "#3b82f6" },
+          { name: "Referral", value: 15, color: "#f59e0b" },
+          { name: "Social", value: 10, color: "#ef4444" }
+        ]
+      });
+    } catch (error: any) {
+      console.error("Admin data fetch error:", error);
+      if (error.message.includes('Quota')) {
+        showToast("সিস্টেম লিমিট শেষ হয়েছে! কিছুক্ষণ পর আবার চেষ্টা করুন।", "error");
+      }
+    } finally {
+      setIsRefreshingData(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAdminData();
+    
+    // Auto refresh every 15 minutes if tab is active (reduced from 5 to save quota)
+    const interval = setInterval(fetchAdminData, 15 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [props.userData]);
 
   const handleApproveTrx = async (trx: any) => {
     if (trx.status !== 'pending') return;
     setIsLoading(true);
     try {
+      const batch = writeBatch(db);
       const userRef = doc(db, 'users', trx.userId);
-      const userSnap = await getDoc(userRef);
       const trxRef = doc(db, 'transactions', trx.id);
       const userTrxRef = doc(db, 'users', trx.userId, 'transactions', trx.id);
 
+      const userSnap = await getDoc(userRef);
+
       if (trx.type === 'deposit') {
         const depositAmount = Number(trx.amount);
-        await updateDoc(userRef, {
+        batch.update(userRef, {
           balance: increment(depositAmount),
           totalDeposits: increment(depositAmount),
           updatedAt: serverTimestamp()
@@ -191,7 +286,7 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
             const bonusAmount = depositAmount * 0.1; // 10% bonus
             const referrerRef = doc(db, 'users', userData.referredBy);
             
-            await updateDoc(referrerRef, {
+            batch.update(referrerRef, {
               balance: increment(bonusAmount),
               totalReferralEarnings: increment(bonusAmount)
             });
@@ -209,27 +304,37 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
             };
 
             const newBonusRef = doc(collection(db, 'transactions'));
-            await setDoc(newBonusRef, bonusTrxData);
-            await setDoc(doc(db, 'users', userData.referredBy, 'transactions', newBonusRef.id), bonusTrxData);
+            batch.set(newBonusRef, bonusTrxData);
+            batch.set(doc(db, 'users', userData.referredBy, 'transactions', newBonusRef.id), bonusTrxData);
           }
         }
       } else if (trx.type === 'withdrawal') {
-        // Balance already deducted in ProfileView.tsx
-        await updateDoc(userRef, {
-          totalWithdrawals: increment(trx.amount),
+        const withdrawalAmount = Math.abs(Number(trx.amount));
+        batch.update(userRef, {
+          totalWithdrawals: increment(withdrawalAmount),
           updatedAt: serverTimestamp()
         });
       }
 
       const updates = { status: 'approved', approvedAt: serverTimestamp() };
-      await updateDoc(trxRef, updates);
-      try {
-        await updateDoc(userTrxRef, updates);
-      } catch (e) {
-        // Might fail if not existing in subcollection (legacy)
-        console.warn("Sub-collection trx update failed", e);
-      }
+      batch.update(trxRef, updates);
       
+      // Update in subcollection as well
+      batch.set(userTrxRef, updates, { merge: true });
+
+      // Notify user
+      const notifRef = doc(collection(db, 'users', trx.userId, 'notifications'));
+      batch.set(notifRef, {
+        title: trx.type === 'deposit' ? 'ডিপোজিট সফল' : 'উত্তোলন সফল',
+        message: trx.type === 'deposit' 
+          ? `আপনার ৳${trx.amount} ডিপোজিট সফলভাবে সম্পন্ন হয়েছে।` 
+          : `আপনার ৳${Math.abs(trx.amount)} উত্তোলন সফলভাবে সম্পন্ন হয়েছে।`,
+        type: 'account',
+        read: false,
+        createdAt: serverTimestamp()
+      });
+
+      await batch.commit();
       showToast('Transaction Approved!', 'success');
     } catch (err) {
       console.error("Approval error:", err);
@@ -243,28 +348,42 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
     if (trx.status !== 'pending') return;
     setIsLoading(true);
     try {
+      const batch = writeBatch(db);
       const userRef = doc(db, 'users', trx.userId);
       const trxRef = doc(db, 'transactions', trx.id);
       const userTrxRef = doc(db, 'users', trx.userId, 'transactions', trx.id);
 
       if (trx.type === 'withdrawal') {
+        const refundAmount = Math.abs(Number(trx.amount));
         // Refund balance
-        await updateDoc(userRef, {
-          balance: increment(trx.amount),
+        batch.update(userRef, {
+          balance: increment(refundAmount),
           updatedAt: serverTimestamp()
         });
       }
 
       const updates = { status: 'rejected', rejectedAt: serverTimestamp() };
-      await updateDoc(trxRef, updates);
-      try {
-        await updateDoc(userTrxRef, updates);
-      } catch (e) {
-        console.warn("Sub-collection trx update failed", e);
-      }
+      batch.update(trxRef, updates);
+
+      // Notify user
+      const notifRef = doc(collection(db, 'users', trx.userId, 'notifications'));
+      batch.set(notifRef, {
+        title: trx.type === 'deposit' ? 'ডিপোজিট রিজেক্টেড' : 'উত্তোলন রিজেক্টেড',
+        message: trx.type === 'deposit' 
+          ? `আপনার ৳${trx.amount} ডিপোজিট রিকোয়েস্ট রিজেক্ট করা হয়েছে।` 
+          : `আপনার ৳${Math.abs(trx.amount)} উত্তোলন রিকোয়েস্ট রিজেক্ট করা হয়েছে।`,
+        type: 'account',
+        read: false,
+        createdAt: serverTimestamp()
+      });
+
+      // Update in subcollection
+      batch.set(userTrxRef, updates, { merge: true });
       
+      await batch.commit();
       showToast('Transaction Rejected', 'warning');
     } catch (err) {
+      console.error("Rejection error:", err);
       showToast('Rejection failed', 'error');
     } finally {
       setIsLoading(false);
@@ -329,6 +448,48 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
     }
   };
 
+  const handleSendBonus = async (userId: string, amount: number, description: string) => {
+    if (amount <= 0) return;
+    setIsLoading(true);
+    try {
+      const batch = writeBatch(db);
+      const userRef = doc(db, 'users', userId);
+      const userSnap = await getDoc(userRef);
+      if (!userSnap.exists()) throw new Error("User not found");
+      const userData = userSnap.data();
+
+      batch.update(userRef, {
+        balance: increment(amount),
+        updatedAt: serverTimestamp()
+      });
+
+      const bonusTrxData = {
+        userId,
+        username: userData.username || 'User',
+        type: 'bonus',
+        amount: amount,
+        status: 'approved',
+        description: description || 'Admin manual bonus',
+        createdAt: serverTimestamp()
+      };
+
+      const trxRef = doc(collection(db, 'transactions'));
+      batch.set(trxRef, bonusTrxData);
+      
+      // Also add to user subcollection
+      batch.set(doc(db, 'users', userId, 'transactions', trxRef.id), bonusTrxData);
+
+      await batch.commit();
+      showToast(`৳${amount} bonus sent to ${userData.username}`, 'success');
+      setBonusModalUser(null);
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to send bonus', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const filteredUsers = users.filter(u => 
     u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
     u.id.toLowerCase().includes(searchQuery.toLowerCase())
@@ -338,84 +499,162 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
   const pendingWithdrawals = transactions.filter(t => t.type === 'withdrawal' && t.status === 'pending');
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
-    { id: 'users', label: 'User Management', icon: Users },
-    { id: 'deposits', label: 'Deposits', icon: Wallet, badge: pendingDeposits.length },
-    { id: 'withdrawals', label: 'Withdrawals', icon: DollarSign, badge: pendingWithdrawals.length },
-    { id: 'promo', label: 'Promotions', icon: Gift },
-    { id: 'notifications', label: 'Push Notifications', icon: Bell },
-    { id: 'support', label: 'Support Inbox', icon: MessageSquare },
-    { id: 'games', label: 'Game Settings', icon: Gamepad2 },
-    { id: 'settings', label: 'Global Setup', icon: Settings }
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Main' },
+    { id: 'users', label: 'Users', icon: Users, group: 'Management' },
+    { id: 'deposits', label: 'Deposits', icon: Wallet, badge: pendingDeposits.length, group: 'Financial' },
+    { id: 'withdrawals', label: 'Withdrawals', icon: DollarSign, badge: pendingWithdrawals.length, group: 'Financial' },
+    { id: 'promo', label: 'Bonuses', icon: Gift, group: 'Management' },
+    { id: 'notifications', label: 'Push', icon: Bell, group: 'Communication' },
+    { id: 'support', label: 'Support', icon: MessageSquare, group: 'Communication' },
+    { id: 'games', label: 'Games', icon: Gamepad2, group: 'Settings' },
+    { id: 'settings', label: 'System', icon: Settings, group: 'Settings' },
+    { id: 'maintenance', label: 'Maintenance', icon: Trash, group: 'Settings' }
   ];
 
+  const groups = ['Main', 'Management', 'Financial', 'Communication', 'Settings'];
+
   return (
-    <div className="flex h-screen bg-[#115e59] overflow-hidden font-sans text-white">
-      {/* Slim Sidebar (Icon-only as per screenshot) */}
-      <aside className="w-16 md:w-20 bg-[#0a4a44] flex flex-col items-center py-6 z-50 border-r border-white/5 shrink-0">
-        <div className="mb-10">
-          <div className="w-10 h-10 bg-[#16a374]/20 rounded-xl flex items-center justify-center text-emerald-400 group cursor-pointer hover:bg-[#16a374] hover:text-white transition-all shadow-lg shadow-emerald-500/10 border border-emerald-400/20">
-            <Shield size={22} />
+    <div className="flex h-screen bg-[#081a1a] overflow-hidden font-sans text-white">
+      {/* Sidebar Navigation */}
+      <aside 
+        className={`${isSidebarOpen ? 'w-64' : 'w-20'} bg-[#061414] flex flex-col z-50 border-r border-white/5 shrink-0 transition-all duration-300 ease-in-out relative`}
+      >
+        {/* Toggle Button */}
+        <button 
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className="absolute -right-3 top-20 w-6 h-6 bg-[#16a374] rounded-full flex items-center justify-center text-white shadow-lg z-[60] border border-white/10 hover:scale-110 transition-transform"
+        >
+          {isSidebarOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+        </button>
+
+        {/* Logo Section */}
+        <div className={`h-20 flex items-center ${isSidebarOpen ? 'px-6' : 'justify-center'} border-b border-white/5`}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-[#16a374]/20 rounded-xl flex items-center justify-center text-emerald-400 shadow-inner border border-emerald-400/20">
+              <Shield size={22} />
+            </div>
+            {isSidebarOpen && (
+              <motion.div
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="flex flex-col"
+              >
+                <span className="text-sm font-black tracking-tight text-white uppercase leading-none">Admin Panel</span>
+                <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mt-1">Management</span>
+              </motion.div>
+            )}
           </div>
         </div>
 
-        <nav className="flex-1 w-full px-2 space-y-4 overflow-y-auto no-scrollbar flex flex-col items-center">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id as any)}
-              className={`w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-xl transition-all relative group ${
-                activeTab === item.id 
-                  ? 'bg-[#16a374] text-white shadow-lg shadow-emerald-500/20' 
-                  : 'text-teal-300 hover:bg-white/5 hover:text-white'
-              }`}
-            >
-              <item.icon size={20} className="shrink-0" />
-              
-              {item.badge ? (
-                <div className="absolute -top-1 -right-1 bg-rose-500 text-white text-[8px] font-black w-4 h-4 flex items-center justify-center rounded-full border-2 border-[#0a4a44] transition-colors">
-                  {item.badge}
-                </div>
-              ) : null}
+        {/* Navigation Groups */}
+        <nav className="flex-1 overflow-y-auto no-scrollbar py-6 space-y-8">
+          {groups.map((group) => {
+            const items = navItems.filter(i => i.group === group);
+            if (items.length === 0) return null;
 
-              {/* Tooltip on Hover */}
-              <div className="absolute left-full ml-4 bg-[#0a4a44] text-white text-[10px] px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap font-black uppercase tracking-widest shadow-xl border border-white/10 z-50">
-                {item.label}
+            return (
+              <div key={group} className="px-3">
+                {isSidebarOpen && (
+                  <motion.p 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-[10px] font-black text-teal-500/50 uppercase tracking-[0.2em] mb-4 px-3"
+                  >
+                    {group}
+                  </motion.p>
+                )}
+                <div className="space-y-1">
+                  {items.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveTab(item.id as any)}
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all relative group ${
+                        activeTab === item.id 
+                          ? 'bg-gradient-to-r from-[#16a374] to-[#10b981] text-white shadow-lg shadow-emerald-500/20' 
+                          : 'text-teal-400/60 hover:bg-white/5 hover:text-white'
+                      }`}
+                    >
+                      <item.icon size={20} className={`shrink-0 ${activeTab === item.id ? 'animate-pulse' : ''}`} />
+                      
+                      {isSidebarOpen && (
+                        <motion.span 
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          className="text-sm font-bold truncate"
+                        >
+                          {item.label}
+                        </motion.span>
+                      )}
+
+                      {item.badge ? (
+                        <div className={`absolute ${isSidebarOpen ? 'right-3' : 'top-1 right-1'} bg-rose-500 text-white text-[8px] font-black w-4 h-4 flex items-center justify-center rounded-full border-2 border-[#061414]`}>
+                          {item.badge}
+                        </div>
+                      ) : null}
+
+                      {!isSidebarOpen && (
+                        <div className="absolute left-full ml-4 bg-[#0a4a44] text-white text-[10px] px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap font-black uppercase tracking-widest shadow-xl border border-white/10 z-[70]">
+                          {item.label}
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </button>
-          ))}
+            );
+          })}
         </nav>
 
-        <div className="mt-auto px-2">
+        {/* Bottom Actions */}
+        <div className="p-3 border-t border-white/5">
           <button 
             onClick={onBack}
-            className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-xl text-rose-400 hover:bg-rose-500/10 transition-all group relative"
+            className={`w-full flex items-center gap-3 p-3 rounded-xl text-rose-400 hover:bg-rose-500/10 transition-all group relative ${!isSidebarOpen ? 'justify-center' : ''}`}
           >
             <LogOut size={20} />
-            <div className="absolute left-full ml-4 bg-[#0a4a44] text-white text-[10px] px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap font-black uppercase tracking-widest shadow-xl border border-white/10 z-50">
-              Exit Dashboard
-            </div>
+            {isSidebarOpen && <span className="text-sm font-bold">Exit Dashboard</span>}
+            {!isSidebarOpen && (
+              <div className="absolute left-full ml-4 bg-[#0a4a44] text-white text-[10px] px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap font-black uppercase tracking-widest shadow-xl border border-white/10 z-[70]">
+                Logout
+              </div>
+            )}
           </button>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="h-16 md:h-20 bg-[#0d9488] border-b border-white/10 flex items-center justify-between px-4 md:px-8 shrink-0">
-          <div className="flex items-center gap-4">
-            <h1 className="text-lg md:text-xl font-black text-white uppercase tracking-tight">
-              {navItems.find(i => i.id === activeTab)?.label}
-            </h1>
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col overflow-hidden bg-[#0a1f1f]">
+        {/* Modern Header */}
+        <header className="h-20 bg-[#061414]/50 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-8 shrink-0 z-40">
+          <div className="flex items-center gap-6">
+            <div className="flex flex-col">
+              <h1 className="text-xl font-black text-white uppercase tracking-tight">
+                {navItems.find(i => i.id === activeTab)?.label}
+              </h1>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">System Live</span>
+              </div>
+            </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="text-right hidden sm:block">
-              <p className="text-xs font-black text-white uppercase tracking-tight">{userData?.username || 'Admin'}</p>
-              <p className="text-[10px] font-bold text-teal-300 uppercase tracking-widest">{userData?.role}</p>
-            </div>
-            <div className="w-10 h-10 bg-white/10 rounded-full border border-white/10 flex items-center justify-center text-teal-100">
-              <User size={20} />
+          <div className="flex items-center gap-6">
+            <button 
+              onClick={fetchAdminData}
+              disabled={isRefreshingData}
+              className={`p-3 bg-white/5 rounded-2xl border border-white/5 text-teal-400 hover:bg-white/10 transition-all flex items-center gap-2 group ${isRefreshingData ? 'opacity-50' : ''}`}
+            >
+              <RefreshCw size={18} className={isRefreshingData ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'} />
+              <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Refresh Data</span>
+            </button>
+            <div className="flex items-center gap-3 px-4 py-2 bg-white/5 rounded-2xl border border-white/5">
+              <div className="text-right">
+                <p className="text-xs font-black text-white uppercase tracking-tight">{userData?.username || 'Admin'}</p>
+                <p className="text-[9px] font-bold text-[#16a374] uppercase tracking-widest">Administrator</p>
+              </div>
+              <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-600 rounded-xl flex items-center justify-center text-white shadow-lg overflow-hidden border border-white/20">
+                {userData?.avatar ? <img src={userData.avatar} alt="" className="w-full h-full object-cover" /> : <User size={20} />}
+              </div>
             </div>
           </div>
         </header>
@@ -438,11 +677,15 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
                   setSearchQuery={setSearchQuery}
                   onToggleBan={handleToggleUserBan}
                   onAdjustBalance={handleAdjustBalance}
+                  onSendBonus={(user: any) => setBonusModalUser(user)}
                   onUpdateRole={handleUpdateRole}
                   onSelectUser={setSelectedUser}
                   onMessageUser={setMessagingUser}
                   onAddUser={props.onAddUser}
                   onDeleteAllUsers={handleDeleteAllUsers}
+                  hasMore={hasMoreUsers}
+                  onLoadMore={() => fetchUsers(false)}
+                  isLoading={isRefreshingData}
                 />
               )}
               {activeTab === 'deposits' && (
@@ -451,7 +694,9 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
                   trxs={transactions.filter(t => t.type === 'deposit')}
                   onApprove={handleApproveTrx}
                   onReject={handleRejectTrx}
-                  isLoading={isLoading}
+                  isLoading={isRefreshingData}
+                  hasMore={hasMoreTrxs}
+                  onLoadMore={() => fetchTransactions(false)}
                 />
               )}
               {activeTab === 'withdrawals' && (
@@ -460,14 +705,17 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
                   trxs={transactions.filter(t => t.type === 'withdrawal')}
                   onApprove={handleApproveTrx}
                   onReject={handleRejectTrx}
-                  isLoading={isLoading}
+                  isLoading={isRefreshingData}
+                  hasMore={hasMoreTrxs}
+                  onLoadMore={() => fetchTransactions(false)}
                 />
               )}
               {activeTab === 'games' && <GameManagement {...props} />}
               {activeTab === 'settings' && <GlobalSettings {...props} />}
-              {activeTab === 'promo' && <PromoManagement showToast={showToast} />}
+              {activeTab === 'promo' && <PromoManagement showToast={showToast} userData={userData} />}
               {activeTab === 'notifications' && <NotificationManagement showToast={showToast} users={users} />}
-              {activeTab === 'support' && <SupportInbox showToast={showToast} />}
+              {activeTab === 'support' && <SupportInbox showToast={showToast} userData={props.userData} />}
+              {activeTab === 'maintenance' && <MaintenanceTab showToast={showToast} />}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -578,22 +826,145 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
           </motion.div>
         </div>
       )}
+
+      {/* Manual Bonus Modal */}
+      <AnimatePresence>
+        {bonusModalUser && (
+          <AddBonusModal 
+            user={bonusModalUser}
+            onClose={() => setBonusModalUser(null)}
+            onSendBonus={handleSendBonus}
+            isLoading={isLoading}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function AddBonusModal({ user, onClose, onSendBonus, isLoading }: any) {
+  const [amount, setAmount] = useState<number>(100);
+  const [desc, setDesc] = useState('Manual bonus from admin');
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.9 }}
+        className="bg-[#0d9488] w-full max-w-md rounded-[40px] shadow-2xl relative overflow-hidden border border-white/10"
+      >
+        <div className="p-8 border-b border-white/5 flex items-center justify-between">
+          <h3 className="text-xl font-black text-white uppercase tracking-tight">Send User Bonus</h3>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-2xl text-teal-100">
+            <X size={24} />
+          </button>
+        </div>
+        <div className="p-8 space-y-6">
+          <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+            <p className="text-[10px] font-black text-teal-400 uppercase tracking-widest mb-1">Target User</p>
+            <p className="text-lg font-black text-white">{user.username}</p>
+          </div>
+          
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-teal-200 uppercase tracking-widest ml-1">Bonus Amount (৳)</label>
+            <div className="relative">
+              <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-400" size={18} />
+              <input 
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(Number(e.target.value))}
+                className="w-full bg-black/20 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white font-black outline-none focus:border-emerald-500"
+                placeholder="500"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-teal-200 uppercase tracking-widest ml-1">Notes / Reason</label>
+            <input 
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              className="w-full bg-black/20 border border-white/10 rounded-2xl py-4 px-5 text-white font-bold outline-none focus:border-emerald-500"
+              placeholder="Good player bonus..."
+            />
+          </div>
+
+          <button 
+            disabled={isLoading || amount <= 0}
+            onClick={() => onSendBonus(user.id, amount, desc)}
+            className="w-full bg-emerald-500 hover:bg-emerald-600 text-white h-16 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all active:scale-95"
+          >
+            {isLoading ? <Loader2 className="animate-spin" /> : <Gift size={20} />}
+            Send Bonus Now
+          </button>
+        </div>
+      </motion.div>
     </div>
   );
 }
 
 function DashboardOverview({ stats, users, transactions }: any) {
   const totalBalance = users.reduce((acc: number, u: any) => acc + (u.balance || 0), 0);
-  const totalDeposits = transactions.filter((t: any) => t.type === 'deposit' && t.status === 'approved').reduce((acc: number, t: any) => acc + t.amount, 0);
+  const totalDeposits = transactions.filter((t: any) => t.type === 'deposit' && t.status === 'approved').reduce((acc: number, t: any) => acc + (Number(t.amount) || 0), 0);
+  const totalWithdrawals = transactions.filter((t: any) => t.type === 'withdrawal' && t.status === 'approved').reduce((acc: number, t: any) => acc + (Number(t.amount) || 0), 0);
+  const netProfit = totalDeposits - totalWithdrawals;
+
+  // Process transactions for daily revenue trend
+  const revenueData = React.useMemo(() => {
+    const days = 14;
+    const data: Record<string, { name: string, deposit: number, withdrawal: number, dateObj: Date }> = {};
+    const now = new Date();
+    
+    // Initialize last X days
+    for (let i = 0; i < days; i++) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const dateKey = d.toISOString().split('T')[0];
+      data[dateKey] = {
+        name: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+        deposit: 0,
+        withdrawal: 0,
+        dateObj: d
+      };
+    }
+
+    // Map transactions
+    transactions.forEach((trx: any) => {
+      if (trx.status !== 'approved') return;
+      if (trx.type !== 'deposit' && trx.type !== 'withdrawal') return;
+      
+      let trxDate: Date;
+      if (trx.createdAt?.toDate) {
+        trxDate = trx.createdAt.toDate();
+      } else if (trx.createdAt?.seconds) {
+        trxDate = new Date(trx.createdAt.seconds * 1000);
+      } else {
+        trxDate = new Date(trx.createdAt);
+      }
+
+      const dateKey = trxDate.toISOString().split('T')[0];
+      if (data[dateKey]) {
+        if (trx.type === 'deposit') {
+          data[dateKey].deposit += Number(trx.amount) || 0;
+        } else if (trx.type === 'withdrawal') {
+          data[dateKey].withdrawal += Math.abs(Number(trx.amount)) || 0;
+        }
+      }
+    });
+
+    return Object.values(data).sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+  }, [transactions]);
 
   return (
     <div className="space-y-8">
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <MetricCard label="Total Users" value={users.length} icon={Users} color="bg-blue-600" />
-        <MetricCard label="Users Balance" value={`৳${totalBalance.toLocaleString()}`} icon={Wallet} color="bg-emerald-600" />
-        <MetricCard label="Total Revenue" value={`৳${totalDeposits.toLocaleString()}`} icon={DollarSign} color="bg-teal-600" />
-        <MetricCard label="Active Sessions" value="42" icon={Activity} color="bg-amber-600" />
+        <MetricCard label="Total Deposits" value={`৳${totalDeposits.toLocaleString()}`} icon={ArrowUpRight} color="bg-emerald-600" />
+        <MetricCard label="Total Withdraw" value={`৳${totalWithdrawals.toLocaleString()}`} icon={ArrowDownLeft} color="bg-rose-600" />
+        <MetricCard label="Net Profit" value={`৳${netProfit.toLocaleString()}`} icon={DollarSign} color="bg-teal-600" />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
@@ -601,31 +972,42 @@ function DashboardOverview({ stats, users, transactions }: any) {
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-lg font-black text-white uppercase tracking-tight flex items-center gap-2">
               <BarChart3 className="text-emerald-400" size={22} />
-              Traffic Analytics
+              Daily Revenue Trend (Deposit vs Withdrawal)
             </h3>
-            <select className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs font-bold text-teal-100 outline-none">
-              <option>Last 7 Days</option>
-              <option>Last 30 Days</option>
-            </select>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-400"></div>
+                <span className="text-[10px] font-bold text-teal-100 uppercase uppercase">Deposit</span>
+              </div>
+              <div className="flex items-center gap-1.5 ml-3">
+                <div className="w-2.5 h-2.5 rounded-full bg-rose-400"></div>
+                <span className="text-[10px] font-bold text-teal-100 uppercase uppercase">Withdrawal</span>
+              </div>
+            </div>
           </div>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={stats?.dailyTraffic}>
+              <AreaChart data={revenueData}>
                 <defs>
-                  <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2dd4bf" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#2dd4bf" stopOpacity={0}/>
+                  <linearGradient id="colorDeposit" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorWithdraw" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#99f6e4', fontWeight: 700 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#99f6e4', fontWeight: 700 }} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#99f6e4', fontWeight: 700 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#99f6e4', fontWeight: 700 }} tickFormatter={(val) => `৳${val}`} />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: '#0a4a44', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.5)' }} 
+                  contentStyle={{ backgroundColor: '#061414', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.5)' }} 
                   itemStyle={{ color: '#fff' }}
+                  labelStyle={{ color: '#5eead4', fontWeight: 900, fontSize: '12px', marginBottom: '8px' }}
                 />
-                <Area type="monotone" dataKey="views" stroke="#2dd4bf" strokeWidth={3} fillOpacity={1} fill="url(#colorViews)" />
-                <Area type="monotone" dataKey="visitors" stroke="#3b82f6" strokeWidth={3} fill="transparent" />
+                <Area type="monotone" dataKey="deposit" stroke="#10b981" strokeWidth={4} fillOpacity={1} fill="url(#colorDeposit)" />
+                <Area type="monotone" dataKey="withdrawal" stroke="#f43f5e" strokeWidth={4} fillOpacity={1} fill="url(#colorWithdraw)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -699,7 +1081,7 @@ function MetricCard({ label, value, icon: Icon, color }: any) {
   );
 }
 
-function UserManagement({ users, searchQuery, setSearchQuery, onToggleBan, onAdjustBalance, onUpdateRole, onSelectUser, onMessageUser, onAddUser, onDeleteAllUsers }: any) {
+function UserManagement({ users, searchQuery, setSearchQuery, onToggleBan, onAdjustBalance, onSendBonus, onUpdateRole, onSelectUser, onMessageUser, onAddUser, onDeleteAllUsers, hasMore, onLoadMore, isLoading }: any) {
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [newUserData, setNewUserData] = useState({ username: '', password: '', role: 'user', balance: 0 });
   const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest');
@@ -887,6 +1269,13 @@ function UserManagement({ users, searchQuery, setSearchQuery, onToggleBan, onAdj
                       >
                         <Ban size={18} />
                       </button>
+                      <button 
+                         onClick={() => onSendBonus(user)}
+                         className="p-2 hover:bg-white/10 text-amber-400 hover:text-white rounded-lg transition-all"
+                         title="Manual Bonus"
+                      >
+                        <Gift size={18} />
+                      </button>
                       <div className="flex gap-1 ml-4 border-l border-white/5 pl-4">
                          <button 
                             onClick={() => onAdjustBalance(user.id, 500)}
@@ -916,6 +1305,16 @@ function UserManagement({ users, searchQuery, setSearchQuery, onToggleBan, onAdj
           )}
         </div>
       </div>
+
+      {hasMore && (
+        <button
+          onClick={onLoadMore}
+          disabled={isLoading}
+          className="w-full py-4 bg-white/5 rounded-2xl border border-white/10 text-teal-400 font-bold uppercase tracking-widest hover:bg-white/10 transition-all disabled:opacity-50 text-xs mt-4"
+        >
+          {isLoading ? <Loader2 className="animate-spin mx-auto" size={16} /> : 'Load More Users'}
+        </button>
+      )}
     </div>
   );
 }
@@ -1031,7 +1430,7 @@ function UserEditModal({ user, onClose, onSave, onAdjustBalance }: any) {
   );
 }
 
-function TransactionList({ title, trxs, onApprove, onReject, isLoading }: any) {
+function TransactionList({ title, trxs, onApprove, onReject, isLoading, hasMore, onLoadMore }: any) {
   const pending = trxs.filter((t: any) => t.status === 'pending');
   const past = trxs.filter((t: any) => t.status !== 'pending').slice(0, 50);
 
@@ -1142,6 +1541,16 @@ function TransactionList({ title, trxs, onApprove, onReject, isLoading }: any) {
            </div>
         </div>
       </div>
+
+      {hasMore && (
+        <button
+          onClick={onLoadMore}
+          disabled={isLoading}
+          className="w-full py-4 bg-white/5 rounded-2xl border border-white/10 text-teal-400 font-bold uppercase tracking-widest hover:bg-white/10 transition-all disabled:opacity-50 text-xs mt-4"
+        >
+          {isLoading ? <Loader2 className="animate-spin mx-auto" size={16} /> : 'Load More Transactions'}
+        </button>
+      )}
     </div>
   );
 }
@@ -1149,6 +1558,35 @@ function TransactionList({ title, trxs, onApprove, onReject, isLoading }: any) {
 function GameManagement(props: AdminPanelViewProps) {
   const [selectedProvider, setSelectedProvider] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Helper to parse 'rate:85;max_mult:100' safely with fallbacks
+  const parseConfig = (configStr: string) => {
+    let rate = 85;
+    let max_mult = 100;
+    if (configStr) {
+      const parts = configStr.split(';');
+      for (const part of parts) {
+        const [key, val] = part.split(':');
+        if (key === 'rate') {
+          const parsed = parseInt(val, 10);
+          if (!isNaN(parsed)) rate = parsed;
+        } else if (key === 'max_mult') {
+          const parsed = parseInt(val, 10);
+          if (!isNaN(parsed)) max_mult = parsed;
+        }
+      }
+    }
+    return { rate, max_mult };
+  };
+
+  const updateConfig = async (gameId: string, updates: { rate?: number; max_mult?: number }) => {
+    const currentStr = props.globalOptions[gameId] || '';
+    const current = parseConfig(currentStr);
+    const newRate = updates.rate !== undefined ? updates.rate : current.rate;
+    const newMaxMult = updates.max_mult !== undefined ? updates.max_mult : current.max_mult;
+    const newStr = `rate:${newRate};max_mult:${newMaxMult}`;
+    await props.updateGlobalGameOption(gameId, newStr);
+  };
 
   const filteredGames = games.filter(game => {
     const matchesProvider = selectedProvider === 'ALL' || game.provider === selectedProvider;
@@ -1192,77 +1630,114 @@ function GameManagement(props: AdminPanelViewProps) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredGames.map(game => (
-          <div key={game.id} className="bg-[#0d9488] p-6 rounded-[32px] border border-white/10 shadow-xl space-y-4">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-white/5 rounded-2xl overflow-hidden relative border border-white/10 group">
-                {props.globalLogos[game.id] ? (
-                  <img src={props.globalLogos[game.id]} alt="Logo" className="w-full h-full object-cover" />
-                ) : (
-                   <div className="w-full h-full flex items-center justify-center text-teal-300">
-                      <ImageIcon size={24} />
-                      <img src={game.image} alt="Ref" className="absolute inset-0 opacity-20 pointer-events-none object-cover" />
-                   </div>
-                )}
-                <label className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
-                  <Plus className="text-white" size={20} />
+        {filteredGames.map(game => {
+          const cfg = parseConfig(props.globalOptions[game.id] || '');
+          return (
+            <div key={game.id} className="bg-[#0d9488] p-6 rounded-[32px] border border-white/10 shadow-xl space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-white/5 rounded-2xl overflow-hidden relative border border-white/10 group">
+                  {props.globalLogos[game.id] ? (
+                    <img src={props.globalLogos[game.id]} alt="Logo" className="w-full h-full object-cover" />
+                  ) : (
+                     <div className="w-full h-full flex items-center justify-center text-teal-300">
+                        <ImageIcon size={24} />
+                        <img src={game.image} alt="Ref" className="absolute inset-0 opacity-20 pointer-events-none object-cover" />
+                     </div>
+                  )}
+                  <label className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
+                    <Plus className="text-white" size={20} />
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = (re) => props.updateGlobalGameLogo(game.id, re.target?.result as string);
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+                <div className="flex-1">
                   <input 
-                    type="file" 
-                    className="hidden" 
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        const reader = new FileReader();
-                        reader.onload = (re) => props.updateGlobalGameLogo(game.id, re.target?.result as string);
-                        reader.readAsDataURL(file);
-                      }
-                    }}
+                    defaultValue={props.globalNames[game.id] || game.name}
+                    onBlur={(e) => props.updateGlobalGameName(game.id, e.target.value)}
+                    className="w-full bg-transparent border-b border-white/10 focus:border-emerald-500 text-sm font-black text-white uppercase tracking-tight outline-none py-1"
+                    placeholder="Game Name"
                   />
-                </label>
+                  <p className="text-[10px] font-bold text-teal-400 mt-1 uppercase">ID: {game.id}</p>
+                </div>
               </div>
-              <div className="flex-1">
-                <input 
-                  defaultValue={props.globalNames[game.id] || game.name}
-                  onBlur={(e) => props.updateGlobalGameName(game.id, e.target.value)}
-                  className="w-full bg-transparent border-b border-white/10 focus:border-emerald-500 text-sm font-black text-white uppercase tracking-tight outline-none py-1"
-                  placeholder="Game Name"
-                />
-                <p className="text-[10px] font-bold text-teal-400 mt-1 uppercase">ID: {game.id}</p>
-              </div>
-            </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="text-[9px] font-black text-teal-300 uppercase tracking-widest block mb-1">Game URL (External)</label>
-                <input 
-                  defaultValue={props.globalUrls[game.id] || ''}
-                  onBlur={(e) => props.updateGlobalGameUrl(game.id, e.target.value)}
-                  className="w-full bg-black/20 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-teal-100 focus:outline-none focus:border-emerald-500"
-                  placeholder="https://..."
-                />
-              </div>
-              <div>
-                <label className="text-[9px] font-black text-teal-300 uppercase tracking-widest block mb-1">Win Logic Config</label>
-                <input 
-                   defaultValue={props.globalOptions[game.id] || ''}
-                   onBlur={(e) => props.updateGlobalGameOption(game.id, e.target.value)}
-                   className="w-full bg-black/20 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-teal-100 focus:outline-none focus:border-emerald-500"
-                   placeholder="e.g. rate:85;max_mult:100"
-                />
-              </div>
-              <div className="flex items-center justify-between pt-2 border-t border-white/10">
-                <span className="text-[10px] font-black text-teal-300 uppercase tracking-widest">Active Status</span>
-                <button 
-                  onClick={() => props.updateGlobalGameOption(`${game.id}_active`, props.globalOptions[`${game.id}_active`] === 'false' ? 'true' : 'false')}
-                  className={`w-12 h-6 rounded-full relative transition-all ${props.globalOptions[`${game.id}_active`] !== 'false' ? 'bg-emerald-500' : 'bg-rose-500'}`}
-                >
-                  <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${props.globalOptions[`${game.id}_active`] !== 'false' ? 'right-1' : 'left-1'}`} />
-                </button>
+              <div className="space-y-4 pt-2">
+                <div>
+                  <label className="text-[9px] font-black text-teal-200 uppercase tracking-widest block mb-1">গেম লিংক (External URL)</label>
+                  <input 
+                    defaultValue={props.globalUrls[game.id] || ''}
+                    onBlur={(e) => props.updateGlobalGameUrl(game.id, e.target.value)}
+                    className="w-full bg-black/20 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-teal-100 focus:outline-none focus:border-emerald-500"
+                    placeholder="https://..."
+                  />
+                </div>
+
+                {/* Interactive Slider-based Win Rate Config (RTP) */}
+                <div className="bg-black/10 p-3 rounded-2xl border border-white/5 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[9px] font-black text-teal-200 uppercase tracking-widest select-none">উইন রেট (RTP)</span>
+                    <span className="text-xs font-black text-amber-300 font-mono bg-amber-400/20 px-2 py-0.5 rounded-lg border border-amber-400/30">
+                      {cfg.rate}%
+                    </span>
+                  </div>
+                  
+                  <input 
+                    type="range"
+                    min="0"
+                    max="150"
+                    value={cfg.rate}
+                    onChange={(e) => updateConfig(game.id, { rate: parseInt(e.target.value, 10) })}
+                    className="w-full h-1.5 bg-black/30 rounded-lg appearance-none cursor-pointer accent-amber-400"
+                  />
+                  
+                  <div className="flex justify-between text-[8px] font-extrabold text-teal-300 select-none">
+                    <span>০% (সব লস)</span>
+                    <span>৮৫% (স্বাভাবিক)</span>
+                    <span>১৫০% (হাই জ্যাকপট)</span>
+                  </div>
+                </div>
+
+                {/* Maximum Multiplier Picker */}
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <span className="text-[9px] font-black text-teal-200 uppercase tracking-widest block mb-1">সর্বোচ্চ গুণক (Max Mult)</span>
+                    <input 
+                      type="number"
+                      value={cfg.max_mult}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        updateConfig(game.id, { max_mult: isNaN(val) ? 100 : val });
+                      }}
+                      className="w-full bg-black/20 border border-white/10 rounded-xl px-3 py-1.5 text-xs font-bold text-teal-100 focus:outline-none focus:border-emerald-500 font-mono"
+                      placeholder="100"
+                    />
+                  </div>
+                  
+                  <div className="w-[100px] flex flex-col items-end justify-center">
+                    <span className="text-[9px] font-black text-teal-200 uppercase tracking-widest block mb-1 select-none">চালু / বন্ধ</span>
+                    <button 
+                      onClick={() => props.updateGlobalGameOption(`${game.id}_active`, props.globalOptions[`${game.id}_active`] === 'false' ? 'true' : 'false')}
+                      className={`w-12 h-6 rounded-full relative transition-all ${props.globalOptions[`${game.id}_active`] !== 'false' ? 'bg-emerald-500' : 'bg-rose-500'}`}
+                    >
+                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${props.globalOptions[`${game.id}_active`] !== 'false' ? 'right-1' : 'left-1'}`} />
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="bg-amber-500/10 border border-amber-500/20 p-6 rounded-[32px] flex flex-col md:flex-row items-center gap-6">
@@ -1301,15 +1776,13 @@ function NotificationManagement({ showToast, users }: { showToast: any, users: a
         let count = 0;
         const promises = [];
         for (const userDoc of usersSnapshot.docs) {
-          const timestamp = new Date().toISOString();
           const notifData = {
             title,
             message,
             type,
             url,
             read: false,
-            createdAt: timestamp,
-            date: timestamp
+            createdAt: serverTimestamp()
           };
           const notifRef = doc(collection(db, 'users', userDoc.id, 'notifications'));
           promises.push(setDoc(notifRef, notifData));
@@ -1325,15 +1798,13 @@ function NotificationManagement({ showToast, users }: { showToast: any, users: a
         }
       } else {
         // Personal notification
-        const timestamp = new Date().toISOString();
         const notifData = {
           title,
           message,
           type,
           url,
           read: false,
-          createdAt: timestamp,
-          date: timestamp
+          createdAt: serverTimestamp()
         };
         const notifRef = doc(collection(db, 'users', targetUserId, 'notifications'));
         await setDoc(notifRef, notifData);
@@ -1386,7 +1857,7 @@ function NotificationManagement({ showToast, users }: { showToast: any, users: a
           >
             <option value="info">Info</option>
             <option value="bonus">Bonus / Gift</option>
-            <option value="promotion">Promotion</option>
+            <option value="promotion">Bonus Center</option>
             <option value="account">Account Alert</option>
           </select>
         </div>
@@ -1439,6 +1910,43 @@ function NotificationManagement({ showToast, users }: { showToast: any, users: a
 
 function GlobalSettings(props: AdminPanelViewProps) {
   const [isSaving, setIsSaving] = useState(false);
+  const [aviatorEnabled, setAviatorEnabled] = useState(false);
+  const [aviatorCrashPoint, setAviatorCrashPoint] = useState(2.00);
+  const [isSavingAviator, setIsSavingAviator] = useState(false);
+
+  useEffect(() => {
+    const fetchAviatorOverride = async () => {
+      try {
+        const docSnap = await getDoc(doc(db, 'metadata', 'aviator_override'));
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setAviatorEnabled(!!data?.enabled);
+          setAviatorCrashPoint(Number(data?.customCrashPoint) || 2.00);
+        }
+      } catch (err) {
+        console.error("Load aviator override error:", err);
+      }
+    };
+    fetchAviatorOverride();
+  }, []);
+
+  const handleSaveAviatorOverride = async (enabledVal: boolean, pointVal: number) => {
+    setIsSavingAviator(true);
+    try {
+      await setDoc(doc(db, 'metadata', 'aviator_override'), {
+        enabled: enabledVal,
+        customCrashPoint: Number(pointVal),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      
+      props.showToast(`Aviator কন্ট্রোলার আপডেট করা হয়েছে! (সক্রিয়: ${enabledVal ? 'হ্যাঁ' : 'না'}, ক্র্যাশ পয়েন্ট: ${pointVal}x)`, 'success');
+    } catch (err) {
+      console.error("Aviator Override Save Failed:", err);
+      props.showToast('সংরক্ষণ করতে ব্যর্থ হয়েছে!', 'error');
+    } finally {
+      setIsSavingAviator(false);
+    }
+  };
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -1565,6 +2073,62 @@ function GlobalSettings(props: AdminPanelViewProps) {
                   onChange={(e) => props.setTelegramLink(e.target.value)}
                   className="w-full bg-black/20 border border-white/10 rounded-2xl px-12 py-4 text-sm font-bold text-white focus:outline-none focus:border-emerald-500"
                   placeholder="https://t.me/..."
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-teal-200 uppercase mb-2 ml-1">Telegram Bot Token (Notifications)</label>
+              <div className="relative">
+                <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-400" size={20} />
+                <input 
+                  value={props.globalImages['telegram_bot_token'] || ''}
+                  onChange={(e) => props.updateGlobalImage('telegram_bot_token', e.target.value)}
+                  className="w-full bg-black/20 border border-white/10 rounded-2xl px-12 py-4 text-sm font-bold text-white focus:outline-none focus:border-emerald-500"
+                  placeholder="123456789:ABCDEF..."
+                />
+                <button 
+                  onClick={() => {
+                    props.updateGlobalImage('telegram_bot_token', "8888969440:AAG2eAukKg8kADAFPh6nAlJrsIbrHOapubU");
+                    props.showToast('Token reset to recommended default', 'info');
+                  }}
+                  className="mt-2 text-[10px] font-bold text-teal-400 hover:text-teal-300 transition-colors flex items-center gap-1 ml-1"
+                >
+                  <RefreshCw size={10} />
+                  Reset to Recommended
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-teal-200 uppercase mb-2 ml-1">Admin Chat ID (Notifications)</label>
+              <div className="relative">
+                <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-400" size={20} />
+                <input 
+                  value={props.globalImages['telegram_admin_chat_id'] || ''}
+                  onChange={(e) => props.updateGlobalImage('telegram_admin_chat_id', e.target.value)}
+                  className="w-full bg-black/20 border border-white/10 rounded-2xl px-12 py-4 text-sm font-bold text-white focus:outline-none focus:border-emerald-500"
+                  placeholder="-100123456789"
+                />
+                <button 
+                  onClick={() => {
+                    props.updateGlobalImage('telegram_admin_chat_id', "6543227982");
+                    props.showToast('Chat ID reset to recommended default', 'info');
+                  }}
+                  className="mt-2 text-[10px] font-bold text-teal-400 hover:text-teal-300 transition-colors flex items-center gap-1 ml-1"
+                >
+                  <RefreshCw size={10} />
+                  Reset to Recommended
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-teal-200 uppercase mb-2 ml-1">SMS Gateway Token (Verification)</label>
+              <div className="relative">
+                <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-400" size={20} />
+                <input 
+                  value={props.globalImages['sms_gateway_token'] || ''}
+                  onChange={(e) => props.updateGlobalImage('sms_gateway_token', e.target.value)}
+                  className="w-full bg-black/20 border border-white/10 rounded-2xl px-12 py-4 text-sm font-bold text-white focus:outline-none focus:border-emerald-500"
+                  placeholder="Paste your API Token here..."
                 />
               </div>
             </div>
@@ -1698,26 +2262,127 @@ function GlobalSettings(props: AdminPanelViewProps) {
                   rows={3}
                   className="w-full bg-black/20 border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold text-white focus:outline-none focus:border-emerald-500 resize-none"
                   placeholder="Acc: 123456789, IFSC: SBIN000123"
-                />
+                 />
+               </div>
+            </div>
+         </div>
+      </div>
+
+      {/* Aviator Prediction Custom Hack Switch & Multiplier Control */}
+      <div className="mt-10 pt-10 border-t border-white/10 space-y-6">
+        <div className="flex items-center gap-3">
+          <Gamepad2 className="text-rose-400 animate-pulse" size={28} />
+          <div>
+            <h3 className="text-xl font-black text-white uppercase tracking-tight">🚀 Aviator Predictor Override (এভিয়েটর সিগন্যাল হ্যাক কন্ট্রোলার)</h3>
+            <p className="text-xs text-teal-200 mt-1">
+              এখানে কাস্টম ক্র্যাশ পয়েন্ট সেট করে অন করে দিলে পরবর্তী প্রতিটি রাউন্ডে বিমানটি ঠিক আপনার দেওয়া পয়েন্টে গিয়ে ক্র্যাশ করবে এবং টেলিগ্রাম সিগন্যালেও এটি অটো পরিবর্তিত হয়ে যাবে।
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-black/30 p-6 rounded-3xl border border-white/10 space-y-6">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={async () => {
+                  const nextEnabled = !aviatorEnabled;
+                  setAviatorEnabled(nextEnabled);
+                  await handleSaveAviatorOverride(nextEnabled, aviatorCrashPoint);
+                }}
+                disabled={isSavingAviator}
+                className={`px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-md flex items-center gap-2 ${
+                  aviatorEnabled 
+                    ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-500/20' 
+                    : 'bg-slate-700 hover:bg-slate-600 text-slate-300'
+                }`}
+              >
+                <Power size={16} />
+                {aviatorEnabled ? 'টার্ন অফ করুন (Disable)' : 'টার্ন অন করুন (Enable)'}
+              </button>
+
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black uppercase text-teal-400 tracking-wider">বর্তমান অবস্থা (Status)</span>
+                <span className={`text-sm font-bold flex items-center gap-2 mt-1 ${aviatorEnabled ? 'text-rose-400' : 'text-slate-400'}`}>
+                  <span className={`w-2.5 h-2.5 rounded-full ${aviatorEnabled ? 'bg-rose-500 animate-ping' : 'bg-slate-500'}`}></span>
+                  {aviatorEnabled ? 'ফোর্স সিগন্যাল সক্রিয় (ACTIVE)' : 'স্বাভাবিক র্যান্ডম মোড (INACTIVE)'}
+                </span>
               </div>
-           </div>
+            </div>
+
+            <div className="w-full sm:w-auto flex items-center gap-3">
+              <div className="flex-1 sm:w-48">
+                <label className="block text-[10px] font-black text-teal-200 uppercase tracking-wider mb-2">কাস্টম পয়েন্ট (x)</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="1.00"
+                    value={aviatorCrashPoint}
+                    onChange={(e) => setAviatorCrashPoint(Number(parseFloat(e.target.value) || 1.00))}
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-sm font-extrabold text-white text-center focus:outline-none focus:border-rose-500"
+                    placeholder="2.00"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-rose-400">X</span>
+                </div>
+              </div>
+
+              <div className="self-end pb-[2px]">
+                <button
+                  type="button"
+                  onClick={() => handleSaveAviatorOverride(aviatorEnabled, aviatorCrashPoint)}
+                  disabled={isSavingAviator}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-md hover:shadow-emerald-500/20 transition-all flex items-center gap-2"
+                >
+                  {isSavingAviator ? <Loader2 size={16} className={`animate-spin`} /> : <ShieldCheck size={16} />}
+                  সেভ করুন
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3 pt-2">
+            <h4 className="text-[10px] font-black text-teal-400 uppercase tracking-widest">⚡ দ্রুত মাল্টিপ্লায়ার সেট করুন (Quick Signal Presets)</h4>
+            <div className="flex flex-wrap gap-2.5">
+              {[1.20, 1.50, 1.80, 2.00, 3.00, 5.00, 10.00, 50.00, 100.00].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={async () => {
+                    setAviatorCrashPoint(preset);
+                    await handleSaveAviatorOverride(aviatorEnabled, preset);
+                  }}
+                  disabled={isSavingAviator}
+                  className={`px-4 py-2.5 rounded-xl font-extrabold text-xs transition-all ${
+                    aviatorCrashPoint === preset 
+                      ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/30' 
+                      : 'bg-black/45 hover:bg-black/60 text-teal-100 border border-white/5'
+                  }`}
+                >
+                  {preset.toFixed(2)}x
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function PromoManagement({ showToast }: { showToast: any }) {
+function PromoManagement({ showToast, userData }: { showToast: any, userData: any }) {
   const [promoCodes, setPromoCodes] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [newPromo, setNewPromo] = useState({ code: '', amount: 0, maxUses: 100, expireDays: 7, active: true });
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'promo_codes'), (snapshot) => {
+    if (userData?.role !== 'admin' && userData?.isAdmin !== true) return;
+    
+    const unsub = onSnapshot(query(collection(db, 'promo_codes'), limit(100)), (snapshot) => {
       setPromoCodes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
     return unsub;
-  }, []);
+  }, [userData]);
 
   const handleCreatePromo = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1857,7 +2522,155 @@ function PromoManagement({ showToast }: { showToast: any }) {
   );
 }
 
-function SupportInbox({ showToast }: { showToast: any }) {
+function MaintenanceTab({ showToast }: { showToast: any }) {
+  const [isCleaning, setIsCleaning] = useState(false);
+  const [currentStep, setCurrentStep] = useState("");
+
+  const handleClearData = async () => {
+    const confirmation = window.prompt(
+      "⚠️ ডাটাবেস রিসেট অ্যালার্ট! ⚠️\n\n" +
+      "এই অ্যাকশনটি সম্পাদন করলে সমস্ত প্লেয়ার একাউন্ট (অ্যাডমিন বাদে), ট্রানজেকশন, গেমের ইতিহাস চিরতরে মুছে যাবে!\n\n" +
+      "ডাটাবেসটি স্থায়ীভাবে মুছে ফেলতে চাইলে নিচে ঠিক এভাবে 'CONFIRM_DELETE' টাইপ করুন:"
+    );
+    
+    if (confirmation !== 'CONFIRM_DELETE') {
+      showToast('ডাটাবেস ক্লিয়ার করা হয়নি! ভুল পাসওয়ার্ড দিয়েছেন।', 'error');
+      return;
+    }
+    
+    setIsCleaning(true);
+    setCurrentStep("Initializing...");
+
+    try {
+      const collections = [
+        'transactions', 'deposits', 'withdrawals', 'daily_rewards', 
+        'support_tickets', 'slot_bets', 'otp_verifications', 'notifications', 
+        'game_history', 'bets', 'promo_codes', 'user_sessions'
+      ];
+
+      for (const colName of collections) {
+        setCurrentStep(`Cleaning ${colName}...`);
+        try {
+          const snap = await getDocs(collection(db, colName));
+          const docs = snap.docs;
+          if (docs.length === 0) continue;
+
+          for (let i = 0; i < docs.length; i += 500) {
+            const batch = writeBatch(db);
+            const chunk = docs.slice(i, i + 500);
+            chunk.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+            setCurrentStep(`Deleted ${i + chunk.length}/${docs.length} from ${colName}`);
+          }
+        } catch (e) {
+          console.warn(`Could not clear ${colName}:`, e);
+        }
+      }
+
+      setCurrentStep("Identifying accounts to delete...");
+      const usersSnap = await getDocs(collection(db, 'users'));
+      const allUsers = usersSnap.docs;
+      
+      const targets = allUsers.filter(doc => {
+        const data = doc.data();
+        const isAdmin = 
+          data.role === 'admin' || 
+          data.username?.toLowerCase() === 'admin' || 
+          data.email === 'owner.css13@gmail.com' ||
+          data.role === 'agent';
+        return !isAdmin;
+      });
+
+      if (targets.length > 0) {
+        setCurrentStep(`Clearing sub-data for ${targets.length} users...`);
+        // Process in smaller chunks to avoid overloading
+        const chunkSize = 25;
+        for (let i = 0; i < targets.length; i += chunkSize) {
+          const chunk = targets.slice(i, i + chunkSize);
+          setCurrentStep(`Deep cleaning users ${i + 1}-${Math.min(i + chunkSize, targets.length)}...`);
+          
+          await Promise.all(chunk.map(async (userDoc) => {
+            const subCols = ['transactions', 'notifications', 'used_promos', 'bets'];
+            for (const sub of subCols) {
+              try {
+                const subSnap = await getDocs(collection(db, 'users', userDoc.id, sub));
+                if (!subSnap.empty) {
+                  const subBatch = writeBatch(db);
+                  subSnap.docs.forEach(d => subBatch.delete(d.ref));
+                  await subBatch.commit();
+                }
+              } catch (e) {}
+            }
+          }));
+        }
+
+        setCurrentStep("Removing users...");
+        for (let i = 0; i < targets.length; i += 500) {
+          const batch = writeBatch(db);
+          const chunk = targets.slice(i, i + 500);
+          chunk.forEach(doc => batch.delete(doc.ref));
+          await batch.commit();
+          setCurrentStep(`Removed ${i + chunk.length}/${targets.length} users`);
+        }
+      }
+
+      showToast(`System Cleaned! Removed ${targets.length} users and all associated data.`, 'success');
+      setCurrentStep("");
+    } catch (err: any) {
+      console.error("Cleanup error:", err);
+      showToast(`Cleanup failed: ${err.message}`, 'error');
+    } finally {
+      setIsCleaning(false);
+      setCurrentStep("");
+    }
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-8 p-8">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-rose-500/10 border border-rose-500/20 rounded-[40px] p-10 text-center relative overflow-hidden"
+      >
+        <div className="w-20 h-20 bg-rose-500 rounded-[28px] flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-rose-500/30 transform rotate-3">
+          <Trash size={40} className="text-white" />
+        </div>
+        <h2 className="text-3xl font-black text-white uppercase tracking-tight mb-3">Master Cleanup</h2>
+        <p className="text-teal-200/60 text-sm font-medium mb-10 max-w-md mx-auto leading-relaxed">
+           এই মাস্টার ক্লিনআপটি রান করলে আপনার গেম ডাটাবেস থেকে অ্যাডমিন বাদে সকল ইউজারের ডাটা এবং সকল লেনদেনের ইতিহাস চিরতরে মুছে যাবে।
+        </p>
+
+        <button 
+          onClick={handleClearData}
+          disabled={isCleaning}
+          className={`w-full py-6 rounded-2xl font-black text-xs uppercase tracking-[0.4em] flex items-center justify-center gap-4 transition-all ${isCleaning ? 'bg-white/5 text-white/20 cursor-not-allowed' : 'bg-gradient-to-r from-rose-600 to-rose-700 text-white shadow-2xl shadow-rose-500/40 hover:scale-[1.01] active:scale-[0.99]'}`}
+        >
+          {isCleaning ? (
+            <>
+              <Loader2 className="animate-spin" size={20} />
+              {currentStep || "Processing..."}
+            </>
+          ) : "Execute Master Cleanup"}
+        </button>
+      </motion.div>
+
+      <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+        <h4 className="text-white font-bold mb-4 flex items-center gap-2">
+          <AlertCircle size={18} className="text-rose-500" />
+          Important Information
+        </h4>
+        <ul className="space-y-2 text-sm text-gray-400">
+          <li>• Deletes all transaction records (Deposits, Withdrawals, History)</li>
+          <li>• Deletes all non-admin user accounts</li>
+          <li>• Clears all support tickets and notifications</li>
+          <li>• This action is permanent and cannot be undone</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function SupportInbox({ showToast, userData }: { showToast: any, userData: any }) {
   const [tickets, setTickets] = useState<any[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [replyText, setReplyText] = useState("");
@@ -1865,7 +2678,7 @@ function SupportInbox({ showToast }: { showToast: any }) {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const unsub = onSnapshot(query(collection(db, 'support_tickets'), orderBy('updatedAt', 'desc')), (snapshot) => {
+    const unsub = onSnapshot(query(collection(db, 'support_tickets'), orderBy('updatedAt', 'desc'), limit(100)), (snapshot) => {
       const ticketList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setTickets(ticketList);
       

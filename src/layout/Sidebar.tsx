@@ -59,9 +59,10 @@ export default function Sidebar({
           <div className="flex items-center justify-between mb-6">
             <div className="h-[30px] max-w-[120px]">
               <img 
-                src="https://www.image2url.com/r2/default/images/1778760980937-340930dd-a7b6-4cbe-9ce0-331bc57c1614.png" 
+                src="/apple-touch-icon.png?v=6" 
                 alt={casinoName}
                 className="h-full w-auto object-contain drop-shadow-[0_0_8px_rgba(253,216,53,0.3)]" 
+                referrerPolicy="no-referrer"
               />
             </div>
             <button onClick={onClose} className="text-teal-200 hover:text-white">
@@ -105,11 +106,6 @@ export default function Sidebar({
             { id: 'invite', icon: Users, label: 'আমন্ত্রণ (Invite)' },
             { id: 'learning', icon: BookOpen, label: 'লার্নিং (Learning)' },
             { id: 'settings', icon: Settings, label: 'সেটিংস (Settings)' },
-            { id: 'faq', icon: MessageCircle, label: 'সাধারণ প্রশ্ন (FAQ)' },
-            { id: 'terms', icon: Shield, label: 'শর্তাবলী (Terms)' },
-            { id: 'telegram', icon: Send, label: 'টেলিগ্রাম (Telegram)' },
-            { id: 'whatsapp', icon: MessageCircle, label: 'হোয়াটসঅ্যাপ (WhatsApp)' },
-            { id: 'facebook', icon: Facebook, label: 'ফেসবুক (Facebook)' },
           ].map((link) => (
             <button
               key={link.id}

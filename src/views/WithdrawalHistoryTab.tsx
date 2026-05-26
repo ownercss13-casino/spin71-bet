@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Clock, ArrowUpRight, History, Filter, ArrowDownUp, FileSearch } from 'lucide-react';
 import { db } from '../services/firebase';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, limit, startAfter } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface Withdrawal {
@@ -25,61 +25,87 @@ export default function WithdrawalHistoryTab({ userData, onBack }: WithdrawalHis
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTrx, setSelectedTrx] = useState<Withdrawal | null>(null);
   const [sortBy, setSortBy] = useState<'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'>('date_desc');
+  const [lastVisible, setLastVisible] = useState<any>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const PAGE_SIZE = 15;
 
-  useEffect(() => {
-    if (!userData?.id) {
-       setIsLoading(false);
-       return;
-    }
+  const fetchWithdrawals = async (isFirstLoad = true) => {
+    if (!userData?.id) return;
+    if (isFirstLoad) setIsLoading(true);
+    
+    try {
+      let q = query(
+        collection(db, 'users', userData.id, 'transactions'), 
+        orderBy('createdAt', sortBy.startsWith('date') ? (sortBy === 'date_desc' ? 'desc' : 'asc') : 'desc'), 
+        limit(PAGE_SIZE * 3) // We filter for 'withdrawal' type client-side in this specific structure
+      );
 
-    const q = query(
-      collection(db, 'users', userData.id, 'transactions')
-    );
+      if (!isFirstLoad && lastVisible) {
+        q = query(
+          collection(db, 'users', userData.id, 'transactions'), 
+          orderBy('createdAt', sortBy.startsWith('date') ? (sortBy === 'date_desc' ? 'desc' : 'asc') : 'desc'), 
+          startAfter(lastVisible),
+          limit(PAGE_SIZE * 3)
+        );
+      }
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const snapshot = await getDocs(q);
       const data = snapshot.docs
         .map(doc => {
           const d = doc.data();
-          // Filter in memory
           if (d.type !== 'withdrawal') return null;
           
           let dateStr = 'Just now';
-        let timestamp = 0;
-        
-        const createdAt = d.createdAt;
-        if (createdAt) {
-          if (typeof createdAt.toDate === 'function') {
-            const date = createdAt.toDate();
-            dateStr = date.toLocaleString();
-            timestamp = date.getTime();
-          } else {
-            const date = new Date(createdAt);
-            dateStr = date.toLocaleString();
-            timestamp = date.getTime();
+          let timestamp = 0;
+          const createdAt = d.createdAt;
+          if (createdAt) {
+            if (typeof createdAt.toDate === 'function') {
+              const date = createdAt.toDate();
+              dateStr = date.toLocaleString();
+              timestamp = date.getTime();
+            } else {
+              const date = new Date(createdAt);
+              dateStr = date.toLocaleString();
+              timestamp = date.getTime();
+            }
           }
-        }
 
-        return {
-          id: doc.id,
-          amount: d.amount,
-          status: d.status,
-          date: dateStr,
-          method: d.method,
-          trxId: d.trxId,
-          accountNumber: d.accountNumber,
-          _timestamp: timestamp
-        } as Withdrawal;
-      }).filter(Boolean) as Withdrawal[];
+          return {
+            id: doc.id,
+            amount: d.amount,
+            status: d.status,
+            date: dateStr,
+            method: d.method,
+            trxId: d.trxId,
+            accountNumber: d.accountNumber,
+            _timestamp: timestamp
+          } as Withdrawal;
+        }).filter(Boolean) as Withdrawal[];
 
-      setWithdrawals(data);
+      if (isFirstLoad) {
+        setWithdrawals(data);
+      } else {
+        setWithdrawals(prev => [...prev, ...data]);
+      }
+
+      setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
+      setHasMore(snapshot.docs.length === PAGE_SIZE * 3);
       setIsLoading(false);
-    }, (error) => {
+    } catch (error) {
       console.error("Error fetching withdrawals:", error);
       setIsLoading(false);
-    });
+    }
+  };
 
-    return () => unsubscribe();
-  }, [userData?.id]);
+  useEffect(() => {
+    fetchWithdrawals(true);
+  }, [userData?.id, sortBy]);
+
+  const loadMore = () => {
+    if (!isLoading && hasMore) {
+      fetchWithdrawals(false);
+    }
+  };
 
   const filteredAndSortedWithdrawals = React.useMemo(() => {
     let result = [...withdrawals];
@@ -171,36 +197,48 @@ export default function WithdrawalHistoryTab({ userData, onBack }: WithdrawalHis
             ))}
           </div>
         ) : filteredAndSortedWithdrawals.length > 0 ? (
-          filteredAndSortedWithdrawals.map((w, idx) => (
-            <motion.div 
-              key={w.id} 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.05 }}
-              onClick={() => setSelectedTrx(w)}
-              className="bg-gradient-to-r from-teal-900/40 to-teal-950/40 p-5 rounded-[28px] border border-teal-800/30 flex items-center justify-between group hover:border-orange-500/40 transition-all shadow-lg active:scale-95 cursor-pointer"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-orange-500/10 text-orange-400 flex items-center justify-center border border-orange-500/20 group-hover:rotate-12 transition-transform">
-                  <ArrowUpRight size={22} />
+          <>
+            {filteredAndSortedWithdrawals.map((w, idx) => (
+              <motion.div 
+                key={w.id} 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.05 }}
+                onClick={() => setSelectedTrx(w)}
+                className="bg-gradient-to-r from-teal-900/40 to-teal-950/40 p-5 rounded-[28px] border border-teal-800/30 flex items-center justify-between group hover:border-orange-500/40 transition-all shadow-lg active:scale-95 cursor-pointer"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-orange-500/10 text-orange-400 flex items-center justify-center border border-orange-500/20 group-hover:rotate-12 transition-transform">
+                    <ArrowUpRight size={22} />
+                  </div>
+                  <div>
+                    <p className="text-base font-black text-white italic tracking-tight">{w.method || 'Bkash'}</p>
+                    <p className="text-[10px] text-teal-500 font-bold mt-0.5">{w.date}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-base font-black text-white italic tracking-tight">{w.method || 'Bkash'}</p>
-                  <p className="text-[10px] text-teal-500 font-bold mt-0.5">{w.date}</p>
+                <div className="text-right">
+                  <p className="text-lg font-black text-white tracking-tighter">৳{w.amount.toLocaleString()}</p>
+                  <div className={`mt-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest inline-flex items-center gap-1.5 ${getStatusStyle(w.status)}`}>
+                    <div className={`w-1.5 h-1.5 rounded-full ${
+                      w.status === 'completed' || w.status === 'success' || w.status === 'approved' ? 'bg-green-500' : 
+                      w.status === 'pending' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'
+                    }`} />
+                    {getStatusText(w.status)}
+                  </div>
                 </div>
-              </div>
-              <div className="text-right">
-                <p className="text-lg font-black text-white tracking-tighter">৳{w.amount.toLocaleString()}</p>
-                <div className={`mt-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest inline-flex items-center gap-1.5 ${getStatusStyle(w.status)}`}>
-                  <div className={`w-1.5 h-1.5 rounded-full ${
-                    w.status === 'completed' || w.status === 'success' || w.status === 'approved' ? 'bg-green-500' : 
-                    w.status === 'pending' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'
-                  }`} />
-                  {getStatusText(w.status)}
-                </div>
-              </div>
-            </motion.div>
-          ))
+              </motion.div>
+            ))}
+
+            {hasMore && (
+              <button
+                onClick={loadMore}
+                disabled={isLoading}
+                className="w-full py-5 bg-teal-900/40 rounded-[28px] border border-teal-800/30 text-teal-400 text-[10px] font-black uppercase tracking-widest hover:bg-teal-900/60 transition-all disabled:opacity-50 mt-4"
+              >
+                {isLoading ? 'Loading...' : 'উত্তোলন ইতিহাস লোড করুন (Load More History)'}
+              </button>
+            )}
+          </>
         ) : (
           <div className="bg-teal-900/20 p-12 rounded-[40px] border border-teal-800/30 text-center shadow-inner">
             <div className="w-20 h-20 bg-teal-950 rounded-full flex items-center justify-center mx-auto mb-4 border border-teal-800/50">

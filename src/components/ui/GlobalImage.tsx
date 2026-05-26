@@ -76,22 +76,6 @@ export default function GlobalImage({
         referrerPolicy="no-referrer"
       />
       
-      {/* Edit Button Overlay */}
-      {isAdmin && (
-        <button 
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setNewUrl(currentUrl || defaultUrl);
-            setIsEditing(true);
-          }}
-          className="absolute top-2 right-2 p-1.5 bg-yellow-500 text-black rounded-full z-[100] shadow-md border border-white/20 flex items-center justify-center hover:scale-110 transition-transform active:scale-95"
-          title="ছবি পরিবর্তন করুন"
-        >
-          <Edit2 size={12} className="fill-black" />
-        </button>
-      )}
-
       {/* Edit Modal */}
       {isEditing && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[1000] p-4" onClick={(e) => e.stopPropagation()}>

@@ -45,8 +45,8 @@ export default function GlobalChat({
 
     const newMessage: ChatMessage = {
       id: Date.now().toString(),
-      userId: userData?.id || 'guest',
-      username: (userData?.username || 'Guest').substring(0, 5) + '***',
+      userId: userData?.id || '',
+      username: (userData?.username || 'User').substring(0, 5) + '***',
       text: input.trim(),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       isVIP: userData?.vipLevel > 0

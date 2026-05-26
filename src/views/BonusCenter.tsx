@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Gift, X, Calendar, Star, AlertCircle, RefreshCw, ArrowLeft, Trophy, Users, Zap, CheckCircle2, Copy, Play, ArrowRight, BookOpen, Clock, Settings, Bell, CircleDollarSign } from 'lucide-react';
+import { Gift, X, Calendar, Star, AlertCircle, RefreshCw, ArrowLeft, Trophy, Users, Zap, CheckCircle2, Copy, Play, ArrowRight, BookOpen, Clock, Settings, Bell, CircleDollarSign, DollarSign, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { motion, AnimatePresence } from 'motion/react';
@@ -41,11 +41,24 @@ export default function BonusCenter({
     { id: 'cashback', label: 'ক্যাশব্যাক' },
   ];
 
-  const handleClaimReward = async (amount: number) => {
+  const handleClaimReward = async (amount: number, bonusId: string) => {
+    if (!userData?.totalDeposits || userData.totalDeposits <= 0) {
+      showToast("বোনাস নিতে হলে আগে ডিপোজিট করতে হবে", "warning");
+      onTabChange('deposit');
+      return;
+    }
+    
+    // Check if this bonus already claimed
+    if (userData?.bonusesClaimed?.includes(bonusId)) {
+        showToast("আপনি এই বোনাসটি ইতিমধ্যে নিয়েছেন", "info");
+        return;
+    }
+
     try {
       showToast(`Successfully claimed ৳${amount}`, 'success');
       await onUpdateUser({
-        balance: balance + amount
+        balance: balance + amount,
+        bonusesClaimed: [...(userData?.bonusesClaimed || []), bonusId]
       });
       
       if (onAddTransaction) {
@@ -53,12 +66,13 @@ export default function BonusCenter({
           type: 'bonus',
           amount: amount,
           status: 'completed',
-          description: 'Bonus center reward claim',
+          description: `Bonus reward claim: ${bonusId}`,
           date: new Date().toISOString()
         });
       }
     } catch (err) {
       console.error("Claim error:", err);
+      showToast("বোনাস নিতে সমস্যা হয়েছে", "error");
     }
   };
 
@@ -162,9 +176,12 @@ export default function BonusCenter({
               দৈনিক মিশন
             </button>
           </div>
-          <button className="flex items-center gap-1 text-white text-sm font-medium">
-            <RefreshCw size={14} />
-            রিফ্রেশ
+          <button 
+            onClick={onOpenPromoModal}
+            className="flex items-center gap-2 bg-yellow-400 text-black px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-tighter shadow-lg active:scale-95 transition-all"
+          >
+            <Star size={14} className="fill-black" />
+            Promo Code
           </button>
         </div>
 
@@ -201,10 +218,11 @@ export default function BonusCenter({
                  </div>
                </div>
                <button 
-                 onClick={() => handleClaimReward(49.99)}
-                 className="bg-[#2CE830] hover:bg-[#25cc28] text-black font-bold px-8 py-2 rounded-md shadow-sm active:scale-95 transition-all text-sm"
+                 onClick={() => handleClaimReward(49.99, 'app_download_bonus')}
+                 disabled={userData?.bonusesClaimed?.includes('app_download_bonus')}
+                 className={`${userData?.bonusesClaimed?.includes('app_download_bonus') ? 'bg-gray-400 cursor-not-allowed text-gray-700' : 'bg-[#2CE830] hover:bg-[#25cc28] text-black'} font-bold px-8 py-2 rounded-md shadow-sm active:scale-95 transition-all text-sm`}
                >
-                 দাবি
+                 {userData?.bonusesClaimed?.includes('app_download_bonus') ? 'নিয়েছেন' : 'দাবি'}
                </button>
             </div>
           </div>
@@ -226,15 +244,48 @@ export default function BonusCenter({
                  </div>
                </div>
                <button 
-                 onClick={() => handleClaimReward(5.00)}
-                 className="bg-[#2CE830] hover:bg-[#25cc28] text-black font-bold px-8 py-2 rounded-md shadow-sm active:scale-95 transition-all text-sm"
+                 onClick={() => handleClaimReward(5.00, 'registration_bonus')}
+                 disabled={userData?.bonusesClaimed?.includes('registration_bonus')}
+                 className={`${userData?.bonusesClaimed?.includes('registration_bonus') ? 'bg-gray-400 cursor-not-allowed text-gray-700' : 'bg-[#2CE830] hover:bg-[#25cc28] text-black'} font-bold px-8 py-2 rounded-md shadow-sm active:scale-95 transition-all text-sm`}
                >
-                 দাবি
+                 {userData?.bonusesClaimed?.includes('registration_bonus') ? 'নিয়েছেন' : 'দাবি'}
                </button>
             </div>
           </div>
 
           {/* Mission Item 3 */}
+          <div className="bg-[#1D8254]/40 border border-[#3bc68a]/50 rounded-lg overflow-hidden">
+            <div className="bg-[#1D8254]/60 px-3 py-2 flex items-center gap-2 border-b border-[#3bc68a]/30">
+              <div className="w-6 h-6 bg-yellow-100 rounded flex items-center justify-center text-yellow-600">
+                 <DollarSign size={14} />
+              </div>
+              <span className="text-white text-sm font-medium">প্রথম ডিপোজিট বোনাস</span>
+            </div>
+            <div className="p-3 flex items-center justify-between">
+               <div className="flex gap-6">
+                 <div className="flex flex-col items-center">
+                    <CircleDollarSign size={20} className="text-yellow-400 fill-yellow-100" />
+                    <span className="text-yellow-400 text-sm mt-1">৳{welcomeBonus}</span>
+                 </div>
+               </div>
+               <button 
+                 onClick={() => {
+                   if (userData?.totalDeposits > 0) {
+                     handleClaimReward(welcomeBonus, 'first_deposit_bonus');
+                   } else {
+                     showToast("আগে ডিপোজিট করুন", "warning");
+                     onTabChange('wallet');
+                   }
+                 }}
+                 disabled={userData?.bonusesClaimed?.includes('first_deposit_bonus')}
+                 className={`${userData?.bonusesClaimed?.includes('first_deposit_bonus') ? 'bg-gray-400 cursor-not-allowed text-gray-700' : (userData?.totalDeposits > 0 ? 'bg-[#2CE830] hover:bg-[#25cc28]' : 'bg-gray-500 cursor-not-allowed')} text-black font-bold px-8 py-2 rounded-md shadow-sm active:scale-95 transition-all text-sm`}
+               >
+                 {userData?.bonusesClaimed?.includes('first_deposit_bonus') ? 'নিয়েছেন' : 'দাবি'}
+               </button>
+            </div>
+          </div>
+
+          {/* Mission Item 4 */}
           <div className="bg-[#1D8254]/40 border border-[#3bc68a]/50 rounded-lg overflow-hidden">
             <div className="bg-[#1D8254]/60 px-3 py-2 flex items-center gap-2 border-b border-[#3bc68a]/30">
               <div className="w-6 h-6 bg-blue-100 rounded flex items-center justify-center text-blue-500">

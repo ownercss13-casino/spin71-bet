@@ -80,9 +80,10 @@ export default function GlobalLoader({
           className="relative w-64 h-64 flex items-center justify-center"
         >
           <img 
-            src="https://www.image2url.com/r2/default/images/1778760980937-340930dd-a7b6-4cbe-9ce0-331bc57c1614.png" 
+            src="/apple-touch-icon.png?v=6" 
             alt="SPIN71.BET" 
             className="w-full h-auto object-contain drop-shadow-[0_0_15px_rgba(253,216,53,0.3)]" 
+            referrerPolicy="no-referrer"
           />
         </motion.div>
         <motion.h2 

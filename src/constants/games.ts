@@ -27,6 +27,8 @@ export const games: Game[] = [
   // JILI (22)
   { id: 'jili_1', name: 'Super Ace', provider: 'JILI', image: 'https://picsum.photos/seed/jili1/400/600', category: 'স্লট', isHot: true, bgColor: 'from-yellow-600 to-green-600' },
   { id: 'jili_2', name: 'Golden Empire', provider: 'JILI', image: 'https://picsum.photos/seed/jili2/400/600', category: 'স্লট', isHot: true, bgColor: 'from-yellow-500 to-yellow-700' },
+  // SPRIBE (Aviator) - Positioned as 3rd Hot Game
+  { id: 'spribe_aviator', name: 'Aviator', provider: 'SPRIBE', image: 'https://www.image2url.com/r2/default/images/1779289104541-c8fef507-d817-42b9-a088-c9419b066c80.jpg', category: 'ক্র্যাশ', isHot: true, bgColor: 'from-red-600 to-red-900' },
   { id: 'jili_3', name: 'Fortune Gems', provider: 'JILI', image: 'https://picsum.photos/seed/jili3/400/600', category: 'স্লট', isHot: true, bgColor: 'from-red-500 to-red-800' },
   { id: 'jili_4', name: 'Boxing King', provider: 'JILI', image: 'https://picsum.photos/seed/jili4/400/600', category: 'স্লট', isHot: true, bgColor: 'from-orange-500 to-red-600' },
   { id: 'jili_5', name: 'Money Coming', provider: 'JILI', image: 'https://picsum.photos/seed/jili5/400/600', category: 'স্লট', isHot: true, bgColor: 'from-green-500 to-green-800' },

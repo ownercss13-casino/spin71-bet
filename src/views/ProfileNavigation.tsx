@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { LayoutDashboard, User, Wallet, History, CreditCard, Link as LinkIcon, Shield, UserPlus } from 'lucide-react';
+import { LayoutDashboard, User, Wallet, History, CreditCard, Link as LinkIcon, Shield, UserPlus, ArrowDownCircle } from 'lucide-react';
 
 interface ProfileNavigationProps {
   activeSubTab: string;
@@ -13,6 +13,7 @@ export default function ProfileNavigation({ activeSubTab, handleSubTabChange }: 
     { id: 'profile', label: 'প্রোফাইল', icon: User },
     { id: 'withdraw', label: 'উত্তোলন', icon: Wallet },
     { id: 'history', label: 'লেনদেন', icon: History },
+    { id: 'deposit-record', label: 'জমা ইতিহাস', icon: ArrowDownCircle },
     { id: 'withdrawHistory', label: 'উত্তোলন ইতিহাস', icon: CreditCard },
     { id: 'invite', label: 'আমন্ত্রণ', icon: UserPlus },
     { id: 'links', label: 'আমার লিংক', icon: LinkIcon },

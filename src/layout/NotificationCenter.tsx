@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Bell, X, Trash2, CheckCircle2, Info, Gift, AlertCircle, ChevronRight, Clock } from 'lucide-react';
+import { Bell, X, Trash2, CheckCircle2, Info, Gift, AlertCircle, ChevronRight, Clock, TrendingUp } from 'lucide-react';
 import { db, auth } from '../services/firebase';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 
@@ -21,49 +21,24 @@ interface NotificationCenterProps {
   onAction?: (url: string) => void;
 }
 
-export default function NotificationCenter({ isOpen, onClose, userData, onAction }: NotificationCenterProps) {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+export default function NotificationCenter({ isOpen, onClose, userData, onAction, notifications = [], onMarkAsRead, onDelete }: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  userData: any; 
+  onAction?: (url: string) => void;
+  notifications?: Notification[];
+  onMarkAsRead?: (id: string) => void;
+  onDelete?: (id: string) => void;
+}) {
   const [activeFilter, setActiveFilter] = useState<'all' | 'unread'>('all');
   const [notificationToDelete, setNotificationToDelete] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!userData?.uid) return;
-    
-    const notificationsRef = collection(db, 'users', userData.uid, 'notifications');
-    const q = query(notificationsRef, orderBy('createdAt', 'desc'));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedLocals: Notification[] = snapshot.docs.map((doc) => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          title: data.title,
-          message: data.message,
-          type: data.type,
-          read: data.read,
-          actionUrl: data.actionUrl,
-          createdAt: data.createdAt ? data.createdAt.toDate() : new Date()
-        } as Notification;
-      });
-      setNotifications(fetchedLocals);
-    });
-    
-    return () => unsubscribe();
-  }, [userData?.uid]);
-
   const filteredNotifications = activeFilter === 'all' 
     ? notifications 
-    : notifications.filter(n => !n.read);
+    : (notifications || []).filter(n => !n.read);
 
   const handleMarkAsRead = async (id: string) => {
-    if (!userData?.uid) return;
-    try {
-      await updateDoc(doc(db, 'users', userData.uid, 'notifications', id), {
-        read: true
-      });
-    } catch (e) {
-      console.error("Failed to mark notification as read", e);
-    }
+    if (onMarkAsRead) onMarkAsRead(id);
   };
 
   const handleDelete = (e: React.MouseEvent, id: string) => {
@@ -72,13 +47,9 @@ export default function NotificationCenter({ isOpen, onClose, userData, onAction
   };
   
   const confirmDelete = async () => {
-    if (!notificationToDelete || !userData?.uid) return;
-    try {
-      await deleteDoc(doc(db, 'users', userData.uid, 'notifications', notificationToDelete));
-      setNotificationToDelete(null);
-    } catch (e) {
-      console.error("Failed to delete notification", e);
-    }
+    if (!notificationToDelete) return;
+    if (onDelete) onDelete(notificationToDelete);
+    setNotificationToDelete(null);
   };
 
   const getIcon = (type: string) => {
@@ -240,9 +211,4 @@ export default function NotificationCenter({ isOpen, onClose, userData, onAction
   );
 }
 
-const TrendingUp = ({ size, className }: { size: number, className?: string }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
-    <polyline points="17 6 23 6 23 12" />
-  </svg>
-);
+

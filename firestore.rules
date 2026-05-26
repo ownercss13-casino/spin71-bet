@@ -1,33 +1,23 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 0. Default Deny - Safety Net
+    // 0. Default Deny - Admin Override
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if isAdmin();
     }
 
-    // --- 3. Path Variable Hardening & Primitives ---
+    // --- Primitives ---
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     function isSignedIn() { return request.auth != null; }
-    
-    // Check if user is verified. Google login is implicitly verified.
-    function isVerified() { 
-      return isSignedIn() && (
-        request.auth.token.email_verified == true || 
-        request.auth.token.firebase.sign_in_provider == 'google.com'
-      ); 
-    }
     
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
     
-    // Check if user is admin. Use email check as fallback to avoid DB lookup loops if DB is unstable
     function isAdmin() { 
       return isSignedIn() && (
         request.auth.token.email == 'owner.css13@gmail.com' ||
-        (request.auth.uid == 'vX1zLqR8P2h4mK6bN9jS5dFwT7y') ||
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       ); 
     }
 
@@ -35,52 +25,52 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // --- 1. Users Collection ---
+    // --- Users ---
     match /users/{userId} {
+      allow list: if isSignedIn();
       function isValidUser(data) {
-        return data.keys().hasAll(['username', 'balance']) &&
-               data.username is string && data.username.size() <= 100 &&
+        return data.username is string && data.username.size() <= 100 &&
                data.balance is number && data.balance >= 0;
       }
       
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
+      allow get: if isOwner(userId) || isAdmin();
       
-      allow create: if isVerified() && request.auth.uid == userId && isValidUser(incoming()) && (incoming().get('role', 'user') == 'user');
-      allow update: if (isVerified() && request.auth.uid == userId && 
-                       (incoming().get('role', existing().role) == existing().role) &&
-                       (
-                         incoming().balance == existing().balance ||
-                         (incoming().balance < existing().balance && incoming().get('totalWithdrawals', 0) == existing().get('totalWithdrawals', 0) + (existing().balance - incoming().balance)) ||
-                         (incoming().balance > existing().balance && incoming().get('totalDeposits', 0) == existing().get('totalDeposits', 0) + (incoming().balance - existing().balance))
-                       )
-                      ) || isAdmin();
+      allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming());
+      
+      // Separate update rules for owners vs admins
+      allow update: if isAdmin() || (
+        isOwner(userId) && 
+        // Prevent owners from updating sensitive financial or administrative fields
+        !incoming().diff(existing()).affectedKeys().hasAny(['balance', 'totalDeposits', 'totalWithdrawals', 'referralCount', 'validReferralCount', 'totalReferralEarnings', 'referredBy', 'isAdmin', 'role']) &&
+        // Allow updating profile fields
+        incoming().diff(existing()).affectedKeys().hasOnly(['username', 'phoneNumber', 'profilePictureUrl', 'updatedAt', 'bankCards', 'referralCode', 'bonusesClaimed', 'lastLogin'])
+      );
       
       match /transactions/{transactionId} {
-        allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-        allow create: if isVerified() && request.auth.uid == userId;
+        allow read, list: if isSignedIn();
+        allow create: if isSignedIn() && isOwner(userId);
       }
 
       match /notifications/{notifId} {
-        allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-        allow create: if isAdmin();
-        allow update: if isSignedIn() && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
-        allow delete: if isSignedIn() && request.auth.uid == userId;
+        allow read, list: if isOwner(userId) || isAdmin();
+        allow update: if isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+        allow delete: if isOwner(userId);
       }
 
       match /referrals/{refId} {
-        allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-        allow write: if isAdmin();
+        allow read, list: if isSignedIn();
       }
     }
 
-    // --- Global Config & Metadata ---
-    match /config/main {
-      allow read: if true;
-      allow write: if isAdmin();
+    // --- Bets ---
+    match /bets/{betId} {
+      allow read, list: if isSignedIn();
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow update, delete: if isAdmin();
     }
 
-    match /metadata/{docId} {
+    // --- Game Config ---
+    match /config/main {
       allow read: if true;
       allow write: if isAdmin();
     }
@@ -93,62 +83,61 @@ service cloud.firestore {
     match /game_providers/{providerId} {
       allow read: if true;
       allow write: if isAdmin();
-    }
-
-    match /global_images/{imageId} {
+    }                
+    
+    match /metadata/{docId} {
       allow read: if true;
       allow write: if isAdmin();
     }
+    
+    match /games/{gameId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /global_images/{imageId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }                
+    
+    match /support_tickets/{ticketId} {
+      function isValidTicket(data) { return data.keys().hasAll(['userId', 'subject', 'status']); }
+      allow list: if isSignedIn() && (request.query.limit <= 100 || isAdmin()); // Allow listing if signed in, results will be filtered by document ownership or queries
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid && isValidTicket(incoming());
+      allow update: if isAdmin() || (
+        isSignedIn() && 
+        resource.data.userId == request.auth.uid &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['messages', 'lastMessage', 'updatedAt'])
+      );
+    }
 
+    // --- Transactions Root ---
+    match /transactions/{transactionId} {
+      allow read, list: if isSignedIn();
+      allow create: if isSignedIn() && (incoming().userId == request.auth.uid || incoming().uid == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    // --- Promo Codes ---
     match /promo_codes/{codeId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
-    match /reports/{reportId} {
-      allow read, write: if isAdmin();
-    }
-
-    match /support_tickets/{ticketId} {
-      allow read: if isSignedIn() && (request.auth.uid == ticketId || isAdmin());
-      allow write: if isSignedIn() && (request.auth.uid == ticketId || isAdmin());
-    }
-
-    // --- 2. Game States ---
-    match /game_states/{gameId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // --- Slot Machine Bets ---
-    match /slot_bets/{betId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if false; // Only server-side creation via Admin SDK
-    }
-
-    match /bets/{betId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow write: if false;
+    match /otp_verifications/{phone} {
+      allow read, write: if false; // Server-side only
     }
 
     // --- Daily Rewards ---
     match /daily_rewards/{userId} {
-      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow write: if false; // Only server-side updates
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if false; // Only server-side
     }
 
-    // --- 5. Transactions Root (Financial Records) ---
-    match /transactions/{transactionId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isVerified() && (incoming().userId == request.auth.uid || incoming().uid == request.auth.uid);
-      allow update, delete: if isAdmin();
-    }
-
-    // --- 6. Admin Control ---
+    // --- Admin ---
     match /admins/{adminId} {
-      allow read: if isAdmin();
-      allow write: if isAdmin(); 
+      allow read, write: if isAdmin(); 
     }
   }
 }

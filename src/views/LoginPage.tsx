@@ -15,7 +15,6 @@ import {
   EyeOff,
   AlertCircle,
   Loader2,
-  Facebook,
   Send,
   Scan,
   Smartphone,
@@ -38,17 +37,18 @@ const loginSchema = z.object({
 
 const registerSchema = z.object({
   username: z.string()
-    .min(6, 'ইউজারনেম কমপক্ষে ৬ অক্ষরের হতে হবে (Min 6 chars)')
-    .max(13, 'ইউজারনেম ১৩ অক্ষরের বেশি হতে পারবে না (Max 13 chars)')
-    .regex(/^[a-zA-Z0-9]+$/, 'বিশেষ চিহ্ন বা স্পেস ছাড়া অক্ষর দিন (Only letters and numbers)'),
+    .min(4, 'দয়া করে ব্যবহারকারী নাম দিন')
+    .max(20, 'ইউজারনেম ২০ অক্ষরের বেশি হতে পারবে না (Max 20 chars)')
+    .regex(/^[a-zA-Z0-9_]+$/, 'বিশেষ চিহ্ন বা স্পেস ছাড়া অক্ষর দিন'),
   password: z.string()
-    .min(8, 'পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের হতে হবে (Min 8 chars)')
-    .regex(/[A-Z]/, 'কমপক্ষে একটি বড় হাতের অক্ষর থাকতে হবে (Must have an uppercase letter)')
-    .regex(/[0-9]/, 'কমপক্ষে একটি সংখ্যা থাকতে হবে (Must have a number)')
-    .regex(/[^A-Za-z0-9]/, 'কমপক্ষে একটি বিশেষ চিহ্ন থাকতে হবে (Must have a special character)'),
-  confirmPassword: z.string().min(8, 'পাসওয়ার্ড নিশ্চিত করুন'),
+    .min(6, 'পাসওয়ার্ড প্রবেশ করুন'),
+  confirmPassword: z.string(),
+  mobile: z.string()
+    .min(11, 'মোবাইল নম্বর দিন')
+    .regex(/^[0-9]+$/, 'Please enter a valid number'),
+  promoCode: z.string().optional(),
 }).refine((data) => data.password === data.confirmPassword, {
-  message: "পাসওয়ার্ড মিলছে না (Passwords don't match)",
+  message: "পাসওয়ার্ড মিলছে না",
   path: ["confirmPassword"],
 });
 
@@ -63,14 +63,14 @@ type ResetFormValues = z.infer<typeof resetSchema>;
 import { ToastType } from '../components/ui/Toast';
 import { auth, db } from '../services/firebase';
 import { 
-  signInWithPopup, 
-  GoogleAuthProvider, 
-  FacebookAuthProvider,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  updateProfile
+  updateProfile,
+  signInWithPopup,
+  GoogleAuthProvider
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, increment, collection, query, where, getDocs, limit } from 'firebase/firestore';
+
+import { doc, setDoc, getDoc, updateDoc, increment, collection, query, where, getDocs, limit, writeBatch } from 'firebase/firestore';
 import { defaultAvatarBase64 } from '../assets/default-avatar';
 
 interface LoginPageProps {
@@ -81,13 +81,14 @@ interface LoginPageProps {
   casinoName?: string;
   isLoggedIn?: boolean;
   welcomeBonus?: number;
+  initialMode?: 'login' | 'register';
 }
 
-export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSuccess, showToast, casinoName = "SPIN71.bet", isLoggedIn = false, welcomeBonus = 507 }: LoginPageProps) {
+export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSuccess, showToast, casinoName = "SPIN71.bet", isLoggedIn = false, welcomeBonus = 507, initialMode = 'login' }: LoginPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
-  const [authMode, setAuthMode] = useState<'login' | 'forgot-password' | 'vip-register'>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'forgot-password' | 'register'>(initialMode);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [rememberPassword, setRememberPassword] = useState(() => {
@@ -116,6 +117,24 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       username: localStorage.getItem('remember_me') === 'true' ? localStorage.getItem('saved_username') || '' : ''
     }
   });
+
+  const { 
+    register: registerRegister, 
+    handleSubmit: handleSubmitRegister, 
+    formState: { errors: registerErrors },
+    watch: watchRegister,
+    setValue: setValueRegister
+  } = useForm<RegisterFormValues>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      promoCode: localStorage.getItem('referralCode') || ''
+    }
+  });
+
+  const passwordWatch = watchRegister('password');
+  useEffect(() => {
+    if (passwordWatch) checkPasswordStrength(passwordWatch);
+  }, [passwordWatch]);
 
   useEffect(() => {
     if (rememberPassword) {
@@ -161,10 +180,13 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     // Firebase Auth Error Codes
     if (err.code === 'auth/wrong-password') msg = "ভুল পাসওয়ার্ড! (Wrong password)";
     if (err.code === 'auth/user-not-found') msg = "অ্যাকাউন্ট পাওয়া যায়নি! (No account found)";
-    if (err.code === 'auth/email-already-in-use') msg = "এই ইমেইলটি ইতিমধ্যে ব্যবহার করা হয়েছে! (Email already in use)";
-    if (err.code === 'auth/invalid-email') msg = "সঠিক ইমেইল এড্রেস দিন! (Invalid email address)";
+    if (err.code === 'auth/invalid-credential') msg = "ভুল তথ্য (Invalid credentials)";
+    if (err.code === 'auth/email-already-in-use') msg = "এই ইউজারনেমটি ইতিমধ্যে ব্যবহার করা হয়েছে! (Username already in use)";
+    if (err.code === 'auth/invalid-email') msg = "সঠিক ফরম্যাট দিন! (Invalid format)";
     if (err.code === 'auth/weak-password') msg = "পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে (Weak password)";
     if (err.code === 'auth/too-many-requests') msg = "অতিরিক্ত রিকোয়েস্ট! কিছুক্ষণ পর চেষ্টা করুন। (Too many requests)";
+    if (err.code === 'auth/operation-not-allowed') msg = "ইমেইল/পাসওয়ার্ড পদ্ধতিটি ফায়ারবেস কনসোলে বন্ধ করা আছে!";
+    if (err.message && err.message.includes('missing or insufficient permissions')) msg = "ডেটাবেস পারমিশন সমস্যা! (Permission Denied)";
     
     // Custom error messages from thrown errors
     if (err.message && err.message.length < 100) {
@@ -177,110 +199,6 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     showToast(msg, "error");
   };
 
-  // Remove onOneClick function
-  const onFacebookLogin = async () => {
-    if (isLoading) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const provider = new FacebookAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (!userDoc.exists()) {
-        const inviterCode = localStorage.getItem('referralCode');
-        
-        // Find inviter by referral code if skip direct UID
-        let inviterUid = null;
-        if (inviterCode) {
-           // Search users for this code
-           const usersRef = collection(db, 'users');
-           const q = query(usersRef, where('referralCode', '==', inviterCode), limit(1));
-           const snap = await getDocs(q);
-           if (!snap.empty) {
-             inviterUid = snap.docs[0].id;
-           }
-        }
-
-        const cleanDisplayName = (user.displayName || 'FB User').replace(/[^a-zA-Z0-9]/g, '').substring(0, 13) || `fb${user.uid.substring(0,5)}`;
-
-        const newUser = {
-          username: cleanDisplayName,
-          email: user.email || "",
-          balance: 507,
-          role: 'user',
-          totalDeposits: 0,
-          createdAt: new Date().toISOString(),
-          profilePictureUrl: defaultAvatarBase64,
-          referredBy: inviterUid,
-          referralCode: generateReferralCode(),
-          referralCount: 0,
-          validReferralCount: 0,
-          totalReferralEarnings: 0
-        };
-        await setDoc(doc(db, 'users', user.uid), newUser);
-        
-        // Notify Telegram
-        try {
-          await fetch('/api/telegram/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              message: `🎉 <b>New FB User Registered!</b>\n\n👤 <b>Username:</b> ${newUser.username}\n🔢 <b>UID:</b> <code>${user.uid}</code>\n🤝 <b>Referred By:</b> <code>${inviterUid || 'None'}</code>`
-            })
-          });
-        } catch (err) {
-          console.error("Telegram notification error", err);
-        }
-        
-        if (inviterUid) {
-          try {
-            const inviterRef = doc(db, 'users', inviterUid);
-            await updateDoc(inviterRef, {
-              referralCount: increment(1),
-              validReferralCount: increment(1),
-              balance: increment(50),
-              totalReferralEarnings: increment(50)
-            });
-            await setDoc(doc(collection(db, 'transactions')), {
-              type: 'bonus',
-              status: 'approved',
-              uid: inviterUid,
-              amount: 50,
-              description: 'Referral Bonus (FB Signup)',
-              date: new Date().toISOString(),
-              createdAt: new Date().toISOString()
-            });
-
-            // ADDED: Bonus for the new user
-            await updateDoc(doc(db, 'users', user.uid), {
-                balance: increment(50)
-            });
-            await setDoc(doc(collection(db, 'transactions')), {
-              type: 'bonus',
-              status: 'approved',
-              uid: user.uid,
-              amount: 50,
-              description: 'Referral Signup Bonus',
-              date: new Date().toISOString(),
-              createdAt: new Date().toISOString()
-            });
-          } catch (e) {
-            console.error("Inviter update failed:", e);
-          }
-          localStorage.removeItem('referralCode');
-        }
-      }
-      
-      showToast("ফেসবুক লগইন সফল হয়েছে", "success");
-      onLoginSuccess({ id: user.uid, username: user.displayName });
-    } catch (err: any) {
-      handleAuthError(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const onGoogleLogin = async () => {
     if (isLoading) return;
@@ -291,12 +209,13 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
       
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userDocRef);
+      
       if (!userDoc.exists()) {
         const inviterCode = localStorage.getItem('referralCode');
-        
-        // Find inviter by referral code
         let inviterUid = null;
+        
         if (inviterCode) {
            const usersRef = collection(db, 'users');
            const q = query(usersRef, where('referralCode', '==', inviterCode), limit(1));
@@ -307,13 +226,19 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         }
 
         const cleanDisplayName = (user.displayName || 'Google User').replace(/[^a-zA-Z0-9]/g, '').substring(0, 13) || `g${user.uid.substring(0,5)}`;
+        const isAdmin = user.email === 'owner.css13@gmail.com';
+        
+        const batch = writeBatch(db);
 
         const newUser = {
           username: cleanDisplayName,
           email: user.email || "",
-          balance: 507,
-          role: 'user',
+          balance: inviterUid ? 50 : 500, // New user gets 500 by default or 50 if referred? Wait, App.tsx says 500.
+          role: isAdmin ? 'admin' : 'user',
+          isAdmin: isAdmin,
           totalDeposits: 0,
+          totalWithdrawals: 0,
+          bonusesClaimed: [],
           createdAt: new Date().toISOString(),
           profilePictureUrl: defaultAvatarBase64,
           referredBy: inviterUid,
@@ -322,62 +247,56 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
           validReferralCount: 0,
           totalReferralEarnings: 0
         };
-        await setDoc(doc(db, 'users', user.uid), newUser);
         
-        // Notify Telegram
-        try {
-          await fetch('/api/telegram/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              message: `🎉 <b>New Google User Registered!</b>\n\n👤 <b>Username:</b> ${newUser.username}\n🔢 <b>UID:</b> <code>${user.uid}</code>\n🤝 <b>Referred By:</b> <code>${inviterUid || 'None'}</code>`
-            })
+        batch.set(userDocRef, newUser);
+        
+        if (isAdmin) {
+          batch.set(doc(db, 'admins', user.uid), {
+            email: user.email,
+            addedAt: new Date().toISOString()
           });
-        } catch (err) {
-          console.error("Telegram notification error", err);
         }
-
+        
         if (inviterUid) {
-          try {
-            const inviterRef = doc(db, 'users', inviterUid);
-            await updateDoc(inviterRef, {
-              referralCount: increment(1),
-              validReferralCount: increment(1),
-              balance: increment(50),
-              totalReferralEarnings: increment(50)
-            });
-            await setDoc(doc(collection(db, 'transactions')), {
-              type: 'bonus',
-              status: 'approved',
-              uid: inviterUid,
-              amount: 50,
-              description: 'Referral Bonus (Google Signup)',
-              date: new Date().toISOString(),
-              createdAt: new Date().toISOString()
-            });
-            
-            // ADDED: Bonus for the new user
-            await updateDoc(doc(db, 'users', user.uid), {
-                balance: increment(50)
-            });
-            await setDoc(doc(collection(db, 'transactions')), {
-              type: 'bonus',
-              status: 'approved',
-              uid: user.uid,
-              amount: 50,
-              description: 'Referral Signup Bonus',
-              date: new Date().toISOString(),
-              createdAt: new Date().toISOString()
-            });
-          } catch (e) {
-            console.error("Inviter update failed:", e);
-          }
-          localStorage.removeItem('referralCode');
-        }
-      }
+          const inviterRef = doc(db, 'users', inviterUid);
+          batch.update(inviterRef, {
+            referralCount: increment(1),
+            validReferralCount: increment(1),
+            balance: increment(50),
+            totalReferralEarnings: increment(50)
+          });
 
+          // Log transaction for inviter
+          const inviterTrxRef = doc(collection(db, 'transactions'));
+          batch.set(inviterTrxRef, {
+            type: 'bonus',
+            status: 'approved',
+            userId: inviterUid,
+            amount: 50,
+            description: `Referral Bonus (Google: ${cleanDisplayName})`,
+            date: new Date().toISOString(),
+            createdAt: new Date().toISOString()
+          });
+
+          // Transaction for new user
+          const newUserTrxRef = doc(collection(db, 'transactions'));
+          batch.set(newUserTrxRef, {
+            type: 'bonus',
+            status: 'approved',
+            userId: user.uid,
+            amount: 50,
+            description: 'Referral Signup Bonus',
+            date: new Date().toISOString(),
+            createdAt: new Date().toISOString()
+          });
+        }
+        
+        await batch.commit();
+        localStorage.removeItem('referralCode');
+      }
+      
       showToast("গুগল লগইন সফল হয়েছে", "success");
-      onLoginSuccess({ id: user.uid, username: user.displayName });
+      onLoginSuccess({ id: user.uid, username: user.displayName, ...(userDoc.exists() ? userDoc.data() : { balance: 500 }) });
     } catch (err: any) {
       handleAuthError(err);
     } finally {
@@ -395,33 +314,14 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       if (data.username.includes('@')) {
         loginEmail = data.username;
       } 
-      // 2. Check if input is a phone number (11 digits)
-      else if (/^\d{11}$/.test(data.username)) {
-        const usersRef = collection(db, 'users');
-        const q = query(usersRef, where('phoneNumber', '==', data.username), limit(1));
-        const snap = await getDocs(q);
-        
-        if (snap.empty) {
-          throw new Error("এই ফোন নম্বর দিয়ে কোনো অ্যাকাউন্ট নেই (Phone number not found)");
-        }
-        loginEmail = snap.docs[0].data().email;
-      } 
-      // 3. Assume it's a username
+      // 2. Otherwise assume it's a username and use the dummy domain pattern
       else {
-        const usersRef = collection(db, 'users');
-        const q = query(usersRef, where('username', '==', data.username), limit(1));
-        const snap = await getDocs(q);
-        
-        if (!snap.empty) {
-          loginEmail = snap.docs[0].data().email;
-        } else {
-          // Fallback to legacy convention if not found in Firestore
-          loginEmail = `${data.username.toLowerCase()}@spin71bet.com`;
-        }
+        loginEmail = `${data.username.toLowerCase()}@spin71bet.com`;
       }
 
       const result = await signInWithEmailAndPassword(auth, loginEmail, data.password);
       const user = result.user;
+
 
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       const userData = userDoc.exists() ? userDoc.data() : { username: data.username, balance: 1000, role: 'user' };
@@ -437,12 +337,16 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       showToast("লগইন সফল হয়েছে", "success");
       
       // Notify Telegram
+      const escapeHTML = (str: string) => str.replace(/[&<>"']/g, m => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'}[m] || m));
       try {
-        await fetch('/api/telegram/send', {
+        await fetch('/api/telegram/event', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            message: `🔑 <b>User Logged In!</b>\n\n👤 <b>Username:</b> ${userData.username || 'Unknown'}\n🔢 <b>UID:</b> <code>${user.uid}</code>`
+            event: 'Login',
+            userId: user.uid,
+            username: userData.username,
+            balance: userData.balance
           })
         });
       } catch (err) {
@@ -457,6 +361,133 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     }
   };
 
+  const onEmailRegister = async (data: RegisterFormValues) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      // 1. Create email from username
+      const registerEmail = `${data.username.toLowerCase()}@spin71bet.com`;
+      
+      const result = await createUserWithEmailAndPassword(auth, registerEmail, data.password);
+      const user = result.user;
+      
+      // 2. Set Firebase Auth display name
+      await updateProfile(user, { displayName: data.username });
+
+      const inviterCode = data.promoCode || localStorage.getItem('referralCode');
+      let inviterUid = null;
+      if (inviterCode) {
+         try {
+           const usersRef = collection(db, 'users');
+           const q = query(usersRef, where('referralCode', '==', inviterCode), limit(1));
+           const snap = await getDocs(q);
+           if (!snap.empty) {
+             inviterUid = snap.docs[0].id;
+             console.log("Found inviter:", inviterUid);
+           }
+         } catch (e) {
+           console.error("Referral lookup failed:", e);
+         }
+      }
+
+      const batch = writeBatch(db);
+      const userDocRef = doc(db, 'users', user.uid);
+
+      // 3. Create user document in Firestore
+      const newUser = {
+        username: data.username,
+        email: registerEmail,
+        mobile: data.mobile,
+        balance: inviterUid ? 50 : 0, 
+        role: 'user',
+        totalDeposits: 0,
+        totalWithdrawals: 0,
+        bonusesClaimed: [], // Track claimed bonuses
+        createdAt: new Date().toISOString(),
+        profilePictureUrl: defaultAvatarBase64,
+        referralCode: generateReferralCode(),
+        referralCount: 0,
+        validReferralCount: 0,
+        totalReferralEarnings: 0,
+        referredBy: inviterUid
+      };
+      
+      batch.set(userDocRef, newUser);
+      
+      // Handle referral bonus if inviter exists
+      if (inviterUid) {
+        const inviterRef = doc(db, 'users', inviterUid);
+        batch.update(inviterRef, {
+          referralCount: increment(1),
+          // We give a small signup bonus to both if referred
+          balance: increment(50),
+          totalReferralEarnings: increment(50)
+        });
+
+        // Log transaction for inviter
+        const inviterTrxRef = doc(collection(db, 'transactions'));
+        batch.set(inviterTrxRef, {
+          type: 'bonus',
+          status: 'approved',
+          userId: inviterUid,
+          amount: 50,
+          description: `Referral Signup Bonus (${data.username})`,
+          date: new Date().toISOString(),
+          createdAt: new Date().toISOString()
+        });
+
+        // Give signup bonus to the new user too
+        const newUserTrxRef = doc(collection(db, 'transactions'));
+        batch.set(newUserTrxRef, {
+          type: 'bonus',
+          status: 'approved',
+          userId: user.uid,
+          amount: 50,
+          description: 'Referral Signup Bonus',
+          date: new Date().toISOString(),
+          createdAt: new Date().toISOString()
+        });
+      }
+
+      await batch.commit();
+      localStorage.removeItem('referralCode');
+
+      // Notify Telegram
+      try {
+        await fetch('/api/telegram/event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event: 'Registration',
+            userId: user.uid,
+            username: data.username,
+            balance: inviterUid ? 50 : 0,
+            details: `Mobile: ${data.mobile}${inviterUid ? ' | Referred by: ' + inviterUid : ''}`
+          })
+        });
+      } catch (e) {
+        console.error("Telegram notify failed", e);
+      }
+      
+      showToast("নিবন্ধন সফল হয়েছে!", "success");
+      setShowSuccessPopup(true);
+      onLoginSuccess({ id: user.uid, ...newUser, balance: inviterUid ? 50 : 0 });
+
+      // Notify Telegram
+      const escapeHTML = (str: string) => str.replace(/[&<>"']/g, m => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'}[m] || m));
+      await fetch('/api/telegram/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: `🆕 <b>New User Registered!</b>\n\n👤 <b>Username:</b> ${escapeHTML(data.username)}\n🔢 <b>UID:</b> <code>${user.uid}</code>${inviterUid ? '\n🤝 <b>Referred By:</b> <code>' + inviterUid + '</code>' : ''}`
+        })
+      });
+    } catch (err: any) {
+      handleAuthError(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const onPasswordReset = async (data: ResetFormValues) => {
     setIsLoading(true);
@@ -473,273 +504,353 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
   };
 
   return (
-    <div className="min-h-[100dvh] bg-[#0a0f0d] flex flex-col items-center relative overflow-x-hidden font-sans safe-top safe-bottom">
+    <div className="fixed inset-0 z-[1000] bg-[#1a1a1a] flex flex-col font-sans text-white overflow-y-auto overflow-x-hidden pb-4">
       
-      {/* Header Banner */}
-      <div className="w-full relative h-[250px] sm:h-[280px]">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#115e3c] to-[#0a0f0d]">
-          {/* Subtle pattern overlay */}
-          <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)', backgroundSize: '10px 10px' }}></div>
-        </div>
-        <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#0a0f0d] to-transparent"></div>
-        {/* Center Logo/Title in Banner */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pt-4">
-          <img 
-            src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/Flag_of_Bangladesh.svg/1000px-Flag_of_Bangladesh.svg.png" 
-            alt="Bangladesh Flag" 
-            className="h-10 w-auto rounded-md shadow-2xl mb-4 border-2 border-yellow-500/20"
-            referrerPolicy="no-referrer"
-          />
-          <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)] italic tracking-tighter mb-2">
-            JETA<span className="text-red-500">9</span>
-          </h1>
-          <div className="flex gap-1 items-center px-4 py-1.5 bg-[#115e3c]/40 border border-yellow-500/30 rounded-full backdrop-blur-sm">
-            <Gift size={14} className="text-yellow-400" />
-            <span className="text-yellow-400 font-bold text-xs">স্বাগতম বোনাস ৳{welcomeBonus}</span>
-          </div>
-        </div>
+      {/* Top Banner Image with Close Button */}
+      <div className="relative w-full bg-black flex justify-center shrink-0">
+        <img 
+          src="https://www.image2url.com/r2/default/images/png-to-jpg-1779212444352-08afde36-0420-4349-9fd1-6fed72d4bab6.jpg" 
+          alt="Banner" 
+          className="w-full h-auto max-h-72 object-contain"
+        />
+        <button 
+          onClick={() => onContinue && onContinue()}
+          className="absolute top-4 right-4 p-2 text-white/70 hover:text-white transition-colors z-10 bg-black/40 rounded-full"
+        >
+          <X size={24} />
+        </button>
       </div>
 
-      <div className="w-full max-w-md px-6 -mt-12 relative z-20 pb-24">
-
-        {/* Error Display */}
-        {error && (
-          <motion.div 
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-4 bg-red-500/20 border border-red-500/30 text-red-200 p-3 rounded-xl text-xs flex items-center gap-2"
-          >
-            <AlertCircle size={16} className="shrink-0" />
-            <span>{error}</span>
-          </motion.div>
-        )}
+      {/* Main Content Area */}
+      <div className="flex-1 px-5 w-full max-w-[500px] mx-auto pb-6">
+        
+        {/* Title */}
+        <h2 className="text-2xl font-bold text-center mt-6 mb-8 text-white tracking-wide">
+          {authMode === 'login' ? 'লগইন' : authMode === 'register' ? 'নিবন্ধন' : 'পাসওয়ার্ড পুনরুদ্ধার'}
+        </h2>
 
         <AnimatePresence mode="wait">
           {authMode === 'login' && (
-            <motion.form
-              key="login"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              onSubmit={handleSubmitLogin(onEmailLogin)}
-              className="space-y-6"
+            <motion.div
+              key="login-form"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
             >
-              {/* Username Field */}
-              <div className="space-y-2">
-                <div className="relative group">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-yellow-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]"></div>
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-yellow-400 transition-colors">
-                    <User size={20} />
+              <form onSubmit={handleSubmitLogin(onEmailLogin)} className="space-y-4">
+                
+                {/* User Input */}
+                <div>
+                  <div className="flex bg-[#2a2b2d] rounded-lg overflow-hidden h-14">
+                    <div className="w-1.5 bg-green-500 shrink-0"></div>
+                    <div className="pl-4 pr-3 flex items-center justify-center">
+                      <User className="w-5 h-5 text-gray-400" />
+                    </div>
+                    <input 
+                      {...registerLogin('username')}
+                      type="text" 
+                      placeholder="দয়া করে ব্যবহারকারী নাম দিন"
+                      className="w-full bg-transparent text-white text-base focus:outline-none py-3 pr-4 placeholder:text-gray-200"
+                    />
                   </div>
-                  <input 
-                    {...registerLogin('username')}
-                    type="text" 
-                    placeholder="ইউজারনেম / ইমেইল / মোবাইল নম্বর"
-                    className="w-full bg-[#111] border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white text-sm focus:border-yellow-500/50 outline-none transition-all placeholder:text-white/30 focus:bg-emerald-950/10 focus:shadow-[0_0_15px_rgba(234,179,8,0.1)]"
-                  />
+                  {loginErrors.username && <p className="text-red-500 text-xs mt-1 ml-4">{loginErrors.username.message}</p>}
                 </div>
-                <p className="text-[10px] text-yellow-500 font-medium leading-tight ml-2">
-                  সঠিক ইউজারনেম, ইমেইল অথবা মোবাইল নম্বর টি প্রবেশ করুন
-                </p>
-              </div>
-
-              {/* Password Field */}
-              <div className="space-y-2">
-                <div className="relative group">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-yellow-500 rounded-l-lg opacity-0 group-focus-within:opacity-100 transition-opacity drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]"></div>
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-yellow-400 transition-colors">
-                    <Lock size={20} />
+                
+                {/* Password Input */}
+                <div>
+                  <div className="flex bg-[#2a2b2d] rounded-lg overflow-hidden h-14">
+                    <div className="w-1.5 bg-green-500 shrink-0"></div>
+                    <div className="pl-4 pr-3 flex items-center justify-center">
+                      <Lock className="w-5 h-5 text-gray-400" />
+                    </div>
+                    <input 
+                      {...registerLogin('password')}
+                      type={showPassword ? "text" : "password"} 
+                      placeholder="পাসওয়ার্ড প্রবেশ করুন"
+                      className="w-full bg-transparent text-white text-base focus:outline-none py-3 pr-4 placeholder:text-gray-200"
+                    />
+                    <button 
+                      type="button" 
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="px-4 text-gray-400 flex items-center justify-center focus:outline-none"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
                   </div>
-                  <input 
-                    {...registerLogin('password')}
-                    type={showPassword ? "text" : "password"} 
-                    placeholder="পাসওয়ার্ড প্রবেশ করুন"
-                    className="w-full bg-[#111] border border-white/10 rounded-xl py-4 pl-12 pr-12 text-white text-sm focus:border-yellow-500/50 outline-none transition-all placeholder:text-white/30 focus:bg-emerald-950/10 focus:shadow-[0_0_15px_rgba(234,179,8,0.1)]"
-                  />
+                  {loginErrors.password && <p className="text-red-500 text-xs mt-1 ml-4">{loginErrors.password.message}</p>}
+                </div>
+
+                {/* Options Row */}
+                <div className="flex items-center justify-between text-sm mt-1 mb-6 px-1">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={rememberPassword}
+                      onChange={(e) => setRememberPassword(e.target.checked)}
+                      className="w-4 h-4 rounded text-white accent-green-500 bg-[#2a2b2d]"
+                    />
+                    <span className="text-white font-medium">মনে রাখুন</span>
+                  </label>
                   <button 
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-yellow-400 transition-colors"
+                    type="button" 
+                    onClick={() => setAuthMode('forgot-password')}
+                    className="text-yellow-500 hover:underline font-medium"
                   >
-                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    পাসওয়ার্ড ভুলে গেছেন?
                   </button>
                 </div>
-              </div>
 
-              {/* Remember Me & Forgot Password */}
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <div 
-                    onClick={() => setRememberPassword(!rememberPassword)}
-                    className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${rememberPassword ? 'bg-white border-white' : 'border-white/40'}`}
-                  >
-                    {rememberPassword && <CheckCircle2 size={14} className="text-black" />}
-                  </div>
-                  <span className="text-white text-sm font-medium">মনে রাখুন</span>
-                </label>
                 <button 
-                  type="button"
-                  onClick={() => setAuthMode('forgot-password')}
-                  className="text-yellow-500 text-sm font-bold hover:underline"
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full bg-[#4ade80] text-black py-3.5 rounded-full font-bold text-xl hover:bg-[#22c55e] transition-colors flex items-center justify-center mt-6"
                 >
-                  পাসওয়ার্ড ভুলে গেছেন?
+                  {isLoading ? <Loader2 size={24} className="animate-spin" /> : 'লগইন'}
                 </button>
-              </div>
-
-              {/* Login Button */}
-              <button 
-                type="submit"
-                disabled={isLoading}
-                className="w-full bg-gradient-to-b from-[#25ab5e] to-[#0c6b32] py-4 rounded-xl text-white font-black text-lg shadow-[0_4px_15px_rgba(37,171,94,0.3)] hover:scale-[1.02] transition-all active:scale-95 flex items-center justify-center border border-emerald-400/30"
-              >
-                {isLoading ? <Loader2 size={24} className="animate-spin" /> : 'লগইন করুন'}
-              </button>
-            </motion.form>
+              </form>
+            </motion.div>
           )}
 
+          {authMode === 'register' && (
+            <motion.div
+              key="register-form"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+            >
+              <form onSubmit={handleSubmitRegister(onEmailRegister)} className="space-y-4">
+                
+                {/* User Input */}
+                <div>
+                  <div className="flex bg-[#2a2b2d] rounded-lg overflow-hidden h-14">
+                    <div className="w-1.5 bg-green-500 shrink-0"></div>
+                    <div className="pl-4 pr-3 flex items-center justify-center">
+                      <User className="w-5 h-5 text-gray-400" />
+                    </div>
+                    <input 
+                      {...registerRegister('username')}
+                      type="text" 
+                      placeholder="দয়া করে ব্যবহারকারী নাম দিন"
+                      className="w-full bg-transparent text-white text-base focus:outline-none py-3 pr-4 placeholder:text-gray-200"
+                    />
+                  </div>
+                  {registerErrors.username && <p className="text-red-500 text-xs mt-1 ml-4">{registerErrors.username.message}</p>}
+                </div>
+                
+                {/* Password Input */}
+                <div>
+                  <div className="flex bg-[#2a2b2d] rounded-lg overflow-hidden h-14">
+                    <div className="w-1.5 bg-green-500 shrink-0"></div>
+                    <div className="pl-4 pr-3 flex items-center justify-center">
+                      <Lock className="w-5 h-5 text-gray-400" />
+                    </div>
+                    <input 
+                      {...registerRegister('password')}
+                      type={showPassword ? "text" : "password"} 
+                      placeholder="পাসওয়ার্ড"
+                      className="w-full bg-transparent text-white text-base focus:outline-none py-3 pr-4 placeholder:text-gray-200"
+                    />
+                    <button 
+                      type="button" 
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="px-4 text-gray-400 flex items-center justify-center focus:outline-none"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                  {registerErrors.password && <p className="text-red-500 text-xs mt-1 ml-4">{registerErrors.password.message}</p>}
+                </div>
+                
+                {/* Confirm Password Input */}
+                <div>
+                  <div className="flex bg-[#2a2b2d] rounded-lg overflow-hidden h-14">
+                    <div className="w-1.5 bg-green-500 shrink-0"></div>
+                    <div className="pl-4 pr-3 flex items-center justify-center">
+                      <Lock className="w-5 h-5 text-gray-400" />
+                    </div>
+                    <input 
+                      {...registerRegister('confirmPassword')}
+                      type={showConfirmPassword ? "text" : "password"} 
+                      placeholder="পাসওয়ার্ড নিশ্চিত করুন"
+                      className="w-full bg-transparent text-white text-base focus:outline-none py-3 pr-4 placeholder:text-gray-200"
+                    />
+                    <button 
+                      type="button" 
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="px-4 text-gray-400 flex items-center justify-center focus:outline-none"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                  {registerErrors.confirmPassword && <p className="text-red-500 text-xs mt-1 ml-4">{registerErrors.confirmPassword.message}</p>}
+                </div>
+                
+                {/* Mobile Input */}
+                <div>
+                  <div className="flex bg-[#2a2b2d] rounded-lg overflow-hidden h-14">
+                    <div className="w-1.5 bg-green-500 shrink-0"></div>
+                    <div className="pl-4 pr-3 flex items-center justify-center">
+                      <Smartphone className="w-5 h-5 text-gray-400" />
+                    </div>
+                    <input 
+                      {...registerRegister('mobile')}
+                      type="text" 
+                      placeholder="মোবাইল নম্বর"
+                      className="w-full bg-transparent text-white text-base focus:outline-none py-3 pr-4 placeholder:text-gray-200"
+                    />
+                  </div>
+                  {registerErrors.mobile && <p className="text-red-500 text-xs mt-1 ml-4">{registerErrors.mobile.message}</p>}
+                </div>
+
+                {/* Promo Code Input */}
+                <div>
+                  <div className="flex bg-[#2a2b2d] rounded-lg overflow-hidden h-14">
+                    <div className="w-1.5 bg-yellow-500 shrink-0"></div>
+                    <div className="pl-4 pr-3 flex items-center justify-center">
+                      <Gift className="w-5 h-5 text-gray-400" />
+                    </div>
+                    <input 
+                      {...registerRegister('promoCode')}
+                      type="text" 
+                      placeholder="আমন্ত্রণ কোড (Invite / Promo Code) - ঐচ্ছিক"
+                      className="w-full bg-transparent text-white text-base focus:outline-none py-3 pr-4 placeholder:text-gray-200 uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-4 mt-8">
+                  <button 
+                    type="submit"
+                    disabled={isLoading}
+                    className="flex-1 bg-[#4ade80] text-[#111] py-3.5 rounded-full font-bold text-xl hover:bg-[#22c55e] transition-colors flex items-center justify-center shadow-lg"
+                  >
+                    {isLoading ? <Loader2 size={24} className="animate-spin" /> : 'নিবন্ধন'}
+                  </button>
+                  
+                  <button 
+                    type="reset"
+                    disabled={isLoading}
+                    className="flex-1 bg-transparent border border-green-500 text-[#4ade80] py-3.5 rounded-full font-bold text-xl hover:bg-green-500/10 transition-colors flex items-center justify-center"
+                  >
+                    রিসেট
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          )}
 
           {authMode === 'forgot-password' && (
-            <motion.form
+            <motion.div
               key="forgot-password"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              onSubmit={handleSubmitReset(onPasswordReset)}
-              className="space-y-6"
             >
-              <div className="text-left mb-4">
-                <h3 className="text-white font-bold text-lg mb-2">পাসওয়ার্ড রিসেট করুন</h3>
-                <p className="text-white/60 text-sm">আপনার ইমেইল এড্রেস দিন, আমরা আপনাকে একটি রিসেট লিঙ্ক পাঠাবো।</p>
-              </div>
-
-              <div className="space-y-1">
-                <div className="relative group">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
-                    <Mail size={20} />
+              <form onSubmit={handleSubmitReset(onPasswordReset)} className="space-y-4">
+                <div>
+                  <div className="flex bg-[#2a2b2d] rounded-lg overflow-hidden h-14">
+                    <div className="w-1.5 bg-green-500 shrink-0"></div>
+                    <div className="pl-4 pr-3 flex items-center justify-center">
+                      <Mail className="w-5 h-5 text-gray-400" />
+                    </div>
+                    <input 
+                      {...registerReset('email')}
+                      type="email" 
+                      placeholder="আপনার ইমেইল এড্রেস"
+                      className="w-full bg-transparent text-white text-base focus:outline-none py-3 pr-4 placeholder:text-gray-200"
+                    />
                   </div>
-                  <input 
-                    {...registerReset('email')}
-                    type="email" 
-                    placeholder="ইমেইল এড্রেস"
-                    className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-4 pl-12 pr-4 text-white text-sm focus:border-green-500/50 outline-none transition-all placeholder:text-white/40"
-                  />
+                  {resetErrors.email && <p className="text-red-500 text-xs mt-1 ml-4">{resetErrors.email.message}</p>}
                 </div>
-                {resetErrors.email && <p className="text-[10px] text-red-500 mt-1 ml-2 font-bold italic">! {resetErrors.email.message}</p>}
-              </div>
 
-              <div className="flex gap-4">
-                <button 
-                  type="button"
-                  onClick={() => setAuthMode('login')}
-                  className="flex-1 bg-transparent border border-[#333] py-4 rounded-full text-white font-bold hover:bg-white/5 transition-all active:scale-95"
-                >
-                  ফিরে যান
-                </button>
                 <button 
                   type="submit"
                   disabled={isLoading}
-                  className="flex-[2] bg-[#22c55e] py-4 rounded-full text-black font-black text-lg shadow-[0_0_20px_rgba(34,197,94,0.3)] hover:bg-[#16a34a] transition-all active:scale-95 flex items-center justify-center gap-2"
+                  className="w-full bg-[#4ade80] text-black py-3.5 rounded-full font-bold text-xl hover:bg-[#22c55e] transition-colors flex items-center justify-center mt-6 shadow-lg"
                 >
                   {isLoading ? <Loader2 size={24} className="animate-spin" /> : 'লিঙ্ক পাঠান'}
                 </button>
-              </div>
-            </motion.form>
+                
+                <div className="text-center mt-4">
+                  <button 
+                    type="button" 
+                    onClick={() => setAuthMode('login')}
+                    className="text-white font-bold hover:underline"
+                  >
+                    ফিরে যান
+                  </button>
+                </div>
+              </form>
+            </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Social Login Section */}
-        <div className="mt-12">
-          <div className="flex items-center gap-4 mb-8">
-            <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent to-white/10"></div>
-            <span className="text-yellow-500/60 text-xs font-bold uppercase tracking-widest">অথবা চালিয়ে যান</span>
-            <div className="flex-1 h-[1px] bg-gradient-to-l from-transparent to-white/10"></div>
-          </div>
+        {/* Separator */}
+        <div className="flex items-center gap-3 mt-10 mb-6">
+          <div className="flex-1 h-[1px] bg-white/10"></div>
+          <span className="text-white text-sm font-medium">অথবা চালিয়ে যান</span>
+          <div className="flex-1 h-[1px] bg-white/10"></div>
+        </div>
 
-          <div className="space-y-4">
+        {/* Social Buttons */}
+        <div className="flex gap-4 mb-10 text-lg font-medium justify-center">
             <button 
-              onClick={onFacebookLogin}
-              disabled={isLoading}
-              type="button"
-              className="w-full bg-gradient-to-r from-[#1877F2] to-[#166fe5] py-4 rounded-xl text-white font-bold flex items-center justify-center gap-3 hover:scale-[1.02] transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-blue-500/20"
+               onClick={onGoogleLogin} 
+               className="flex-1 flex items-center justify-center gap-2 bg-[#ea4335] hover:bg-[#ea4335]/90 text-white py-2.5 rounded-full transition-colors shadow-none border border-transparent"
             >
-              <Facebook size={20} fill="currentColor" />
-              Facebook দিয়ে চালিয়ে যান
+                <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12.545 10.239v3.821h5.445c-.712 2.315-2.662 3.999-5.445 3.999-3.359 0-6.082-2.723-6.082-6.082s2.723-6.082 6.082-6.082c1.48 0 2.827.531 3.896 1.483l2.846-2.846C17.585 2.827 15.26 1.8 12.545 1.8 6.945 1.8 2.455 6.29 2.455 11.89s4.49 10.09 10.09 10.09c5.166 0 8.783-3.616 8.783-8.783 0-.745-.084-1.455-.245-2.127h-8.538z"/></svg>
+                Google
             </button>
-            <button 
-              onClick={onGoogleLogin}
-              disabled={isLoading}
-              className="w-full bg-gradient-to-r from-white to-gray-200 py-4 rounded-xl text-black font-bold flex items-center justify-center gap-3 hover:scale-[1.02] transition-all active:scale-95 shadow-lg shadow-white/10"
-            >
-              <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/google/google-original.svg" alt="Google" className="w-5 h-5 flex-shrink-0" />
-              <span className="text-[15px]">Google দিয়ে চালিয়ে যান</span>
-            </button>
-          </div>
+        </div>
+
+        {/* Footer Toggle */}
+        <div className="text-center text-gray-200 text-sm font-medium pb-2">
+          {authMode === 'login' ? (
+            <p>এখনও কোনও একাউন্ট নেই? <button type="button" onClick={() => setAuthMode('register')} className="text-[#4ade80] hover:underline cursor-pointer ml-1 font-bold">সাইন আপ</button></p>
+          ) : (
+            <p>ইতিমধ্যে একটি অ্যাকাউন্ট আছে? <button type="button" onClick={() => setAuthMode('login')} className="text-[#4ade80] hover:underline cursor-pointer ml-1 font-bold">লগইন</button></p>
+          )}
         </div>
 
       </div>
 
-      {/* Success Popup */}
       <AnimatePresence>
         {showSuccessPopup && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/95 backdrop-blur-xl"
-            />
-            
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
             <motion.div 
               initial={{ scale: 0.5, opacity: 0, y: 50 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.5, opacity: 0, y: 50 }}
-              className="relative bg-[#111] border border-white/10 rounded-[40px] p-8 max-w-sm w-full text-center shadow-2xl overflow-hidden"
+              className="relative bg-[#2a2b2d] border-l-4 border-l-green-500 rounded-xl p-8 max-w-sm w-full text-center shadow-2xl overflow-hidden"
             >
-              <div className="absolute -top-20 -left-20 w-40 h-40 bg-teal-500/20 rounded-full blur-3xl"></div>
-              
               <div className="relative z-10">
-                <div className="w-20 h-20 bg-teal-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(20,184,166,0.5)]">
-                  <CheckCircle2 size={40} className="text-white" />
+                <div className="w-16 h-16 bg-[#4ade80]/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <CheckCircle2 size={32} className="text-[#4ade80]" />
                 </div>
                 
-                <h2 className="text-3xl font-black text-white mb-2 italic">অভিনন্দন!</h2>
-                <p className="text-teal-400 font-bold text-lg mb-8">আপনার নিবন্ধন সফল হয়েছে</p>
+                <h2 className="text-2xl font-bold text-white mb-2">অভিনন্দন!</h2>
+                <p className="text-gray-300 font-medium text-base mb-6">আপনার নিবন্ধন সফল হয়েছে</p>
 
-                <div className="bg-white/5 rounded-2xl p-4 mb-8 border border-white/5">
-                  <p className="text-gray-500 text-[10px] uppercase font-black tracking-widest mb-1">Registration Bonus</p>
-                  <p className="text-yellow-400 text-3xl font-black">৳ {isLoggedIn && auth.currentUser ? (authMode === 'vip-register' ? '707.00' : '507.00') : welcomeBonus.toFixed(2)}</p>
+                
+                <div className="mb-6 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                  <p className="text-[#4ade80] text-sm font-bold">প্রথম ডিপোজিটে ১১৯% বোনাস এবং ৩x টানউবার</p>
                 </div>
 
                 <button 
                   onClick={() => {
-                    if (!isLoggedIn) return;
                     setShowSuccessPopup(false);
                     onContinue();
                   }} 
-                  disabled={!isLoggedIn}
-                  className={`w-full font-black py-5 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-3 group ${isLoggedIn ? 'bg-gradient-to-r from-teal-500 to-teal-600 text-white active:scale-95' : 'bg-gray-600 text-gray-300 cursor-not-allowed'}`}
+                  className="w-full font-bold py-3.5 rounded-full transition-all flex items-center justify-center gap-2 bg-[#4ade80] text-[#111] hover:bg-[#22c55e] active:scale-95"
                 >
-                  {isLoggedIn ? (
-                    <>গেম শুরু করুন <ArrowRight size={22} className="group-hover:translate-x-1 transition-transform" /></>
-                  ) : (
-                    <>অ্যাকাউন্ট প্রস্তুত হচ্ছে... <Loader2 size={22} className="animate-spin" /></>
-                  )}
+                  গেম শুরু করুন <ArrowRight size={20} />
                 </button>
               </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
-      {/* Footer Branding Area */}
-      <div className="fixed bottom-0 left-0 right-0 bg-black py-4 text-center z-50 border-t border-white/10">
-        <div className="flex justify-center h-[24px]">
-          <img 
-             src="https://www.image2url.com/r2/default/images/1778760980937-340930dd-a7b6-4cbe-9ce0-331bc57c1614.png" 
-             alt="SPIN71 BET"
-             className="h-full w-auto object-contain opacity-80" 
-          />
-        </div>
-      </div>
+
     </div>
   );
 }

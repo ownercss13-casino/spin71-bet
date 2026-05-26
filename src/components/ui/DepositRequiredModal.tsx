@@ -29,8 +29,10 @@ export default function DepositRequiredModal({ isOpen, onClose, onDeposit }: Dep
             <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-4">
               <Wallet size={32} />
             </div>
-            <h3 className="text-xl font-black text-gray-900 mb-2">ডিপোজিট প্রয়োজন</h3>
-            <p className="text-gray-500 text-sm mb-6">গেম খেলার জন্য আপনাকে অন্তত একবার ডিপোজিট করতে হবে।</p>
+            <h3 className="text-xl font-black text-gray-900 mb-2">ডিপোজিট প্রয়োজন (Deposit Required)</h3>
+            <p className="text-gray-500 text-sm mb-6 leading-relaxed">
+              গেম খেলার জন্য আপনাকে অন্তত একবার ডিপোজিট করতে হবে। আপনার ডিপোজিট অ্যাডমিন কর্তৃক অনুমোদিত হওয়ার পর আপনি গেম খেলতে পারবেন।
+            </p>
             <button 
               onClick={onDeposit}
               className="w-full bg-[#333] text-white font-black py-4 rounded-xl hover:bg-black transition-all mb-2"

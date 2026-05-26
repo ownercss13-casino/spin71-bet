@@ -33,4 +33,51 @@ export const switchToDefaultDb = () => {
 
 export const auth = getAuth(app);
 export { dbInstance as db }; 
+
+// --- Firestore Error Handling (as per security guidelines) ---
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+  }
+}
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous
+    },
+    operationType,
+    path
+  };
+  
+  const errorMessage = JSON.stringify(errInfo);
+  console.error('[Firestore Error]:', errorMessage);
+  
+  // Re-throw if it is a permission error, wrapped in our formal IR
+  if (errInfo.error.includes('permissions') || errInfo.error.includes('PERMISSION_DENIED')) {
+    throw new Error(errorMessage);
+  }
+  
+  throw error;
+}
+
 export default app;

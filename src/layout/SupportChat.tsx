@@ -35,6 +35,7 @@ export default function SupportChat({
   const [chatError, setChatError] = useState<string | null>(null);
   const [view, setView] = useState<'chat' | 'contact'>('chat');
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!userData?.id || !isOpen) return;
@@ -58,10 +59,35 @@ export default function SupportChat({
   }, [userData?.id, isOpen]);
 
   useEffect(() => {
-    if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (!isOpen) return;
+
+    const scrollToBottom = () => {
+      const container = messagesContainerRef.current;
+      if (container) {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: 'smooth'
+        });
+      }
+    };
+
+    // Scroll immediately without transition for instant snap
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
     }
-  }, [chatHistory]);
+
+    // Multiple short timeouts to handle dynamically loaded content, layout changes, and image hydration
+    const timer1 = setTimeout(scrollToBottom, 50);
+    const timer2 = setTimeout(scrollToBottom, 150);
+    const timer3 = setTimeout(scrollToBottom, 300);
+
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
+    };
+  }, [chatHistory, isOpen, view]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,6 +113,7 @@ export default function SupportChat({
           userId: userData.id,
           username: userData.username,
           status: 'open',
+          subject: 'General Support',
           lastMessage: text,
           updatedAt: serverTimestamp(),
           createdAt: serverTimestamp(),
@@ -182,7 +209,7 @@ export default function SupportChat({
           </div>
 
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#0a2a22]">
+          <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#0a2a22]">
             {view === 'chat' ? (
                 <>
                 {chatHistory.length === 0 && (
@@ -245,7 +272,6 @@ export default function SupportChat({
                 <SupportContactForm onClose={onClose} />
             )}
           </div>
-// ...
 
           {/* Input Area */}
           <div className="p-4 bg-teal-950 border-t border-teal-800">

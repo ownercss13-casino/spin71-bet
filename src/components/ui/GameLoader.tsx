@@ -8,9 +8,10 @@ interface GameLoaderProps {
   logo?: string;
   hasError?: boolean;
   onClose?: () => void;
+  onLoadComplete?: () => void;
 }
 
-export default function GameLoader({ gameName, provider, logo, hasError = false, onClose }: GameLoaderProps) {
+export default function GameLoader({ gameName, provider, logo, hasError = false, onClose, onLoadComplete }: GameLoaderProps) {
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
@@ -34,27 +35,37 @@ export default function GameLoader({ gameName, provider, logo, hasError = false,
       });
     }, interval);
 
+    const finishTimeout = setTimeout(() => {
+      if (onLoadComplete) onLoadComplete();
+    }, duration + 100);
+
     return () => {
       clearInterval(timer);
+      clearTimeout(finishTimeout);
     };
-  }, [hasError]);
+  }, [hasError, onLoadComplete]);
 
   return (
-    <div className="fixed inset-0 z-[110] bg-black flex flex-col items-center justify-center p-6 overflow-hidden">
+    <div className="fixed inset-0 z-[1010] bg-black flex flex-col items-center justify-center p-6 overflow-hidden">
       <div className="relative flex flex-col items-center w-full max-w-[280px]">
         
-        {/* Provider Name in Golden Style */}
+        {/* Casino Logo in Loader */}
         <motion.div
            initial={{ opacity: 0, scale: 0.9 }}
            animate={{ opacity: 1, scale: 1 }}
-           className="relative mb-4"
+           className="relative mb-6 text-center"
         >
-          <h1 className="text-6xl font-black italic tracking-tighter golden-text">
-            {provider || 'JILI'}
-          </h1>
+          <img 
+            src="/apple-touch-icon.png?v=6" 
+            alt="SPIN71" 
+            className="h-20 w-auto object-contain drop-shadow-[0_0_15px_rgba(253,216,53,0.4)]"
+            referrerPolicy="no-referrer"
+          />
+          {gameName && (
+            <p className="text-sm font-black text-yellow-500/80 mt-4 uppercase tracking-widest italic">{gameName}</p>
+          )}
           
-          {/* Subtle Glow under text */}
-          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-32 h-4 bg-yellow-500/20 blur-xl rounded-full"></div>
+          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-40 h-6 bg-yellow-500/10 blur-2xl rounded-full"></div>
         </motion.div>
 
         {/* Thin Progress Bar */}

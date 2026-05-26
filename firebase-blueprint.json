@@ -15,7 +15,13 @@
         "totalTurnover": { "type": "number" },
         "vipLevel": { "type": "integer" },
         "vipPoints": { "type": "number" },
+        "referralCode": { "type": "string" },
+        "referralCount": { "type": "integer" },
+        "validReferralCount": { "type": "integer" },
+        "totalReferralEarnings": { "type": "number" },
         "referredBy": { "type": "string" },
+        "isAdmin": { "type": "boolean" },
+        "role": { "type": "string" },
         "isVerified": { "type": "boolean" },
         "isBlocked": { "type": "boolean" },
         "dailyDepositLimit": { "type": "number" },
@@ -59,6 +65,8 @@
         "method": { "type": "string" },
         "senderNumber": { "type": "string" },
         "trxId": { "type": "string" },
+        "description": { "type": "string" },
+        "userId": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "amount", "type", "status"]
@@ -109,6 +117,38 @@
         "provider_option": { "type": "string" },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
+    },
+    "SupportTicket": {
+      "title": "Support Ticket",
+      "description": "User support inquiries.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "subject": { "type": "string" },
+        "status": { "type": "string" }
+      }
+    },
+    "Admin": {
+        "title": "Admin",
+        "description": "Admin users list.",
+        "type": "object",
+        "properties": {
+            "role": { "type": "string" }
+        }
+    },
+    "Bet": {
+      "title": "Bet Record",
+      "description": "History of all bets made by users.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "betAmount": { "type": "number" },
+        "winAmount": { "type": "number" },
+        "gameType": { "type": "string" },
+        "symbols": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "betAmount", "winAmount"]
     }
   },
   "firestore": {
@@ -136,17 +176,22 @@
       "schema": "GlobalConfig",
       "description": "The main global configuration document."
     },
-    "/slot_bets/{betId}": {
-      "schema": "SlotBet",
-      "description": "History of slot machine spins."
+    "/bets/{betId}": {
+      "schema": "Bet",
+      "description": "History of all bets."
     },
     "/daily_rewards/{userId}": {
       "schema": "DailyReward",
       "description": "Daily reward status per user."
     },
+    "/support_tickets/{ticketId}": {
+        "schema": "SupportTicket",
+        "description": "User support tickets."
+    },
     "/admins/{adminId}": {
-      "schema": "object",
+      "schema": "Admin",
       "description": "List of admin users."
     }
   }
 }
+

@@ -1319,6 +1319,7 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
           status: 'pending',
           statusColor: 'text-amber-600',
           userId: uid,
+          uid: uid,
           username: userData.username || 'Anonymous',
           createdAt: serverTimestamp(),
           date: new Date().toISOString()
@@ -1332,6 +1333,19 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
       if (onUpdateUser) {
          onUpdateUser({ balance: balance - withdrawAmount });
       }
+
+      // Notify Telegram
+      await fetch('/api/telegram/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'Withdrawal',
+          userId: uid,
+          username: userData.username,
+          balance: userData.balance - withdrawAmount,
+          details: `Amount: ${withdrawAmount}, Method: ${targetMethod}, Account: ${targetAccount}`
+        })
+      });
 
       showToast('উত্তোলন রিকোয়েস্ট সফল হয়েছে! আপনার অ্যাকাউন্টে টাকা পৌঁছে যাবে।', 'success');
       onBack();
@@ -1352,6 +1366,10 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
             <ChevronLeft size={28} />
           </button>
           <h1 className="text-xl font-bold w-full text-center">Withdraw</h1>
+          <div className="absolute right-0 flex flex-col items-end pr-2">
+             <span className="text-[8px] uppercase font-bold opacity-70">Balance</span>
+             <span className="text-xs font-black">৳{balance.toLocaleString()}</span>
+          </div>
         </div>
       </header>
 
@@ -1737,11 +1755,30 @@ function ProfileTab({
       </div>
 
       <div className="p-5 space-y-6">
-        {/* Modern Profile Card */}
+            {/* Modern Profile Card */}
         <div className="bg-white rounded-[40px] p-8 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.06)] border border-white relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-32 h-32 bg-amber-50 rounded-full blur-3xl -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-1000"></div>
           
           <div className="relative z-10 flex flex-col items-center">
+            {/* Balance Display */}
+            <div className="mb-6 w-full bg-gradient-to-br from-emerald-600 to-teal-800 rounded-3xl p-6 shadow-xl shadow-emerald-900/10 border border-white/10 relative overflow-hidden group/balance">
+               <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -mr-12 -mt-12 blur-2xl group-hover/balance:scale-150 transition-transform" />
+               <div className="flex flex-col items-center text-center">
+                  <span className="text-[10px] text-emerald-200 font-black uppercase tracking-[0.3em] mb-2 opacity-80">CURRENT BALANCE</span>
+                  <div className="flex items-center gap-3">
+                     <div className="w-10 h-10 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-white border border-white/20">
+                        <Wallet size={20} strokeWidth={2.5} />
+                     </div>
+                     <span className="text-white font-serif text-4xl font-black tracking-tight drop-shadow-lg">
+                        ৳ {(userData?.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                     </span>
+                  </div>
+                  <div className="mt-4 flex gap-2">
+                     <span className="px-3 py-1 bg-white/10 rounded-full text-[9px] font-black text-white/80 uppercase tracking-widest border border-white/5">Real Cash</span>
+                  </div>
+               </div>
+            </div>
+
             <div className="relative">
               <div className="w-32 h-32 rounded-[40px] p-1.5 bg-gradient-to-br from-yellow-400 via-amber-200 to-yellow-600 shadow-2xl active:scale-95 transition-transform overflow-hidden">
                 <div className="w-full h-full rounded-[34px] bg-white overflow-hidden">
@@ -1995,25 +2032,39 @@ function DepositHistoryTab({ userData, onBack }: { userData?: any, onBack: () =>
             <span className="text-teal-500 font-bold">লোড হচ্ছে...</span>
           </div>
         ) : transactions.length > 0 ? (
-            transactions.map(trx => (
-            <div key={trx.id} className="bg-teal-900/40 p-5 rounded-[28px] border border-teal-800/30 flex items-center justify-between group hover:border-teal-600/50 transition-all shadow-lg relative overflow-hidden">
-              <div className="relative z-10">
-                <p className="font-bold text-white text-sm">{trx.method}</p>
-                <p className="text-[10px] text-teal-400 font-bold uppercase mt-1 opacity-80">{trx.date}</p>
-              </div>
-              <div className="text-right relative z-10">
-                <p className="font-black text-green-400 text-lg italic tracking-tighter leading-none">+৳{trx.amount}</p>
-                <div className={`mt-2 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest inline-flex items-center gap-1.5 ${
-                  trx.status === 'completed' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 
-                  trx.status === 'pending' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : 
-                  'bg-red-500/10 text-red-400 border border-red-500/20'
-                }`}>
-                  <div className={`w-1 h-1 rounded-full ${trx.status === 'completed' ? 'bg-green-500' : trx.status === 'pending' ? 'bg-orange-500' : 'bg-red-500'}`}></div>
-                  {trx.status}
-                </div>
-              </div>
-            </div>
-            ))
+          <div className="overflow-x-auto rounded-[28px] border border-teal-800/30 bg-teal-900/40 shadow-lg">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-teal-950 text-teal-400 font-bold uppercase tracking-widest text-[10px]">
+                <tr>
+                  <th className="px-4 md:px-6 py-4">Method</th>
+                  <th className="px-4 md:px-6 py-4">Date</th>
+                  <th className="px-4 md:px-6 py-4">Amount</th>
+                  <th className="px-4 md:px-6 py-4 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions.map(trx => (
+                  <tr key={trx.id} className="border-b border-teal-800/30 hover:bg-teal-800/20 transition-colors">
+                    <td className="px-4 md:px-6 py-4 font-bold text-white text-xs md:text-sm">{trx.method}</td>
+                    <td className="px-4 md:px-6 py-4 text-teal-300 font-medium whitespace-nowrap text-[10px] md:text-xs">{trx.date}</td>
+                    <td className="px-4 md:px-6 py-4 font-black text-green-400 text-sm md:text-base italic tracking-tighter">
+                      +{trx.amount}৳
+                    </td>
+                    <td className="px-4 md:px-6 py-4 text-right">
+                      <div className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest inline-flex items-center gap-1.5 ${
+                        trx.status === 'completed' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 
+                        trx.status === 'pending' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : 
+                        'bg-red-500/10 text-red-400 border border-red-500/20'
+                      }`}>
+                        <div className={`w-1 h-1 rounded-full ${trx.status === 'completed' ? 'bg-green-500' : trx.status === 'pending' ? 'bg-orange-500' : 'bg-red-500'}`}></div>
+                        {trx.status}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <div className="bg-teal-900/20 p-8 rounded-[32px] border border-teal-800/30 text-center shadow-inner">
             <ArrowDownLeft size={48} className="text-[#1c324e] mx-auto mb-4" />
@@ -2387,27 +2438,31 @@ function OverviewTab(props: OverviewTabProps) {
           </svg>
         </div>
 
-        {/* Top Icons */}
+        {/* Top Icons & Balance Header */}
         <div className="flex justify-between items-center mb-6 relative z-10">
           <button onClick={() => onTabChange('home')} className="text-white">
             <ChevronLeft size={28} />
           </button>
-          <div className="flex items-center gap-4">
-             <button onClick={onShareProgress} className="text-white relative" title="Share Profile">
-               <Share2 size={24} />
+          
+          <motion.div 
+            initial={{ x: 20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            className="flex items-center gap-3 bg-gradient-to-br from-teal-800/80 to-teal-950/80 px-4 py-2.5 rounded-3xl border border-white/10 shadow-lg shadow-black/20"
+          >
+             <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-[#1eec2a]/30 flex-shrink-0 relative bg-[#006a4e] shadow-lg flex items-center justify-center">
+                <div className="w-4 h-4 bg-[#f42a41] rounded-full"></div>
+             </div>
+             <div className="flex flex-col">
+                <span className="text-[9px] text-teal-300 font-black uppercase tracking-widest leading-none mb-0.5 ml-0.5 opacity-70">Balance</span>
+                <span className="text-white font-black text-xl tracking-tight leading-none truncate max-w-[120px] md:max-w-none">৳ {balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+             </div>
+             <button 
+               onClick={onRefresh}
+               className={`p-1.5 hover:bg-white/10 rounded-full transition-all active:scale-90 ${isRefreshing ? 'animate-spin' : ''}`}
+             >
+                <RefreshCw size={18} className="text-white/80" />
              </button>
-             <button onClick={() => setIsChatOpen(true)} className="text-white relative">
-               <Headset size={28} />
-             </button>
-             <button onClick={() => setIsNotificationCenterOpen?.(true)} className="text-white relative">
-               <MessageCircle size={28} />
-               {unreadNotificationsCount > 0 && (
-                 <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#0d1a29] animate-pulse">
-                   {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}
-                 </span>
-               )}
-             </button>
-          </div>
+          </motion.div>
         </div>
 
         {/* Profile Info Row */}
@@ -2456,18 +2511,6 @@ function OverviewTab(props: OverviewTabProps) {
                 </button>
              </div>
           </div>
-
-          <motion.div 
-            initial={{ x: 20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            className="flex items-center gap-2 bg-teal-900/40 px-3 py-2 rounded-full border border-teal-700/30"
-          >
-             <div className="w-7 h-7 rounded-full overflow-hidden border border-white/20 flex-shrink-0 relative bg-[#006a4e] shadow-inner">
-                <div className="absolute top-1/2 left-[45%] -translate-x-1/2 -translate-y-1/2 w-4 h-4 bg-[#f42a41] rounded-full"></div>
-             </div>
-             <span className="text-white font-bold text-lg">{balance.toFixed(2)}</span>
-             <RefreshCw size={18} className={`text-white transition-transform duration-700 cursor-pointer ${isRefreshing ? 'animate-spin' : ''}`} onClick={onRefresh} />
-          </motion.div>
         </div>
 
         {/* VIP Progress Bar */}
@@ -2597,7 +2640,7 @@ function LinksTab({ onTabChange, onSubTabChange, showToast }: { onTabChange: (ta
     { id: 'profile', title: 'প্রোফাইল (Profile)', url: 'https://spin71-bet-e0m5.onrender.com/profile', type: 'page', clicks: 567, lastVisited: new Date().toISOString(), action: () => onTabChange('profile') },
     { id: 'history', title: 'ইতিহাস (History)', url: 'https://spin71-bet-e0m5.onrender.com/profile/history', type: 'page', clicks: 345, lastVisited: new Date(Date.now() - 50000000).toISOString(), action: () => onSubTabChange('history') },
     { id: 'settings', title: 'সেটিংস (Settings)', url: 'https://spin71-bet-e0m5.onrender.com/profile/settings', type: 'page', clicks: 120, lastVisited: new Date(Date.now() - 400000000).toISOString(), action: () => onSubTabChange('profile') },
-    { id: 'telegram', title: 'টেলিগ্রাম সাপোর্ট (Support)', url: 'https://t.me/spin71bet_support', type: 'support', clicks: 89, lastVisited: new Date(Date.now() - 345600000).toISOString(), action: () => window.open('https://t.me/spin71bet_support', '_blank') },
+    { id: 'telegram', title: 'টেলিগ্রাম সাপোর্ট (Support)', url: 'https://t.me/spin71_predictor_bot', type: 'support', clicks: 89, lastVisited: new Date(Date.now() - 345600000).toISOString(), action: () => window.open('https://t.me/spin71_predictor_bot', '_blank') },
   ]);
 
   const filteredAndSortedLinks = useMemo(() => {
@@ -2841,23 +2884,21 @@ function HistoryTab({ userData, onBack }: { userData?: any, onBack: () => void }
   }, [transactions, filterType, sortBy, dateRange, customStartDate, customEndDate]);
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 bg-gray-50 min-h-screen p-4 pb-20 font-sans">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 bg-[#0d1a29] min-h-screen p-4 pb-20 font-sans">
       {/* History Header */}
-      <div className="bg-gradient-to-br from-[#f5e6ba] via-[#eee0be] to-[#d4c291] rounded-[40px] p-8 shadow-lg relative overflow-hidden group border border-[#e5d5ac]">
-        <div className="absolute top-0 right-0 p-8 opacity-10 rotate-12 group-hover:rotate-0 transition-transform duration-700">
-          <HistoryIcon size={120} className="text-[#8c7841]" />
-        </div>
+      <div className="bg-gradient-to-br from-teal-900 to-teal-950 rounded-[40px] p-8 border border-teal-700/50 shadow-2xl relative overflow-hidden group">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/5 rounded-full blur-[100px] -mr-32 -mt-32 transition-all duration-1000 group-hover:bg-orange-500/10"></div>
         <div className="relative z-10 flex justify-between items-start">
           <div>
-            <div className="w-16 h-16 rounded-2xl bg-[#333] flex items-center justify-center text-yellow-500 mb-4 shadow-xl">
+            <div className="w-16 h-16 rounded-2xl bg-orange-500/20 flex items-center justify-center text-orange-500 mb-4 shadow-xl border border-orange-500/20 group-hover:scale-110 transition-transform">
               <HistoryIcon size={32} />
             </div>
-            <h2 className="text-2xl font-black text-[#333] italic uppercase tracking-tight">লেনদেন ইতিহাস</h2>
-            <p className="text-[#8c7841] text-[10px] font-black uppercase tracking-widest mt-2">Transaction History & Records</p>
+            <h2 className="text-3xl font-black text-white italic tracking-tight">লেনদেন ইতিহাস</h2>
+            <p className="text-teal-400 text-xs font-bold uppercase tracking-widest mt-2">Transaction History & Records</p>
           </div>
           <button 
             onClick={onBack}
-            className="w-10 h-10 rounded-2xl bg-white/40 flex items-center justify-center text-[#333] hover:bg-white transition-all border border-black/5"
+            className="w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center text-white hover:bg-red-500 transition-all border border-white/10 shadow-lg"
           >
             <X size={20} />
           </button>
@@ -2865,16 +2906,16 @@ function HistoryTab({ userData, onBack }: { userData?: any, onBack: () => void }
       </div>
 
       {/* Filters Section */}
-      <div className="bg-white rounded-[32px] p-6 border border-gray-100 shadow-sm space-y-4">
+      <div className="bg-teal-900/40 rounded-[32px] p-6 border border-teal-700/30 shadow-sm space-y-4">
         <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory scroll-smooth">
           <div className="relative min-w-[140px] snap-start">
-            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-yellow-600">
+            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-orange-500">
               <Filter size={16} />
             </div>
             <select 
               value={filterType} 
               onChange={(e) => setFilterType(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-100 text-gray-700 text-xs rounded-2xl pl-11 pr-4 py-4 appearance-none focus:outline-none focus:border-yellow-500 transition-all font-bold"
+              className="w-full bg-teal-950 border border-teal-800 text-white text-xs rounded-2xl pl-11 pr-4 py-4 appearance-none focus:outline-none focus:border-orange-500 transition-all font-bold"
             >
               <option value="all">সব ধরন</option>
               <option value="deposit">জমা (Deposit)</option>
@@ -2885,13 +2926,13 @@ function HistoryTab({ userData, onBack }: { userData?: any, onBack: () => void }
           </div>
           
           <div className="relative min-w-[160px] snap-start">
-            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-yellow-600">
+            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-orange-500">
               <ArrowDownUp size={16} />
             </div>
             <select 
               value={sortBy} 
               onChange={(e) => setSortBy(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-100 text-gray-700 text-xs rounded-2xl pl-11 pr-4 py-4 appearance-none focus:outline-none focus:border-yellow-500 transition-all font-bold"
+              className="w-full bg-teal-950 border border-teal-800 text-white text-xs rounded-2xl pl-11 pr-4 py-4 appearance-none focus:outline-none focus:border-orange-500 transition-all font-bold"
             >
               <option value="date_desc">নতুন থেকে পুরানো</option>
               <option value="date_asc">পুরানো থেকে নতুন</option>
@@ -2901,13 +2942,13 @@ function HistoryTab({ userData, onBack }: { userData?: any, onBack: () => void }
           </div>
 
           <div className="relative min-w-[160px]">
-            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-yellow-600">
+            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-orange-500">
               <Calendar size={16} />
             </div>
             <select 
               value={dateRange} 
               onChange={(e) => setDateRange(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-100 text-gray-700 text-xs rounded-2xl pl-11 pr-4 py-4 appearance-none focus:outline-none focus:border-yellow-500 transition-all font-bold"
+              className="w-full bg-teal-950 border border-teal-800 text-white text-xs rounded-2xl pl-11 pr-4 py-4 appearance-none focus:outline-none focus:border-orange-500 transition-all font-bold"
             >
               <option value="all">সব সময়</option>
               <option value="7days">গত ৭ দিন</option>
@@ -2920,21 +2961,21 @@ function HistoryTab({ userData, onBack }: { userData?: any, onBack: () => void }
         {dateRange === 'custom' && (
           <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
             <div className="space-y-1.5">
-              <label className="text-[10px] text-gray-400 uppercase tracking-widest font-black ml-2">শুরুর তারিখ</label>
+              <label className="text-[10px] text-teal-400 uppercase tracking-widest font-black ml-2">শুরুর তারিখ</label>
               <input 
                 type="date" 
                 value={customStartDate}
                 onChange={(e) => setCustomStartDate(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-100 text-gray-700 text-xs rounded-2xl px-4 py-3 focus:outline-none focus:border-yellow-500 font-bold"
+                className="w-full bg-teal-950 border border-teal-800 text-white text-xs rounded-2xl px-4 py-3 focus:outline-none focus:border-orange-500 font-bold"
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-[10px] text-gray-400 uppercase tracking-widest font-black ml-2">শেষ তারিখ</label>
+              <label className="text-[10px] text-teal-400 uppercase tracking-widest font-black ml-2">শেষ তারিখ</label>
               <input 
                 type="date" 
                 value={customEndDate}
                 onChange={(e) => setCustomEndDate(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-100 text-gray-700 text-xs rounded-2xl px-4 py-3 focus:outline-none focus:border-yellow-500 font-bold"
+                className="w-full bg-teal-950 border border-teal-800 text-white text-xs rounded-2xl px-4 py-3 focus:outline-none focus:border-orange-500 font-bold"
               />
             </div>
           </div>
@@ -2944,9 +2985,7 @@ function HistoryTab({ userData, onBack }: { userData?: any, onBack: () => void }
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i}>
-              <Skeleton className="h-16 w-full" />
-            </div>
+            <div key={i} className="h-20 bg-teal-900/20 rounded-[28px] border border-teal-800/30 animate-pulse" />
           ))}
         </div>
       ) : filteredAndSortedTransactions.length > 0 ? (
@@ -2958,104 +2997,117 @@ function HistoryTab({ userData, onBack }: { userData?: any, onBack: () => void }
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: idx * 0.05 }}
               onClick={() => setSelectedTrx(trx)} 
-              className="bg-[var(--bg-card)] rounded-xl p-3 border border-[var(--border-color)] flex items-center justify-between cursor-pointer hover:bg-black/5 transition-colors"
+              className="bg-gradient-to-r from-teal-900/40 to-teal-950/40 p-5 rounded-[28px] border border-teal-800/30 flex items-center justify-between group hover:border-orange-500/40 transition-all shadow-lg active:scale-95 cursor-pointer"
             >
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                  trx.type === 'deposit' ? 'bg-blue-500/20 text-blue-400' :
-                  trx.type === 'withdraw' ? 'bg-orange-500/20 text-orange-400' :
-                  trx.type === 'bonus' ? 'bg-yellow-500/20 text-yellow-400' :
-                  'bg-purple-500/20 text-purple-400'
+              <div className="flex items-center gap-4">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border transition-all ${
+                  trx.type === 'deposit' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                  trx.type === 'withdraw' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' :
+                  trx.type === 'bonus' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
+                  'bg-purple-500/10 text-purple-400 border-purple-500/20'
                 }`}>
-                  {trx.type === 'deposit' && <ArrowDownLeft size={18} />}
-                  {trx.type === 'withdraw' && <ArrowUpRight size={18} />}
-                  {trx.type === 'bonus' && <Gift size={18} />}
-                  {trx.type === 'bet' && <Gamepad2 size={18} />}
+                  {trx.type === 'deposit' && <ArrowDownLeft size={22} />}
+                  {(trx.type === 'withdraw' || trx.type === 'withdrawal') && <ArrowUpRight size={22} />}
+                  {trx.type === 'bonus' && <Gift size={22} />}
+                  {trx.type === 'bet' && <Gamepad2 size={22} />}
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-[var(--text-main)]">
-                    {trx.type === 'deposit' ? 'জমা' :
-                     trx.type === 'withdraw' ? 'উত্তোলন' :
-                     trx.type === 'bonus' ? 'বোনাস' : 'বাজি'}
-                  </p>
-                  <div className="flex flex-col gap-0.5 mt-0.5">
-                    <div className="flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
-                      <Clock size={10} /> {
-                        trx.createdAt?.toDate ? trx.createdAt.toDate().toLocaleString() :
-                        trx.createdAt?.seconds ? new Date(trx.createdAt.seconds * 1000).toLocaleString() :
-                        trx.date || 'N/A'
-                      }
-                    </div>
-                    <div className="flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
-                      <span className="font-mono opacity-70">{trx.trxId}</span> • <span className="font-medium">{trx.method}</span>
-                    </div>
-                  </div>
+                   <p className="text-base font-black text-white italic tracking-tight capitalize">{trx.type || 'Transaction'}</p>
+                   <p className="text-[10px] text-teal-500 font-bold mt-0.5">{trx.date || 'Recent'}</p>
                 </div>
               </div>
               <div className="text-right">
-                <p className={`text-sm font-bold ${trx.type === 'deposit' || trx.type === 'bonus' ? 'text-green-400' : 'text-[var(--text-main)]'}`}>
-                  {trx.type === 'deposit' || trx.type === 'bonus' ? '+' : '-'}৳{Math.abs(trx.amount).toLocaleString()}
+                <p className={`text-lg font-black tracking-tighter ${
+                  (trx.type === 'withdraw' || trx.type === 'withdrawal' || trx.type === 'bet') ? 'text-red-400' : 'text-green-400'
+                }`}>
+                  {(trx.type === 'withdraw' || trx.type === 'withdrawal' || trx.type === 'bet') ? '-' : '+'}৳{Math.abs(parseFloat(String(trx.amount).replace(/[^0-9.-]+/g,""))).toLocaleString()}
                 </p>
-                <p className={`text-[10px] mt-0.5 ${trx.statusColor}`}>{trx.status}</p>
+                <div className={`mt-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest inline-flex items-center gap-1.5 ${
+                  trx.status === 'completed' || trx.status === 'success' || trx.status === 'approved' || trx.status === 'সম্পন্ন'
+                    ? 'bg-green-500/10 text-green-400 border border-green-500/20'
+                    : trx.status === 'pending' || trx.status === 'processing'
+                    ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'
+                    : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                }`}>
+                  <div className={`w-1.5 h-1.5 rounded-full ${
+                    trx.status === 'completed' || trx.status === 'success' || trx.status === 'approved' || trx.status === 'সম্পন্ন' ? 'bg-green-500' : 
+                    trx.status === 'pending' || trx.status === 'processing' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'
+                  }`} />
+                  {trx.status || 'Success'}
+                </div>
               </div>
             </motion.div>
           ))}
         </div>
       ) : (
-        <div className="text-center py-8 text-[var(--text-muted)]">
-          কোনো লেনদেন পাওয়া যায়নি
+        <div className="bg-teal-900/20 p-12 rounded-[40px] border border-teal-800/30 text-center shadow-inner mt-8">
+          <div className="w-20 h-20 bg-teal-950 rounded-full flex items-center justify-center mx-auto mb-4 border border-teal-800/50">
+            <HistoryIcon size={40} className="text-teal-800" />
+          </div>
+          <p className="text-teal-500 font-black text-sm uppercase tracking-widest">কোনো রেকর্ড নেই</p>
+          <p className="text-teal-700 text-[10px] mt-2">আপনার সকল লেনদেন এখানে জমা হবে।</p>
         </div>
       )}
 
       {/* Transaction Details Modal */}
       {selectedTrx && (
-        <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4" onClick={() => setSelectedTrx(null)}>
-          <div className="bg-[var(--bg-card)] rounded-2xl p-6 max-w-sm w-full border border-[var(--border-color)] shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-[var(--text-main)]">লেনদেনের বিস্তারিত</h3>
-              <button onClick={() => setSelectedTrx(null)} className="text-[var(--text-muted)] hover:text-[var(--text-main)]">
-                <X size={20} />
+        <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setSelectedTrx(null)}>
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-teal-900 rounded-[40px] p-8 max-w-sm w-full border border-teal-700/50 shadow-2xl relative overflow-hidden" 
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/5 rounded-full blur-3xl -mr-16 -mt-16"></div>
+            
+            <div className="flex justify-between items-center mb-8 relative z-10">
+              <h3 className="text-xl font-black text-white italic tracking-tight uppercase">লেনদেনের বিস্তারিত</h3>
+              <button onClick={() => setSelectedTrx(null)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-teal-400 hover:text-white transition-colors">
+                <X size={18} />
               </button>
             </div>
-            <div className="space-y-3">
-              <div className="flex justify-between py-2 border-b border-[var(--border-color)]">
-                <span className="text-[var(--text-muted)] text-sm">লেনদেন আইডি:</span>
-                <span className="text-[var(--text-main)] font-mono font-bold">{selectedTrx.trxId}</span>
+
+            <div className="flex flex-col items-center gap-2 mb-8 pb-8 border-b border-teal-800/50 relative z-10">
+              <div className="w-20 h-20 bg-orange-500/10 rounded-[32px] flex items-center justify-center text-orange-500 mb-2 border border-orange-500/20">
+                {selectedTrx.type === 'deposit' ? <ArrowDownLeft size={40} /> : <ArrowUpRight size={40} />}
               </div>
-              <div className="flex justify-between py-2 border-b border-[var(--border-color)]">
-                <span className="text-[var(--text-muted)] text-sm">পদ্ধতি:</span>
-                <span className="text-[var(--text-main)] font-bold">{selectedTrx.method}</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-[var(--border-color)]">
-                <span className="text-[var(--text-muted)] text-sm">ধরন:</span>
-                <span className="text-[var(--text-main)] font-bold">
-                  {selectedTrx.type === 'deposit' ? 'জমা' :
-                   selectedTrx.type === 'withdraw' ? 'উত্তোলন' :
-                   selectedTrx.type === 'bonus' ? 'বোনাস' : 'বাজি'}
-                </span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-[var(--border-color)]">
-                <span className="text-[var(--text-muted)] text-sm">পরিমাণ:</span>
-                <span className={`font-bold ${selectedTrx.type === 'deposit' || selectedTrx.type === 'bonus' ? 'text-green-400' : 'text-[var(--text-main)]'}`}>
-                  {selectedTrx.type === 'deposit' || selectedTrx.type === 'bonus' ? '+' : '-'}৳{Math.abs(selectedTrx.amount).toLocaleString()}
-                </span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-[var(--border-color)]">
-                <span className="text-[var(--text-muted)] text-sm">তারিখ:</span>
-                <span className="text-[var(--text-main)]">{selectedTrx.date}</span>
-              </div>
-              <div className="flex justify-between py-2">
-                <span className="text-[var(--text-muted)] text-sm">অবস্থা:</span>
-                <span className={`font-bold ${selectedTrx.statusColor}`}>{selectedTrx.status}</span>
+              <p className="text-3xl font-black text-white italic tracking-tighter">৳{Math.abs(parseFloat(String(selectedTrx.amount).replace(/[^0-9.-]+/g,""))).toLocaleString()}</p>
+              <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mt-1 ${
+                selectedTrx.status === 'completed' || selectedTrx.status === 'success' || selectedTrx.status === 'approved' || selectedTrx.status === 'সম্পন্ন'
+                  ? 'bg-green-500/10 text-green-400 border border-green-500/20'
+                  : selectedTrx.status === 'pending' || selectedTrx.status === 'processing'
+                  ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'
+                  : 'bg-red-500/10 text-red-400 border border-red-500/20'
+              }`}>
+                <div className={`w-1.5 h-1.5 rounded-full ${
+                  selectedTrx.status === 'completed' || selectedTrx.status === 'success' || selectedTrx.status === 'approved' || selectedTrx.status === 'সম্পন্ন' ? 'bg-green-500' : 
+                  selectedTrx.status === 'pending' || selectedTrx.status === 'processing' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'
+                }`} />
+                {selectedTrx.status || 'Success'}
               </div>
             </div>
-            <button 
-              onClick={() => setSelectedTrx(null)}
-              className="w-full mt-6 bg-yellow-500 text-black font-bold py-3 rounded-lg hover:bg-yellow-400 transition-colors"
-            >
-              বন্ধ করুন
-            </button>
-          </div>
+
+            <div className="space-y-4 relative z-10">
+              <div className="flex justify-between items-center text-sm border-b border-teal-800/30 pb-3">
+                <span className="text-teal-400 font-bold uppercase text-[10px] tracking-widest">Transaction ID</span>
+                <span className="font-mono text-xs text-white bg-black/20 px-2 py-1 rounded-lg">{selectedTrx.trxId || selectedTrx.id}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm border-b border-teal-800/30 pb-3">
+                <span className="text-teal-400 font-bold uppercase text-[10px] tracking-widest">ধরন (Type)</span>
+                <span className="font-black text-white uppercase">{selectedTrx.type}</span>
+              </div>
+              {selectedTrx.method && (
+                 <div className="flex justify-between items-center text-sm border-b border-teal-800/30 pb-3">
+                   <span className="text-teal-400 font-bold uppercase text-[10px] tracking-widest">পদ্ধতি (Method)</span>
+                   <span className="font-black text-white">{selectedTrx.method}</span>
+                 </div>
+              )}
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-teal-400 font-bold uppercase text-[10px] tracking-widest">তারিখ (Date)</span>
+                <span className="font-bold text-teal-100 text-xs">{selectedTrx.date || new Date().toLocaleString()}</span>
+              </div>
+            </div>
+          </motion.div>
         </div>
       )}
     </div>

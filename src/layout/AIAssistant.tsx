@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bot, Send, X, Sparkles, MessageCircle, User, Loader2, Zap, Brain, Info, History } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+import { getAIResponse } from '../services/geminiService';
 
 interface Message {
   id: string;
@@ -63,30 +61,11 @@ export default function AIAssistant({
     setIsLoading(true);
 
     try {
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: userText,
-        config: {
-          systemInstruction: `You are the Official AI Assistant of SPIN71 BET Casino. 
-          Your name is SPIN71 AI.
-          User Info: ${JSON.stringify(userData || {})}
-          Status: Online.
-          Current Time: ${new Date().toLocaleString()}
-          
-          Guidelines:
-          1. Always reply in Bengali.
-          2. Be professional, friendly, and helpful.
-          3. If the user asks for predictions, give them "Smart Tips" based on probability (e.g., "Rocket-এ ২.০x এ ক্যাশআউট করা নিরাপদ হতে পারে"). 
-          4. Encourage responsible gaming.
-          5. If asked about deposits, mention Nagad and Bkash are the fastest.
-          6. Keep responses concise and engaging.
-          7. Use emojis to make the chat lively.`,
-        },
-      });
+      const responseText = await getAIResponse(userText, userData, 'assistant');
 
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
-        text: response.text || "দুঃখিত, আমি এই মুহূর্তে উত্তর দিতে পারছি না।",
+        text: responseText || "দুঃখিত, আমি এই মুহূর্তে উত্তর দিতে পারছি না।",
         sender: 'ai',
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };

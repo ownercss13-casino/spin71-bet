@@ -58,24 +58,25 @@ export default function WalletView({ balance, userData, onTabChange, onSubTabCha
       
       try {
         const transRef = collection(db, 'users', userData.id, 'transactions');
-        let q = query(
-          transRef, 
-          orderBy('createdAt', 'desc'), 
-          limit(50)
-        );
+        let q;
         
         if (filter !== 'all') {
           q = query(
             transRef, 
             where('type', '==', filter), 
+            limit(100)
+          );
+        } else {
+          q = query(
+            transRef, 
             orderBy('createdAt', 'desc'), 
             limit(50)
           );
         }
         
         const querySnapshot = await getDocs(q);
-        const data = querySnapshot.docs.map(doc => {
-          const d = doc.data();
+        let data = querySnapshot.docs.map(doc => {
+          const d = doc.data() as any;
           let dateStr = 'Just now';
           if (d.createdAt) {
             if (typeof d.createdAt.toDate === 'function') {
@@ -90,6 +91,16 @@ export default function WalletView({ balance, userData, onTabChange, onSubTabCha
             date: dateStr
           };
         }) as Transaction[];
+
+        // Sort client-side if we used where filter
+        if (filter !== 'all') {
+           data.sort((a: any, b: any) => {
+             const timeA = a.createdAt?.seconds || (a.createdAt ? new Date(a.createdAt).getTime() / 1000 : 0);
+             const timeB = b.createdAt?.seconds || (b.createdAt ? new Date(b.createdAt).getTime() / 1000 : 0);
+             return timeB - timeA;
+           });
+           data = data.slice(0, 50);
+        }
         
         setTransactions(data);
       } catch (err) {

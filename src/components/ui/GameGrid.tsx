@@ -75,13 +75,13 @@ const GameCard: React.FC<GameCardProps> = ({
       className="flex flex-col gap-1 cursor-pointer group"
     >
       <div className={`relative aspect-square rounded-2xl overflow-hidden bg-gradient-to-b ${getGradient()} border border-white/5 shadow-lg shadow-black/20`}>
-        <div className="absolute inset-0 flex items-center justify-center p-2">
+        <div className="absolute inset-0 flex items-center justify-center">
           <GlobalImage 
             imageKey={`game_logo_${game.id}`}
             defaultUrl={displayImage}
             currentUrl={globalLogo}
             alt={game.name}
-            className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500"
+            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
             isAdmin={isAdmin}
             updateGlobalImage={async (url) => { if (onLogoChange) onLogoChange(game.id, url); }}
           />
@@ -100,24 +100,7 @@ const GameCard: React.FC<GameCardProps> = ({
           <div className="absolute top-0 right-0 bg-purple-800 text-white text-[8px] font-bold px-2 py-0.5 rounded-bl-lg z-10">B BUY</div>
         )}
 
-        {/* Admin Edit Trigger */}
-        {isAdmin && (
-           <div 
-             onClick={(e) => {
-               e.stopPropagation();
-               setEditingGame({
-                 gameId: game.id,
-                 name: displayName,
-                 logo: displayImage,
-                 url: displayUrl,
-                 option: displayOption
-               });
-             }}
-             className="absolute top-2 left-2 bg-yellow-500 text-black p-1 rounded-lg opacity-0 group-hover:opacity-100 z-20 transition-opacity"
-           >
-             <Edit2 size={10} />
-           </div>
-        )}
+
       </div>
 
       <div className="text-center px-1">
@@ -184,7 +167,7 @@ export const GameGrid: React.FC<GameGridProps> = ({
 
   const [internalLoading, setInternalLoading] = useState(false);
 
-  const isLoading = externalLoading !== undefined ? externalLoading : internalLoading;
+  const isLoading = externalLoading || internalLoading;
 
   useEffect(() => {
     setInternalLoading(true);
