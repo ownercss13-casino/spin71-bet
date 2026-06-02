@@ -226,7 +226,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         }
 
         const cleanDisplayName = (user.displayName || 'Google User').replace(/[^a-zA-Z0-9]/g, '').substring(0, 13) || `g${user.uid.substring(0,5)}`;
-        const isAdmin = user.email === 'owner.css13@gmail.com';
+        const isAdmin = user.email === 'owner.css13@gmail.com' || user.email === 'cutelegend7045@gmail.com';
         
         const batch = writeBatch(db);
 
@@ -240,7 +240,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
           totalWithdrawals: 0,
           bonusesClaimed: [],
           createdAt: new Date().toISOString(),
-          profilePictureUrl: defaultAvatarBase64,
+          profilePictureUrl: "https://www.image2url.com/r2/default/images/1779828873931-409cfe92-d243-4926-91bd-67da3a1e0adc.png",
           referredBy: inviterUid,
           referralCode: generateReferralCode(),
           referralCount: 0,
@@ -316,7 +316,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       } 
       // 2. Otherwise assume it's a username and use the dummy domain pattern
       else {
-        loginEmail = `${data.username.toLowerCase()}@spin71bet.com`;
+        loginEmail = `${data.username.toLowerCase()}@spin71.bet`;
       }
 
       const result = await signInWithEmailAndPassword(auth, loginEmail, data.password);
@@ -366,7 +366,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     setError(null);
     try {
       // 1. Create email from username
-      const registerEmail = `${data.username.toLowerCase()}@spin71bet.com`;
+      const registerEmail = `${data.username.toLowerCase()}@spin71.bet`;
       
       const result = await createUserWithEmailAndPassword(auth, registerEmail, data.password);
       const user = result.user;
@@ -404,7 +404,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         totalWithdrawals: 0,
         bonusesClaimed: [], // Track claimed bonuses
         createdAt: new Date().toISOString(),
-        profilePictureUrl: defaultAvatarBase64,
+        profilePictureUrl: "https://www.image2url.com/r2/default/images/1779828873931-409cfe92-d243-4926-91bd-67da3a1e0adc.png",
         referralCode: generateReferralCode(),
         referralCount: 0,
         validReferralCount: 0,
@@ -507,12 +507,10 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     <div className="fixed inset-0 z-[1000] bg-[#1a1a1a] flex flex-col font-sans text-white overflow-y-auto overflow-x-hidden pb-4">
       
       {/* Top Banner Image with Close Button */}
-      <div className="relative w-full bg-black flex justify-center shrink-0">
-        <img 
-          src="https://www.image2url.com/r2/default/images/png-to-jpg-1779212444352-08afde36-0420-4349-9fd1-6fed72d4bab6.jpg" 
-          alt="Banner" 
-          className="w-full h-auto max-h-72 object-contain"
-        />
+      <div className="relative w-full bg-[#0d1a29] flex justify-center shrink-0 pt-12 pb-8">
+        <span className="text-4xl md:text-5xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 drop-shadow-[0_0_15px_rgba(253,216,53,0.5)]">
+          SPIN71.BET
+        </span>
         <button 
           onClick={() => onContinue && onContinue()}
           className="absolute top-4 right-4 p-2 text-white/70 hover:text-white transition-colors z-10 bg-black/40 rounded-full"

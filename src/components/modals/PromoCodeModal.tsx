@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Gift, Check, AlertCircle, Loader2, Plus, Calendar, Trophy, Coins, Users } from 'lucide-react';
-import { db } from '../../services/firebase';
+import { db, auth } from '../../services/firebase';
 import { doc, getDoc, updateDoc, increment, serverTimestamp, setDoc } from 'firebase/firestore';
 
 interface PromoCodeModalProps {
@@ -34,9 +34,15 @@ export default function PromoCodeModal({ isOpen, onClose, showToast, isAdmin, us
     setError(null);
     
     try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("Authentication required");
+
       const response = await fetch('/api/promo/claim', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           code: code.trim().toUpperCase(),
           userId: userData.id
@@ -66,22 +72,31 @@ export default function PromoCodeModal({ isOpen, onClose, showToast, isAdmin, us
     setError(null);
 
     try {
-      const promoRef = doc(db, 'promo_codes', newPromo.code.toUpperCase());
-      await setDoc(promoRef, {
-        code: newPromo.code.toUpperCase(),
-        amount: Number(newPromo.amount),
-        maxUses: Number(newPromo.maxUses),
-        expireDays: Number(newPromo.expireDays),
-        active: true,
-        createdAt: serverTimestamp(),
-        usedCount: 0
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("Authentication required");
+
+      const response = await fetch('/api/promo/create', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          code: newPromo.code.toUpperCase(),
+          amount: Number(newPromo.amount),
+          maxUses: Number(newPromo.maxUses),
+          expireDays: Number(newPromo.expireDays)
+        })
       });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to create promo code");
 
       showToast(`Promo code "${newPromo.code}" created successfully!`, "success");
       setNewPromo({ code: '', amount: 500, maxUses: 100, expireDays: 7 });
       setActiveTab('claim');
     } catch (err: any) {
-      showToast("Failed to create promo code", "error");
+      showToast(err.message || "Failed to create promo code", "error");
       setError(err.message);
     } finally {
       setIsLoading(false);

@@ -55,12 +55,9 @@ export default function GameLoader({ gameName, provider, logo, hasError = false,
            animate={{ opacity: 1, scale: 1 }}
            className="relative mb-6 text-center"
         >
-          <img 
-            src="/apple-touch-icon.png?v=6" 
-            alt="SPIN71" 
-            className="h-20 w-auto object-contain drop-shadow-[0_0_15px_rgba(253,216,53,0.4)]"
-            referrerPolicy="no-referrer"
-          />
+          <span className="text-4xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 drop-shadow-[0_0_12px_rgba(253,216,53,0.5)]">
+            SPIN71.BET
+          </span>
           {gameName && (
             <p className="text-sm font-black text-yellow-500/80 mt-4 uppercase tracking-widest italic">{gameName}</p>
           )}

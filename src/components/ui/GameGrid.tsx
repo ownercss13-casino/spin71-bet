@@ -49,7 +49,7 @@ const GameCard: React.FC<GameCardProps> = ({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   
-  const displayImage = globalLogo || game.image || `https://picsum.photos/seed/${game.id}/400/600`;
+  const displayImage = globalLogo || GAME_LOGO_URLS[game.id] || game.image || `https://picsum.photos/seed/${game.id}/400/600`;
   
   useEffect(() => {
     if (!globalLogo) {

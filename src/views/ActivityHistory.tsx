@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { History, Search, Filter, ArrowUpRight, ArrowDownLeft, Clock, Zap, Star } from 'lucide-react';
-import { collection, query, where, orderBy, limit, getDocs, startAfter } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, getDocs, startAfter, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useFirebase } from '../hooks/useFirebase';
 
@@ -14,53 +14,52 @@ const ActivityHistory: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const PAGE_SIZE = 15;
 
-  const fetchHistory = async (isFirstLoad = true) => {
-    if (!user) return;
-    if (isFirstLoad) setLoading(true);
-    
-    try {
-      let q = query(
-        collection(db, 'bets'),
-        where('userId', '==', user.uid),
-        orderBy('createdAt', 'desc'),
-        limit(PAGE_SIZE)
-      );
-
-      if (!isFirstLoad && lastVisible) {
-        q = query(
-          collection(db, 'bets'),
-          where('userId', '==', user.uid),
-          orderBy('createdAt', 'desc'),
-          startAfter(lastVisible),
-          limit(PAGE_SIZE)
-        );
-      }
-
-      const querySnapshot = await getDocs(q);
-      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
-      if (isFirstLoad) {
-        setHistory(data);
-      } else {
-        setHistory(prev => [...prev, ...data]);
-      }
-
-      setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1]);
-      setHasMore(querySnapshot.docs.length === PAGE_SIZE);
-    } catch (error) {
-      console.error("Error fetching history:", error);
-    } finally {
-      if (isFirstLoad) setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchHistory(true);
+    if (!user) return;
+    setLoading(true);
+
+    const q = query(
+      collection(db, 'bets'),
+      where('userId', '==', user.uid),
+      orderBy('createdAt', 'desc'),
+      limit(PAGE_SIZE)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setHistory(data);
+      setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
+      setHasMore(snapshot.docs.length === PAGE_SIZE);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error with activity history listener:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, [user]);
 
   const loadMore = () => {
-    if (!loading && hasMore) {
-      fetchHistory(false);
+    if (!loading && hasMore && lastVisible) {
+      setLoading(true);
+      const q = query(
+        collection(db, 'bets'),
+        where('userId', '==', user.uid),
+        orderBy('createdAt', 'desc'),
+        startAfter(lastVisible),
+        limit(PAGE_SIZE)
+      );
+
+      getDocs(q).then((snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setHistory(prev => [...prev, ...data]);
+        setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
+        setHasMore(snapshot.docs.length === PAGE_SIZE);
+        setLoading(false);
+      }).catch(err => {
+        console.error("Error loading more history:", err);
+        setLoading(false);
+      });
     }
   };
 

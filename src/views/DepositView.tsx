@@ -23,7 +23,7 @@ import { ToastType } from '../components/ui/Toast';
 import GlobalImage from '../components/ui/GlobalImage';
 import VIPLoader from '../components/ui/VIPLoader';
 import { auth, db } from '../services/firebase';
-import { collection, query, where, orderBy, getDocs, limit } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, limit, onSnapshot } from 'firebase/firestore';
 
 const paymentMethods = [
   { 
@@ -129,24 +129,26 @@ export default function DepositView({
       setIsInitialLoading(false);
     }, 1200);
     
-    // Fetch deposit history
+    // Real-time listener for deposit history
     if (userData?.id) {
-      const fetchHistory = async () => {
-        try {
-          const q = query(collection(db, 'users', userData.id, 'transactions'), orderBy('createdAt', 'desc'), limit(50));
-          const snapshot = await getDocs(q);
-          const history = snapshot.docs
-            .map(doc => ({
-              id: doc.id,
-              ...doc.data()
-            }))
-            .filter((t: any) => t.type === 'deposit');
-          setDeposits(history);
-        } catch (error) {
-          console.error("Deposit History Fetch Error:", error);
-        }
-      };
-      fetchHistory();
+      const q = query(
+        collection(db, 'users', userData.id, 'transactions'), 
+        orderBy('createdAt', 'desc'), 
+        limit(50)
+      );
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const history = snapshot.docs
+          .map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }))
+          .filter((t: any) => t.type === 'deposit');
+        setDeposits(history);
+      }, (error) => {
+        console.error("Deposit History Listener Error:", error);
+      });
+      
+      return () => unsubscribe();
     }
     
     return () => {

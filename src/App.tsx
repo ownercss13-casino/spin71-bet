@@ -17,21 +17,24 @@ import HomeView from "./views/HomeView";
 import LoginPage from "./views/LoginPage";
 import DepositView from "./views/DepositView";
 import WalletView from "./views/WalletView";
+import { AnimatedBalance } from './components/AnimatedBalance';
 import SupportChat from "./layout/SupportChat";
 import PromoCodeModal from "./components/modals/PromoCodeModal";
+import AppInstallModal from "./components/modals/AppInstallModal";
+import { PWAInstallBanner } from "./components/PWAInstallBanner";
 
 import DepositRequiredModal from "./components/ui/DepositRequiredModal";
-import PermissionManager from "./layout/PermissionManager";
+
 import NotificationCenter from "./layout/NotificationCenter";
 import FAQView from "./views/FAQView";
 import BottomNav from "./components/BottomNav";
 import Sidebar from "./layout/Sidebar";
-import LeaderboardView from "./views/LeaderboardView";
 import AIAssistant from "./layout/AIAssistant";
 import GlobalChat from "./layout/GlobalChat";
-import LearningProgressView from "./views/LearningProgressView";
 import SettingsView from "./views/SettingsView";
 import { Game } from "./components/ui/GameGrid";
+import { games } from "./constants/games";
+import { GAME_LOGO_URLS } from "./constants/gameLogos";
 import GameLoader from "./components/ui/GameLoader";
 import GlobalLoader from "./components/ui/GlobalLoader";
 import { ToastContainer, ToastType } from "./components/ui/Toast";
@@ -64,7 +67,7 @@ export default function App() {
   const [noticeText, setNoticeText] = useState<string>("আমাদের নতুন স্লট মেশিনে বড় জয় নিশ্চিত করুন!");
   const [toasts, setToasts] = useState<{ id: string; message: string; type: ToastType }[]>([]);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [activeTab, setActiveTab] = useState<'home' | 'slot' | 'aviator' | 'profile' | 'invite' | 'deposit' | 'bonus' | 'wallet' | 'faq' | 'leaderboard' | 'terms' | 'analytics' | 'admin' | 'learning' | 'settings' | 'history' | 'prize'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'slot' | 'aviator' | 'profile' | 'invite' | 'deposit' | 'bonus' | 'wallet' | 'faq' | 'leaderboard' | 'terms' | 'analytics' | 'admin' | 'settings' | 'history'>('home');
   const [profileSubTab, setProfileSubTab] = useState<string>('dashboard');
   const [recentlyPlayed, setRecentlyPlayed] = useState<Game[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -97,7 +100,6 @@ export default function App() {
   const [isSupportChatOpen, setIsSupportChatOpen] = useState(false);
   const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(false);
   const [isGlobalChatOpen, setIsGlobalChatOpen] = useState(false);
-  const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showGallery, setShowGallery] = useState(false);
   const [telegramLink, setTelegramLink] = useState<string>("https://t.me/spin71_predictor_bot");
   const [whatsappLink, setWhatsappLink] = useState<string>("https://wa.me/...");
@@ -138,15 +140,24 @@ export default function App() {
     // Lock games behind a deposit requirement
     if (tab === 'slot' || tab === 'aviator') {
       // Require at least one approved deposit to play games
-      if (!userData?.totalDeposits || userData.totalDeposits <= 0) {
+      const isAdmin = userData?.role === 'admin' || userData?.isAdmin === true;
+      if (!isAdmin && (!userData?.totalDeposits || userData.totalDeposits <= 0)) {
         setShowDepositRequired(true);
         return;
       }
     }
 
+    if (tab === activeTab) return;
+
     setIsTabLoading(true);
-    setActiveTab(tab);
-    setTimeout(() => setIsTabLoading(false), 500);
+    // Professional delay to ensure smooth transition and show the loading state
+    setTimeout(() => {
+      setActiveTab(tab);
+      // Small buffer to let the new view render
+      setTimeout(() => {
+        setIsTabLoading(false);
+      }, 400);
+    }, 700);
   };
   
   const handleLogout = async () => {
@@ -261,6 +272,47 @@ export default function App() {
     });
   };
 
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBanner(true);
+    };
+
+    const handleAppInstalled = () => {
+      setDeferredPrompt(null);
+      setShowInstallBanner(false);
+      showToast("আপনার ফোনে অ্যাপটি সফলভাবে ইনস্টল করা হয়েছে!", "success");
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallApp = async () => {
+    setIsInstallModalOpen(true);
+  };
+
+  const triggerImmediatePwaInstall = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+      setShowInstallBanner(false);
+      setIsInstallModalOpen(false);
+    }
+  };
+
   const handleUpdateGlobalImage = async (imageKey: string, url: string) => {
     let finalUrl = url;
     if (url.startsWith('data:image/') && url.length > 680000) {
@@ -291,42 +343,23 @@ export default function App() {
 
   const handleAddUser = async (user: any) => {
     try {
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, orderBy('numericId', 'desc'), limit(1));
-      const querySnapshot = await getDocs(q);
-      let nextId = 10000001;
-      if (!querySnapshot.empty) {
-        const lastData = querySnapshot.docs[0].data() as { numericId?: number };
-        nextId = (lastData.numericId || 10000000) + 1;
-      }
-
-      const newUserRef = doc(collection(db, 'users'));
-      await setDoc(newUserRef, {
-        id: newUserRef.id,
-        numericId: nextId,
-        username: user.username,
-        password: user.password,
-        role: user.role,
-        balance: Number(user.balance) || 0,
-        status: 'active',
-        createdAt: serverTimestamp(),
-        vipLevel: 0,
-        vipProgress: 0,
-        experience: 0,
-        deposits: 0,
-        totalDeposits: 0,
-        withdrawals: 0,
-        totalWagered: 0,
-        totalWon: 0,
-        totalLost: 0,
-        referralCode: user.username.toLowerCase().substring(0, 4) + Math.floor(1000 + Math.random() * 9000),
-        referredBy: null,
-        referredUsers: [],
-        profilePictureUrl: null,
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/admin/users/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(user)
       });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to create user");
+
       showToast("ইউজার সফলভাবে তৈরি করা হয়েছে", "success");
-    } catch (err) {
-      showToast("ইউজার তৈরি করতে সমস্যা হয়েছে", "error");
+    } catch (err: any) {
+      console.error("Add user error:", err);
+      showToast(err.message || "ইউজার তৈরি করতে সমস্যা হয়েছে", "error");
       throw err;
     }
   };
@@ -343,13 +376,7 @@ export default function App() {
   };
 
   const handleNavigate = (tab: string, subTab?: string) => {
-    if (!isLoggedIn && tab !== 'home') {
-      showToast("এই পেজটি দেখতে দয়া করে নিবন্ধন করুন", "info");
-      setLoginModalMode('register');
-      setShowLoginModal(true);
-      return;
-    }
-    setActiveTab(tab as any);
+    handleTabChange(tab as any);
     if (subTab) {
       setProfileSubTab(subTab as any);
     }
@@ -377,6 +404,9 @@ export default function App() {
         return;
       }
 
+      // Start loading sequence
+      setIsTabLoading(true);
+
       // Notify Telegram
       try {
         fetch('/api/telegram/event', {
@@ -394,31 +424,39 @@ export default function App() {
         console.error("Telegram notify failed", e);
       }
 
-      if (game.id === 'native_slot') {
-        if (userData?.id) {
+      setTimeout(() => {
+        if (game.id === 'native_slot') {
+          if (userData?.id) {
+            const updatedList = [game, ...recentlyPlayed.filter(g => g.id !== game.id)].slice(0, 10);
+            setRecentlyPlayed(updatedList);
+          }
+          setActiveTab('slot');
+          setTimeout(() => setIsTabLoading(false), 500);
+          return;
+        }
+
+        if (game.id === 'spribe_aviator') {
+          if (userData?.id) {
+            const updatedList = [game, ...recentlyPlayed.filter(g => g.id !== game.id)].slice(0, 10);
+            setRecentlyPlayed(updatedList);
+          }
+          setActiveTab('aviator');
+          setTimeout(() => setIsTabLoading(false), 500);
+          return;
+        }
+
+        setSelectedGame(game);
+        setIsGameLoading(!!game);
+        if (game && userData?.id) {
+          // Update recently played list
           const updatedList = [game, ...recentlyPlayed.filter(g => g.id !== game.id)].slice(0, 10);
           setRecentlyPlayed(updatedList);
         }
-        setActiveTab('slot');
-        return;
-      }
-
-      if (game.id === 'spribe_aviator') {
-        if (userData?.id) {
-          const updatedList = [game, ...recentlyPlayed.filter(g => g.id !== game.id)].slice(0, 10);
-          setRecentlyPlayed(updatedList);
-        }
-        setActiveTab('aviator');
-        return;
-      }
-    }
-
-    setSelectedGame(game);
-    setIsGameLoading(!!game);
-    if (game && userData?.id) {
-      // Update recently played list
-      const updatedList = [game, ...recentlyPlayed.filter(g => g.id !== game.id)].slice(0, 10);
-      setRecentlyPlayed(updatedList);
+        setIsTabLoading(false);
+      }, 800);
+    } else {
+      setSelectedGame(null);
+      setIsGameLoading(false);
     }
   };
 
@@ -475,7 +513,7 @@ export default function App() {
                 const data = snapshot.data();
                 console.log("[App] Real-time user update received", user.uid);
                 
-                const isAdmin = data.role === 'admin' || data.isAdmin === true || user.email === 'owner.css13@gmail.com';
+                const isAdmin = data.role === 'admin' || data.isAdmin === true || user.email === 'owner.css13@gmail.com' || user.email === 'cutelegend7045@gmail.com';
                 
                 // Ensure existing user has a referralCode
                 if (!data.referralCode) {
@@ -495,7 +533,7 @@ export default function App() {
                 } catch(e) {}
               } else {
                 console.log("[App] User document not found, initializing...", user.uid);
-                const isAdmin = user.email === 'owner.css13@gmail.com';
+                const isAdmin = user.email === 'owner.css13@gmail.com' || user.email === 'cutelegend7045@gmail.com';
                 const baseName = user.displayName || user.email?.split('@')[0] || 'User';
                 const referralCode = baseName.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 4) + Math.floor(1000 + Math.random() * 9000);
                 
@@ -511,7 +549,7 @@ export default function App() {
                   referralCount: 0,
                   referredBy: null,
                   totalReferralEarnings: 0,
-                  profilePictureUrl: null
+                  profilePictureUrl: "https://www.image2url.com/r2/default/images/1779828873931-409cfe92-d243-4926-91bd-67da3a1e0adc.png"
                 };
                 setDoc(userRef, newUser).catch(e => console.error("Initial doc creation failed:", e));
                 setUserData(newUser);
@@ -641,13 +679,59 @@ export default function App() {
           const names: Record<string, string> = {};
           const urls: Record<string, string> = {};
           const options: Record<string, string> = {};
-          snapshot.forEach((doc) => {
-            const item = doc.data();
-            if (item.logo_url) logos[item.game_id] = item.logo_url;
-            if (item.name) names[item.game_id] = item.name;
-            if (item.game_url) urls[item.game_id] = item.game_url;
-            if (item.provider_option) options[item.game_id] = item.provider_option;
-          });
+
+          if (snapshot.empty) {
+            console.log("[App] game_settings collection is empty in Firestore. Seeding default game settings with premium logos...");
+            
+            // Seed each default game settings doc in firestore
+            for (const game of games) {
+              const defaultLogo = GAME_LOGO_URLS[game.id] || game.image || '';
+              const defaultUrl = game.id === 'spribe_aviator' ? 'aviator' : '#';
+              const docRef = doc(db, 'game_settings', game.id);
+              
+              let customName = game.name;
+              let customLogo = defaultLogo;
+              
+              // Apply specific customizations as seen in the user's production screenshots
+              if (game.id === 'jili_2') {
+                customName = 'SUPER ACE 2';
+              } else if (game.id === 'spribe_6') {
+                customName = 'PLINK';
+              } else if (game.id === 'jili_10') {
+                customName = 'FORTUNE COIN';
+              } else if (game.id === 'jili_9') {
+                customName = 'MONEY POT';
+              } else if (game.id === 'jili_12') {
+                customName = 'GO RUSH';
+              } else if (game.id === 'pg_18') {
+                customName = 'FORTUNE OX';
+                customLogo = GAME_LOGO_URLS['pg_fortune_ox'] || defaultLogo;
+              }
+
+              await setDoc(docRef, {
+                game_id: game.id,
+                name: customName,
+                logo_url: customLogo,
+                game_url: defaultUrl,
+                provider_option: game.provider,
+                updatedAt: new Date().toISOString()
+              });
+
+              logos[game.id] = customLogo;
+              names[game.id] = customName;
+              urls[game.id] = defaultUrl;
+              options[game.id] = game.provider;
+            }
+            console.log("[App] Successfully seeded default game settings in Firestore");
+          } else {
+            snapshot.forEach((doc) => {
+              const item = doc.data();
+              if (item.logo_url) logos[item.game_id] = item.logo_url;
+              if (item.name) names[item.game_id] = item.name;
+              if (item.game_url) urls[item.game_id] = item.game_url;
+              if (item.provider_option) options[item.game_id] = item.provider_option;
+            });
+          }
           
           setGlobalLogos(prev => ({ ...prev, ...logos }));
           setGlobalNames(prev => ({ ...prev, ...names }));
@@ -665,7 +749,18 @@ export default function App() {
       const fetchGlobalImages = async () => {
         try {
           const cached = localStorage.getItem('global_images_cache');
-          if (cached) setGlobalImages(JSON.parse(cached));
+          if (cached) {
+            let images = JSON.parse(cached);
+            
+            // CACHE INVALIDATION: If cache contains the old broken logo URL, clear it to force-fetch our new local logo
+            const oldLogoUrlFragment = "1779832061426"; 
+            if (images['app_logo'] && images['app_logo'].includes(oldLogoUrlFragment)) {
+               console.log("[App] Detected legacy logo in cache, purging...");
+               localStorage.removeItem('global_images_cache');
+            } else {
+               setGlobalImages(images);
+            }
+          }
           
           if (!shouldFetchFromNetwork && cached) return true;
 
@@ -1139,6 +1234,8 @@ export default function App() {
             telegramLink={telegramLink}
             theme={theme}
             toggleTheme={toggleTheme}
+            appLogo={globalImages['app_logo']}
+            onInstallApp={handleInstallApp}
           />
         )}
       </AnimatePresence>
@@ -1148,16 +1245,35 @@ export default function App() {
         dbStatus === 'error' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'
       }`} title={`Firebase: ${dbStatus}`} />
 
-      {/* Tab Loading Progress Bar */}
+      {/* Tab Loading Progress Bar & Full Screen Overlay */}
       <AnimatePresence>
         {isTabLoading && (
-          <motion.div 
-            initial={{ width: "0%", opacity: 0 }}
-            animate={{ width: "100%", opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
-            className="fixed top-0 left-0 h-1 bg-gradient-to-r from-yellow-400 to-yellow-600 z-[200] shadow-[0_0_10px_rgba(234,179,8,0.5)]"
-          />
+          <>
+            <motion.div 
+              initial={{ width: "0%", opacity: 0 }}
+              animate={{ width: "100%", opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5 }}
+              className="fixed top-0 left-0 h-1 bg-gradient-to-r from-yellow-400 to-yellow-600 z-[2000] shadow-[0_0_10px_rgba(234,179,8,0.5)]"
+            />
+            {/* Full-screen subtle overlay to prevent interactions and show "loading" feel */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[1999] bg-[#0d1a29]/80 backdrop-blur-sm flex items-center justify-center"
+            >
+              <div className="flex flex-col items-center gap-4">
+                <div className="relative">
+                  <div className="w-16 h-16 border-4 border-yellow-500/20 border-t-yellow-500 rounded-full animate-spin"></div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-yellow-500 text-[10px] font-black italic">BET</span>
+                  </div>
+                </div>
+                <p className="text-yellow-500 text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">Loading Experience...</p>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 
@@ -1167,7 +1283,7 @@ export default function App() {
           <GameLoader 
             gameName={globalUrls[selectedGame.id] ? (globalNames[selectedGame.id] || selectedGame.name) : selectedGame.name}
             provider={selectedGame.provider}
-            logo={globalLogos[selectedGame.id] || selectedGame.image}
+            logo={globalLogos[selectedGame.id] || GAME_LOGO_URLS[selectedGame.id] || selectedGame.image}
             onClose={() => {
               setIsGameLoading(false);
               setSelectedGame(null);
@@ -1222,7 +1338,7 @@ export default function App() {
                </div>
                <div className="flex items-center gap-2">
                  <div className="bg-yellow-500/10 px-2 py-1 rounded border border-yellow-500/20">
-                   <span className="text-[10px] font-bold text-yellow-500">৳ {balance.toLocaleString()}</span>
+                   <AnimatedBalance value={balance} decimals={0} className="text-[10px] font-bold text-yellow-500" />
                  </div>
                  <button 
                   onClick={() => setSelectedGame(null)}
@@ -1238,7 +1354,7 @@ export default function App() {
                 <div className="flex flex-col items-center justify-center h-full space-y-6 text-center px-4">
                   <div className="w-24 h-24 bg-white/5 rounded-3xl flex items-center justify-center mb-2 border border-white/10 shadow-2xl overflow-hidden group">
                     <img 
-                      src={globalLogos[selectedGame.id] || selectedGame.image} 
+                      src={globalLogos[selectedGame.id] || GAME_LOGO_URLS[selectedGame.id] || selectedGame.image} 
                       alt={selectedGame.name}
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                     />
@@ -1305,17 +1421,6 @@ export default function App() {
       {/* Main Content Area */}
       <div className="relative min-h-[calc(100vh-120px)]">
         <AnimatePresence mode="wait">
-          {activeTab === 'learning' && (
-            <motion.div
-              key="learning"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.2 }}
-            >
-              <LearningProgressView userData={userData} />
-            </motion.div>
-          )}
           {activeTab === 'settings' && (
             <motion.div
               key="settings"
@@ -1364,7 +1469,6 @@ export default function App() {
                 recentlyPlayed={recentlyPlayed}
                 favorites={favorites}
                 handleGameSelect={handleGameSelect}
-                setShowLeaderboard={setShowLeaderboard}
                 setShowGallery={setShowGallery}
                 onNavigate={handleNavigate}
                 globalLogos={globalLogos}
@@ -1381,6 +1485,8 @@ export default function App() {
                 searchQuery={searchQuery}
                 setSearchQuery={setSearchQuery}
                 onOpenLogin={handleOpenLogin}
+                showInstallBanner={showInstallBanner}
+                onInstallApp={handleInstallApp}
                 activeCategory={activeCategory}
                 setActiveCategory={setActiveCategory}
                 handleToggleFavorite={handleToggleFavorite}
@@ -1493,18 +1599,8 @@ export default function App() {
                 updateAllButtonName={updateAllButtonName}
                 minWithdraw={minWithdraw}
                 loading={isTabLoading}
+                onInstallApp={handleInstallApp}
               />
-            </motion.div>
-          )}
-          {activeTab === 'prize' && (
-            <motion.div
-              key="prize"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.2 }}
-            >
-              <LeaderboardView />
             </motion.div>
           )}
           {activeTab === 'bonus' && (
@@ -1632,22 +1728,6 @@ export default function App() {
         </AnimatePresence>
       </div>
 
-      {/* Leaderboard Modal */}
-      {showLeaderboard && (
-        <div className="fixed inset-0 z-[120] bg-black flex flex-col max-w-[512px] mx-auto">
-          <div className="flex items-center justify-between p-4 bg-[#1b1b1b] border-b border-white/5">
-            <button onClick={() => setShowLeaderboard(false)} className="text-gray-400 hover:text-white p-1">
-              <ArrowLeft size={24} />
-            </button>
-            <h2 className="text-white font-black text-lg italic uppercase tracking-tighter">Winners Board</h2>
-            <div className="w-8"></div>
-          </div>
-          <div className="flex-1 overflow-y-auto bg-[#0b0b0b]">
-            <LeaderboardView />
-          </div>
-        </div>
-      )}
-
       {/* Support Chat */}
       <SupportChat 
         isOpen={isSupportChatOpen} 
@@ -1656,6 +1736,11 @@ export default function App() {
         telegramLink={telegramLink}
         whatsappLink={whatsappLink}
         facebookLink={facebookLink}
+      />
+
+      <PWAInstallBanner 
+        deferredPrompt={deferredPrompt} 
+        onInstall={triggerImmediatePwaInstall}
       />
 
       {/* AI Assistant */}
@@ -1688,31 +1773,21 @@ export default function App() {
       />
 
       {/* Global Floating Action Buttons */}
-      <div className="fixed bottom-24 right-4 flex flex-col gap-3 z-[110]">
-         <a 
-           href={telegramLink}
-           target="_blank"
-           rel="noopener noreferrer"
-           className="w-12 h-12 bg-[#14253a] rounded-full flex flex-col items-center justify-center shadow-lg border border-yellow-500/50 group relative"
-         >
-            <Send size={20} className="text-[#fdd835]" />
-            <span className="text-[8px] text-white font-bold tracking-tighter">TELEGRAM</span>
-            <div className="absolute -top-1 -right-1 bg-red-600 text-white text-[8px] font-black px-1 rounded-full animate-bounce">1</div>
-         </a>
+      <div className="fixed bottom-24 right-4 flex flex-col gap-3 z-[110] p-4">
          <button 
-           onClick={() => {
-             if (!isLoggedIn) {
-               showToast("চ্যাট করতে লগইন করুন", "info");
-               setShowLoginModal(true);
-             } else {
-               setIsSupportChatOpen(true);
-             }
-           }}
-           className="w-12 h-12 bg-[#0d6efd] rounded-full flex items-center justify-center shadow-lg text-white hover:scale-110 transition-transform active:scale-95"
-         >
-            <MessageSquare size={24} />
-         </button>
-      </div>
+            onClick={() => {
+              if (!isLoggedIn) {
+                showToast("চ্যাট করতে লগইন করুন", "info");
+                setShowLoginModal(true);
+              } else {
+                setIsSupportChatOpen(true);
+              }
+            }}
+            className="w-12 h-12 bg-[#0d6efd] rounded-full flex items-center justify-center shadow-lg text-white hover:scale-110 transition-transform active:scale-95"
+          >
+             <MessageSquare size={24} />
+          </button>
+       </div>
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
@@ -1728,10 +1803,10 @@ export default function App() {
       </AnimatePresence>
 
       {/* Bottom Navigation */}
-      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} unreadNotificationsCount={unreadNotificationsCount} isAdmin={userData?.isAdmin} />
+      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} onToggleNotifications={() => setIsNotificationCenterOpen(!isNotificationCenterOpen)} unreadNotificationsCount={unreadNotificationsCount} isAdmin={userData?.isAdmin} />
 
 
-      {isLoggedIn && <PermissionManager />}
+
 
 
 
@@ -1743,6 +1818,13 @@ export default function App() {
         showToast={showToast}
         isAdmin={userData?.role === 'admin' || userData?.isAdmin === true}
         userData={userData}
+      />
+
+      <AppInstallModal
+        isOpen={isInstallModalOpen}
+        onClose={() => setIsInstallModalOpen(false)}
+        deferredPrompt={deferredPrompt}
+        onInstall={triggerImmediatePwaInstall}
       />
 
       <DepositRequiredModal 

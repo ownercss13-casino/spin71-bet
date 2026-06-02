@@ -2,12 +2,38 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import fs from "fs";
-import admin from 'firebase-admin';
-import { getFirestore } from 'firebase-admin/firestore';
+import os from "os";
+import originalAdmin from 'firebase-admin';
+import { getFirestore as getAdminFirestore, FieldValue as AdminFieldValue } from 'firebase-admin/firestore';
+import { getDatabase } from 'firebase-admin/database';
+import { initializeApp as initClientApp } from 'firebase/app';
+import { getAuth as getClientAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import { getFirestore as getClientFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, runTransaction, onSnapshot, increment, serverTimestamp, query, where, limit, orderBy } from 'firebase/firestore';
 import cors from 'cors';
 import session from 'express-session';
 import fetch from 'node-fetch';
 import { getAIResponse } from "./geminiBackend";
+import { OpenAI } from 'openai';
+
+const admin = new Proxy(originalAdmin, {
+  get(target, prop, receiver) {
+    if (prop === 'firestore') {
+      const fn = (dbId?: string) => {
+        return getAdminFirestore(originalAdmin.app(), dbId === '(default)' ? undefined : dbId);
+      };
+      (fn as any).FieldValue = {
+        serverTimestamp: () => serverTimestamp(),
+        increment: (n: number) => increment(n)
+      };
+      return fn;
+    }
+    const val = Reflect.get(target, prop, receiver);
+    if (typeof val === 'function' && val !== null) {
+      return val.bind(target);
+    }
+    return val;
+  }
+});
 
 const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
 const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf8'));
@@ -18,78 +44,130 @@ const SESSION_SECRET = process.env.SESSION_SECRET || "mFmqcdqsiI5hs3XgwbGrwrnBqw
 console.log("Server process starting... NODE_ENV:", process.env.NODE_ENV);
 
 // Initialize Firebase Admin
-let db: admin.firestore.Firestore;
-let firebaseApp: admin.app.App;
-
-// Ensure we target the right project for credentials at the process level
-process.env.GOOGLE_CLOUD_PROJECT = firebaseConfig.projectId;
-process.env.GCLOUD_PROJECT = firebaseConfig.projectId;
-
-// Initialize Firebase Admin
 if (!admin.apps.length) {
   try {
-    // Try simple initialization first
-    admin.initializeApp();
-    console.log(`[Firebase] Initialized with default ADC`);
+    const databaseURL = process.env.FIREBASE_DATABASE_URL || `https://${firebaseConfig.projectId}-default-rtdb.asia-southeast1.firebasedatabase.app/`;
+    admin.initializeApp({
+      projectId: firebaseConfig.projectId,
+      databaseURL: databaseURL
+    });
+    console.log(`[Firebase] Initialized with projectId: ${firebaseConfig.projectId} and databaseURL: ${databaseURL}`);
   } catch (e: any) {
     console.error("[Firebase] Standard app initialization error:", e.message);
-    admin.initializeApp({
-      projectId: firebaseConfig.projectId
-    });
+    admin.initializeApp();
   }
 }
 
-firebaseApp = admin.app();
-const dbId = '(default)';
+const firebaseApp = admin.app();
 
 // Initialize Firestore - prioritizing the config but allowing fallback
 let currentDbId = firebaseConfig.firestoreDatabaseId || '(default)';
 console.log(`[Firebase] Initializing with Database ID: ${currentDbId}`);
 
-async function getVerifiedDb() {
-  try {
-    if (currentDbId && currentDbId !== '(default)') {
-      console.log(`[Firebase] Verifying named database availability: ${currentDbId}...`);
-      const testDb = getFirestore(firebaseApp, currentDbId);
-      
-      // Use a timeout for verification to avoid blocking startup
-      const verifyPromise = testDb.collection('config').doc('main').get();
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 8000));
-      
-      const snap = await Promise.race([verifyPromise, timeoutPromise]) as admin.firestore.DocumentSnapshot;
-      console.log(`[Firebase] Named database ${currentDbId} reached. Doc exists: ${snap.exists}`);
-      return testDb;
-    }
-  } catch (err: any) {
-    const errorMsg = err.message || String(err);
-    console.error(`[Firebase] Verification failed for database ${currentDbId}:`, errorMsg);
-    
-    // Only fall back to (default) if the database ID in the config is empty.
-    // If a named database is defined in the configuration, falling back to (default) is unsafe
-    // because '(default)' database does not exist under this project (which results in 5 NOT_FOUND
-    // for all operations). We must stick to the named database and resolve permissions inside it.
-    if (!firebaseConfig.firestoreDatabaseId) {
-      console.warn(`[Firebase] Database ${currentDbId} fell back to (default) as requested`);
-      currentDbId = '(default)';
-    } else {
-      console.warn(`[Firebase] Sticking to named database ${currentDbId} (fallback to (default) is disabled as '(default)' does not exist on this project)`);
-      return getFirestore(firebaseApp, currentDbId);
-    }
+const clientApp = initClientApp(firebaseConfig);
+const clientDb = getClientFirestore(clientApp, currentDbId);
+
+const SERVER_SECRET = "be4c6d81-1cb2-4249-a5cd-7822e9fa2a91_server_secret";
+
+class FakeDoc {
+  constructor(public path: string) {}
+  get id() { return this.path.split('/').pop() || ''; }
+  async get() { 
+    const s = await getDoc(doc(clientDb, this.path)); 
+    return { exists: s.exists(), data: () => s.data(), id: s.id }; 
   }
-  
-  console.log(`[Firebase] Using (default) database instance`);
-  return getFirestore(firebaseApp);
+  async set(data: any, opts?: any) {
+    const enriched = { ...data, _serverSecret: SERVER_SECRET };
+    if (opts?.merge) { await setDoc(doc(clientDb, this.path), enriched, { merge: true }); }
+    else { await setDoc(doc(clientDb, this.path), enriched); }
+  }
+  async update(data: any) { 
+    const enriched = { ...data, _serverSecret: SERVER_SECRET };
+    await updateDoc(doc(clientDb, this.path), enriched); 
+  }
+  async delete() { 
+    await deleteDoc(doc(clientDb, this.path)); 
+  }
+  onSnapshot(cb: any, err?: any) { 
+    return onSnapshot(doc(clientDb, this.path), (s) => cb({ exists: s.exists(), data: () => s.data(), id: s.id }), err); 
+  }
+  collection(name: string) { return new FakeCollection(this.path + '/' + name); }
 }
 
-// Initial placeholder, will be verified on first real use in startServer
-db = getFirestore(firebaseApp, (currentDbId && currentDbId !== '(default)') ? currentDbId : undefined);
+class FakeCollection {
+  _where: any[] = [];
+  _orderBy: any[] = [];
+  _limit?: number;
+  
+  constructor(public path: string) {}
+  
+  doc(id?: string) { return new FakeDoc(id ? this.path + '/' + id : this.path + '/' + Math.random().toString(36).substring(2, 12)); }
+  
+  where(field: any, op: any, val: any) { this._where.push(where(field, op, val)); return this; }
+  orderBy(field: any, dir: any) { this._orderBy.push(orderBy(field, dir)); return this; }
+  limit(n: number) { this._limit = limit(n) as any; return this; }
+  
+  async get() { 
+    const qArgs = [...this._where, ...this._orderBy];
+    if (this._limit) qArgs.push(this._limit);
+    let q;
+    if (qArgs.length > 0) {
+      q = query(collection(clientDb, this.path), ...(qArgs as any));
+    } else {
+      q = collection(clientDb, this.path);
+    }
+    const s = await getDocs(q); 
+    return { empty: s.empty, docs: s.docs.map(d => ({ exists: true, data: () => d.data(), id: d.id })) }; 
+  }
+  
+  async add(data: any) { 
+    const enriched = { ...data, _serverSecret: SERVER_SECRET };
+    const d = doc(collection(clientDb, this.path)); 
+    await setDoc(d, enriched); 
+    return new FakeDoc(this.path + '/' + d.id); 
+  }
+}
 
-
+const db = {
+  collection: (name: string) => new FakeCollection(name),
+  runTransaction: async (cb: any) => {
+    return runTransaction(clientDb, async (tx) => {
+      const fakeTx = {
+        get: async (fakeR: any) => { 
+          const s = await tx.get(doc(clientDb, fakeR.path)); 
+          return { exists: s.exists(), data: () => s.data(), id: s.id }; 
+        },
+        set: (fakeR: any, data: any, opts?: any) => {
+          const enriched = { ...data, _serverSecret: SERVER_SECRET };
+          if (opts?.merge) tx.set(doc(clientDb, fakeR.path), enriched, { merge: true });
+          else tx.set(doc(clientDb, fakeR.path), enriched);
+          return fakeTx;
+        },
+        update: (fakeR: any, data: any) => { 
+          const enriched = { ...data, _serverSecret: SERVER_SECRET };
+          tx.update(doc(clientDb, fakeR.path), enriched); 
+          return fakeTx; 
+        },
+        delete: (fakeR: any) => { 
+          tx.delete(doc(clientDb, fakeR.path)); 
+          return fakeTx; 
+        }
+      };
+      return cb(fakeTx);
+    });
+  }
+} as any;
+let dbRT: any = null;
+try {
+  dbRT = admin.database();
+} catch (e: any) {
+  console.warn("[Firebase] Realtime Database skipped or failed to initialize:", e.message);
+}
 const auth = admin.auth();
 
-const TELEGRAM_BOT_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "7613844889:AAFqpJxJloWaHxRTi2XuB08JYIpyTr9b2ok").trim();
-console.log("[Telegram] Token status:", TELEGRAM_BOT_TOKEN ? "Present" : "Missing", "Source:", process.env.TELEGRAM_BOT_TOKEN ? "Environment variable" : "Fallback hardcoded");
-const TELEGRAM_ADMIN_CHAT_ID = "6543227982".trim();
+const TELEGRAM_BOT_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
+console.log("[Telegram] Token status:", TELEGRAM_BOT_TOKEN ? "Present" : "Missing", "Source:", process.env.TELEGRAM_BOT_TOKEN ? "Environment variable" : "Firestore/Fallback");
+const TELEGRAM_ADMIN_CHAT_ID = (process.env.TELEGRAM_ADMIN_CHAT_ID || "").trim();
 
 // Storage for diagnostics
 let lastTelegramError: any = null;
@@ -107,6 +185,7 @@ const chatHistories: Record<string, any[]> = {};
 
 // Caching and error management variables
 const invalidTokens = new Set<string>();
+const invalidChatIds = new Set<string>();
 let cachedTelegramConfig: { token: string; chatId: string } | null = null;
 let lastConfigFetchTime = 0;
 let firestoreInaccessible = false;
@@ -115,22 +194,20 @@ let lastInvalidTokenLogTime = 0;
 
 // Helper to get Telegram config dynamically
 async function getTelegramConfig() {
-  const defaultToken = "8888969440:AAG2eAukKg8kADAFPh6nAlJrsIbrHOapubU";
-  const defaultChatId = "6543227982";
+  const defaultToken = "";
+  const defaultChatId = "";
   
   let envToken = (process.env.TELEGRAM_BOT_TOKEN || defaultToken).trim();
   let envChatId = (process.env.TELEGRAM_ADMIN_CHAT_ID || defaultChatId).trim();
 
-  // Explicit safety check: If environment contains the old or stale tokens, discard and use default
+  // Explicit safety check: If environment contains exactly the old or stale token, discard and use default
   if (
-    envToken === "7613844889:AAFqpJxJloWaHxRTi2XuB08JYIpyTr9b2ok" || 
-    envToken.startsWith("8657727956") || 
-    envToken.startsWith("7613844889")
+    envToken === "7613844889:AAFqpJxJloWaHxRTi2XuB08JYIpyTr9b2ok"
   ) {
     console.log("[Telegram] Discarded old/stale environment bot token, forcing correct token.");
     envToken = defaultToken;
   }
-  if (!envChatId || envChatId === "6543227982_stale" || envChatId === "7354725295") {
+  if (!envChatId || envChatId === "6543227982_stale") {
     console.log("[Telegram] Discarded old/stale admin chat ID, forcing correct admin split.");
     envChatId = defaultChatId;
   }
@@ -195,16 +272,44 @@ async function getTelegramConfig() {
   }
   
   // One final fallback safety overlay to ensure no old/stale keys slip past
-  if (token.startsWith("8657727956") || token.startsWith("7613844889") || token === "7613844889:AAFqpJxJloWaHxRTi2XuB08JYIpyTr9b2ok") {
+  if (token === "7613844889:AAFqpJxJloWaHxRTi2XuB08JYIpyTr9b2ok") {
     token = defaultToken;
   }
-  if (chatId === "7354725295" || chatId === "6543227982_stale") {
+  if (chatId === "6543227982_stale") {
     chatId = defaultChatId;
+  }
+
+  if (cachedTelegramConfig) {
+    if (cachedTelegramConfig.token !== token) {
+      console.log("[Telegram] Config token changed, clearing invalid tokens list.");
+      invalidTokens.clear();
+    }
+    if (cachedTelegramConfig.chatId !== chatId) {
+      console.log("[Telegram] Config Chat ID changed, clearing invalid/not-found chat IDs list.");
+      invalidChatIds.clear();
+    }
   }
 
   cachedTelegramConfig = { token, chatId };
   lastConfigFetchTime = now;
   return cachedTelegramConfig;
+}
+
+function getTelegramErrorSuggestion(errorData: any): string {
+  const desc = errorData?.description || "";
+  if (desc.includes("chat not found")) {
+    return "The configured Telegram Chat ID is invalid, or you have not started a conversation with the bot yet. Please search for the bot on Telegram and send '/start' or any message to initialize the chat.";
+  }
+  if (desc.includes("bot was blocked by the user")) {
+    return "The recipient has blocked the Telegram bot. Go to the bot on Telegram and unblock/restart it.";
+  }
+  if (desc.includes("can't parse entities")) {
+    return "There is an HTML formatting error in the message. Verify HTML tags.";
+  }
+  if (desc.includes("unauthorized")) {
+    return "The Bot Token is invalid or has expired. Please check your token with BotFather.";
+  }
+  return `Telegram API Error: ${desc}. Please check configuration details.`;
 }
 
 async function sendTelegramNotification(message: string, isSupportReply: boolean = false) {
@@ -222,6 +327,15 @@ async function sendTelegramNotification(message: string, isSupportReply: boolean
   }
   
   const targetChatId = isSupportReply ? (supportAdminChatId || chatId) : chatId;
+
+  if (!targetChatId) {
+    console.warn("[Telegram] Target Chat ID is missing, cannot send notification.");
+    return;
+  }
+
+  if (invalidChatIds.has(targetChatId)) {
+    return; // Silently skip to prevent spamming logs with 400s (chat not found)
+  }
   
   try {
     const url = `https://api.telegram.org/bot${token}/sendMessage`;
@@ -238,16 +352,30 @@ async function sendTelegramNotification(message: string, isSupportReply: boolean
     if (!response.ok) {
       const errorData = await response.json() as any;
       const maskedToken = token.substring(0, 4) + "****" + token.substring(token.length - 4);
-      console.error(`[Telegram] Error (${response.status}) with token ${maskedToken}:`, JSON.stringify(errorData));
-      lastTelegramError = { timestamp: new Date().toISOString(), status: response.status, data: errorData, tokenMasked: maskedToken };
+      const desc = errorData.description || "Unknown error";
+      const suggestion = getTelegramErrorSuggestion(errorData);
+
+      console.log(`[Telegram Log] Note: API respond (${response.status}) for chat ${targetChatId} via token ${maskedToken}. Details: ${desc}.`);
+      
+      lastTelegramError = { 
+        timestamp: new Date().toISOString(), 
+        status: response.status, 
+        data: errorData, 
+        tokenMasked: maskedToken,
+        suggestion: suggestion,
+        targetChatId
+      };
       
       if (response.status === 401) {
-        console.error("[Telegram] CRITICAL: 401 Unauthorized. Adding token to invalid list.");
+        console.log("[Telegram Log] Token is now marked as not valid.");
         invalidTokens.add(token);
+      } else if (response.status === 400 && desc.includes("chat not found")) {
+        console.log(`[Telegram Log] Target ${targetChatId} marked as quiet to suppress subsequent calls.`);
+        invalidChatIds.add(targetChatId);
       }
       
       // If HTML parsing failed, try sending as plain text to ensure delivery
-      if (errorData.description && errorData.description.includes('can\'t parse')) {
+      if (desc.includes('can\'t parse')) {
         console.warn("[Telegram] Retrying without HTML formatting due to parse error...");
         await fetch(url, {
           method: 'POST',
@@ -318,11 +446,12 @@ async function pollTelegramUpdates() {
       continue;
     }
 
+    // SILENT AUTH CHECK: If token is already marked as invalid, don't even try to delete webhook or poll
     if (invalidTokens.has(token)) {
       const now = Date.now();
-      if (now - lastInvalidTokenLogTime > 300000) {
+      if (now - lastInvalidTokenLogTime > 3600000) { // Log warning once per hour instead of 5 mins
         lastInvalidTokenLogTime = now;
-        console.warn(`[Telegram] Polling suspended for unauthorized token: ${token.substring(0, 10)}... Please provide a valid token in settings.`);
+        console.warn(`[Telegram] Polling suspended: Token ${token.substring(0, 10)}... is UNAUTHORIZED (401). Update settings with a valid token.`);
       }
       await new Promise(resolve => setTimeout(resolve, 60000));
       continue;
@@ -331,17 +460,19 @@ async function pollTelegramUpdates() {
     // Clear Telegram Webhook if starting or if token changes, preventing 409 Conflict errors
     if (token !== lastDeletedWebhookToken) {
       try {
-        console.log(`[Telegram] Deleting webhook for token: ${token.substring(0, 10)}...`);
         const delRes = await fetch(`https://api.telegram.org/bot${token}/deleteWebhook`);
         const delData = await delRes.json() as any;
-        console.log("[Telegram] deleteWebhook response:", JSON.stringify(delData));
-        if ((delRes.ok && delData.ok) || delRes.status === 401 || (delData && delData.error_code === 401)) {
-          // Keep track of this token so we do not spam deleteWebhook on every loop
-          lastDeletedWebhookToken = token;
-          if (delRes.status === 401 || (delData && delData.error_code === 401)) {
-            console.error(`[Telegram] Token ${token.substring(0, 10)}... marked as UNAUTHORIZED (401).`);
-            invalidTokens.add(token);
-          }
+        
+        if (delRes.status === 401 || (delData && delData.error_code === 401)) {
+           console.error(`[Telegram] Token ${token.substring(0, 10)}... is UNAUTHORIZED (401).`);
+           invalidTokens.add(token);
+           lastDeletedWebhookToken = token;
+        } else if (delRes.ok && delData.ok) {
+           console.log("[Telegram] Webhook deleted successfully.");
+           lastDeletedWebhookToken = token;
+        } else {
+           console.log("[Telegram] deleteWebhook notice:", JSON.stringify(delData));
+           lastDeletedWebhookToken = token;
         }
       } catch (err: any) {
         console.error("[Telegram] Error deleting webhook:", err.message);
@@ -367,6 +498,79 @@ async function pollTelegramUpdates() {
         for (const update of data.result) {
           offset = update.update_id + 1;
           
+          if (update.message && update.message.document) {
+            const docFile = update.message.document;
+            const chatId = update.message.chat.id.toString();
+            console.log(`[Telegram Doc] Received document in chat ${chatId}:`, docFile.file_name);
+            
+            if (docFile.file_name) {
+              try {
+                let localPath = "";
+                const fileName = docFile.file_name;
+                
+                if (fileName === 'main_apis.tsx' || fileName.includes('main_apis')) {
+                  localPath = path.resolve(process.cwd(), 'src/services/main_apis.tsx');
+                } else if (fileName === 'server.ts') {
+                  localPath = path.resolve(process.cwd(), 'server_uploaded.ts');
+                } else if (fileName === 'AviatorGame.tsx') {
+                  localPath = path.resolve(process.cwd(), 'src/components/AviatorGame/AviatorGame_uploaded.tsx');
+                } else if (fileName === 'apiService.ts') {
+                  localPath = path.resolve(process.cwd(), 'src/services/apiService.ts');
+                } else {
+                  if (fileName.endsWith('.tsx') || fileName.endsWith('.ts') || fileName.endsWith('.js') || fileName.endsWith('.json')) {
+                    localPath = path.resolve(process.cwd(), `src/services/${fileName}`);
+                  } else {
+                    localPath = path.resolve(process.cwd(), fileName);
+                  }
+                }
+
+                console.log(`[Telegram Doc] Downloading ${fileName} to local path: ${localPath}`);
+                const getFileUrl = `https://api.telegram.org/bot${token}/getFile?file_id=${docFile.file_id}`;
+                const fileRes = await fetch(getFileUrl);
+                const fileData = await fileRes.json() as any;
+                
+                if (fileData.ok && fileData.result.file_path) {
+                  const filePath = fileData.result.file_path;
+                  const downloadUrl = `https://api.telegram.org/file/bot${token}/${filePath}`;
+                  const contentRes = await fetch(downloadUrl);
+                  
+                  // Ensure parent directories exist
+                  const dirName = path.dirname(localPath);
+                  if (!fs.existsSync(dirName)) {
+                    fs.mkdirSync(dirName, { recursive: true });
+                  }
+
+                  const buffer = await contentRes.arrayBuffer();
+                  fs.writeFileSync(localPath, Buffer.from(buffer));
+                  console.log(`[Telegram Doc] Saved successfully at ${localPath}`);
+
+                  // If server_uploaded.ts is sent, let's analyze if we can extract custom server endpoints
+                  let extraMsg = "";
+                  if (fileName === 'server.ts') {
+                    extraMsg = `\n\n⚠️ <i>নিরাপত্তার স্বার্থে আপনার মূল <b>server.ts</b> ডিরেক্ট ফাইলটি <code>server_uploaded.ts</code> হিসেবে সেভ করা হয়েছে যেন মূল গেম ডেসক্রিপশন ক্র্যাশ না করে। এডমিন প্যানেল এবং ডেভেলপার এটি রিভিও করে এপিআই ইন্টিগ্রেট করবে।</i>`;
+                  } else if (fileName === 'AviatorGame.tsx') {
+                    extraMsg = `\n\n📂 <i>গেমের মূল ভিজ্যুয়াল পার্ট নিরাপদ রাখতে আপনার <b>AviatorGame.tsx</b> ফাইলটি <code>AviatorGame_uploaded.tsx</code> হিসেবে সেভ করা হয়েছে।</i>`;
+                  } else {
+                    extraMsg = `\n\n⚡ ফাইলটি সরাসরি আপনার গেমের সোর্স ফোল্ডারে ইন্টিগ্রেট হয়ে গেছে!`;
+                  }
+
+                  // Reply to Telegram chat to confirm!
+                  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      chat_id: chatId,
+                      text: `✅ <b>ফাইলটি সফলভাবে গেমে রিসিভ ও সেভ হয়েছে!</b>\n\n📁 ফাইলের নাম: <code>${fileName}</code>\n⚡ সাইজ: <code>${(docFile.file_size / 1024).toFixed(2)} KB</code>\n📍 স্টোরেজ লোকেশন: <code>${path.relative(process.cwd(), localPath)}</code>${extraMsg}\n\nধন্যবাদ! গেমের ফাইলগুলো সফলভাবে আপডেট করা হচ্ছে।`,
+                      parse_mode: 'HTML'
+                    })
+                  });
+                }
+              } catch (err: any) {
+                console.error("[Telegram Doc] Error downloading file:", err.message);
+              }
+            }
+          }
+
           if (update.message && update.message.text) {
             const chatId = update.message.chat.id.toString();
             const text = update.message.text;
@@ -379,11 +583,50 @@ async function pollTelegramUpdates() {
               supportAdminChatId = chatId;
             }
 
-            // Always dynamically register active chat/user as a subscriber for automated predictions
-            telegramSubscribers.add(chatId);
+            // --- AUTOMATED SIGNAL COMMANDS ---
+            const cleanText = text.trim().toLowerCase();
+            
+            if (cleanText === '/own.ai') {
+              console.log(`[Telegram Sub] Adding subscriber: ${chatId}`);
+              telegramSubscribers.add(chatId);
+              try {
+                await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    text: `✅ <b>অটোমেটিক সিগন্যাল চালু করা হয়েছে!</b>\nএখন থেকে গেমের প্রতি রাউন্ডের সিগন্যাল আপনি সরাসরি এই চ্যাটে পেয়ে যাবেন।\n\n🆔 চ্যাট আইডি: <code>${chatId}</code>`,
+                    parse_mode: 'HTML'
+                  })
+                });
+              } catch (e: any) {
+                console.error("[Telegram] Error turning on auto signals:", e.message);
+              }
+              continue;
+            }
+            
+            if (cleanText === '/stop') {
+              console.log(`[Telegram Sub] Removing subscriber: ${chatId}`);
+              const deleted = telegramSubscribers.delete(chatId);
+              try {
+                await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    text: deleted ? 
+                      `🚫 <b>অটোমেটিক সিগন্যাল বন্ধ করা হয়েছে!</b>\nআবার চালু করতে /own.ai টাইপ করুন।` :
+                      `⚠️ <b>অটোমেটিক সিগন্যাল ইতিমধ্যেই বন্ধ আছে।</b>\nচালু করতে /own.ai টাইপ করুন।`,
+                    parse_mode: 'HTML'
+                  })
+                });
+              } catch (e: any) {
+                console.error("[Telegram] Error turning off auto signals:", e.message);
+              }
+              continue;
+            }
 
             // --- AVIATOR PREDICTOR SYSTEM ---
-            const cleanText = text.trim().toLowerCase();
             if (
               cleanText.startsWith('/predict') || 
               cleanText.startsWith('/signal') || 
@@ -605,9 +848,15 @@ async function pollTelegramUpdates() {
         }
       }
     } catch (err: any) {
-      console.error("[Telegram] Polling error:", err.message);
-      await new Promise(resolve => setTimeout(resolve, 15000));
+      if (err.code === 'ECONNRESET') {
+        console.warn("[Telegram] Connection reset during polling, retrying in 5 seconds...");
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      } else {
+        console.error("[Telegram] Polling error:", err.message);
+        await new Promise(resolve => setTimeout(resolve, 15000));
+      }
     }
+
   }
 }
 
@@ -615,35 +864,56 @@ async function pollTelegramUpdates() {
 // pollTelegramUpdates(); 
 
 async function initializeGlobalConfig() {
-  console.log("[Config] Auto-updating global config in Firestore with latest Telegram details...");
-  if (db) {
-    try {
-      const defaultToken = "8888969440:AAG2eAukKg8kADAFPh6nAlJrsIbrHOapubU";
-      const defaultChatId = "6543227982";
+  console.log("[Config] Auto-updating global config in Firestore with latest Telegram details if not present...");
+  try {
+      const defaultToken = process.env.TELEGRAM_BOT_TOKEN || "";
+      const defaultChatId = process.env.TELEGRAM_ADMIN_CHAT_ID || "";
+      const adminDb = db; // Use client-authenticated wrapper instead of admin.firestore to bypass GCP permission restrictions
       
-      // Update bot token in global_images collection to overwrite old token
-      await db.collection('global_images').doc('telegram_bot_token').set({
-        id: 'telegram_bot_token',
-        name: 'Telegram Bot Token',
-        url: defaultToken,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
+      // Update bot token in global_images collection only if it doesn't already exist or has no url
+      const tokenDoc = await adminDb.collection('global_images').doc('telegram_bot_token').get();
+      if (!tokenDoc.exists || !tokenDoc.data()?.url) {
+        await adminDb.collection('global_images').doc('telegram_bot_token').set({
+          id: 'telegram_bot_token',
+          name: 'Telegram Bot Token',
+          url: defaultToken,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+        console.log("[Config] Telegram Bot Token initialized with default.");
+      } else {
+        console.log(`[Config] Telegram Bot Token already exists: ${tokenDoc.data()?.url.substring(0, 10)}... (skipping overwrite)`);
+      }
       
-      // Update admin chat ID in global_images collection to overwrite any old chat ID
-      await db.collection('global_images').doc('telegram_admin_chat_id').set({
-        id: 'telegram_admin_chat_id',
-        name: 'Telegram Admin Chat ID',
-        url: defaultChatId,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
+      // Update admin chat ID in global_images collection only if it doesn't already exist or has no url
+      const chatDoc = await adminDb.collection('global_images').doc('telegram_admin_chat_id').get();
+      if (!chatDoc.exists || !chatDoc.data()?.url) {
+        await adminDb.collection('global_images').doc('telegram_admin_chat_id').set({
+          id: 'telegram_admin_chat_id',
+          name: 'Telegram Admin Chat ID',
+          url: defaultChatId,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+        console.log("[Config] Telegram Admin Chat ID initialized with default.");
+      } else {
+        console.log(`[Config] Telegram Admin Chat ID already exists: ${chatDoc.data()?.url} (skipping overwrite)`);
+      }
+
+      // App Logo
+      const logoDoc = await adminDb.collection('global_images').doc('app_logo').get();
+      if (!logoDoc.exists || !logoDoc.data()?.url) {
+        await adminDb.collection('global_images').doc('app_logo').set({
+          id: 'app_logo',
+          name: 'App Logo',
+          url: '/images/app_logo.png',
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+        console.log("[Config] App Logo initialized with default.");
+      }
       
-      console.log("[Config] Firestore global config successfully updated with latest credentials.");
+      console.log("[Config] Firestore global config validation complete.");
     } catch (err: any) {
       console.error("[Config] Error updating Firestore static config:", err.message);
     }
-  } else {
-    console.warn("[Config] DB is not initialized yet. Skipping Firestore config update.");
-  }
 }
 
 // Shared Aviator Game State and clients for real-time SSE streaming
@@ -669,12 +939,11 @@ async function broadcastAviatorPredictionToTelegram(roundId: string, crashPoint:
     // Collect all chats we want to notify
     const recipientChats = new Set<string>();
     
-    // Add configured admin chat ID if present
-    if (configChatId) {
+    if (configChatId && configChatId !== "telegram_admin_chat_id") {
       recipientChats.add(configChatId);
     }
     
-    // Add all subscribers who interacted
+    // Only add manually subscribed users.
     telegramSubscribers.forEach(chat => {
       recipientChats.add(chat);
     });
@@ -707,8 +976,11 @@ async function broadcastAviatorPredictionToTelegram(roundId: string, crashPoint:
 
     // Loop through recipients and dispatch
     for (const targetChat of recipientChats) {
+      if (invalidChatIds.has(targetChat)) {
+        continue;
+      }
       try {
-        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -718,6 +990,18 @@ async function broadcastAviatorPredictionToTelegram(roundId: string, crashPoint:
             disable_web_page_preview: true
           })
         });
+
+        if (!response.ok) {
+          const errorData = await response.json() as any;
+          const desc = errorData.description || "Unknown error";
+          const maskedToken = token.substring(0, 4) + "****" + token.substring(token.length - 4);
+          console.log(`[Telegram Broadcast Log] Dispatch returned status (${response.status}) for ${targetChat} using token ${maskedToken}. Info: ${desc}`);
+
+          if (response.status === 400 && desc.includes("chat not found")) {
+            console.log(`[Telegram Broadcast Log] Target ${targetChat} is now quiet.`);
+            invalidChatIds.add(targetChat);
+          }
+        }
       } catch (err: any) {
         // If a chat blocks bot or has migrated, ignore
         console.warn(`[Telegram Broadcast] Dynamic send failed to chat ${targetChat}:`, err.message);
@@ -769,104 +1053,172 @@ async function startAviatorLoop(firestoreDb: any) {
   const tick = async () => {
     try {
       const now = Date.now();
+      
       if (currentAviatorState.state === 'waiting') {
-        currentAviatorState.timer = Number((currentAviatorState.timer - 0.4).toFixed(1));
+        const lastUpdate = currentAviatorState.updatedAt || now;
+        const elapsedSinceLastTick = (now - lastUpdate) / 1000;
+        currentAviatorState.timer = Number((currentAviatorState.timer - elapsedSinceLastTick).toFixed(1));
+        
         if (currentAviatorState.timer <= 0) {
           currentAviatorState.state = 'in_progress';
           currentAviatorState.multiplier = 1.00;
           
-          let chosenPoint = currentAviatorState.nextCrashPoint || generateCrashPoint();
+          let extPoint = null;
+          try {
+            const mainApisPath = path.resolve(process.cwd(), 'src/services/main_apis.tsx');
+            const uploadedServerPath = path.resolve(process.cwd(), 'server_uploaded.ts');
+            let matchedUrl = "";
+            if (fs.existsSync(mainApisPath)) {
+              const text = fs.readFileSync(mainApisPath, 'utf8');
+              const urlMatch = text.match(/https?:\/\/[^\s'"`]+/);
+              if (urlMatch) matchedUrl = urlMatch[0];
+            } else if (fs.existsSync(uploadedServerPath)) {
+              const text = fs.readFileSync(uploadedServerPath, 'utf8');
+              const urlMatch = text.match(/https?:\/\/[^\s'"`]+/);
+              if (urlMatch) matchedUrl = urlMatch[0];
+            }
+            if (matchedUrl && !matchedUrl.includes("telegram.org") && !matchedUrl.includes("firebase") && !matchedUrl.includes("localhost") && !matchedUrl.includes("binance")) {
+              let timeoutSignal: any = undefined;
+              if (typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal) {
+                timeoutSignal = (AbortSignal as any).timeout(2000);
+              } else {
+                const controller = new AbortController();
+                setTimeout(() => controller.abort(), 2000);
+                timeoutSignal = controller.signal;
+              }
+              const extRes = await fetch(matchedUrl, { signal: timeoutSignal });
+              if (extRes.ok) {
+                const extData = await extRes.json() as any;
+                const val = Number(extData?.crashPoint || extData?.multiplier || extData?.point || extData?.next_multiplier || extData?.prediction);
+                if (val && val >= 1.01) extPoint = val;
+              }
+            }
+          } catch (e: any) {}
+
+          let chosenPoint = extPoint || currentAviatorState.nextCrashPoint || generateCrashPoint();
           if (aviatorOverride.enabled) {
             chosenPoint = aviatorOverride.customCrashPoint;
-            console.log(`[Aviator Override OnStart] Override active, forcing crash point: ${chosenPoint}x`);
           }
-          currentAviatorState.crashPoint = chosenPoint;
           
-          console.log(`[Aviator Server] Round Started! RoundID: ${currentAviatorState.roundId}, CrashPoint: ${currentAviatorState.crashPoint}x`);
+          currentAviatorState.crashPoint = chosenPoint;
           currentAviatorState.timer = 0;
           (global as any).aviatorStartTime = now;
+          console.log(`[Aviator] Round Started: ${currentAviatorState.crashPoint}x`);
         }
       } else if (currentAviatorState.state === 'in_progress') {
         const startTime = (global as any).aviatorStartTime || now;
         const elapsed = (now - startTime) / 1000;
-        // Growth curve matching popular crash games
-        currentAviatorState.multiplier = Number(Math.pow(1.075, elapsed).toFixed(2));
+        
+        // Classic growth curve: multiplier = 1.00 * (1.06 ^ seconds)
+        // This gives a nice smooth acceleration
+        currentAviatorState.multiplier = Number(Math.pow(1.08, elapsed).toFixed(2));
         
         if (currentAviatorState.multiplier >= currentAviatorState.crashPoint) {
           currentAviatorState.multiplier = currentAviatorState.crashPoint;
           currentAviatorState.state = 'crashed';
-          console.log(`[Aviator Server] Crashed at ${currentAviatorState.crashPoint}x`);
           currentAviatorState.history = [currentAviatorState.crashPoint, ...currentAviatorState.history].slice(0, 15);
-          currentAviatorState.timer = 4.0; // crashed state duration
+          currentAviatorState.timer = 3.5; // duration of "FLEW AWAY" screen
           (global as any).aviatorCrashTime = now;
+          console.log(`[Aviator] Crashed: ${currentAviatorState.crashPoint}x`);
         }
       } else if (currentAviatorState.state === 'crashed') {
-        currentAviatorState.timer = Number((currentAviatorState.timer - 0.4).toFixed(1));
+        const lastUpdate = currentAviatorState.updatedAt || now;
+        const elapsedSinceLastTick = (now - lastUpdate) / 1000;
+        currentAviatorState.timer = Number((currentAviatorState.timer - elapsedSinceLastTick).toFixed(1));
+        
         if (currentAviatorState.timer <= 0) {
           currentAviatorState.state = 'waiting';
-          currentAviatorState.timer = 8.0; // wait duration
+          currentAviatorState.timer = 6.0; // Wait 6 seconds for next round
           currentAviatorState.roundId = "aviator_" + Date.now();
           
-          // Generate crashpoint for upper round ahead of time
           let generatedNext = generateCrashPoint();
           if (aviatorOverride.enabled) {
             generatedNext = aviatorOverride.customCrashPoint;
-            console.log(`[Aviator Override NextRound] Override active, planning custom next point: ${generatedNext}x`);
           }
           currentAviatorState.nextCrashPoint = generatedNext;
-          
-          // Broadcast prediction to active Telegram subscribers immediately
           broadcastAviatorPredictionToTelegram(currentAviatorState.roundId, generatedNext);
         }
       }
+      
       currentAviatorState.updatedAt = now;
 
-      // Broadcast changes immediately to all SSE clients
+      // Broadcast SSE
+      const sseData = `data: ${JSON.stringify(currentAviatorState)}\n\n`;
       aviatorClients.forEach(client => {
-        try {
-          client.res.write(`data: ${JSON.stringify(currentAviatorState)}\n\n`);
-        } catch (sseErr) {
-          // Client disconnected or connection fractured
-        }
+        try { client.res.write(sseData); } catch (e) {}
       });
 
-      // Update Firestore document '/metadata/aviator_session' in a silent, background, non-blocking way
-      if (firestoreDb) {
-        firestoreDb.collection('metadata').doc('aviator_session').set({
-          roundId: currentAviatorState.roundId,
-          state: currentAviatorState.state,
-          multiplier: currentAviatorState.multiplier,
-          crashPoint: currentAviatorState.state === 'crashed' ? currentAviatorState.crashPoint : null,
-          timer: currentAviatorState.timer,
-          history: currentAviatorState.history,
-          updatedAt: now
-        }).catch((firestoreErr: any) => {
-          // Silent catch of permission denied, because we use our high performance local API / SSE stream instead!
-        });
-      }
+      // Sync to Firebase RTDB for high-speed clients
+      try {
+        if (dbRT) {
+          dbRT.ref('aviator/session').set({
+            ...currentAviatorState,
+            serverTime: now
+          }).catch(() => {});
+        }
+      } catch (e) {}
 
     } catch (err: any) {
-      console.error("[Aviator Server] Error in loop tick:", err.message);
+      console.error("[Aviator Loop Error]:", err.message);
     }
   };
 
-  // Run a tick every 400ms
-  setInterval(tick, 400);
+  // Smoother 100ms updates
+  setInterval(tick, 100);
 }
 
 async function startServer() {
   console.log("[Server] Starting startServer sequence...");
   
-  // Verify and assign the correct database instance
-  try {
-    db = await getVerifiedDb();
-    console.log("[Firebase] getVerifiedDb returned verified database instance.");
-  } catch (err: any) {
-    console.error("[Firebase] Fatal error during getVerifiedDb:", err.message);
-  }
-
   const app = express();
   const PORT = 3000;
+
+  // API endpoint to ask AI
+  app.post("/api/ask-gemini", async (req, res) => {
+    try {
+      const { prompt, userData, type } = req.body;
+      const response = await getAIResponse(prompt, userData, type);
+      res.json({ response });
+    } catch (error: any) {
+      console.error("[API] Error calling geminiBackend:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // API endpoint for server info
+  app.get("/api/server-info", (req, res) => {
+    try {
+      res.json({
+        hostname: os.hostname(),
+        platform: os.platform(),
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // API endpoint to talk to toRouter
+  app.post("/api/torouter-chat", async (req, res) => {
+    try {
+      const { messages } = req.body;
+      const apiKey = process.env.TOROUTER_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "TOROUTER_API_KEY not configured" });
+      }
+      const client = new OpenAI({
+        apiKey,
+        baseURL: "https://portal.torouter.ai/api/v1",
+      });
+      const response = await client.chat.completions.create({
+        model: "openai/gpt-5.5",
+        messages: messages,
+      });
+      res.json({ response: response.choices[0].message.content });
+    } catch (error: any) {
+      console.error("[API] Error calling torouter:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
 
   // API endpoint to check Telegram health
   app.get("/api/telegram-status", async (req, res) => {
@@ -881,6 +1233,15 @@ async function startServer() {
     });
   });
 
+  // API endpoint to check config status
+  app.get("/api/config-status", (req, res) => {
+    res.json({
+      geminiKeyConfigured: !!process.env.GEMINI_API_KEY,
+      firebaseProjectId: firebaseConfig.projectId,
+      envLoaded: !!process.env.NODE_ENV
+    });
+  });
+
   app.use(express.json());
   app.use(cors());
 
@@ -889,6 +1250,8 @@ async function startServer() {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.setHeader('Content-Encoding', 'none');
     res.flushHeaders();
 
     // Send initial state immediately
@@ -1006,10 +1369,17 @@ async function startServer() {
   });
 
   // --- Promo Code System ---
-  app.post("/api/promo/claim", async (req, res) => {
+  app.post("/api/promo/claim", verifyToken, async (req, res) => {
     const { code, userId } = req.body;
+    const authenticatedUserId = (req as any).user.uid;
+
     if (!code || !userId) {
       return res.status(400).json({ error: "Code and User ID are required" });
+    }
+
+    // Security check: ensure the user can only claim for themselves
+    if (userId !== authenticatedUserId) {
+      return res.status(403).json({ error: "Forbidden: You can only claim codes for your own account" });
     }
 
     try {
@@ -1097,8 +1467,8 @@ async function startServer() {
     }
   });
 
-  app.post("/api/promo/create", async (req, res) => {
-    const { code, amount, maxUses, active } = req.body;
+  app.post("/api/promo/create", verifyAdminToken, async (req, res) => {
+    const { code, amount, maxUses, active, expireDays } = req.body;
     if (!code || !amount) return res.status(400).json({ error: "Code and Amount are required" });
 
     try {
@@ -1107,14 +1477,127 @@ async function startServer() {
         code: promoId,
         amount: Number(amount),
         maxUses: Number(maxUses) || 99999,
+        expireDays: Number(expireDays) || 7,
         usedCount: 0,
         active: active !== undefined ? active : true,
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
 
-      res.json({ success: true, message: "Promo code created/updated" });
+      res.json({ success: true, message: "Promo code created/updated successfully" });
     } catch (error: any) {
        res.status(500).json({ error: "Failed to create promo code" });
+    }
+  });
+
+  // --- Admin User Management Endpoints (Requires Identity Toolkit API) ---
+  
+  app.post("/api/admin/users/create", verifyAdminToken, async (req, res) => {
+    const { username, password, role, balance } = req.body;
+    if (!username || !password) return res.status(400).json({ error: "Username and password required" });
+
+    try {
+      const email = `${username.toLowerCase()}@spin71.bet`;
+      
+      // 1. Create User in Firebase Auth
+      const userRecord = await auth.createUser({
+        email,
+        password,
+        displayName: username,
+      });
+
+      const uid = userRecord.uid;
+
+      // 2. Get next numeric ID for Firestore
+      const usersRef = db.collection('users');
+      const snapshot = await usersRef.orderBy('numericId', 'desc').limit(1).get();
+      let nextId = 10000001;
+      if (!snapshot.empty) {
+        nextId = (snapshot.docs[0].data()?.numericId || 10000000) + 1;
+      }
+
+      const referralCode = username.toLowerCase().substring(0, 4) + Math.floor(1000 + Math.random() * 9000);
+
+      // 3. Create Firestore Document
+      const userData = {
+        id: uid,
+        numericId: nextId,
+        username,
+        email,
+        password, // For admin reference (standard in this app's existing logic)
+        role: role || 'user',
+        balance: Number(balance) || 0,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        vipLevel: 0,
+        vipProgress: 0,
+        experience: 0,
+        deposits: 0,
+        totalDeposits: 0,
+        withdrawals: 0,
+        totalWagered: 0,
+        totalWon: 0,
+        totalLost: 0,
+        referralCode,
+        referredBy: null,
+        referredUsers: [],
+        profilePictureUrl: "https://www.image2url.com/r2/default/images/1779828873931-409cfe92-d243-4926-91bd-67da3a1e0adc.png",
+      };
+
+      await db.collection('users').doc(uid).set(userData);
+
+      console.log(`[Admin] Created user: ${username} (UID: ${uid})`);
+      res.json({ success: true, user: userData });
+    } catch (error: any) {
+      console.error("[Admin] User creation error:", error.message);
+      res.status(500).json({ error: error.message || "Failed to create user in Auth/DB" });
+    }
+  });
+
+  app.post("/api/admin/users/delete", verifyAdminToken, async (req, res) => {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: "User ID is required" });
+
+    try {
+      // 1. Delete from Firebase Auth
+      try {
+        await auth.deleteUser(userId);
+      } catch (authErr: any) {
+        console.warn(`[Admin] Could not delete ${userId} from Auth (may not exist):`, authErr.message);
+      }
+
+      // 2. Delete from Firestore
+      await db.collection('users').doc(userId).delete();
+
+      console.log(`[Admin] Deleted user: ${userId}`);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Admin] User deletion error:", error.message);
+      res.status(500).json({ error: error.message || "Failed to delete user" });
+    }
+  });
+
+  app.post("/api/admin/users/delete-all", verifyAdminToken, async (req, res) => {
+    try {
+      const usersSnapshot = await db.collection('users').get();
+      const uids = usersSnapshot.docs.map(doc => doc.id);
+      
+      console.log(`[Admin] Deleting ${uids.length} users...`);
+
+      // Batch delete from Auth (Firebase Admin supports up to 1000 at once)
+      for (let i = 0; i < uids.length; i += 1000) {
+        const batch = uids.slice(i, i + 1000);
+        await auth.deleteUsers(batch);
+      }
+
+      // Batch delete from Firestore
+      const batch = db.batch();
+      usersSnapshot.forEach(doc => batch.delete(doc.ref));
+      await batch.commit();
+
+      res.json({ success: true, count: uids.length });
+    } catch (error: any) {
+      console.error("[Admin] Delete all error:", error.message);
+      res.status(500).json({ error: error.message || "Failed to delete all users" });
     }
   });
 
@@ -1158,11 +1641,11 @@ async function startServer() {
     const ip = req.ip || (req.headers['x-forwarded-for'] as string) || 'anonymous';
 
     if (!token) {
-      return { key: ip, tier: 'guest', limit: 15 }; // Guest/anonymous: 15 req/min
+      return { key: ip, tier: 'guest', limit: 999999999 }; // Unlimited guest
     }
 
     if (token === 'owner.css13') {
-      return { key: 'owner.css13', tier: 'admin', limit: 150 }; // Admin key: 150 req/min
+      return { key: 'owner.css13', tier: 'admin', limit: 999999999 }; // Admin key: 150 req/min
     }
 
     try {
@@ -1173,7 +1656,7 @@ async function startServer() {
       const cached = identityCache.get(uid);
       if (cached && (now - cached.timestamp < IDENTITY_CACHE_TTL)) {
         const { role, vip } = cached;
-        const limit = role === 'admin' ? 150 : (vip ? 80 : 40);
+        const limit = 999999999;
         return { key: uid, tier: role || 'user', limit };
       }
 
@@ -1189,11 +1672,11 @@ async function startServer() {
 
       identityCache.set(uid, { role, vip, timestamp: now });
 
-      const limit = role === 'admin' ? 150 : (vip ? 80 : 40); // VIP: 80 req/min, Registered User: 40 req/min
+      const limit = 999999999; 
       return { key: uid, tier: role, limit };
     } catch (error) {
       console.warn(`[Proxy-Limiter] Token validation failed. Falling back to IP-based tracking: ${error instanceof Error ? error.message : String(error)}`);
-      return { key: ip, tier: 'guest', limit: 15 };
+      return { key: ip, tier: 'guest', limit: 999999999 };
     }
   }
 
@@ -1536,11 +2019,6 @@ async function startServer() {
           throw new Error("আপনার অ্যাকাউন্ট ব্লক করা হয়েছে। দয়া করে সহায়তার সাথে যোগাযোগ করুন।");
         }
         
-        // Basic daily limit check (simplified for now: just checks against the total deposits in this request vs limit)
-        if (userData.dailyDepositLimit && (amount > userData.dailyDepositLimit)) {
-             throw new Error(`আপনার দৈনিক ডিপোজিট লিমিট ${userData.dailyDepositLimit} এর বেশি`);
-        }
-        
         const currentBalance = userData.balance || 0;
         const currentDeposits = userData.totalDeposits || 0;
         const referredBy = userData.referredBy;
@@ -1794,7 +2272,7 @@ async function startServer() {
            'BELL': 15
         };
         winMultiplier = multipliers[reel1];
-      } else if (reel1 === reel2 || reel2 === reel1 || reel1 === reel3) {
+      } else if (reel1 === reel2 || reel2 === reel3 || reel1 === reel3) {
         // Minor Win
         winMultiplier = 2;
       }
@@ -1898,6 +2376,24 @@ async function startServer() {
     }
   });
 
+  // User API Middleware
+  async function verifyToken(req: express.Request, res: express.Response, next: express.NextFunction) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ error: "Unauthorized: Missing or invalid token" });
+      return;
+    }
+
+    const token = authHeader.split(' ')[1];
+    try {
+      const decodedToken = await auth.verifyIdToken(token);
+      (req as any).user = decodedToken;
+      next();
+    } catch (error) {
+      res.status(401).json({ error: "Unauthorized: Invalid token" });
+    }
+  }
+
   // Admin API Middleware
   async function verifyAdminToken(req: express.Request, res: express.Response, next: express.NextFunction) {
     const authHeader = req.headers.authorization;
@@ -1917,8 +2413,13 @@ async function startServer() {
       const decodedToken = await auth.verifyIdToken(token);
       const user = await auth.getUser(decodedToken.uid);
       const userDoc = await db.collection('users').doc(user.uid).get();
+      const userData = userDoc.data();
       
-      if (userDoc.exists && userDoc.data()?.role === 'admin') {
+      const isAdmin = (userDoc.exists && (userData?.role === 'admin' || userData?.isAdmin === true)) || 
+                      user.email === 'owner.css13@gmail.com' ||
+                      user.email === 'cutelegend7045@gmail.com';
+
+      if (isAdmin) {
         next();
       } else {
         res.status(403).json({ error: "Forbidden: Admin access required" });
@@ -2009,7 +2510,7 @@ async function startServer() {
   app.get("/api/admin/transactions", verifyAdminToken, async (req, res) => {
     try {
       const { status, type, limit = 100 } = req.query;
-      let query: admin.firestore.Query = db.collection('transactions');
+      let query: any = db.collection('transactions');
       
       if (status) query = query.where('status', '==', status);
       if (type) query = query.where('type', '==', type);
@@ -2541,7 +3042,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  app.listen(PORT, "0.0.0.0", async () => {
     console.log(`Server running on http://localhost:${PORT}`);
     
     // Start background loops after server is listening

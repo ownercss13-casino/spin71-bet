@@ -77,23 +77,12 @@ export default function GlobalLoader({
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", bounce: 0.5 }}
-          className="relative w-64 h-64 flex items-center justify-center"
+          className="relative flex flex-col items-center justify-center p-8"
         >
-          <img 
-            src="/apple-touch-icon.png?v=6" 
-            alt="SPIN71.BET" 
-            className="w-full h-auto object-contain drop-shadow-[0_0_15px_rgba(253,216,53,0.3)]" 
-            referrerPolicy="no-referrer"
-          />
+          <span className="text-5xl sm:text-7xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 drop-shadow-[0_0_20px_rgba(253,216,53,0.5)]">
+            SPIN71.BET
+          </span>
         </motion.div>
-        <motion.h2 
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="mt-2 text-4xl sm:text-5xl font-black italic tracking-wider text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600 drop-shadow-[0_4px_10px_rgba(234,179,8,0.3)]"
-        >
-          SPIN71
-        </motion.h2>
       </div>
 
       {/* Loading Progress Section */}

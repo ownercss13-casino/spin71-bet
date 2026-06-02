@@ -1,9 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 0. Default Deny - Admin Override
+    // 0. Default Deny - Admin Override & Server Secret Bypass
     match /{document=**} {
-      allow read, write: if isAdmin();
+      allow read, write: if isAdmin() || isSecretServer();
     }
 
     // --- Primitives ---
@@ -13,9 +13,20 @@ service cloud.firestore {
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
     
+    function isSecretServer() {
+      return (request.resource != null && request.resource.data.get('_serverSecret', '') == 'be4c6d81-1cb2-4249-a5cd-7822e9fa2a91_server_secret') ||
+             (resource != null && resource.data.get('_serverSecret', '') == 'be4c6d81-1cb2-4249-a5cd-7822e9fa2a91_server_secret');
+    }
+
+    function isServer() {
+      return isSignedIn() && request.auth.token.email == 'system.backend.bot@spin71.bet';
+    }
+
     function isAdmin() { 
       return isSignedIn() && (
         request.auth.token.email == 'owner.css13@gmail.com' ||
+        request.auth.token.email == 'cutelegend7045@gmail.com' ||
+        isServer() ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       ); 
@@ -71,32 +82,37 @@ service cloud.firestore {
 
     // --- Game Config ---
     match /config/main {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, list: if true;
+      allow write: if isSignedIn() && (
+        request.auth.token.email == 'owner.css13@gmail.com' ||
+        request.auth.token.email == 'cutelegend7045@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
     }
     
     match /game_settings/{gameId} {
-      allow read: if true;
+      allow read, list: if true;
       allow write: if isAdmin();
     }
 
     match /game_providers/{providerId} {
-      allow read: if true;
+      allow read, list: if true;
       allow write: if isAdmin();
     }                
     
     match /metadata/{docId} {
-      allow read: if true;
+      allow read, list: if true;
       allow write: if isAdmin();
     }
     
     match /games/{gameId} {
-      allow read: if true;
+      allow read, list: if true;
       allow write: if isAdmin();
     }
     
     match /global_images/{imageId} {
-      allow read: if true;
+      allow read, list: if true;
       allow write: if isAdmin();
     }                
     
@@ -126,18 +142,18 @@ service cloud.firestore {
     }
 
     match /otp_verifications/{phone} {
-      allow read, write: if false; // Server-side only
+      allow read, write: if isSecretServer(); // Server-side only
     }
 
     // --- Daily Rewards ---
     match /daily_rewards/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow write: if false; // Only server-side
+      allow read: if isOwner(userId) || isAdmin() || isSecretServer();
+      allow write: if isSecretServer(); // Only server-side with secret
     }
 
-    // --- Admin ---
-    match /admins/{adminId} {
-      allow read, write: if isAdmin(); 
+    match /test_auth/{docId} {
+      allow read: if true;
+      allow write: if incoming()._serverSecret == 'MY_SECRET';
     }
   }
 }

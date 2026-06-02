@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { OpenAI } from "openai";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
@@ -15,11 +16,13 @@ const ai = GEMINI_API_KEY ? new GoogleGenAI({
   }
 }) : null;
 
-export const getAIResponse = async (message: string, userData?: any, type: 'support' | 'assistant' = 'support') => {
-  if (!ai) {
-    throw new Error("AI service is not configured on this server. Please check your GEMINI_API_KEY.");
-  }
+// Initialize OpenAI client with key provided by environment
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const openaiClient = new OpenAI({
+  apiKey: OPENAI_API_KEY || "missing_key"
+});
 
+export const getAIResponse = async (message: string, userData?: any, type: 'support' | 'assistant' = 'support') => {
   const systemInstruction = type === 'assistant' 
     ? `You are the Official AI Assistant of SPIN71 BET Casino. 
 Your name is SPIN71 AI.
@@ -42,15 +45,72 @@ Always reply in Bengali. Be friendly and encouraging.
 Our official Telegram is @spin71bet_official.`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash", 
-      contents: message,
-      config: {
-        systemInstruction: systemInstruction,
-      },
-    });
-    return response.text;
-  } catch (error) {
+    let retries = 0;
+    const maxRetries = 3;
+    
+    while (true) {
+      try {
+        if (!ai) {
+          throw new Error("Gemini AI is not configured.");
+        }
+        const response = await ai.models.generateContent({
+          model: "gemini-3.5-flash", 
+          contents: message,
+          config: {
+            systemInstruction: systemInstruction,
+          },
+        });
+        return response.text;
+      } catch (error: any) {
+        const isRateLimit = error.message && (error.message.includes("429") || error.status === 429 || error.message.includes("RESOURCE_EXHAUSTED") || error.status === "RESOURCE_EXHAUSTED");
+        
+        if (isRateLimit) {
+          console.warn(`[geminiBackend] Rate limit hit (429) on Gemini API. Attempting OpenAI/ChatGPT fallback...`);
+          try {
+            const openaiResponse = await openaiClient.chat.completions.create({
+              model: "gpt-4o-mini",
+              messages: [
+                { role: "system", content: systemInstruction },
+                { role: "user", content: message }
+              ]
+            });
+            const text = openaiResponse.choices[0]?.message?.content;
+            if (text) {
+              console.log("[geminiBackend] Successfully generated fallback response using OpenAI (gpt-4o-mini).");
+              return text;
+            }
+          } catch (openaiErr: any) {
+            console.error("[geminiBackend] OpenAI fallback attempt failed:", openaiErr.message || openaiErr);
+          }
+
+          if (retries < maxRetries) {
+            retries++;
+            const delay = Math.pow(2, retries) * 3000; // 6s, 12s, 24s
+            console.warn(`[geminiBackend] Retrying Gemini after delay of ${delay}ms... (Attempt ${retries}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+        }
+        throw error;
+      }
+    }
+  } catch (error: any) {
+    console.warn("[geminiBackend] Gemini API failed. Attempting final OpenAI fallback...", error.message || error);
+    try {
+      const openaiResponse = await openaiClient.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemInstruction },
+          { role: "user", content: message }
+        ]
+      });
+      const text = openaiResponse.choices[0]?.message?.content;
+      if (text) {
+        return text;
+      }
+    } catch (openaiErr: any) {
+      console.error("[geminiBackend] Final OpenAI fallback failed as well:", openaiErr.message || openaiErr);
+    }
     console.error("AI Support Error:", error);
     throw error;
   }

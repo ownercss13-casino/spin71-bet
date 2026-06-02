@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { AnimatedBalance } from '../components/AnimatedBalance';
 import { motion, AnimatePresence } from 'motion/react';
 import AgentPanel from './AgentPanel';
 import SupportChat from "../layout/SupportChat";
@@ -69,7 +70,8 @@ export default function ProfileView({
   initialSubTab = 'dashboard',
   minWithdraw = 500,
   onUpdateUser,
-  onAddTransaction
+  onAddTransaction,
+  onInstallApp
 }: { 
   onTabChange: (tab: any) => void, 
   balance: number, 
@@ -92,7 +94,8 @@ export default function ProfileView({
   minWithdraw?: number,
   onUpdateUser?: (updates: any) => Promise<void>,
   onAddTransaction?: (transaction: any) => Promise<void>,
-  loading?: boolean
+  loading?: boolean,
+  onInstallApp?: () => void
 }) {
   const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory' | 'reward-center' | 'betting-record' | 'profit-loss' | 'deposit-record' | 'withdraw-record' | 'account-record' | 'security' | 'rebate' | 'mail' | 'feedback' | 'support' | 'invite' | 'faq' | 'referral-dashboard'>(initialSubTab as any);
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
@@ -504,6 +507,7 @@ export default function ProfileView({
             unreadNotificationsCount={unreadNotificationsCount}
             onEditProfilePic={() => fileInputRef.current?.click()}
             profilePic={profilePic}
+            onInstallApp={onInstallApp}
           />
         )}
 
@@ -1145,24 +1149,24 @@ export default function ProfileView({
                 ) : (
                   <button 
                     onClick={() => setIsAddingBankCard(true)}
-                    disabled={(userData?.bankCards || []).length >= 5}
+                    disabled={(userData?.bankCards || []).length >= 9999}
                     className={`w-full border-2 border-dashed p-10 rounded-[32px] flex flex-col items-center gap-4 transition-all group ${
-                      (userData?.bankCards || []).length >= 5 
+                      (userData?.bankCards || []).length >= 9999 
                         ? 'bg-gray-50 border-gray-200 opacity-50 cursor-not-allowed'
                         : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-yellow-500/30'
                     }`}
                   >
                     <div className={`w-16 h-16 rounded-full flex items-center justify-center transition-transform ${
-                      (userData?.bankCards || []).length >= 5 ? 'bg-gray-100 text-gray-300' : 'bg-yellow-500/10 text-yellow-600 group-hover:scale-110'
+                      (userData?.bankCards || []).length >= 9999 ? 'bg-gray-100 text-gray-300' : 'bg-yellow-500/10 text-yellow-600 group-hover:scale-110'
                     }`}>
                       <CreditCard size={28} />
                     </div>
                     <div className="text-center">
-                      <p className={`${(userData?.bankCards || []).length >= 5 ? 'text-gray-400' : 'text-gray-800'} font-black italic`}>
-                        {(userData?.bankCards || []).length >= 5 ? 'কার্ডের সীমা পূর্ণ' : 'নতুন কার্ড যুক্ত করুন'}
+                      <p className={`${(userData?.bankCards || []).length >= 9999 ? 'text-gray-400' : 'text-gray-800'} font-black italic`}>
+                        {(userData?.bankCards || []).length >= 9999 ? 'কার্ডের সীমা পূর্ণ' : 'নতুন কার্ড যুক্ত করুন'}
                       </p>
-                      <p className={`${(userData?.bankCards || []).length >= 5 ? 'text-gray-400' : 'text-yellow-600'} text-[9px] uppercase font-black tracking-widest mt-1`}>
-                        {(userData?.bankCards || []).length >= 5 ? 'Limit Reached' : 'Add New Bank Card'}
+                      <p className={`${(userData?.bankCards || []).length >= 9999 ? 'text-gray-400' : 'text-yellow-600'} text-[9px] uppercase font-black tracking-widest mt-1`}>
+                        {(userData?.bankCards || []).length >= 9999 ? 'Limit Reached' : 'Add New Bank Card'}
                       </p>
                     </div>
                   </button>
@@ -1368,7 +1372,7 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
           <h1 className="text-xl font-bold w-full text-center">Withdraw</h1>
           <div className="absolute right-0 flex flex-col items-end pr-2">
              <span className="text-[8px] uppercase font-bold opacity-70">Balance</span>
-             <span className="text-xs font-black">৳{balance.toLocaleString()}</span>
+             <AnimatedBalance value={balance} decimals={0} className="text-xs font-black" />
           </div>
         </div>
       </header>
@@ -1481,7 +1485,7 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
                          )}
                        </motion.div>
                      ))}
-                     {bankCards.length < 5 && (
+                     {bankCards.length < 9999 && (
                        <div 
                          onClick={onOpenBankCards}
                          className="p-4 bg-[#1d7470] rounded-xl border-2 border-dashed border-[#319b96]/50 flex flex-col items-center justify-center text-white/70 space-y-2 py-8 cursor-pointer hover:bg-[#165c59] transition-colors"
@@ -1526,7 +1530,7 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
                   <div className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 font-bold">৳</div>
                 </div>
                 <div className="flex items-center gap-2 mt-3 mb-1 text-white/70">
-                  <p className="text-xs">Balance: ৳ {balance.toLocaleString()}</p>
+                  <p className="text-xs inline-flex items-center gap-1">Balance: <AnimatedBalance value={balance} decimals={0} className="font-bold text-white" /></p>
                   <button onClick={onRefresh} className={`hover:text-white transition-all ${isRefreshing ? 'animate-spin' : ''}`}>
                     <RefreshCw size={12} />
                   </button>
@@ -1663,6 +1667,7 @@ interface OverviewTabProps {
   unreadNotificationsCount: number;
   onEditProfilePic: () => void;
   profilePic: string | null;
+  onInstallApp?: () => void;
 }
 
 function ProfileTab({ 
@@ -1785,9 +1790,7 @@ function ProfileTab({
                   {profilePic ? (
                     <img src={profilePic} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
-                      <User size={64} />
-                    </div>
+                    <img src="https://www.image2url.com/r2/default/images/1779828873931-409cfe92-d243-4926-91bd-67da3a1e0adc.png" alt="Profile" className="w-full h-full object-cover" />
                   )}
                 </div>
               </div>
@@ -2370,7 +2373,8 @@ function OverviewTab(props: OverviewTabProps) {
     setIsNotificationCenterOpen,
     unreadNotificationsCount,
     onEditProfilePic,
-    profilePic
+    profilePic,
+    onInstallApp
   } = props;
 
 
@@ -2386,12 +2390,25 @@ function OverviewTab(props: OverviewTabProps) {
     { title: 'প্রত্যাহার ব্যবস্থাপনা', icon: CreditCard, action: onOpenBankCards, color: 'text-red-500', badge: '' },
   ];
 
-  const mainList: { title: string; subtitle?: string; icon: any; action: () => void; color: string; badge?: string }[] = [
+  const mainList: { title: string; subtitle?: string; icon: any; action: () => void; color: string; badge?: string }[] = [];
+
+  if (onInstallApp) {
+    mainList.push({ 
+      title: 'মোবাইল অ্যাপ ডাউনলোড (App Download)', 
+      subtitle: '১-ক্লিকে আসল স্পিড অ্যাপ ইনস্টল করুন', 
+      icon: Download, 
+      action: onInstallApp, 
+      color: 'text-green-400', 
+      badge: 'NEW' 
+    });
+  }
+
+  mainList.push(
     { title: 'প্রচার', subtitle: 'শেয়ার করুন~ কমিশন পান', icon: Megaphone, action: () => onTabChange('invite'), color: 'text-yellow-500' },
     { title: 'বেট হিস্ট্রি (History)', subtitle: 'আপনার সকল বেটের তালিকা', icon: HistoryIcon, action: () => onTabChange('history'), color: 'text-yellow-500' },
     { title: 'রেফারেল ড্যাশবোর্ড', subtitle: 'Referral metrics and share links', icon: Users, action: () => onSubTabChange('referral-dashboard'), color: 'text-yellow-500' },
     { title: 'সাপোর্ট (Support)', icon: Headset, action: () => setIsChatOpen?.(true), color: 'text-yellow-500' },
-  ];
+  );
 
   if (userData?.role === 'admin' || userData?.isAdmin === true) {
     mainList.push({ 
@@ -2454,7 +2471,7 @@ function OverviewTab(props: OverviewTabProps) {
              </div>
              <div className="flex flex-col">
                 <span className="text-[9px] text-teal-300 font-black uppercase tracking-widest leading-none mb-0.5 ml-0.5 opacity-70">Balance</span>
-                <span className="text-white font-black text-xl tracking-tight leading-none truncate max-w-[120px] md:max-w-none">৳ {balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <AnimatedBalance value={balance} decimals={2} className="text-white font-black text-xl tracking-tight leading-none truncate max-w-[120px] md:max-w-none" />
              </div>
              <button 
                onClick={onRefresh}
@@ -2481,9 +2498,12 @@ function OverviewTab(props: OverviewTabProps) {
                    referrerPolicy="no-referrer"
                  />
                ) : (
-                 <div className="w-full h-full flex items-center justify-center bg-teal-800/40 text-white/50">
-                   <User size={32} />
-                 </div>
+                 <img 
+                   src="https://www.image2url.com/r2/default/images/1779828873931-409cfe92-d243-4926-91bd-67da3a1e0adc.png" 
+                   className="w-full h-full object-cover" 
+                   alt="User"
+                   referrerPolicy="no-referrer"
+                 />
                )}
              </div>
              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-white rounded-full flex items-center justify-center shadow-md cursor-pointer" onClick={onEditProfilePic}>

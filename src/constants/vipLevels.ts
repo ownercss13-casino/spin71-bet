@@ -15,50 +15,50 @@ export const VIP_LEVELS: VIPLevel[] = [
     name: 'BRONZE',
     minPoints: 0,
     rebatePercent: 0.1,
-    withdrawLimit: 25000,
+    withdrawLimit: 999999999,
     color: '#CD7F32',
     bgGradient: 'from-orange-800 to-orange-600',
-    benefits: ['১০% দৈনিক রিবেট', '৳২৫,০০০ দৈনিক উত্তোলন সীমা', 'বেসিক কাস্টমার সাপোর্ট']
+    benefits: ['১০% দৈনিক রিবেট', 'আনলিমিটেড দৈনিক উত্তোলন সীমা', 'বেসিক কাস্টমার সাপোর্ট']
   },
   {
     id: 1,
     name: 'SILVER',
     minPoints: 100, // 10,000 BDT deposit
     rebatePercent: 0.25,
-    withdrawLimit: 50000,
+    withdrawLimit: 999999999,
     color: '#C0C0C0',
     bgGradient: 'from-slate-500 to-slate-400',
-    benefits: ['২৫% দৈনিক রিবেট', '৳৫০,০০০ দৈনিক উত্তোলন সীমা', 'প্রায়োরিটি সাপোর্ট', 'সিলভার গিফট বক্স']
+    benefits: ['২৫% দৈনিক রিবেট', 'আনলিমিটেড দৈনিক উত্তোলন সীমা', 'প্রায়োরিটি সাপোর্ট', 'সিলভার গিফট বক্স']
   },
   {
     id: 2,
     name: 'GOLD',
     minPoints: 500, // 50,000 BDT deposit
     rebatePercent: 0.4,
-    withdrawLimit: 100000,
+    withdrawLimit: 999999999,
     color: '#FFD700',
     bgGradient: 'from-yellow-600 to-yellow-400',
-    benefits: ['৪০% দৈনিক রিবেট', '৳১,০০,০০০ দৈনিক উত্তোলন সীমা', 'VIP কাস্টমার সাপোর্ট', 'বার্থডে বোনাস']
+    benefits: ['৪০% দৈনিক রিবেট', 'আনলিমিটেড দৈনিক উত্তোলন সীমা', 'VIP কাস্টমার সাপোর্ট', 'বার্থডে বোনাস']
   },
   {
     id: 3,
     name: 'PLATINUM',
     minPoints: 2000, // 2,00,000 BDT deposit
     rebatePercent: 0.6,
-    withdrawLimit: 250000,
+    withdrawLimit: 999999999,
     color: '#E5E4E2',
     bgGradient: 'from-blue-500 to-indigo-600',
-    benefits: ['৬০% দৈনিক রিবেট', '৳২,৫০,০০০ দৈনিক উত্তোলন সীমা', 'পার্সোনাল অ্যাকাউন্ট ম্যানেজার', 'এক্সক্লুসিভ প্রমোশন']
+    benefits: ['৬০% দৈনিক রিবেট', 'আনলিমিটেড দৈনিক উত্তোলন সীমা', 'পার্সোনাল অ্যাকাউন্ট ম্যানেজার', 'এক্সক্লুসিভ প্রমোশন']
   },
   {
     id: 4,
     name: 'DIAMOND',
     minPoints: 10000, // 10,00,000 BDT deposit
     rebatePercent: 1.0,
-    withdrawLimit: 500000,
+    withdrawLimit: 999999999,
     color: '#B9F2FF',
     bgGradient: 'from-cyan-400 to-blue-500',
-    benefits: ['১০০% দৈনিক রিবেট', '৳৫,০০,০০০ দৈনিক উত্তোলন সীমা', '২৪/৭ ক্যাশ আউট সুবিধা', 'লাক্সারি গিফট ও ট্যুর প্ল্যান']
+    benefits: ['১০০% দৈনিক রিবেট', 'আনলিমিটেড দৈনিক উত্তোলন সীমা', '২৪/৭ ক্যাশ আউট সুবিধা', 'লাক্সারি গিফট ও ট্যুর প্ল্যান']
   }
 ];
 

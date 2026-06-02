@@ -43,7 +43,7 @@ export default function ProfileHeader({ userData, profilePic, fileInputRef, hand
               {profilePic ? (
                 <img src={profilePic} alt="Profile" className="w-full h-full object-cover" />
               ) : (
-                <User size={48} className="text-white" />
+                <img src="https://www.image2url.com/r2/default/images/1779828873931-409cfe92-d243-4926-91bd-67da3a1e0adc.png" alt="Profile" className="w-full h-full object-cover" />
               )}
             </div>
             <div className="absolute bottom-1 right-1 bg-white p-1.5 rounded-full shadow-lg">

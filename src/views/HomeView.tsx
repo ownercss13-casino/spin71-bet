@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Trophy, Download, X, RefreshCw, ChevronRight, Play, Wallet, Users, Star, TrendingUp, History, User, Menu, Bell, Search, Volume2, Flame, Gamepad2, Hexagon, Tv, Club, Fish, Ticket, ChevronLeft, Mail, Sparkles, Zap, Gift, Send, MessageSquare } from 'lucide-react';
+import { AnimatedBalance } from '../components/AnimatedBalance';
+import { Clock, Download, X, RefreshCw, ChevronRight, Wallet, Users, Star, TrendingUp, History, User, Menu, Bell, Search, Volume2, Flame, Gamepad2, Hexagon, Tv, Club, Fish, Ticket, ChevronLeft, Mail, Sparkles, Zap, Gift, Send, MessageSquare, Plane, Smartphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GAME_IMAGES } from '../constants/gameAssets';
 import { GameGrid, games } from "../components/ui/GameGrid";
@@ -52,7 +53,6 @@ interface HomeViewProps {
   recentlyPlayed: any[];
   favorites: string[];
   handleGameSelect: (game: any) => void;
-  setShowLeaderboard: (show: boolean) => void;
   globalLogos: Record<string, string>;
   globalNames: Record<string, string>;
   globalUrls: Record<string, string>;
@@ -86,9 +86,11 @@ interface HomeViewProps {
   showToast: (msg: string, type?: any) => void;
   loading?: boolean;
   isAdmin?: boolean;
+  showInstallBanner?: boolean;
   onNavigate?: (tab: string, subTab?: string) => void;
   onOpenLogin?: (mode?: 'login' | 'register') => void;
   setIsSupportChatOpen?: (open: boolean) => void;
+  onInstallApp?: () => void;
 }
 
 export default function HomeView({ 
@@ -96,7 +98,6 @@ export default function HomeView({
   recentlyPlayed, 
   favorites, 
   handleGameSelect, 
-  setShowLeaderboard,
   globalLogos,
   globalNames,
   globalUrls,
@@ -130,9 +131,11 @@ export default function HomeView({
   showToast,
   loading,
   isAdmin = false,
+  showInstallBanner = false,
   onNavigate,
   onOpenLogin,
-  setIsSupportChatOpen
+  setIsSupportChatOpen,
+  onInstallApp
 }: HomeViewProps) {
   const [editingCasinoName, setEditingCasinoName] = React.useState(false);
   const [tempCasinoName, setTempCasinoName] = React.useState(casinoName || "SPIN71.bet");
@@ -145,7 +148,7 @@ export default function HomeView({
     { id: 'স্লট', icon: Gamepad2, label: 'স্লট' },
     { id: 'Live Casino', icon: Tv, label: 'Live Casino' },
     { id: 'Table Games', icon: Club, label: 'Table Games' },
-    { id: 'Fishing Games', icon: Fish, label: 'Fishing Games' },
+    { id: 'Fishing Games', icon: Fish, label: 'Fishing' },
     { id: 'Lottery', icon: Ticket, label: 'Lottery' },
   ];
 
@@ -179,15 +182,9 @@ export default function HomeView({
           >
             <Menu size={26} />
           </button>
-          <div className="flex flex-col items-center justify-center ml-2 pt-2 pb-1 gap-3">
-            <img 
-              src="/apple-touch-icon.png?v=6" 
-              alt="Logo"
-              className="h-[60px] md:h-[70px] w-auto object-contain drop-shadow-[0_0_10px_rgba(253,216,53,0.4)] transform scale-125" 
-              referrerPolicy="no-referrer"
-            />
-            <span className="text-[12px] md:text-[14px] font-black text-transparent bg-clip-text bg-gradient-to-r from-[#fdd835] via-white to-[#fdd835] tracking-[0.2em] drop-shadow-md">
-              SPIN71
+          <div className="flex items-center ml-2">
+            <span className="text-xl md:text-2xl font-black italic tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 drop-shadow-[0_0_8px_rgba(253,216,53,0.5)]">
+              SPIN71.BET
             </span>
           </div>
         </div>
@@ -216,13 +213,17 @@ export default function HomeView({
               >
                 <div className="flex flex-col items-end">
                   <span className="text-[10px] text-gray-500 font-black tracking-tighter leading-none">BALANCE</span>
-                  <p className="text-sm font-black text-[#fdd835] tracking-tight">৳ {balance.toLocaleString()}</p>
+                  <AnimatedBalance value={balance} decimals={0} className="text-sm font-black text-[#fdd835] tracking-tight" />
                 </div>
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 p-[1px] shadow-lg">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 p-[1px] shadow-lg overflow-hidden">
                   <div 
-                    className="w-full h-full rounded-full bg-[#0d1a29] flex items-center justify-center text-[#fdd835] font-black text-xs"
+                    className="w-full h-full rounded-full bg-[#0d1a29] flex items-center justify-center text-[#fdd835] font-black text-xs overflow-hidden"
                   >
-                    {userData.username?.[0]?.toUpperCase() || 'U'}
+                    {userData.profilePictureUrl ? (
+                      <img src={userData.profilePictureUrl} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <img src="https://www.image2url.com/r2/default/images/1779828873931-409cfe92-d243-4926-91bd-67da3a1e0adc.png" alt="Avatar" className="w-full h-full object-cover" />
+                    )}
                   </div>
                 </div>
               </div>
@@ -242,8 +243,66 @@ export default function HomeView({
         </div>
       </header>
 
-      {/* Hero Banner Area */}
-      {/* Banner removed as requested */}
+      {/* Premium Hero Slider */}
+      <div className="px-3 pt-3">
+        <div className="relative w-full h-44 md:h-64 rounded-2xl overflow-hidden shadow-2xl border border-white/5 bg-[#14253a]">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeCategory === 'সেরা' ? 'banner1' : activeCategory === 'ক্র্যাশ' ? 'banner2' : 'banner3'}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5 }}
+              className="absolute inset-0"
+            >
+              <img 
+                src={
+                  activeCategory === 'ক্র্যাশ' 
+                    ? "/src/assets/images/casino_hero_banner_2_1780243907033.png" 
+                    : activeCategory === 'স্লট' 
+                      ? "/src/assets/images/casino_hero_banner_3_1780243929232.png"
+                      : "/src/assets/images/casino_hero_banner_1_1780243889809.png"
+                } 
+                alt="Casino Banner" 
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0d1a29] via-transparent to-transparent opacity-60"></div>
+              
+              <div className="absolute bottom-4 left-4 z-10 w-3/4">
+                <motion.div 
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  <h2 className="text-xl md:text-3xl font-black text-white italic leading-tight drop-shadow-lg scale-y-110 tracking-tight">
+                    {activeCategory === 'ক্র্যাশ' ? 'AVIATOR SIGNALS' : activeCategory === 'স্লট' ? 'MEGA JACKPOTS' : 'PREMIUM CASINO'}
+                  </h2>
+                  <p className="text-[10px] md:text-sm text-yellow-400 font-bold uppercase tracking-widest mt-1">
+                    {activeCategory === 'ক্র্যাশ' ? 'Predict & Win Big' : activeCategory === 'স্লট' ? 'Highest Return Rates' : 'Official Licensed Platform'}
+                  </p>
+                </motion.div>
+                
+                <motion.button 
+                  initial={{ y: 10, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.5 }}
+                  onClick={() => onNavigate?.('deposit')}
+                  className="mt-3 bg-gradient-to-r from-yellow-400 to-yellow-600 text-black px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-yellow-600/30 active:scale-95 transition-all"
+                >
+                  Deposit Now
+                </motion.button>
+              </div>
+            </motion.div>
+          </AnimatePresence>
+          
+          {/* Slider Indicators */}
+          <div className="absolute bottom-4 right-4 flex gap-1.5 z-10">
+            {[0, 1, 2].map(i => (
+              <div key={i} className={`w-1.5 h-1.5 rounded-full ${i === (activeCategory === 'ক্র্যাশ' ? 1 : activeCategory === 'স্লট' ? 2 : 0) ? 'bg-yellow-400 w-4' : 'bg-white/30'} transition-all`} />
+            ))}
+          </div>
+        </div>
+      </div>
 
       {/* Scrolling Notice Bar */}
       <div className="bg-[#1a2f4a] px-3 py-2 flex items-center gap-2 border-b border-[#1e3a5f]">

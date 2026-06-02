@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db } from '../services/firebase';
+import { db, auth } from '../services/firebase';
 import { 
   collection, 
   query, 
@@ -80,6 +80,7 @@ import {
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 import { games, PROVIDERS } from '../constants/games';
+import { GAME_LOGO_URLS } from '../constants/gameLogos';
 
 interface AdminPanelViewProps {
   onBack: () => void;
@@ -129,6 +130,7 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
   const PAGE_SIZE_TRXS = 50;
   
   const [trafficStats, setTrafficStats] = useState<any>(null);
+  const [serverInfo, setServerInfo] = useState<any>(null);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [messagingUser, setMessagingUser] = useState<any>(null);
   const [bonusModalUser, setBonusModalUser] = useState<any>(null);
@@ -217,7 +219,8 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
     try {
       await Promise.all([
         fetchUsers(true),
-        fetchTransactions(true)
+        fetchTransactions(true),
+        fetch('/api/server-info').then(res => res.json()).then(setServerInfo).catch(() => {})
       ]);
 
       // Restore simulated traffic stats
@@ -415,22 +418,55 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
   };
 
   const handleDeleteAllUsers = async () => {
-    if (!window.confirm('WARNING: Are you sure you want to delete ALL users? This action is irreversible.')) return;
+    if (!window.confirm('WARNING: Are you sure you want to delete ALL users from both Auth and Database? This action is absolutely irreversible.')) return;
     
     setIsLoading(true);
     try {
-      const usersSnapshot = await getDocs(collection(db, 'users'));
-      for (const userDoc of usersSnapshot.docs) {
-        // Here we would ideally delete the user document AND their subcollections.
-        // For simplicity, we just delete the main user doc, but be aware this leaves subcollections orphaned.
-        // In a real production app, use a Firebase Function for atomic cleanup.
-        await updateDoc(userDoc.ref, { status: 'deleted', deletedAt: serverTimestamp() });
-        // Instead of outright deletion, setting a status is safer until verified
-      }
-      showToast('All users have been marked as deleted.', 'success');
-    } catch (err) {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/admin/users/delete-all', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to delete users");
+
+      showToast(`All ${data.count} users have been permanently deleted.`, 'success');
+      fetchUsers(true);
+    } catch (err: any) {
       console.error(err);
-      showToast('Failed to delete users', 'error');
+      showToast(err.message || 'Failed to delete users', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!window.confirm('Are you sure you want to delete this user from Auth and Database?')) return;
+    
+    setIsLoading(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/admin/users/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ userId })
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to delete user");
+
+      showToast('User deleted successfully', 'success');
+      setUsers(prev => prev.filter(u => u.id !== userId));
+    } catch (err: any) {
+      console.error(err);
+      showToast(err.message || 'Failed to delete user', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -517,7 +553,7 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
     <div className="flex h-screen bg-[#081a1a] overflow-hidden font-sans text-white">
       {/* Sidebar Navigation */}
       <aside 
-        className={`${isSidebarOpen ? 'w-64' : 'w-20'} bg-[#061414] flex flex-col z-50 border-r border-white/5 shrink-0 transition-all duration-300 ease-in-out relative`}
+        className={`${isSidebarOpen ? 'w-64 translate-x-0' : 'w-20 -translate-x-full lg:translate-x-0'} fixed lg:relative bg-[#061414] flex flex-col h-full z-50 border-r border-white/5 shrink-0 transition-all duration-300 ease-in-out`}
       >
         {/* Toggle Button */}
         <button 
@@ -625,8 +661,14 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col overflow-hidden bg-[#0a1f1f]">
         {/* Modern Header */}
-        <header className="h-20 bg-[#061414]/50 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-8 shrink-0 z-40">
-          <div className="flex items-center gap-6">
+        <header className="h-20 bg-[#061414]/50 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-4 md:px-8 shrink-0 z-40">
+          <div className="flex items-center gap-3 md:gap-6">
+            <button 
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="lg:hidden p-2 bg-white/5 rounded-xl border border-white/5 text-emerald-400 hover:bg-white/10 transition-colors"
+            >
+              <ChevronRight className={`transition-transform duration-300 ${isSidebarOpen ? 'rotate-180' : ''}`} size={20} />
+            </button>
             <div className="flex flex-col">
               <h1 className="text-xl font-black text-white uppercase tracking-tight">
                 {navItems.find(i => i.id === activeTab)?.label}
@@ -653,14 +695,18 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
                 <p className="text-[9px] font-bold text-[#16a374] uppercase tracking-widest">Administrator</p>
               </div>
               <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-600 rounded-xl flex items-center justify-center text-white shadow-lg overflow-hidden border border-white/20">
-                {userData?.avatar ? <img src={userData.avatar} alt="" className="w-full h-full object-cover" /> : <User size={20} />}
+                {userData?.profilePictureUrl ? (
+                  <img src={userData.profilePictureUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <img src="https://www.image2url.com/r2/default/images/1779828873931-409cfe92-d243-4926-91bd-67da3a1e0adc.png" alt="" className="w-full h-full object-cover" />
+                )}
               </div>
             </div>
           </div>
         </header>
 
         {/* Scrollable Area */}
-        <div className="flex-1 overflow-y-auto p-8 no-scrollbar">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 no-scrollbar">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -669,7 +715,7 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
             >
-              {activeTab === 'dashboard' && <DashboardOverview stats={trafficStats} users={users} transactions={transactions} />}
+              {activeTab === 'dashboard' && <DashboardOverview stats={trafficStats} serverInfo={serverInfo} users={users} transactions={transactions} />}
               {activeTab === 'users' && (
                 <UserManagement 
                   users={filteredUsers} 
@@ -682,6 +728,7 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
                   onSelectUser={setSelectedUser}
                   onMessageUser={setMessagingUser}
                   onAddUser={props.onAddUser}
+                  onDeleteUser={handleDeleteUser}
                   onDeleteAllUsers={handleDeleteAllUsers}
                   hasMore={hasMoreUsers}
                   onLoadMore={() => fetchUsers(false)}
@@ -905,7 +952,7 @@ function AddBonusModal({ user, onClose, onSendBonus, isLoading }: any) {
   );
 }
 
-function DashboardOverview({ stats, users, transactions }: any) {
+function DashboardOverview({ stats, users, transactions, serverInfo }: any) {
   const totalBalance = users.reduce((acc: number, u: any) => acc + (u.balance || 0), 0);
   const totalDeposits = transactions.filter((t: any) => t.type === 'deposit' && t.status === 'approved').reduce((acc: number, t: any) => acc + (Number(t.amount) || 0), 0);
   const totalWithdrawals = transactions.filter((t: any) => t.type === 'withdrawal' && t.status === 'approved').reduce((acc: number, t: any) => acc + (Number(t.amount) || 0), 0);
@@ -965,6 +1012,15 @@ function DashboardOverview({ stats, users, transactions }: any) {
         <MetricCard label="Total Deposits" value={`৳${totalDeposits.toLocaleString()}`} icon={ArrowUpRight} color="bg-emerald-600" />
         <MetricCard label="Total Withdraw" value={`৳${totalWithdrawals.toLocaleString()}`} icon={ArrowDownLeft} color="bg-rose-600" />
         <MetricCard label="Net Profit" value={`৳${netProfit.toLocaleString()}`} icon={DollarSign} color="bg-teal-600" />
+        {serverInfo && (
+           <div className="bg-[#0e2c2c] p-6 rounded-2xl border border-white/5 flex flex-col justify-between">
+             <div className="flex justify-between items-start mb-4">
+                 <p className="text-[10px] font-black text-teal-400 uppercase tracking-widest">Hostname</p>
+                 <Shield className="text-emerald-500" size={18} />
+             </div>
+             <p className="text-lg font-black text-white truncate">{serverInfo.hostname}</p>
+           </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
@@ -1081,7 +1137,7 @@ function MetricCard({ label, value, icon: Icon, color }: any) {
   );
 }
 
-function UserManagement({ users, searchQuery, setSearchQuery, onToggleBan, onAdjustBalance, onSendBonus, onUpdateRole, onSelectUser, onMessageUser, onAddUser, onDeleteAllUsers, hasMore, onLoadMore, isLoading }: any) {
+function UserManagement({ users, searchQuery, setSearchQuery, onToggleBan, onAdjustBalance, onSendBonus, onUpdateRole, onSelectUser, onMessageUser, onAddUser, onDeleteUser, onDeleteAllUsers, hasMore, onLoadMore, isLoading }: any) {
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [newUserData, setNewUserData] = useState({ username: '', password: '', role: 'user', balance: 0 });
   const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest');
@@ -1218,8 +1274,12 @@ function UserManagement({ users, searchQuery, setSearchQuery, onToggleBan, onAdj
                 <tr key={user.id} className="hover:bg-white/5 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-teal-300 shrink-0">
-                        <User size={18} />
+                      <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-teal-300 shrink-0 overflow-hidden border border-white/10">
+                        {user.profilePictureUrl ? (
+                          <img src={user.profilePictureUrl} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <img src="https://www.image2url.com/r2/default/images/1779828873931-409cfe92-d243-4926-91bd-67da3a1e0adc.png" alt="" className="w-full h-full object-cover" />
+                        )}
                       </div>
                       <div>
                         <p className="text-sm font-black text-white">{user.username}</p>
@@ -1275,6 +1335,13 @@ function UserManagement({ users, searchQuery, setSearchQuery, onToggleBan, onAdj
                          title="Manual Bonus"
                       >
                         <Gift size={18} />
+                      </button>
+                      <button 
+                         onClick={() => onDeleteUser(user.id)}
+                         className="p-2 hover:bg-rose-500/20 text-rose-400 rounded-lg transition-all"
+                         title="Permanently Delete User"
+                      >
+                        <Trash2 size={18} />
                       </button>
                       <div className="flex gap-1 ml-4 border-l border-white/5 pl-4">
                          <button 
@@ -1636,8 +1703,8 @@ function GameManagement(props: AdminPanelViewProps) {
             <div key={game.id} className="bg-[#0d9488] p-6 rounded-[32px] border border-white/10 shadow-xl space-y-4">
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 bg-white/5 rounded-2xl overflow-hidden relative border border-white/10 group">
-                  {props.globalLogos[game.id] ? (
-                    <img src={props.globalLogos[game.id]} alt="Logo" className="w-full h-full object-cover" />
+                  {props.globalLogos[game.id] || GAME_LOGO_URLS[game.id] ? (
+                    <img src={props.globalLogos[game.id] || GAME_LOGO_URLS[game.id]} alt="Logo" className="w-full h-full object-cover" />
                   ) : (
                      <div className="w-full h-full flex items-center justify-center text-teal-300">
                         <ImageIcon size={24} />
@@ -1913,6 +1980,20 @@ function GlobalSettings(props: AdminPanelViewProps) {
   const [aviatorEnabled, setAviatorEnabled] = useState(false);
   const [aviatorCrashPoint, setAviatorCrashPoint] = useState(2.00);
   const [isSavingAviator, setIsSavingAviator] = useState(false);
+  const [telegramStatus, setTelegramStatus] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchTelegramStatus = async () => {
+      try {
+        const res = await fetch('/api/telegram/status');
+        if (res.ok) {
+          const data = await res.json();
+          setTelegramStatus(data);
+        }
+      } catch (e) {}
+    };
+    fetchTelegramStatus();
+  }, [props.globalImages]);
 
   useEffect(() => {
     const fetchAviatorOverride = async () => {
@@ -2088,13 +2169,12 @@ function GlobalSettings(props: AdminPanelViewProps) {
                 />
                 <button 
                   onClick={() => {
-                    props.updateGlobalImage('telegram_bot_token', "8888969440:AAG2eAukKg8kADAFPh6nAlJrsIbrHOapubU");
-                    props.showToast('Token reset to recommended default', 'info');
+                    props.showToast('Please provide your own valid Bot Token from @BotFather', 'info');
                   }}
                   className="mt-2 text-[10px] font-bold text-teal-400 hover:text-teal-300 transition-colors flex items-center gap-1 ml-1"
                 >
-                  <RefreshCw size={10} />
-                  Reset to Recommended
+                  <AlertCircle size={10} />
+                  How to get a token?
                 </button>
               </div>
             </div>
@@ -2142,10 +2222,11 @@ function GlobalSettings(props: AdminPanelViewProps) {
                       try {
                         const response = await fetch('/api/telegram/status');
                         const data = await response.json();
+                        setTelegramStatus(data);
                         console.log("Telegram Status:", data);
                         props.showToast(`Admin ID: ${data.configuredAdminId}`, 'info');
                         if (data.lastError) {
-                          alert(`Last Error: ${JSON.stringify(data.lastError, null, 2)}`);
+                          props.showToast('Error found. Check guidelines below.', 'error');
                         } else if (data.lastSuccess) {
                           props.showToast('Last send was successful!', 'success');
                         }
@@ -2159,6 +2240,40 @@ function GlobalSettings(props: AdminPanelViewProps) {
                     Check Status
                   </button>
                 </div>
+
+                {telegramStatus?.lastError && (
+                  <div className="bg-rose-500/10 border border-rose-500/30 p-3 rounded-xl mb-4 text-xs text-rose-300 space-y-2">
+                    <p className="font-bold flex items-center gap-1.5 text-rose-400">
+                      <AlertCircle size={14} />
+                      টেলিগ্রাম সংযোগ সমস্যা (Delivery Error):
+                    </p>
+                    <p className="bg-black/20 p-2 rounded-lg text-[11px] font-mono leading-relaxed text-slate-300 break-words">
+                      <b>ডিভাইস/চ্যাট আইডি:</b> {telegramStatus.lastError.targetChatId || 'Unknown'} <br/>
+                      <b>সমস্যা (Reason):</b> {telegramStatus.lastError.data?.description || 'chat not found'}
+                    </p>
+                    <div className="text-[11px] space-y-1.5 pl-1.5 pt-1 text-slate-300">
+                      <p className="font-semibold text-teal-400 text-left">এটি কীভাবে সমাধান করবেন (Step-by-Step Fix):</p>
+                      <ul className="list-disc list-inside space-y-1 text-slate-400 text-left">
+                        <li><b>ধাপ ১:</b> আপনার টেলিগ্রাম বটে যান এবং তাকে <b>/start</b> অথবা একটি মেসেজ পাঠিয়ে চালু করুন। (বট আপনার মেসেজ না পেলে আপনাকে মেসেজ পাঠাতে পারবে না)</li>
+                        <li><b>ধাপ ২:</b> লক্ষ্য রাখুন আপনি সঠিক <b>Admin Chat ID</b> এবং <b>Bot Token</b> দিয়েছেন কিনা।</li>
+                        <li><b>ধাপ ৩:</b> আপনার বট যদি কোনো গ্রুপে মেসেজ পাঠাতে চায়, তবে বটকে অবশ্যই সেই গ্রুপে <b>Admin (এডমিন)</b> হিসেবে যুক্ত করতে হবে।</li>
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
+                {telegramStatus?.lastSuccess && !telegramStatus?.lastError && (
+                  <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-xl mb-4 text-xs text-emerald-300">
+                    <p className="font-bold flex items-center gap-1.5 text-emerald-400">
+                      <ShieldCheck size={14} />
+                      টেলিগ্রাম সফলভাবে সংযুক্ত!
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      সর্বশেষ মেসেজ সফলভাবে প্রদান করা হয়েছে। ({new Date(telegramStatus.lastSuccess.timestamp).toLocaleString()})
+                    </p>
+                  </div>
+                )}
+
                 <button 
                   onClick={async () => {
                     try {
@@ -2170,12 +2285,17 @@ function GlobalSettings(props: AdminPanelViewProps) {
                       });
                       
                       const data = await response.json();
+                      
+                      // Refresh status response
+                      const statusRes = await fetch('/api/telegram/status');
+                      const statusData = await statusRes.json();
+                      setTelegramStatus(statusData);
+
                       if (response.ok) {
                         props.showToast('Test message sent! Check Telegram.', 'success');
                       } else {
                         const details = data.details?.response?.description || data.error || 'Unknown error';
                         props.showToast(`Error: ${details}`, 'error');
-                        alert(`Telegram details: ${JSON.stringify(data.details, null, 2)}`);
                       }
                     } catch (e) {
                       props.showToast('Connection error while sending test message.', 'error');
@@ -2187,7 +2307,7 @@ function GlobalSettings(props: AdminPanelViewProps) {
                   Ping Telegram Bot
                 </button>
                 <p className="text-[10px] text-slate-500 mt-3 text-center italic">
-                  Bot will send to ID: <span className="text-slate-300 select-all font-mono">-6543227982</span>
+                  বট এই আইডিতে মেসেজ পাঠাবে: <span className="text-slate-300 select-all font-mono">{props.globalImages['telegram_admin_chat_id'] || 'Not Configured'}</span>
                 </p>
               </div>
             </div>
@@ -2268,104 +2388,7 @@ function GlobalSettings(props: AdminPanelViewProps) {
          </div>
       </div>
 
-      {/* Aviator Prediction Custom Hack Switch & Multiplier Control */}
-      <div className="mt-10 pt-10 border-t border-white/10 space-y-6">
-        <div className="flex items-center gap-3">
-          <Gamepad2 className="text-rose-400 animate-pulse" size={28} />
-          <div>
-            <h3 className="text-xl font-black text-white uppercase tracking-tight">🚀 Aviator Predictor Override (এভিয়েটর সিগন্যাল হ্যাক কন্ট্রোলার)</h3>
-            <p className="text-xs text-teal-200 mt-1">
-              এখানে কাস্টম ক্র্যাশ পয়েন্ট সেট করে অন করে দিলে পরবর্তী প্রতিটি রাউন্ডে বিমানটি ঠিক আপনার দেওয়া পয়েন্টে গিয়ে ক্র্যাশ করবে এবং টেলিগ্রাম সিগন্যালেও এটি অটো পরিবর্তিত হয়ে যাবে।
-            </p>
-          </div>
-        </div>
 
-        <div className="bg-black/30 p-6 rounded-3xl border border-white/10 space-y-6">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-4">
-              <button
-                type="button"
-                onClick={async () => {
-                  const nextEnabled = !aviatorEnabled;
-                  setAviatorEnabled(nextEnabled);
-                  await handleSaveAviatorOverride(nextEnabled, aviatorCrashPoint);
-                }}
-                disabled={isSavingAviator}
-                className={`px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-md flex items-center gap-2 ${
-                  aviatorEnabled 
-                    ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-500/20' 
-                    : 'bg-slate-700 hover:bg-slate-600 text-slate-300'
-                }`}
-              >
-                <Power size={16} />
-                {aviatorEnabled ? 'টার্ন অফ করুন (Disable)' : 'টার্ন অন করুন (Enable)'}
-              </button>
-
-              <div className="flex flex-col">
-                <span className="text-[10px] font-black uppercase text-teal-400 tracking-wider">বর্তমান অবস্থা (Status)</span>
-                <span className={`text-sm font-bold flex items-center gap-2 mt-1 ${aviatorEnabled ? 'text-rose-400' : 'text-slate-400'}`}>
-                  <span className={`w-2.5 h-2.5 rounded-full ${aviatorEnabled ? 'bg-rose-500 animate-ping' : 'bg-slate-500'}`}></span>
-                  {aviatorEnabled ? 'ফোর্স সিগন্যাল সক্রিয় (ACTIVE)' : 'স্বাভাবিক র্যান্ডম মোড (INACTIVE)'}
-                </span>
-              </div>
-            </div>
-
-            <div className="w-full sm:w-auto flex items-center gap-3">
-              <div className="flex-1 sm:w-48">
-                <label className="block text-[10px] font-black text-teal-200 uppercase tracking-wider mb-2">কাস্টম পয়েন্ট (x)</label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="1.00"
-                    value={aviatorCrashPoint}
-                    onChange={(e) => setAviatorCrashPoint(Number(parseFloat(e.target.value) || 1.00))}
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-sm font-extrabold text-white text-center focus:outline-none focus:border-rose-500"
-                    placeholder="2.00"
-                  />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-rose-400">X</span>
-                </div>
-              </div>
-
-              <div className="self-end pb-[2px]">
-                <button
-                  type="button"
-                  onClick={() => handleSaveAviatorOverride(aviatorEnabled, aviatorCrashPoint)}
-                  disabled={isSavingAviator}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-md hover:shadow-emerald-500/20 transition-all flex items-center gap-2"
-                >
-                  {isSavingAviator ? <Loader2 size={16} className={`animate-spin`} /> : <ShieldCheck size={16} />}
-                  সেভ করুন
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-3 pt-2">
-            <h4 className="text-[10px] font-black text-teal-400 uppercase tracking-widest">⚡ দ্রুত মাল্টিপ্লায়ার সেট করুন (Quick Signal Presets)</h4>
-            <div className="flex flex-wrap gap-2.5">
-              {[1.20, 1.50, 1.80, 2.00, 3.00, 5.00, 10.00, 50.00, 100.00].map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={async () => {
-                    setAviatorCrashPoint(preset);
-                    await handleSaveAviatorOverride(aviatorEnabled, preset);
-                  }}
-                  disabled={isSavingAviator}
-                  className={`px-4 py-2.5 rounded-xl font-extrabold text-xs transition-all ${
-                    aviatorCrashPoint === preset 
-                      ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/30' 
-                      : 'bg-black/45 hover:bg-black/60 text-teal-100 border border-white/5'
-                  }`}
-                >
-                  {preset.toFixed(2)}x
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
@@ -2389,16 +2412,29 @@ function PromoManagement({ showToast, userData }: { showToast: any, userData: an
     if (!newPromo.code || newPromo.amount <= 0) return;
     setIsLoading(true);
     try {
-      await setDoc(doc(db, 'promo_codes', newPromo.code.toUpperCase()), {
-        ...newPromo,
-        code: newPromo.code.toUpperCase(),
-        createdAt: serverTimestamp(),
-        usedCount: 0
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/promo/create', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          code: newPromo.code.toUpperCase(),
+          amount: newPromo.amount,
+          maxUses: newPromo.maxUses,
+          expireDays: newPromo.expireDays,
+          active: newPromo.active
+        })
       });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to create promo code");
+
       showToast('Promo code created!', 'success');
       setNewPromo({ code: '', amount: 0, maxUses: 100, expireDays: 7, active: true });
-    } catch (err) {
-      showToast('Failed to create promo code', 'error');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to create promo code', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -2577,6 +2613,7 @@ function MaintenanceTab({ showToast }: { showToast: any }) {
           data.role === 'admin' || 
           data.username?.toLowerCase() === 'admin' || 
           data.email === 'owner.css13@gmail.com' ||
+          data.email === 'cutelegend7045@gmail.com' ||
           data.role === 'agent';
         return !isAdmin;
       });

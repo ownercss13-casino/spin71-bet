@@ -76,6 +76,15 @@ export default function GlobalImage({
         referrerPolicy="no-referrer"
       />
       
+      {isAdmin && (
+        <button 
+          onClick={() => setIsEditing(true)}
+          className="absolute -top-2 -right-2 w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-black shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-20"
+        >
+          <Edit2 size={16} />
+        </button>
+      )}
+
       {/* Edit Modal */}
       {isEditing && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[1000] p-4" onClick={(e) => e.stopPropagation()}>

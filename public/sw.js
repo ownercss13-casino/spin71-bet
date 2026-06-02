@@ -1,28 +1,21 @@
-const CACHE_NAME = 'spin71-cache-v2';
-const ASSETS = [
+// Service Worker for PWA installation support
+const CACHE_NAME = 'spin71-cache-v1';
+const urlsToCache = [
   '/',
   '/index.html',
-  '/manifest.json',
-  '/apple-touch-icon.png'
+  '/manifest.json'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS);
-    })
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(urlsToCache))
   );
 });
 
 self.addEventListener('fetch', (event) => {
-  // Only handle standard GET requests for local assets
-  if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) {
-    return;
-  }
-
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
-    })
+    caches.match(event.request)
+      .then((response) => response || fetch(event.request))
   );
 });

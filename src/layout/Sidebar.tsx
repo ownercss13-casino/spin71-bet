@@ -18,6 +18,8 @@ interface SidebarProps {
   facebookLink?: string;
   theme: 'light' | 'dark';
   toggleTheme: () => void;
+  appLogo?: string;
+  onInstallApp?: () => void;
 }
 
 export default function Sidebar({
@@ -35,12 +37,18 @@ export default function Sidebar({
   whatsappLink = "https://wa.me/...",
   facebookLink = "https://facebook.com/...",
   theme,
-  toggleTheme
+  toggleTheme,
+  appLogo,
+  onInstallApp
 }: SidebarProps) {
   const games = [
     { id: '2', name: 'Rocket', icon: Star },
     { id: '3', name: 'Slots', icon: Star },
   ];
+
+  const DownloadIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+  );
 
   return (
     <div 
@@ -57,13 +65,10 @@ export default function Sidebar({
         {/* Sidebar Header */}
         <div className="p-6 bg-gradient-to-b from-[#0f766e] to-[var(--bg-card)] border-b border-teal-600/50">
           <div className="flex items-center justify-between mb-6">
-            <div className="h-[30px] max-w-[120px]">
-              <img 
-                src="/apple-touch-icon.png?v=6" 
-                alt={casinoName}
-                className="h-full w-auto object-contain drop-shadow-[0_0_8px_rgba(253,216,53,0.3)]" 
-                referrerPolicy="no-referrer"
-              />
+            <div className="flex items-center">
+              <span className="text-xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 drop-shadow-[0_0_8px_rgba(253,216,53,0.5)]">
+                SPIN71.BET
+              </span>
             </div>
             <button onClick={onClose} className="text-teal-200 hover:text-white">
               <X size={24} />
@@ -127,6 +132,19 @@ export default function Sidebar({
               <span>{link.label}</span>
             </button>
           ))}
+
+          {onInstallApp && (
+             <button
+                onClick={() => {
+                   onInstallApp();
+                   onClose();
+                }}
+                className="w-full flex items-center gap-4 px-4 py-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 font-bold hover:bg-yellow-500/20 transition-all mt-4"
+             >
+                <DownloadIcon />
+                <span>অ্যাপ ডাউনলোড (Download)</span>
+             </button>
+          )}
 
           <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-4 mt-6 mb-2">Our Games</p>
           {games.map((game) => (

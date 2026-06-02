@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Clock, ArrowUpRight, History, Filter, ArrowDownUp, FileSearch } from 'lucide-react';
 import { db } from '../services/firebase';
-import { collection, query, orderBy, getDocs, limit, startAfter } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, limit, startAfter, onSnapshot } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface Withdrawal {
@@ -29,27 +29,17 @@ export default function WithdrawalHistoryTab({ userData, onBack }: WithdrawalHis
   const [hasMore, setHasMore] = useState(true);
   const PAGE_SIZE = 15;
 
-  const fetchWithdrawals = async (isFirstLoad = true) => {
+  useEffect(() => {
     if (!userData?.id) return;
-    if (isFirstLoad) setIsLoading(true);
-    
-    try {
-      let q = query(
-        collection(db, 'users', userData.id, 'transactions'), 
-        orderBy('createdAt', sortBy.startsWith('date') ? (sortBy === 'date_desc' ? 'desc' : 'asc') : 'desc'), 
-        limit(PAGE_SIZE * 3) // We filter for 'withdrawal' type client-side in this specific structure
-      );
+    setIsLoading(true);
 
-      if (!isFirstLoad && lastVisible) {
-        q = query(
-          collection(db, 'users', userData.id, 'transactions'), 
-          orderBy('createdAt', sortBy.startsWith('date') ? (sortBy === 'date_desc' ? 'desc' : 'asc') : 'desc'), 
-          startAfter(lastVisible),
-          limit(PAGE_SIZE * 3)
-        );
-      }
+    const q = query(
+      collection(db, 'users', userData.id, 'transactions'),
+      orderBy('createdAt', sortBy.startsWith('date') ? (sortBy === 'date_desc' ? 'desc' : 'asc') : 'desc'),
+      limit(PAGE_SIZE * 3)
+    );
 
-      const snapshot = await getDocs(q);
+    const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs
         .map(doc => {
           const d = doc.data();
@@ -82,28 +72,69 @@ export default function WithdrawalHistoryTab({ userData, onBack }: WithdrawalHis
           } as Withdrawal;
         }).filter(Boolean) as Withdrawal[];
 
-      if (isFirstLoad) {
-        setWithdrawals(data);
-      } else {
-        setWithdrawals(prev => [...prev, ...data]);
-      }
-
+      setWithdrawals(data);
       setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
       setHasMore(snapshot.docs.length === PAGE_SIZE * 3);
       setIsLoading(false);
-    } catch (error) {
-      console.error("Error fetching withdrawals:", error);
+    }, (error) => {
+      console.error("Error with withdrawals listener:", error);
       setIsLoading(false);
-    }
-  };
+    });
 
-  useEffect(() => {
-    fetchWithdrawals(true);
+    return () => unsubscribe();
   }, [userData?.id, sortBy]);
 
   const loadMore = () => {
-    if (!isLoading && hasMore) {
-      fetchWithdrawals(false);
+    if (!isLoading && hasMore && lastVisible) {
+      setIsLoading(true);
+      const q = query(
+        collection(db, 'users', userData.id, 'transactions'),
+        orderBy('createdAt', sortBy.startsWith('date') ? (sortBy === 'date_desc' ? 'desc' : 'asc') : 'desc'),
+        startAfter(lastVisible),
+        limit(PAGE_SIZE)
+      );
+
+      getDocs(q).then((snapshot) => {
+        const data = snapshot.docs
+          .map(doc => {
+            const d = doc.data();
+            if (d.type !== 'withdrawal') return null;
+            
+            let dateStr = 'Just now';
+            let timestamp = 0;
+            const createdAt = d.createdAt;
+            if (createdAt) {
+              if (typeof createdAt.toDate === 'function') {
+                const date = createdAt.toDate();
+                dateStr = date.toLocaleString();
+                timestamp = date.getTime();
+              } else {
+                const date = new Date(createdAt);
+                dateStr = date.toLocaleString();
+                timestamp = date.getTime();
+              }
+            }
+
+            return {
+              id: doc.id,
+              amount: d.amount,
+              status: d.status,
+              date: dateStr,
+              method: d.method,
+              trxId: d.trxId,
+              accountNumber: d.accountNumber,
+              _timestamp: timestamp
+            } as Withdrawal;
+          }).filter(Boolean) as Withdrawal[];
+
+        setWithdrawals(prev => [...prev, ...data]);
+        setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
+        setHasMore(snapshot.docs.length === PAGE_SIZE);
+        setIsLoading(false);
+      }).catch(err => {
+        console.error("Error loading more withdrawals:", err);
+        setIsLoading(false);
+      });
     }
   };
 

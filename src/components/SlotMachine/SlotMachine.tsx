@@ -81,13 +81,10 @@ const SlotMachine: React.FC<SlotMachineProps> = ({ onBack, balance, onBalanceUpd
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-[#0a0505] p-4 text-white overflow-hidden relative">
       {/* Top Banner / Logo */}
-      <div className="absolute top-0 left-0 right-0 h-16 flex items-center justify-center z-20 pointer-events-none">
-        <img 
-          src="/apple-touch-icon.png?v=6" 
-          alt="Casino Logo"
-          className="h-10 opacity-90 drop-shadow-[0_0_10px_rgba(253,216,53,0.3)]"
-          referrerPolicy="no-referrer"
-        />
+      <div className="absolute top-0 left-0 right-0 h-20 flex items-center justify-center z-20 pointer-events-none pt-4">
+        <span className="text-3xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 drop-shadow-[0_0_12px_rgba(253,216,53,0.5)]">
+          SPIN71.BET
+        </span>
       </div>
 
       {/* Close Button - × */}
@@ -146,9 +143,9 @@ const SlotMachine: React.FC<SlotMachineProps> = ({ onBack, balance, onBalanceUpd
 
         {/* Reels Container */}
         <div className="flex gap-3 p-4 bg-black/80 rounded-3xl border-4 border-[#310a0a] shadow-inner mb-8">
-          <Reel symbols={[]} isSpinning={isSpinning} result={results[0]} />
-          <Reel symbols={[]} isSpinning={isSpinning} result={results[1]} />
-          <Reel symbols={[]} isSpinning={isSpinning} result={results[2]} />
+          <Reel symbols={['7', 'BAR', 'CHERRY', 'DIAMOND', 'GOLD', 'BELL']} isSpinning={isSpinning} result={results[0]} />
+          <Reel symbols={['7', 'BAR', 'CHERRY', 'DIAMOND', 'GOLD', 'BELL']} isSpinning={isSpinning} result={results[1]} />
+          <Reel symbols={['7', 'BAR', 'CHERRY', 'DIAMOND', 'GOLD', 'BELL']} isSpinning={isSpinning} result={results[2]} />
         </div>
 
         {/* Status Line */}

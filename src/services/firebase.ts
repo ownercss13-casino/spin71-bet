@@ -11,10 +11,17 @@ console.log("[Firebase] Initializing Firestore with DB ID:", firebaseConfig.fire
 const dbId = firebaseConfig.firestoreDatabaseId === '(default)' ? undefined : firebaseConfig.firestoreDatabaseId;
 
 // Initialize Firestore with specific settings to improve stability in restricted environments
-let dbInstance = initializeFirestore(app, {
-  cacheSizeBytes: CACHE_SIZE_UNLIMITED,
-  experimentalForceLongPolling: true, // Often helps in sandboxed/proxy environments
-}, dbId);
+let dbInstance;
+try {
+  console.log("[Firebase] Attempting to initialize Firestore with DB ID:", dbId);
+  dbInstance = initializeFirestore(app, {
+    cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+    experimentalForceLongPolling: true, // Often helps in sandboxed/proxy environments
+  }, dbId);
+} catch (err) {
+  console.error("[Firebase] Failed to initialize named Firestore instance, falling back to default:", err);
+  dbInstance = getFirestore(app);
+}
 
 console.log("[Firebase] Firestore initialized successfully");
 
