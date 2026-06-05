@@ -1,16 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Settings, Bell, Moon, Sun, Monitor, BellRing, BellOff, Volume2, VolumeX, Shield, Save } from 'lucide-react';
+import { useSound } from '../context/SoundContext';
 
 interface SettingsViewProps {
   userData: any;
+  onUpdateUser: (updates: any) => Promise<void>;
+  showToast: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
 }
 
-export default function SettingsView({ userData }: SettingsViewProps) {
+export default function SettingsView({ userData, onUpdateUser, showToast }: SettingsViewProps) {
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('dark');
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [pushNotifications, setPushNotifications] = useState(true);
-  const [soundEffects, setSoundEffects] = useState(true);
+  const { soundEnabled, toggleSound } = useSound();
+  const [bgMusicVolume, setBgMusicVolume] = useState(70);
+  const [gameSoundVolume, setGameSoundVolume] = useState(100);
+  const [dailyBetLimit, setDailyBetLimit] = useState(userData?.dailyBetLimit || 0);
+
+  const handleSaveLimit = async () => {
+    try {
+      await onUpdateUser({ dailyBetLimit: Number(dailyBetLimit) });
+      showToast("Daily bet limit updated!", "success");
+    } catch (e) {
+      console.error(e);
+      showToast("Failed to update limit", "error");
+    }
+  };
 
   useEffect(() => {
     // Load settings from local storage
@@ -23,28 +39,43 @@ export default function SettingsView({ userData }: SettingsViewProps) {
     const savedPushNotif = localStorage.getItem('app_push_notif');
     if (savedPushNotif) setPushNotifications(savedPushNotif === 'true');
 
-    const savedSound = localStorage.getItem('app_sound');
-    if (savedSound) setSoundEffects(savedSound === 'true');
+    const savedBgVolume = localStorage.getItem('app_bg_volume');
+    if (savedBgVolume) setBgMusicVolume(Number(savedBgVolume));
+
+    const savedGameVolume = localStorage.getItem('app_game_volume');
+    if (savedGameVolume) setGameSoundVolume(Number(savedGameVolume));
   }, []);
+
+  useEffect(() => {
+    const applyTheme = (currentTheme: 'light' | 'dark' | 'system') => {
+      const isDark = currentTheme === 'dark' || (currentTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    };
+
+    applyTheme(theme);
+
+    // Listener for system changes
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const listener = () => {
+      if (theme === 'system') {
+        applyTheme('system');
+      }
+    };
+    mediaQuery.addEventListener('change', listener);
+    return () => mediaQuery.removeEventListener('change', listener);
+  }, [theme]);
 
   const handleSave = () => {
     localStorage.setItem('app_theme', theme);
     localStorage.setItem('app_email_notif', String(emailNotifications));
     localStorage.setItem('app_push_notif', String(pushNotifications));
-    localStorage.setItem('app_sound', String(soundEffects));
-    
-    // Apply theme
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else if (theme === 'light') {
-      document.documentElement.classList.remove('dark');
-    } else {
-      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-    }
+    localStorage.setItem('app_bg_volume', String(bgMusicVolume));
+    localStorage.setItem('app_game_volume', String(gameSoundVolume));
+    showToast("Settings saved successfully!", "success");
   };
 
   return (
@@ -119,7 +150,17 @@ export default function SettingsView({ userData }: SettingsViewProps) {
                 </div>
               </div>
               <button 
-                onClick={() => setPushNotifications(!pushNotifications)}
+                onClick={async () => {
+                  const nextValue = !pushNotifications;
+                  setPushNotifications(nextValue);
+                  localStorage.setItem('app_push_notif', String(nextValue));
+                  try {
+                    await onUpdateUser({ pushNotifications: nextValue });
+                    showToast("Push notifications preference updated!", "success");
+                  } catch (e) {
+                    showToast("Failed to save preference", "error");
+                  }
+                }}
                 className={`w-12 h-6 rounded-full p-1 transition-colors ${pushNotifications ? 'bg-teal-500' : 'bg-gray-600'}`}
               >
                 <motion.div 
@@ -163,29 +204,78 @@ export default function SettingsView({ userData }: SettingsViewProps) {
             <Volume2 className="text-teal-500" size={20} />
             <h3 className="text-lg font-black text-white italic tracking-tight">অডিও (Audio)</h3>
           </div>
-          <div className="p-5">
+          <div className="p-5 space-y-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-black/20 flex items-center justify-center text-gray-400 border border-white/5">
-                  {soundEffects ? <Volume2 size={18} /> : <VolumeX size={18} />}
+                  {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-white">সাউন্ড ইফেক্ট</h4>
-                  <p className="text-[10px] text-gray-500 font-bold">গেমের শব্দ এবং ক্লিক ইফেক্ট</p>
                 </div>
               </div>
               <button 
-                onClick={() => setSoundEffects(!soundEffects)}
-                className={`w-12 h-6 rounded-full p-1 transition-colors ${soundEffects ? 'bg-teal-500' : 'bg-gray-600'}`}
+                onClick={toggleSound}
+                className={`w-12 h-6 rounded-full p-1 transition-colors ${soundEnabled ? 'bg-teal-500' : 'bg-gray-600'}`}
               >
                 <motion.div 
                   className="w-4 h-4 rounded-full bg-white"
-                  animate={{ x: soundEffects ? 24 : 0 }}
+                  animate={{ x: soundEnabled ? 24 : 0 }}
                   transition={{ type: "spring", stiffness: 500, damping: 30 }}
                 />
               </button>
             </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs text-gray-400 font-bold">
+                <span>Background Music</span>
+                <span>{bgMusicVolume}%</span>
+              </div>
+              <input 
+                type="range"
+                min="0"
+                max="100"
+                value={bgMusicVolume}
+                onChange={(e) => setBgMusicVolume(Number(e.target.value))}
+                className="w-full h-2 bg-black/20 rounded-lg appearance-none cursor-pointer accent-teal-500"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs text-gray-400 font-bold">
+                <span>Game Sound Effects</span>
+                <span>{gameSoundVolume}%</span>
+              </div>
+              <input 
+                type="range"
+                min="0"
+                max="100"
+                value={gameSoundVolume}
+                onChange={(e) => setGameSoundVolume(Number(e.target.value))}
+                className="w-full h-2 bg-black/20 rounded-lg appearance-none cursor-pointer accent-teal-500"
+              />
+            </div>
           </div>
+        </div>
+
+        {/* Daily Bet Limit */}
+        <div className="bg-teal-900/20 border border-teal-800/30 rounded-[28px] overflow-hidden p-5">
+           <h3 className="text-lg font-black text-white italic tracking-tight mb-4">ডেইলি বেট লিমিট</h3>
+           <div className="flex items-center gap-4">
+             <input 
+               type="number"
+               value={dailyBetLimit}
+               onChange={(e) => setDailyBetLimit(Number(e.target.value))}
+               className="flex-1 bg-black/20 text-white p-3 rounded-xl border border-white/10"
+               placeholder="Enter daily limit"
+             />
+             <button 
+               onClick={handleSaveLimit}
+               className="bg-teal-500 text-black font-black px-6 py-3 rounded-xl"
+             >
+               সেভ
+             </button>
+           </div>
         </div>
 
         <button 

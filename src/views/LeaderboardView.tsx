@@ -1,191 +1,245 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Trophy, Medal, Crown, Star, TrendingUp, User, Award } from 'lucide-react';
+import { 
+  Trophy, 
+  ChevronLeft, 
+  Crown, 
+  Medal, 
+  TrendingUp, 
+  ChevronRight, 
+  Star, 
+  Target, 
+  Zap, 
+  History,
+  ArrowUpRight,
+  User as UserIcon,
+  RefreshCw,
+  Search
+} from 'lucide-react';
+import { db } from '../services/firebase';
+import { collection, query, orderBy, limit, onSnapshot, getDocs, where } from 'firebase/firestore';
 
-export interface LeaderboardEntry {
-  userId: string;
+interface LeaderboardUser {
+  id: string;
   username: string;
-  totalWinnings: number;
-  achievements: string[];
-  profilePictureUrl?: string;
+  totalReferralEarnings?: number;
+  balance?: number;
+  totalDeposits?: number;
+  profit?: number;
+  avatar?: string;
+  vipLevel?: number;
 }
 
-export default function LeaderboardView() {
-  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+export default function LeaderboardView({ onBack }: { onBack: () => void }) {
+  const [users, setUsers] = useState<LeaderboardUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeCategory, setActiveCategory] = useState<'earning' | 'balance' | 'deposits'>('earning');
+  const [timeframe, setTimeframe] = useState<'daily' | 'weekly' | 'all'>('all');
 
   useEffect(() => {
-    // Mock data for leaderboard
-    const mockEntries: LeaderboardEntry[] = [
-      { userId: '1', username: 'Winner01', totalWinnings: 50000, achievements: ['Big Winner', 'High Roller'] },
-      { userId: '2', username: 'PlayerPro', totalWinnings: 35000, achievements: ['Pro Player'] },
-      { userId: '3', username: 'SpinMaster', totalWinnings: 28000, achievements: ['High Roller'] },
-      { userId: '4', username: 'LuckyBoy', totalWinnings: 21000, achievements: ['Big Winner'] },
-      { userId: '5', username: 'Aisha78', totalWinnings: 15400, achievements: [] },
-      { userId: '6', username: 'Rahim_Bet', totalWinnings: 12000, achievements: [] },
-      { userId: '7', username: 'KingSlot', totalWinnings: 9800, achievements: [] },
-      { userId: '8', username: 'DemoUser', totalWinnings: 5000, achievements: [] },
-    ];
+    setLoading(true);
+    const usersRef = collection(db, 'users');
+    
+    let sortField = 'totalReferralEarnings';
+    if (activeCategory === 'balance') sortField = 'balance';
+    if (activeCategory === 'deposits') sortField = 'totalDeposits';
 
-    const timer = setTimeout(() => {
-      setEntries(mockEntries);
+    const q = query(usersRef, orderBy(sortField, 'desc'), limit(15));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const usersData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as LeaderboardUser[];
+      
+      setUsers(usersData);
       setLoading(false);
-    }, 1000);
+    }, (error) => {
+      console.error("Leaderboard fetch error:", error);
+      setLoading(false);
+    });
 
-    return () => clearTimeout(timer);
-  }, []);
+    return () => unsubscribe();
+  }, [activeCategory, timeframe]);
 
-  const getRankIcon = (index: number) => {
-    switch (index) {
-      case 0: return <Crown className="w-6 h-6 text-yellow-400" />;
-      case 1: return <Medal className="w-6 h-6 text-gray-300" />;
-      case 2: return <Medal className="w-6 h-6 text-amber-600" />;
-      default: return <span className="text-gray-400 font-bold w-6 text-center">{index + 1}</span>;
-    }
-  };
-
-  const getAchievementBadge = (achievement: string) => {
-    switch (achievement) {
-      case 'Big Winner': return <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />;
-      case 'High Roller': return <TrendingUp className="w-3 h-3 text-green-400" />;
-      case 'Pro Player': return <Award className="w-3 h-3 text-blue-400" />;
-      default: return null;
-    }
-  };
+  const categories = [
+    { id: 'earning', label: 'আয় (Earnings)', icon: TrendingUp },
+    { id: 'balance', label: 'ব্যালেন্স', icon: Star },
+    { id: 'deposits', label: 'ডিপোজিট', icon: Target },
+  ];
 
   return (
-    <div className="p-4 space-y-6 pb-24">
-      <div className="bg-gradient-to-r from-yellow-600 to-yellow-800 p-4 rounded-2xl shadow-lg flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Trophy className="text-white" size={32} />
-          <div>
-            <h2 className="text-white font-black text-xl italic uppercase tracking-tighter">লিডারবোর্ড</h2>
-            <p className="text-yellow-200 text-[10px] font-bold">সেরা খেলোয়াড়দের তালিকা (Top Winners)</p>
+    <div className="flex flex-col min-h-screen bg-[#0d1a29] text-white pb-20">
+      {/* Header */}
+      <div className="bg-[#14253a] pt-12 pb-6 px-6 sticky top-0 z-20 border-b border-[#1e3a5f] shadow-lg">
+        <div className="flex items-center justify-between mb-6">
+          <button onClick={onBack} className="p-2 bg-white/5 rounded-2xl hover:bg-white/10 transition-colors">
+            <ChevronLeft size={24} />
+          </button>
+          <div className="flex flex-col items-center">
+            <h2 className="text-2xl font-black italic tracking-tighter uppercase flex items-center gap-2">
+              <Trophy className="text-yellow-500" size={24} /> লিডারবোর্ড
+            </h2>
+            <p className="text-[10px] font-bold text-teal-400 uppercase tracking-widest">Global Top Winners</p>
           </div>
+          <button className="p-2 bg-white/5 rounded-2xl opacity-0">
+            <RefreshCw size={24} />
+          </button>
         </div>
-        <div className="bg-black/20 px-3 py-1 rounded-full border border-white/10">
-          <span className="text-white font-black text-sm italic">Real-Time</span>
+
+        {/* Categories Tab */}
+        <div className="flex bg-black/20 p-1 rounded-2xl overflow-x-auto no-scrollbar">
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setActiveCategory(cat.id as any)}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl transition-all whitespace-nowrap ${
+                activeCategory === cat.id 
+                  ? 'bg-yellow-500 text-black font-bold shadow-lg' 
+                  : 'text-teal-400 hover:text-white font-medium'
+              }`}
+            >
+              <cat.icon size={16} />
+              <span className="text-xs uppercase tracking-tighter">{cat.label}</span>
+            </button>
+          ))}
         </div>
       </div>
 
-      <div className="bg-[#1a1b23] rounded-2xl border border-white/5 overflow-hidden">
-        {loading ? (
-          <div className="p-8 flex justify-center">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-              className="w-8 h-8 border-2 border-yellow-500 border-t-transparent rounded-full"
-            />
-          </div>
-        ) : entries.length === 0 ? (
-          <div className="p-12 text-center space-y-3">
-            <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto">
-              <Trophy className="w-8 h-8 text-gray-600" />
+      {/* Top 3 Winners */}
+      {!loading && users.length >= 3 && (
+        <div className="px-6 pt-10 pb-6 grid grid-cols-3 gap-3 items-end">
+          {/* Rank 2 */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center gap-3 pb-4"
+          >
+            <div className="relative">
+              <div className="w-16 h-16 rounded-full border-4 border-gray-400 overflow-hidden bg-white/10 shadow-lg shadow-gray-400/20">
+                <img 
+                   src={users[1]?.avatar || "https://www.image2url.com/r2/default/images/1779828873931-409cfe92-d243-4926-91bd-67da3a1e0adc.png"} 
+                   className="w-full h-full object-cover" 
+                   alt="Rank 2"
+                />
+              </div>
+              <div className="absolute -bottom-2 translate-x-1/2 right-1/2 w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center text-black font-black text-xs border-4 border-[#0d1a29]">
+                2
+              </div>
             </div>
-            <p className="text-gray-400">এখনও কোনো তথ্য নেই</p>
+            <div className="text-center">
+              <p className="text-xs font-bold truncate max-w-[80px]">{users[1]?.username}</p>
+              <p className="text-[10px] text-teal-400 font-black">৳{Math.floor(users[1]?.[activeCategory === 'earning' ? 'totalReferralEarnings' : activeCategory === 'balance' ? 'balance' : 'totalDeposits'] || 0).toLocaleString()}</p>
+            </div>
+          </motion.div>
+
+          {/* Rank 1 */}
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center gap-4 relative z-10"
+          >
+            <div className="absolute -top-10 scale-150">
+               <Crown className="text-yellow-500 fill-yellow-500/20 animate-bounce" size={40} />
+            </div>
+            <div className="relative">
+              <div className="w-24 h-24 rounded-full border-4 border-yellow-500 overflow-hidden bg-white/10 shadow-2xl shadow-yellow-500/30">
+                <img 
+                   src={users[0]?.avatar || "https://www.image2url.com/r2/default/images/1779828873931-409cfe92-d243-4926-91bd-67da3a1e0adc.png"} 
+                   className="w-full h-full object-cover" 
+                   alt="Rank 1"
+                />
+              </div>
+              <div className="absolute -bottom-3 translate-x-1/2 right-1/2 w-10 h-10 bg-yellow-500 rounded-full flex items-center justify-center text-black font-black text-lg border-4 border-[#0d1a29]">
+                1
+              </div>
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-black truncate max-w-[100px] uppercase italic text-yellow-500">{users[0]?.username}</p>
+              <p className="text-xs text-white font-black">৳{Math.floor(users[0]?.[activeCategory === 'earning' ? 'totalReferralEarnings' : activeCategory === 'balance' ? 'balance' : 'totalDeposits'] || 0).toLocaleString()}</p>
+            </div>
+          </motion.div>
+
+          {/* Rank 3 */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center gap-3 pb-4"
+          >
+            <div className="relative">
+              <div className="w-16 h-16 rounded-full border-4 border-amber-800 overflow-hidden bg-white/10 shadow-lg shadow-amber-800/20">
+                <img 
+                   src={users[2]?.avatar || "https://www.image2url.com/r2/default/images/1779828873931-409cfe92-d243-4926-91bd-67da3a1e0adc.png"} 
+                   className="w-full h-full object-cover" 
+                   alt="Rank 3"
+                />
+              </div>
+              <div className="absolute -bottom-2 translate-x-1/2 right-1/2 w-8 h-8 bg-amber-800 rounded-full flex items-center justify-center text-black font-black text-xs border-4 border-[#0d1a29]">
+                3
+              </div>
+            </div>
+            <div className="text-center">
+              <p className="text-xs font-bold truncate max-w-[80px]">{users[2]?.username}</p>
+              <p className="text-[10px] text-teal-400 font-black">৳{Math.floor(users[2]?.[activeCategory === 'earning' ? 'totalReferralEarnings' : activeCategory === 'balance' ? 'balance' : 'totalDeposits'] || 0).toLocaleString()}</p>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Main List */}
+      <div className="flex-1 mt-4 px-4">
+        <div className="bg-[#14253a]/50 rounded-[40px] border border-[#1e3a5f]/30 overflow-hidden">
+          <div className="p-6 border-b border-[#1e3a5f]/30 flex items-center justify-between">
+            <span className="text-[10px] font-black uppercase tracking-widest text-[#90a4ae]">ইউজার তালিকা (Top 15 Users)</span>
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
           </div>
-        ) : (
-          <div className="divide-y divide-white/5">
-            <AnimatePresence mode="popLayout">
-              {entries.map((entry, index) => (
-                <motion.div
-                  key={entry.userId}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ delay: index * 0.05 }}
-                  className={`flex items-center gap-4 p-4 ${index < 3 ? 'bg-white/[0.02]' : ''}`}
+
+          {loading ? (
+            <div className="p-20 flex flex-col items-center gap-4">
+              <RefreshCw className="text-yellow-500 animate-spin" size={40} />
+              <p className="text-teal-400 text-xs font-bold animate-pulse">ডেটা লোড হচ্ছে...</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-[#1e3a5f]/20">
+              {users.slice(3).map((user, idx) => (
+                <motion.div 
+                  initial={{ opacity: 0, x: -10 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: idx * 0.05 }}
+                  key={user.id}
+                  className="p-5 flex items-center gap-4 hover:bg-white/5 transition-colors group"
                 >
-                  <div className="flex-shrink-0 w-8 flex justify-center">
-                    {getRankIcon(index)}
+                  <span className="text-xs font-black text-teal-400 w-6 italic">#{idx + 4}</span>
+                  <div className="w-10 h-10 rounded-xl overflow-hidden border border-white/10 group-hover:scale-110 transition-transform">
+                    <img 
+                       src={user.avatar || "https://www.image2url.com/r2/default/images/1779828873931-409cfe92-d243-4926-91bd-67da3a1e0adc.png"} 
+                       className="w-full h-full object-cover" 
+                       alt="Avatar"
+                    />
                   </div>
-
-                  <div className="relative">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-500/20 to-amber-500/20 border border-white/10 flex items-center justify-center overflow-hidden">
-                      {entry.profilePictureUrl ? (
-                        <img 
-                          src={entry.profilePictureUrl} 
-                          alt={entry.username} 
-                          className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <User className="w-6 h-6 text-gray-400" />
-                      )}
-                    </div>
-                    {index === 0 && (
-                      <div className="absolute -top-1 -right-1">
-                        <Crown className="w-4 h-4 text-yellow-400 drop-shadow-lg" />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex-grow min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-medium text-white truncate">
-                        {entry.username}
-                      </h3>
-                      <div className="flex gap-1">
-                        {entry.achievements?.slice(0, 3).map((ach, i) => (
-                          <div key={i} title={ach}>
-                            {getAchievementBadge(ach)}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">
-                      {index === 0 ? 'Grand Champion' : index === 1 ? 'Elite Player' : index === 2 ? 'Rising Star' : 'Contender'}
+                  <div className="flex-1">
+                    <p className="text-sm font-bold h-5 flex items-center gap-2">
+                       {user.username}
+                       {user.vipLevel && user.vipLevel > 0 && <Crown size={10} className="text-yellow-500" />}
                     </p>
-                  </div>
-
-                  <div className="text-right">
-                    <div className="text-sm font-bold text-yellow-500">
-                      ৳ {entry.totalWinnings.toLocaleString()}
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <Target size={10} className="text-teal-700" />
+                      <span className="text-[9px] text-teal-700 font-bold uppercase">UID: {user.id.substring(0,6)}</span>
                     </div>
-                    <div className="text-[10px] text-gray-500">মোট জয়</div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-black text-white italic">৳{Math.floor(user[activeCategory === 'earning' ? 'totalReferralEarnings' : activeCategory === 'balance' ? 'balance' : 'totalDeposits'] || 0).toLocaleString()}</p>
+                    <p className="text-[8px] font-black text-green-400 flex items-center justify-end gap-1 uppercase">
+                      <ArrowUpRight size={8} /> LIVE
+                    </p>
                   </div>
                 </motion.div>
               ))}
-            </AnimatePresence>
-          </div>
-        )}
-      </div>
-
-      {/* Top 3 Podium (Visual) */}
-      {!loading && entries.length >= 3 && (
-        <div className="grid grid-cols-3 gap-4 items-end pt-4">
-          {/* 2nd Place */}
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-12 h-12 rounded-full border-2 border-gray-300 overflow-hidden">
-              <img src={entries[1].profilePictureUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entries[1].username}`} alt="" referrerPolicy="no-referrer" />
             </div>
-            <div className="w-full h-16 bg-gray-300/10 rounded-t-lg flex items-center justify-center">
-              <span className="text-xl font-bold text-gray-300">2</span>
-            </div>
-          </div>
-          
-          {/* 1st Place */}
-          <div className="flex flex-col items-center gap-2">
-            <Crown className="w-6 h-6 text-yellow-400" />
-            <div className="w-16 h-16 rounded-full border-2 border-yellow-400 overflow-hidden -mt-2">
-              <img src={entries[0].profilePictureUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entries[0].username}`} alt="" referrerPolicy="no-referrer" />
-            </div>
-            <div className="w-full h-24 bg-yellow-400/10 rounded-t-lg flex items-center justify-center border-x border-t border-yellow-400/20">
-              <span className="text-3xl font-bold text-yellow-400">1</span>
-            </div>
-          </div>
-
-          {/* 3rd Place */}
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-12 h-12 rounded-full border-2 border-amber-600 overflow-hidden">
-              <img src={entries[2].profilePictureUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entries[2].username}`} alt="" referrerPolicy="no-referrer" />
-            </div>
-            <div className="w-full h-12 bg-amber-600/10 rounded-t-lg flex items-center justify-center">
-              <span className="text-xl font-bold text-amber-600">3</span>
-            </div>
-          </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

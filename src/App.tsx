@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from "react";
+import canvasConfetti from 'canvas-confetti';
+import { formatDisplayUID } from './utils/idUtils';
+import { SoundProvider } from './context/SoundContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, getDb, switchToDefaultDb } from './services/firebase';
 import { apiService } from './services/apiService';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, onSnapshot, serverTimestamp, increment, query, orderBy, limit } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, onSnapshot, serverTimestamp, increment, query, orderBy, limit, runTransaction } from 'firebase/firestore';
 import SlotMachine from './components/SlotMachine/SlotMachine';
 import AviatorGame from './components/AviatorGame/AviatorGame';
 import DailyRewardPopup from "./components/ui/DailyRewardPopup";
@@ -13,12 +16,14 @@ import AnalyticsView from "./views/AnalyticsView";
 import ActivityHistory from "./views/ActivityHistory";
 import ProfileView from "./views/ProfileView";
 import InviteView from "./views/InviteView";
+import LeaderboardView from "./views/LeaderboardView";
 import HomeView from "./views/HomeView";
 import LoginPage from "./views/LoginPage";
 import DepositView from "./views/DepositView";
 import WalletView from "./views/WalletView";
 import { AnimatedBalance } from './components/AnimatedBalance';
 import SupportChat from "./layout/SupportChat";
+import NotificationOverlay from "./components/ui/NotificationOverlay";
 import PromoCodeModal from "./components/modals/PromoCodeModal";
 import AppInstallModal from "./components/modals/AppInstallModal";
 import { PWAInstallBanner } from "./components/PWAInstallBanner";
@@ -56,6 +61,7 @@ export default function App() {
   const [showRegistrationSuccess, setShowRegistrationSuccess] = useState(false);
   const [supportEmail, setSupportEmail] = useState<string>("support@spin71.bet");
   const [isGameLoading, setIsGameLoading] = useState(false);
+  const [notification, setNotification] = useState<{isOpen: boolean; message: string; type: 'success' | 'info' | 'error'}>({ isOpen: false, message: '', type: 'info' });
   const [globalLogos, setGlobalLogos] = useState<Record<string, string>>({});
   const [globalNames, setGlobalNames] = useState<Record<string, string>>({});
   const [globalUrls, setGlobalUrls] = useState<Record<string, string>>({});
@@ -67,6 +73,7 @@ export default function App() {
   const [noticeText, setNoticeText] = useState<string>("আমাদের নতুন স্লট মেশিনে বড় জয় নিশ্চিত করুন!");
   const [toasts, setToasts] = useState<{ id: string; message: string; type: ToastType }[]>([]);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showExitPopup, setShowExitPopup] = useState(false);
   const [activeTab, setActiveTab] = useState<'home' | 'slot' | 'aviator' | 'profile' | 'invite' | 'deposit' | 'bonus' | 'wallet' | 'faq' | 'leaderboard' | 'terms' | 'analytics' | 'admin' | 'settings' | 'history'>('home');
   const [profileSubTab, setProfileSubTab] = useState<string>('dashboard');
   const [recentlyPlayed, setRecentlyPlayed] = useState<Game[]>([]);
@@ -117,17 +124,76 @@ export default function App() {
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
+    const handleOpenSupportChat = () => {
+      if (!auth.currentUser) {
+        showToast("চ্যাট করতে লগইন করুন", "info");
+        setShowLoginModal(true);
+      } else {
+        if ((window as any).$crisp) {
+          (window as any).$crisp.push(["do", "chat:show"]);
+          (window as any).$crisp.push(["do", "chat:open"]);
+        } else {
+          setIsSupportChatOpen(true);
+        }
+      }
+    };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    window.addEventListener('openSupportChat', handleOpenSupportChat);
+
+    // Hide default Crisp launcher icon (it covers UI) so we can use our custom button
+    let crispInterval = setInterval(() => {
+      if ((window as any).$crisp) {
+        (window as any).$crisp.push(["do", "chat:hide"]);
+        (window as any).$crisp.push(["on", "chat:closed", () => {
+          (window as any).$crisp.push(["do", "chat:hide"]);
+        }]);
+        clearInterval(crispInterval);
+      }
+    }, 1000);
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('openSupportChat', handleOpenSupportChat);
+      clearInterval(crispInterval);
     };
   }, []);
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+
+  useEffect(() => {
+    // Check if we are already dealing with our structured history (e.g., hot refresh)
+    if (!window.history.state || window.history.state.page !== 'home') {
+      // Setup the initial trap state backwards
+      window.history.replaceState({ page: 'exit-trap' }, '');
+      window.history.pushState({ page: 'home', tab: 'home' }, '');
+    }
+
+    const handlePopState = (event: PopStateEvent) => {
+      const state = event.state;
+      
+      // Close any open full-screen overlays when back is pressed
+      setSelectedGame(null);
+      setShowLoginModal(false);
+      
+      if (state && state.page === 'exit-trap') {
+        setShowExitPopup(true);
+        // Put the home state back so user doesn't actually exit yet
+        window.history.pushState({ page: 'tab', tab: 'home' }, '');
+      } else if (state && state.tab) {
+        setActiveTab(state.tab);
+        setShowExitPopup(false);
+      } else {
+        // Fallback
+        setActiveTab('home');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const handleTabChange = (tab: any) => {
     if (!isLoggedIn && tab !== 'home') {
@@ -149,6 +215,7 @@ export default function App() {
 
     if (tab === activeTab) return;
 
+    window.history.pushState({ page: 'tab', tab: tab }, '');
     setIsTabLoading(true);
     // Professional delay to ensure smooth transition and show the loading state
     setTimeout(() => {
@@ -425,16 +492,6 @@ export default function App() {
       }
 
       setTimeout(() => {
-        if (game.id === 'native_slot') {
-          if (userData?.id) {
-            const updatedList = [game, ...recentlyPlayed.filter(g => g.id !== game.id)].slice(0, 10);
-            setRecentlyPlayed(updatedList);
-          }
-          setActiveTab('slot');
-          setTimeout(() => setIsTabLoading(false), 500);
-          return;
-        }
-
         if (game.id === 'spribe_aviator') {
           if (userData?.id) {
             const updatedList = [game, ...recentlyPlayed.filter(g => g.id !== game.id)].slice(0, 10);
@@ -445,6 +502,7 @@ export default function App() {
           return;
         }
 
+        window.history.pushState({ page: 'game', tab: activeTab }, '');
         setSelectedGame(game);
         setIsGameLoading(!!game);
         if (game && userData?.id) {
@@ -511,7 +569,7 @@ export default function App() {
             userUnsubscribe = onSnapshot(userRef, (snapshot) => {
               if (snapshot.exists()) {
                 const data = snapshot.data();
-                console.log("[App] Real-time user update received", user.uid);
+                console.log("[App] Real-time user update received", user.uid, "New Balance:", data.balance);
                 
                 const isAdmin = data.role === 'admin' || data.isAdmin === true || user.email === 'owner.css13@gmail.com' || user.email === 'cutelegend7045@gmail.com';
                 
@@ -610,6 +668,13 @@ export default function App() {
                     const createdAt = data.createdAt?.seconds ? data.createdAt.seconds * 1000 : (data.createdAt ? new Date(data.createdAt).getTime() : now);
                     if (now - createdAt < 10000) {
                       showToast(data.title || "নতুন নোটিফিকেশন!", "info");
+                      if (data.title === "ডিপোজিট সফল") {
+                        canvasConfetti({
+                          particleCount: 150,
+                          spread: 70,
+                          origin: { y: 0.6 }
+                        });
+                      }
                     }
                   }
                 }
@@ -645,6 +710,43 @@ export default function App() {
       if (notificationsUnsubscribe) notificationsUnsubscribe();
       logUserActivity('session_end');
     };
+  }, [db]);
+
+  // Real-time listener for app config to ensure logos and names are always synced
+  useEffect(() => {
+    console.log("[App] Initializing real-time game_settings listener...");
+    
+    const unsubscribe = onSnapshot(collection(db, 'game_settings'), (snapshot) => {
+      const logos: Record<string, string> = {};
+      const names: Record<string, string> = {};
+      const urls: Record<string, string> = {};
+      const options: Record<string, string> = {};
+
+      if (snapshot.empty) {
+        console.log("[App] game_settings empty, seeding will happen in loadAllAppConfig...");
+        return;
+      }
+
+      snapshot.forEach((doc) => {
+        const item = doc.data();
+        if (item.logo_url) logos[item.game_id] = item.logo_url;
+        if (item.name) names[item.game_id] = item.name;
+        if (item.game_url) urls[item.game_id] = item.game_url;
+        if (item.provider_option) options[item.game_id] = item.provider_option;
+      });
+
+      setGlobalLogos(prev => ({ ...prev, ...logos }));
+      setGlobalNames(prev => ({ ...prev, ...names }));
+      setGlobalUrls(prev => ({ ...prev, ...urls }));
+      setGlobalOptions(prev => ({ ...prev, ...options }));
+      
+      localStorage.setItem('game_logos_cache', JSON.stringify({ logos, names, urls, options }));
+      console.log("[App] Game settings synced real-time from Firestore");
+    }, (err) => {
+      console.error("[App] Game settings sync error:", err);
+    });
+
+    return () => unsubscribe();
   }, [db]);
 
   // Fetch all app config data once
@@ -873,7 +975,15 @@ export default function App() {
     }
   }, []);
 
-  const showToast = (message: string, type: ToastType = 'info') => {
+  const showNotification = (message: string, type: 'success' | 'info' | 'error' = 'info') => {
+    setNotification({ isOpen: true, message, type });
+  };
+
+  const showToast = (message: string, type: ToastType = 'info', critical = false) => {
+    if (critical || type === 'error') {
+      showNotification(message, type === 'error' ? 'error' : 'info');
+      return;
+    }
     const id = Math.random().toString(36).substring(2, 9);
     setToasts(prev => [...prev, { id, message, type }]);
   };
@@ -960,16 +1070,28 @@ export default function App() {
   };
 
   const handleBalanceUpdate = async (newBalance: number, persist = true) => {
+    console.log(`[Aviator Debug V2] App.tsx handleBalanceUpdate: Setting balance to: ${newBalance}, Persist: ${persist}`);
     setBalance(newBalance);
     if (isLoggedIn && userData?.id && persist) {
       try {
-        await updateDoc(doc(db, 'users', userData.id), { balance: newBalance });
+        console.log(`[Aviator Debug V2] App.tsx handleBalanceUpdate: Updating Firebase for user ${userData.id}...`);
+        await runTransaction(db, async (transaction) => {
+          const userRef = doc(db, 'users', userData.id);
+          const userDoc = await transaction.get(userRef);
+          if (!userDoc.exists()) throw "User does not exist!";
+          
+          transaction.update(userRef, { balance: newBalance });
+        });
+        
         const updatedUser = { ...userData, balance: newBalance };
         setUserData(updatedUser);
         localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+        console.log(`[Aviator Debug V2] App.tsx handleBalanceUpdate: Firebase update successful!`);
       } catch (err) {
-        console.error("Error updating balance in Firestore:", err);
+        console.error("[Aviator Debug V2] App.tsx handleBalanceUpdate: Error updating balance in Firestore:", err);
       }
+    } else {
+      console.log(`[Aviator Debug V2] App.tsx handleBalanceUpdate: Not persisting. Persist flag: ${persist}, isLoggedIn: ${isLoggedIn}, userId: ${userData?.id}`);
     }
   };
 
@@ -1055,7 +1177,7 @@ export default function App() {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                message: `💰 <b>New Deposit Request! (পেন্ডিং)</b>\n\n👤 <b>Username:</b> ${userData?.username || 'Unknown'}\n🔢 <b>UID:</b> <code>${uid}</code>\n💵 <b>Amount:</b> ৳${amount}\n🏦 <b>Method:</b> ${method || 'Unknown'}\n📱 <b>Sender:</b> ${senderNumber || 'Unknown'}\n🔖 <b>TxID:</b> <code>${trxId || 'N/A'}</code>`
+                message: `💰 <b>New Deposit Request! (পেন্ডিং)</b>\n\n👤 <b>Username:</b> ${userData?.username || 'Unknown'}\n🔢 <b>UID:</b> <code>${formatDisplayUID(uid)}</code>\n💵 <b>Amount:</b> ৳${amount}\n🏦 <b>Method:</b> ${method || 'Unknown'}\n📱 <b>Sender:</b> ${senderNumber || 'Unknown'}\n🔖 <b>TxID:</b> <code>${trxId || 'N/A'}</code>`
               })
             });
           } catch (tErr) {
@@ -1214,7 +1336,8 @@ export default function App() {
   };
 
   return (
-    <div className="max-w-[512px] mx-auto bg-[var(--bg-main)] min-h-[100dvh] relative overflow-x-hidden font-sans text-[var(--text-main)] pb-16 flex flex-col safe-top transition-colors duration-300">
+    <SoundProvider>
+      <div className="max-w-[512px] mx-auto bg-[var(--bg-main)] min-h-[100dvh] relative overflow-x-hidden font-sans text-[var(--text-main)] pb-16 flex flex-col safe-top transition-colors duration-300">
       <AnimatePresence>
         {isSidebarOpen && (
           <Sidebar
@@ -1234,7 +1357,7 @@ export default function App() {
             telegramLink={telegramLink}
             theme={theme}
             toggleTheme={toggleTheme}
-            appLogo={globalImages['app_logo']}
+            appLogo={globalImages['app_logo'] || '/images/app_logo.png'}
             onInstallApp={handleInstallApp}
           />
         )}
@@ -1254,23 +1377,36 @@ export default function App() {
               animate={{ width: "100%", opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.5 }}
-              className="fixed top-0 left-0 h-1 bg-gradient-to-r from-yellow-400 to-yellow-600 z-[2000] shadow-[0_0_10px_rgba(234,179,8,0.5)]"
+              className="fixed top-0 left-0 h-1 bg-gradient-to-r from-yellow-300 via-yellow-500 to-yellow-600 z-[2000] shadow-[0_0_15px_rgba(234,179,8,0.8)]"
             />
-            {/* Full-screen subtle overlay to prevent interactions and show "loading" feel */}
+            {/* High-quality full-screen loader for perceived processing */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[1999] bg-[#0d1a29]/80 backdrop-blur-sm flex items-center justify-center"
+              className="fixed inset-0 z-[1999] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-6"
             >
-              <div className="flex flex-col items-center gap-4">
-                <div className="relative">
-                  <div className="w-16 h-16 border-4 border-yellow-500/20 border-t-yellow-500 rounded-full animate-spin"></div>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-yellow-500 text-[10px] font-black italic">BET</span>
-                  </div>
-                </div>
-                <p className="text-yellow-500 text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">Loading Experience...</p>
+              <div className="relative flex flex-col items-center max-w-[280px] w-full">
+                <motion.div
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                  className="mb-8"
+                >
+                  <span className="text-4xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 drop-shadow-[0_0_15px_rgba(253,216,53,0.6)]">
+                    SPIN71.BET
+                  </span>
+                </motion.div>
+                
+                <div className="w-16 h-16 border-[3px] border-yellow-500/20 border-t-yellow-500 rounded-full animate-spin shadow-[0_0_30px_rgba(234,179,8,0.3)]"></div>
+                
+                <motion.p 
+                  animate={{ opacity: [0.5, 1, 0.5] }}
+                  transition={{ repeat: Infinity, duration: 1.5 }}
+                  className="mt-6 text-yellow-500 text-[11px] font-black uppercase tracking-[0.3em]"
+                >
+                  সার্ভার কানেক্ট হচ্ছে... (Loading)
+                </motion.p>
               </div>
             </motion.div>
           </>
@@ -1286,7 +1422,7 @@ export default function App() {
             logo={globalLogos[selectedGame.id] || GAME_LOGO_URLS[selectedGame.id] || selectedGame.image}
             onClose={() => {
               setIsGameLoading(false);
-              setSelectedGame(null);
+              window.history.back();
             }}
             onLoadComplete={() => setIsGameLoading(false)}
           />
@@ -1309,6 +1445,7 @@ export default function App() {
                 setUserData(user);
             }}
             showToast={showToast}
+            showNotification={showNotification}
           />
         )}
       </AnimatePresence>
@@ -1324,7 +1461,7 @@ export default function App() {
             <div className="flex items-center justify-between p-3 bg-[#111] border-b border-white/10 shrink-0">
                <div className="flex items-center gap-2">
                  <button 
-                  onClick={() => setSelectedGame(null)}
+                  onClick={() => window.history.back()}
                   className="p-1.5 hover:bg-white/10 rounded-full transition-colors text-white"
                 >
                   <ChevronLeft size={24} />
@@ -1341,7 +1478,7 @@ export default function App() {
                    <AnimatedBalance value={balance} decimals={0} className="text-[10px] font-bold text-yellow-500" />
                  </div>
                  <button 
-                  onClick={() => setSelectedGame(null)}
+                  onClick={() => window.history.back()}
                   className="w-10 h-10 flex items-center justify-center bg-red-600/10 hover:bg-red-600/20 rounded-full transition-all text-red-500 shadow-lg border border-red-500/20"
                 >
                   <X size={24} />
@@ -1350,17 +1487,42 @@ export default function App() {
             </div>
 
             {/* Game Content */}
-            <div className="flex-1 relative bg-[#050505] overflow-hidden">
-                <div className="flex flex-col items-center justify-center h-full space-y-6 text-center px-4">
-                  <div className="w-24 h-24 bg-white/5 rounded-3xl flex items-center justify-center mb-2 border border-white/10 shadow-2xl overflow-hidden group">
-                    <img 
-                      src={globalLogos[selectedGame.id] || GAME_LOGO_URLS[selectedGame.id] || selectedGame.image} 
-                      alt={selectedGame.name}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                    />
+            <div className="flex-1 relative bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#1a1c29] via-[#0b0c10] to-black overflow-hidden flex flex-col items-center justify-center">
+                {/* Visual Background Effects */}
+                <div className="absolute inset-0 z-0 opacity-30">
+                  <div className="absolute top-1/4 left-1/4 w-32 h-32 bg-yellow-500 rounded-full mix-blend-screen filter blur-[100px] animate-pulse"></div>
+                  <div className="absolute bottom-1/4 right-1/4 w-32 h-32 bg-blue-500 rounded-full mix-blend-screen filter blur-[100px] animate-pulse delay-700"></div>
+                </div>
+
+                <div className="relative z-10 flex flex-col items-center justify-center h-full space-y-6 text-center px-4">
+                  
+                  {/* Glowing Game Logo */}
+                  <div className="relative group perspective-1000">
+                    <div className="absolute inset-0 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-3xl blur-xl opacity-40 group-hover:opacity-70 transition-opacity duration-500"></div>
+                    <div className="w-32 h-32 bg-white/10 rounded-3xl flex items-center justify-center mb-2 border-2 border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.5)] overflow-hidden relative z-10 transform transition-transform duration-500 group-hover:rotate-x-12 group-hover:-translate-y-2">
+                      <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-white/20"></div>
+                      <img 
+                        src={globalLogos[selectedGame.id] || GAME_LOGO_URLS[selectedGame.id] || selectedGame.image} 
+                        alt={selectedGame.name}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                      />
+                    </div>
                   </div>
-                  <h3 className="text-white text-2xl font-black uppercase tracking-widest bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 to-yellow-600">Game Ready</h3>
-                  <p className="text-gray-400 text-sm max-w-[280px]">For the best experience and to ensure game security, this game will open in a secure window.</p>
+
+                  <div className="space-y-1">
+                    <h3 className="text-white text-3xl font-black uppercase tracking-[0.2em] drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
+                      {globalNames[selectedGame.id] || selectedGame.name}
+                    </h3>
+                    <p className="text-yellow-400 text-sm font-bold tracking-widest uppercase mb-4">Are you ready?</p>
+                  </div>
+                  
+                  <div className="px-6 py-2 rounded-full border border-yellow-500/30 bg-yellow-500/10 backdrop-blur-md">
+                    <p className="text-yellow-200 text-xs font-semibold tracking-wider flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-yellow-400 animate-ping"></span> 
+                      Secure Server Active
+                    </p>
+                  </div>
+
                   <button 
                     onClick={async () => {
                       if (!isLoggedIn) {
@@ -1370,11 +1532,17 @@ export default function App() {
                         return;
                       }
                       
+                      if (selectedGame?.id === 'native_slot') {
+                        setActiveTab('slot');
+                        setSelectedGame(null);
+                        return;
+                      }
+
                       try {
                         const token = await auth.currentUser?.getIdToken();
                         if (!token) return;
 
-                        showToast("লঞ্চিং গেম... (Launching Game...)", "info");
+                        setIsTabLoading(true); // Show loader during real network request
                         
                         const res = await fetch("/api/game/launch", {
                           method: 'POST',
@@ -1405,13 +1573,18 @@ export default function App() {
                         } else {
                           showToast("Failed to connect to game server", "error");
                         }
+                      } finally {
+                        setIsTabLoading(false); // Hide the loader, since game is opened in new tab or failed
                       }
                     }}
-                    className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-black font-black uppercase tracking-widest px-10 py-5 rounded-full text-lg shadow-[0_0_20px_rgba(234,179,8,0.4)] hover:shadow-[0_0_30px_rgba(234,179,8,0.6)] active:scale-95 transition-all mt-4"
+                    className="relative overflow-hidden group mt-8 bg-gradient-to-r from-yellow-500 via-orange-500 to-yellow-600 text-black font-black uppercase tracking-[0.2em] px-12 py-5 rounded-full text-lg shadow-[0_0_30px_rgba(245,158,11,0.4)] hover:shadow-[0_0_50px_rgba(245,158,11,0.6)] active:scale-95 transition-all"
                   >
-                    Play Now
+                    <div className="absolute inset-0 bg-[linear-gradient(to_right,transparent,rgba(255,255,255,0.4),transparent)] -translate-x-[150%] skew-x-[-30deg] group-hover:translate-x-[150%] transition-transform duration-1000"></div>
+                    <span className="relative z-10 flex items-center justify-center gap-2">
+                       Play Now <Gamepad2 size={24} className="group-hover:animate-bounce" />
+                    </span>
                   </button>
-                  <p className="text-[10px] text-gray-500 tracking-widest uppercase mt-4">API Secured Connection</p>
+                  
                 </div>
             </div>
           </motion.div>
@@ -1429,7 +1602,7 @@ export default function App() {
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.2 }}
             >
-              <SettingsView userData={userData} />
+              <SettingsView userData={userData} onUpdateUser={handleUpdateUser} showToast={showToast} />
             </motion.div>
           )}
           {activeTab === 'faq' && (
@@ -1476,6 +1649,7 @@ export default function App() {
                 globalUrls={globalUrls}
                 globalOptions={globalOptions}
                 globalImages={globalImages}
+                appLogo={globalImages['app_logo'] || '/images/app_logo.png'}
                 balance={balance}
                 isRefreshing={isRefreshing}
                 handleRefresh={handleRefresh}
@@ -1543,6 +1717,8 @@ export default function App() {
                  showToast={showToast}
                  onClose={() => setActiveTab('home')}
                  userData={userData}
+                 globalLogos={globalLogos}
+                 globalNames={globalNames}
                />
              </motion.div>
           )}
@@ -1566,6 +1742,17 @@ export default function App() {
                transition={{ duration: 0.3 }}
             >
               <AnalyticsView balance={balance} userData={userData} onBack={() => handleTabChange('profile')} />
+            </motion.div>
+          )}
+          {activeTab === 'leaderboard' && (
+            <motion.div
+              key="leaderboard"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.05 }}
+              transition={{ duration: 0.3 }}
+            >
+              <LeaderboardView onBack={() => setActiveTab('home')} />
             </motion.div>
           )}
           {activeTab === 'profile' && (
@@ -1600,6 +1787,8 @@ export default function App() {
                 minWithdraw={minWithdraw}
                 loading={isTabLoading}
                 onInstallApp={handleInstallApp}
+                telegramLink={telegramLink}
+                whatsappLink={whatsappLink}
               />
             </motion.div>
           )}
@@ -1771,24 +1960,7 @@ export default function App() {
           }
         }}
       />
-
-      {/* Global Floating Action Buttons */}
-      <div className="fixed bottom-24 right-4 flex flex-col gap-3 z-[110] p-4">
-         <button 
-            onClick={() => {
-              if (!isLoggedIn) {
-                showToast("চ্যাট করতে লগইন করুন", "info");
-                setShowLoginModal(true);
-              } else {
-                setIsSupportChatOpen(true);
-              }
-            }}
-            className="w-12 h-12 bg-[#0d6efd] rounded-full flex items-center justify-center shadow-lg text-white hover:scale-110 transition-transform active:scale-95"
-          >
-             <MessageSquare size={24} />
-          </button>
-       </div>
-
+      
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
 
@@ -1801,6 +1973,15 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+
+      <div className="fixed bottom-[85px] right-3 z-[110]">
+          <button 
+             onClick={() => window.dispatchEvent(new CustomEvent('openSupportChat'))}
+             className="w-14 h-14 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-[0_8px_30px_rgb(0,0,0,0.5)] text-white hover:scale-110 transition-transform active:scale-95 border-2 border-white/20"
+           >
+              <MessageSquare size={26} className="animate-pulse" />
+           </button>
+       </div>
 
       {/* Bottom Navigation */}
       <BottomNav activeTab={activeTab} onTabChange={handleTabChange} onToggleNotifications={() => setIsNotificationCenterOpen(!isNotificationCenterOpen)} unreadNotificationsCount={unreadNotificationsCount} isAdmin={userData?.isAdmin} />
@@ -1819,6 +2000,65 @@ export default function App() {
         isAdmin={userData?.role === 'admin' || userData?.isAdmin === true}
         userData={userData}
       />
+
+      <NotificationOverlay 
+        isOpen={notification.isOpen} 
+        message={notification.message} 
+        type={notification.type} 
+        onClose={() => setNotification(prev => ({...prev, isOpen: false}))}
+      />
+
+      <AnimatePresence>
+        {showExitPopup && (
+          <div className="fixed inset-0 z-[2500] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.5, opacity: 0, y: 50 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.5, opacity: 0, y: 50 }}
+              className="relative bg-gradient-to-b from-[#2a2b2d] to-[#1e1e1e] border-t-4 border-t-red-500 rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl overflow-hidden"
+            >
+              <div className="relative z-10">
+                <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-[0_0_20px_rgba(239,68,68,0.3)]">
+                  <motion.div
+                    initial={{ rotate: -90, scale: 0 }}
+                    animate={{ rotate: 0, scale: 1 }}
+                    transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                  >
+                    <AlertCircle size={36} className="text-red-500" />
+                  </motion.div>
+                </div>
+                
+                <h2 className="text-2xl font-black text-white mb-3">আপনি কি গেম থেকে বের হতে চান?</h2>
+                <p className="text-gray-300 font-medium text-sm mb-8">Are you sure you want to quit?</p>
+                
+                <div className="flex gap-4">
+                  <button 
+                    onClick={() => {
+                        window.history.pushState({ page: 'tab', tab: activeTab }, '');
+                        setShowExitPopup(false);
+                    }} 
+                    className="flex-1 font-bold py-3.5 rounded-full transition-all bg-white/10 text-white hover:bg-white/20 active:scale-95 border border-white/10"
+                  >
+                    না (Stay)
+                  </button>
+                  <button 
+                    onClick={() => {
+                      // Attempt to close or go back cleanly
+                      try {
+                          window.history.go(-2);
+                          setTimeout(() => window.close(), 300);
+                      } catch(e){}
+                    }} 
+                    className="flex-1 font-bold py-3.5 rounded-full transition-all bg-gradient-to-r from-red-600 to-red-500 text-white hover:scale-[1.02] active:scale-95 shadow-[0_4px_15px_rgba(239,68,68,0.4)] border border-red-500/50"
+                  >
+                    হ্যাঁ (Quit)
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <AppInstallModal
         isOpen={isInstallModalOpen}
@@ -1861,6 +2101,7 @@ export default function App() {
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
-    </div>
+      </div>
+    </SoundProvider>
   );
 }

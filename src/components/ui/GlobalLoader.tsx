@@ -79,7 +79,19 @@ export default function GlobalLoader({
           transition={{ type: "spring", bounce: 0.5 }}
           className="relative flex flex-col items-center justify-center p-8"
         >
-          <span className="text-5xl sm:text-7xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 drop-shadow-[0_0_20px_rgba(253,216,53,0.5)]">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
+            className="relative w-32 h-32 mb-4"
+          >
+            <div className="absolute inset-0 rounded-full border-[3px] border-yellow-500/30 animate-pulse"></div>
+            <img 
+              src="https://www.image2url.com/r2/default/images/1780650823760-2e7c42d6-ef2e-4d3b-beac-b0f0b7eccac4.png" 
+              alt="Loading" 
+              className="w-full h-full object-contain p-2"
+            />
+          </motion.div>
+          <span className="text-4xl sm:text-6xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-yellow-200 to-yellow-500 drop-shadow-[0_0_10px_rgba(253,216,53,0.3)]">
             SPIN71.BET
           </span>
         </motion.div>

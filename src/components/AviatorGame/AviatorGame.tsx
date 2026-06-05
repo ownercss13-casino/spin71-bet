@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db } from '../../services/firebase';
 import GameLoader from '../ui/GameLoader';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, updateDoc, increment } from 'firebase/firestore';
 import { 
   Plane, 
   TrendingUp, 
@@ -32,11 +32,115 @@ interface AviatorGameProps {
   showToast: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
   onClose: () => void;
   userData: any;
+  globalLogos?: Record<string, string>;
+  globalNames?: Record<string, string>;
 }
+
+const sha256 = (str: string): string => {
+  const rightRotate = (value: number, amount: number) => {
+    return (value >>> amount) | (value << (32 - amount));
+  };
+  
+  const mathPow = Math.pow;
+  const maxWord = mathPow(2, 32);
+  let i, j;
+  let result = '';
+
+  const words: number[] = [];
+  const asciiLength = str.length * 8;
+  
+  let hash: number[] = [];
+  const k: number[] = [];
+  let primeCounter = 0;
+
+  const isPrime = (n: number) => {
+    for (let factor = 2; factor * factor <= n; factor++) {
+      if (n % factor === 0) return false;
+    }
+    return true;
+  };
+
+  let candidate = 2;
+  while (primeCounter < 64) {
+    if (isPrime(candidate)) {
+      if (primeCounter < 8) {
+        hash[primeCounter] = (mathPow(candidate, .5) * maxWord) >>> 0;
+      }
+      k[primeCounter] = (mathPow(candidate, 1 / 3) * maxWord) >>> 0;
+      primeCounter++;
+    }
+    candidate++;
+  }
+
+  const asciiBytes: number[] = [];
+  for (i = 0; i < str.length; i++) {
+    asciiBytes.push(str.charCodeAt(i));
+  }
+
+  asciiBytes.push(0x80);
+  while (asciiBytes.length % 64 !== 56) {
+    asciiBytes.push(0);
+  }
+  
+  asciiBytes.push(0);
+  asciiBytes.push(0);
+  asciiBytes.push(0);
+  asciiBytes.push(0);
+  asciiBytes.push((asciiLength >>> 24) & 0xff);
+  asciiBytes.push((asciiLength >>> 16) & 0xff);
+  asciiBytes.push((asciiLength >>> 8) & 0xff);
+  asciiBytes.push(asciiLength & 0xff);
+
+  for (i = 0; i < asciiBytes.length; i += 4) {
+    words.push((asciiBytes[i] << 24) | (asciiBytes[i + 1] << 16) | (asciiBytes[i + 2] << 8) | asciiBytes[i + 3]);
+  }
+
+  for (i = 0; i < words.length; i += 16) {
+    const w = words.slice(i, i + 16);
+    const oldHash = [...hash];
+
+    for (j = 0; j < 64; j++) {
+      if (j >= 16) {
+        const w15 = w[j - 15];
+        const w2 = w[j - 2];
+        const s0 = rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3);
+        const s1 = rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10);
+        w[j] = (w[j - 16] + s0 + w[j - 7] + s1) | 0;
+      }
+
+      const ch = (hash[4] & hash[5]) ^ (~hash[4] & hash[6]);
+      const maj = (hash[0] & hash[1]) ^ (hash[0] & hash[2]) ^ (hash[1] & hash[2]);
+      const s0_h = rightRotate(hash[0], 2) ^ rightRotate(hash[0], 13) ^ rightRotate(hash[0], 22);
+      const s1_h = rightRotate(hash[4], 6) ^ rightRotate(hash[4], 11) ^ rightRotate(hash[4], 25);
+      
+      const temp1 = (hash[7] + s1_h + ch + k[j] + (w[j] || 0)) | 0;
+      const temp2 = (s0_h + maj) | 0;
+
+      hash = [(temp1 + temp2) | 0].concat(hash);
+      hash[8] = 0;
+      hash[4] = (hash[4] + temp1) | 0;
+    }
+
+    for (j = 0; j < 8; j++) {
+      hash[j] = (hash[j] + oldHash[j]) | 0;
+    }
+  }
+
+  for (i = 0; i < 8; i++) {
+    result += (hash[i] >>> 0).toString(16).padStart(8, '0');
+  }
+  return result;
+};
+
+// Deterministic hash helper for Provably Fair transparency calculation using custom server seed
+const computeFairnessHash = (serverSeed: string, clientSeed: string) => {
+  const combined = clientSeed ? `${serverSeed}:${clientSeed}` : serverSeed;
+  return sha256(combined);
+};
 
 type GameState = 'waiting' | 'in_progress' | 'crashed';
 
-export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClose, userData }: AviatorGameProps) {
+export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClose, userData, globalLogos, globalNames }: AviatorGameProps) {
   const [showLoader, setShowLoader] = useState(true);
   const [gameState, setGameState] = useState<GameState>('waiting');
   const [multiplier, setMultiplier] = useState(1.00);
@@ -47,14 +151,16 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
   // Independent States for Panel 1
   const [betAmount1, setBetAmount1] = useState(100);
   const [isAutoBet1, setIsAutoBet1] = useState(false);
-  const [autoCashOut1, setAutoCashOut1] = useState<number | null>(null);
+  const [autoCashOut1, setAutoCashOut1] = useState<number | null>(2.00);
+  const [isAutoWithdraw1, setIsAutoWithdraw1] = useState(false);
   const [currentBet1, setCurrentBet1] = useState<{ amount: number; cashedOut: boolean } | null>(null);
   const [isWaitingBet1, setIsWaitingBet1] = useState(false);
 
   // Independent States for Panel 2
   const [betAmount2, setBetAmount2] = useState(100);
   const [isAutoBet2, setIsAutoBet2] = useState(false);
-  const [autoCashOut2, setAutoCashOut2] = useState<number | null>(null);
+  const [autoCashOut2, setAutoCashOut2] = useState<number | null>(2.00);
+  const [isAutoWithdraw2, setIsAutoWithdraw2] = useState(false);
   const [currentBet2, setCurrentBet2] = useState<{ amount: number; cashedOut: boolean } | null>(null);
   const [isWaitingBet2, setIsWaitingBet2] = useState(false);
 
@@ -80,6 +186,8 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
   const betAmount2Ref = useRef(betAmount2);
   const autoCashOut1Ref = useRef(autoCashOut1);
   const autoCashOut2Ref = useRef(autoCashOut2);
+  const isAutoWithdraw1Ref = useRef(isAutoWithdraw1);
+  const isAutoWithdraw2Ref = useRef(isAutoWithdraw2);
 
   // New Features States
   const [activeTab, setActiveTab] = useState<'all' | 'my' | 'top'>('all');
@@ -108,6 +216,8 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
   useEffect(() => { betAmount2Ref.current = betAmount2; }, [betAmount2]);
   useEffect(() => { autoCashOut1Ref.current = autoCashOut1; }, [autoCashOut1]);
   useEffect(() => { autoCashOut2Ref.current = autoCashOut2; }, [autoCashOut2]);
+  useEffect(() => { isAutoWithdraw1Ref.current = isAutoWithdraw1; }, [isAutoWithdraw1]);
+  useEffect(() => { isAutoWithdraw2Ref.current = isAutoWithdraw2; }, [isAutoWithdraw2]);
 
   // Handle Signal Generation - Loading effect only
   useEffect(() => {
@@ -148,8 +258,13 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       if (!activeBet || activeBet.cashedOut) return;
 
       const winAmount = Math.floor(activeBet.amount * activeMult);
-      onBalanceUpdateRef.current(balanceRef.current + winAmount);
-      
+      console.log(`[Aviator Debug V2] Cashout Panel 1 Triggered. Old Balance: ${balanceRef.current}, Win: ${winAmount}, New: ${balanceRef.current + winAmount}`);
+      if (onBalanceUpdateRef.current) {
+        onBalanceUpdateRef.current(balanceRef.current + winAmount);
+      } else {
+        console.error("[Aviator Debug V2] Cashout Panel 1: onBalanceUpdateRef.current is null!");
+      }
+
       const updatedBet = { ...activeBet, cashedOut: true };
       setCurrentBet1(updatedBet);
       currentBet1Ref.current = updatedBet;
@@ -163,6 +278,7 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       if (!activeBet || activeBet.cashedOut) return;
 
       const winAmount = Math.floor(activeBet.amount * activeMult);
+      console.log(`[Aviator Debug] Cashout Panel 2: Old balance: ${balanceRef.current}, Win amount: ${winAmount}, New balance: ${balanceRef.current + winAmount}`);
       onBalanceUpdateRef.current(balanceRef.current + winAmount);
       
       const updatedBet = { ...activeBet, cashedOut: true };
@@ -177,10 +293,25 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
   };
 
   // Handles Bet placements, cancellation and waiting statuses
-  const handleBetAction = (panel: 1 | 2) => {
+  const handleBetAction = async (panel: 1 | 2) => {
     const isWaiting = panel === 1 ? isWaitingBet1 : isWaitingBet2;
     const currentBet = panel === 1 ? currentBet1 : currentBet2;
     const betAmount = panel === 1 ? betAmount1 : betAmount2;
+
+    // Check daily bet limit
+    if (userData?.dailyBetLimit && userData.dailyBetLimit > 0) {
+      const today = new Date().toDateString();
+      const lastBetDate = userData.lastBetDate || '';
+      const currentDailyTotal = lastBetDate === today ? (userData.dailyTotalBets || 0) : 0;
+      
+      if (currentDailyTotal + betAmount > userData.dailyBetLimit) {
+        showToast("আপনার দৈনিক বেটের সীমা অতিক্রম করেছে!", "error");
+        return;
+      }
+      if (currentDailyTotal + betAmount >= 0.8 * userData.dailyBetLimit && currentDailyTotal < 0.8 * userData.dailyBetLimit) {
+        showToast("সতর্কতা: আপনার দৈনিক বেটের সীমাবদ্ধতার কাছাকাছি পৌঁছেছেন!", "warning");
+      }
+    }
 
     // 1. Cancel next booked bet
     if (isWaiting) {
@@ -216,6 +347,21 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       }
       playSound('bet');
       showToast(`৳${betAmount} বেট সফলভাবে প্লেস করা হয়েছে`, "success");
+
+      // Update daily total
+      if (userData?.id) {
+        const today = new Date().toDateString();
+        const lastBetDate = userData.lastBetDate || '';
+        const currentDailyTotal = lastBetDate === today ? (userData.dailyTotalBets || 0) : 0;
+        await updateDoc(doc(db, 'users', userData.id), {
+          dailyTotalBets: currentDailyTotal + betAmount,
+          lastBetDate: today,
+          totalBets: increment(betAmount)
+        });
+
+        // Trigger bonus check
+        import('../../utils/bonusUtils').then(utils => utils.checkAndAwardReferralBonus(userData.id, showToast));
+      }
     } 
     // 3. Game is running - place a pre-booked (Waiting) bet for the upcoming session
     else {
@@ -234,6 +380,21 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
         isWaitingBet2Ref.current = true;
       }
       showToast(`৳${betAmount} পরবর্তী রাউন্ডের জন্য বুক করা হয়েছে।`, "info");
+      
+      // Update daily total
+      if (userData?.id) {
+        const today = new Date().toDateString();
+        const lastBetDate = userData.lastBetDate || '';
+        const currentDailyTotal = lastBetDate === today ? (userData.dailyTotalBets || 0) : 0;
+        await updateDoc(doc(db, 'users', userData.id), {
+          dailyTotalBets: currentDailyTotal + betAmount,
+          lastBetDate: today,
+          totalBets: increment(betAmount)
+        });
+
+        // Trigger bonus check
+        import('../../utils/bonusUtils').then(utils => utils.checkAndAwardReferralBonus(userData.id, showToast));
+      }
     }
   };
 
@@ -295,7 +456,7 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
           const actBet1 = currentBet1Ref.current;
           if (actBet1 && !actBet1.cashedOut) {
             const acPoint1 = autoCashOut1Ref.current;
-            if (acPoint1 && serverMult >= acPoint1) {
+            if (isAutoWithdraw1Ref.current && acPoint1 && serverMult >= acPoint1) {
               handleCashOut(1, serverMult);
             }
           }
@@ -304,7 +465,7 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
           const actBet2 = currentBet2Ref.current;
           if (actBet2 && !actBet2.cashedOut) {
             const acPoint2 = autoCashOut2Ref.current;
-            if (acPoint2 && serverMult >= acPoint2) {
+            if (isAutoWithdraw2Ref.current && acPoint2 && serverMult >= acPoint2) {
               handleCashOut(2, serverMult);
             }
           }
@@ -395,6 +556,9 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
     };
   }, []);
 
+  // Dynamic coordinates interpolation for modern red jet propeller trajectory curve
+  const progressX = Math.min(85, 10 + (Math.max(1, multiplier) - 1.0) * 12);
+  const progressY = Math.max(20, 80 - Math.pow(Math.max(1, multiplier) - 1.0, 0.7) * 18);
   
   return (
     <div id="aviator-root-game" className="fixed inset-0 z-[150] bg-[#0c0c0d] flex flex-col font-sans select-none">
@@ -414,20 +578,33 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
                  </button>
               </div>
               <div className="flex items-center gap-3">
-                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center text-white shadow-[0_0_20px_rgba(220,38,38,0.3)]">
-                    <Plane size={24} className="transform rotate-[15deg] fill-white" />
+                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center text-white shadow-[0_0_20px_rgba(220,38,38,0.3)] overflow-hidden">
+                    {(globalLogos?.['spribe_aviator']) ? (
+                      <img src={globalLogos['spribe_aviator']} alt="Aviator" className="w-full h-full object-cover" />
+                    ) : (
+                      <Plane size={24} className="transform rotate-[15deg] fill-white" />
+                    )}
                  </div>
                  <div className="flex flex-col">
-                    <span className="text-lg font-black text-white italic tracking-tighter uppercase leading-none">AVIATOR</span>
+                    <span className="text-lg font-black text-white italic tracking-tighter uppercase leading-none">
+                      {globalNames?.['spribe_aviator'] || 'AVIATOR'}
+                    </span>
                     <span className="text-[9px] font-bold text-red-500 uppercase tracking-widest mt-1">SPRIBE</span>
                  </div>
               </div>
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="bg-black/40 border border-white/5 px-4 py-2 rounded-xl flex items-center gap-2.5 shadow-inner">
-                <Wallet size={16} className="text-emerald-400" />
-                <span className="text-sm font-black text-white tracking-tight">৳ {balance.toLocaleString('bn-BD')}</span>
+              <div className="flex flex-col items-end gap-1">
+                <div className="bg-black/40 border border-white/5 px-4 py-2 rounded-xl flex items-center gap-2.5 shadow-inner">
+                  <Wallet size={16} className="text-emerald-400" />
+                  <span className="text-sm font-black text-white tracking-tight">৳ {balance.toLocaleString('bn-BD')}</span>
+                </div>
+                {balance < 50 && (
+                  <div className="text-[9px] uppercase tracking-widest font-black text-red-400 bg-red-950/30 px-2 py-0.5 rounded-md animate-pulse border border-red-500/20">
+                    Low Balance - Deposit Now
+                  </div>
+                )}
               </div>
               <button onClick={onClose} className="bg-red-500/10 hover:bg-red-500/20 text-red-500 text-xs font-black uppercase px-4 py-2 rounded-xl transition-all border border-red-500/10">
                 Exit
@@ -436,8 +613,8 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
           </div>
 
           {/* Main Container Workspace */}
-          <div id="aviator-workspace" className="flex-1 flex flex-col lg:flex-row p-2 gap-2 overflow-hidden">
-            <div id="aviator-left-wing" className="flex-1 flex flex-col gap-2 overflow-hidden">
+          <div id="aviator-workspace" className="flex-1 flex flex-col lg:flex-row p-2 gap-2 min-h-0 overflow-y-auto lg:overflow-hidden">
+            <div id="aviator-left-wing" className="flex-1 flex flex-col gap-2 overflow-y-auto min-h-0">
           
           {/* History Ribbon */}
           <div id="aviator-history-bar" className="flex overflow-x-auto gap-1.5 no-scrollbar py-1.5 bg-black/40 px-2 rounded-xl border border-white/5 shrink-0 min-h-[38px] items-center">
@@ -448,7 +625,18 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
               return (
                 <div 
                   key={i} 
-                  onClick={() => setShowFairness({ show: true, mult, serverSeed: 'c90ed8879b...f72', clientSeed: 'user_seed_1', hash: '5c0cc0ea8b...f9b' })}
+                  onClick={() => {
+                    const sSeed = 'Ofa10e99383049ffec42858a1511a830';
+                    const cSeed = `client_seed_${(mult * 7).toFixed(0)}_${i + 1}`;
+                    const resHash = computeFairnessHash(sSeed, cSeed);
+                    setShowFairness({
+                      show: true,
+                      mult,
+                      serverSeed: sSeed,
+                      clientSeed: cSeed,
+                      hash: resHash
+                    });
+                  }}
                   className={`cursor-pointer hover:scale-105 min-w-[60px] h-[26px] rounded-full flex items-center justify-center text-[10.5px] font-extrabold border transition-all shrink-0 ${borderTheme}`}
                 >
                   {mult.toFixed(2)}x
@@ -464,18 +652,147 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
           </div>
 
           {/* Graphics Stage Box */}
-          <div id="aviator-gameplay-stage" className="flex-1 bg-[#101114] rounded-2xl relative overflow-hidden flex flex-col border border-white/5 shadow-inner min-h-[220px]">
+          <div id="aviator-gameplay-stage" className="flex-1 bg-gradient-to-b from-[#13151b] to-[#07080a] rounded-2xl relative overflow-hidden flex flex-col border border-white/5 shadow-[inset_0_0_60px_rgba(0,0,0,0.85)] min-h-[220px]">
              
-             {/* Dynamic Vector Curves Background */}
-             <div className="absolute inset-0 opacity-[0.03] pointer-events-none">
-                <div className="w-full h-full" style={{ backgroundImage: 'linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)', backgroundSize: '30px 30px' }} />
+             {/* 1. Fine High-Tech Grid Mesh */}
+             <div className="absolute inset-0 opacity-[0.06] pointer-events-none" style={{ backgroundImage: 'linear-gradient(to right, #4f4f4f 1px, transparent 1px), linear-gradient(to bottom, #4f4f4f 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+
+             {/* 2. Concentric Radar Circles for Cyberpunk Aesthetic */}
+             <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.16]">
+                <div className="absolute w-[20%] h-[20%] border border-red-500/25 rounded-full animate-pulse" />
+                <div className="absolute w-[45%] h-[45%] border border-[#3b3d45]/40 rounded-full" />
+                <div className="absolute w-[70%] h-[70%] border border-dashed border-[#3b3d45]/30 rounded-full" />
+                <div className="absolute w-[95%] h-[95%] border border-[#3b3d45]/20 rounded-full" />
+                
+                {/* 3. Tech Crosshair Hairlines */}
+                <div className="absolute w-[100%] h-[1px] bg-[#3b3d45]/20" />
+                <div className="absolute h-[100%] w-[1px] bg-[#3b3d45]/20" />
              </div>
 
-             {/* SSE Multiplier display */}
-             <div className="flex-1 flex flex-col items-center justify-center relative z-10">
+             {/* 4. Slow Rotating Tech Radar Sweep */}
+             <div className="absolute inset-x-0 inset-y-0 flex items-center justify-center pointer-events-none opacity-5 animate-[spin_15s_linear_infinite]">
+                <div className="w-full h-full max-w-[90%] max-h-[90%] rounded-full bg-gradient-sweep-fade" 
+                     style={{ background: 'conic-gradient(from 0deg, rgba(239, 68, 68, 0.3) 0deg, rgba(239, 68, 68, 0) 90deg, transparent 360deg)' }} />
+             </div>
+
+             {/* 5. Telemetry & Target Marks (High-fidelity minimalist data aesthetics) */}
+             <div className="absolute top-4 left-4 pointer-events-none flex flex-col gap-1 z-0">
+                <div className="flex items-center gap-1.5">
+                   <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
+                   <span className="text-[8px] font-mono font-black text-gray-500 uppercase tracking-widest">SYSTEM: MATCH MATCHING</span>
+                </div>
+                <div className="text-[8px] font-mono font-bold text-gray-600 tracking-wider">RADAR TARGET ID: SPIN-71</div>
+             </div>
+
+             {/* Dynamic Flight Canvas containing Bezier Curve & Plane Flight Position */}
+             <div className="absolute inset-0 z-10 pointer-events-none">
+                {/* SVG flight curve path */}
+                {(gameState === 'in_progress' || gameState === 'crashed') && (
+                   <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 1000 1000" preserveAspectRatio="none">
+                      <defs>
+                         <linearGradient id="curve-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stopColor="rgba(239, 68, 68, 0.05)" />
+                            <stop offset="50%" stopColor="rgba(239, 68, 68, 0.35)" />
+                            <stop offset="100%" stopColor="rgba(239, 68, 68, 0.95)" />
+                         </linearGradient>
+                         <linearGradient id="area-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" stopColor="rgba(239, 68, 68, 0.35)" />
+                            <stop offset="100%" stopColor="rgba(239, 68, 68, 0.0)" />
+                         </linearGradient>
+                         <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                            <feGaussianBlur stdDeviation="10" result="blur" />
+                            <feMerge>
+                               <feMergeNode in="blur" />
+                               <feMergeNode in="SourceGraphic" />
+                            </feMerge>
+                         </filter>
+                      </defs>
+
+                      {/* Area Fill Under Curve */}
+                      <motion.path 
+                         d={`M 100 800 Q ${progressX * 7.5 + 50} 800 ${progressX * 10} ${progressY * 10} L ${progressX * 10} 800 L 100 800 Z`}
+                         fill="url(#area-gradient)"
+                         initial={{ opacity: 0 }}
+                         animate={{ opacity: 1 }}
+                         transition={{ duration: 0.25 }}
+                      />
+
+                      {/* Main Neon Red Trail Line */}
+                      <motion.path 
+                         d={`M 100 800 Q ${progressX * 7.5 + 50} 800 ${progressX * 10} ${progressY * 10}`}
+                         fill="transparent"
+                         stroke="url(#curve-gradient)"
+                         strokeWidth="10"
+                         strokeLinecap="round"
+                         filter="url(#glow)"
+                         initial={{ opacity: 0 }}
+                         animate={{ opacity: 1 }}
+                         transition={{ duration: 0.25 }}
+                      />
+
+                      {/* Inner High-Intensity White Core Line */}
+                      <motion.path 
+                         d={`M 100 800 Q ${progressX * 7.5 + 50} 800 ${progressX * 10} ${progressY * 10}`}
+                         fill="transparent"
+                         stroke="#ffffff"
+                         strokeWidth="3"
+                         strokeLinecap="round"
+                         initial={{ opacity: 0 }}
+                         animate={{ opacity: 1 }}
+                         transition={{ duration: 0.25 }}
+                      />
+                   </svg>
+                )}
+
+                {/* Unified Plane rendering block */}
+                <motion.div 
+                   className="absolute z-20"
+                   animate={{ 
+                      left: gameState === 'waiting' ? '10%' : gameState === 'crashed' ? '115%' : `${progressX}%`,
+                      top: gameState === 'waiting' ? '80%' : gameState === 'crashed' ? '-15%' : `${progressY}%`,
+                      rotate: gameState === 'waiting' ? 0 : gameState === 'crashed' ? -40 : -22,
+                   }}
+                   style={{ transform: 'translate(-50%, -50%)' }}
+                   transition={{ 
+                      type: gameState === 'crashed' ? 'tween' : 'spring', 
+                      duration: gameState === 'crashed' ? 1.4 : undefined,
+                      damping: 24, 
+                      stiffness: 55 
+                   }}
+                >
+                   {/* Propeller Plane Icon */}
+                   <div className="relative group">
+                      {/* Hyper glowing pulse rings */}
+                      <div className="absolute -inset-8 bg-red-600/35 blur-3xl rounded-full scale-150 animate-pulse animate-duration-1000" />
+                      
+                      {/* Dynamic engine shockwave exhaust streams */}
+                      {gameState !== 'waiting' && (
+                         <div className="absolute right-12 top-1/2 -translate-y-1/2 flex items-center gap-1.5 opacity-80 rotate-180 origin-left">
+                            <span className="w-10 h-0.5 bg-gradient-to-r from-red-500 to-transparent rounded-full animate-pulse" />
+                            <span className="w-16 h-1 bg-gradient-to-r from-yellow-400 to-transparent rounded-full opacity-70" />
+                            <span className="w-6 h-0.5 bg-gradient-to-r from-orange-500 to-transparent rounded-full animate-ping" />
+                         </div>
+                      )}
+
+                      <div className="relative">
+                         <Plane 
+                            size={56} 
+                            className="text-red-500 fill-red-600 drop-shadow-[0_0_20px_rgba(239,68,68,1.0)] transform rotate-[15deg]" 
+                         />
+                         
+                         {/* Spinning propeller thrust glow */}
+                         <div className="absolute -right-1 top-4 w-1 h-8 bg-yellow-400/80 rounded-full blur-xs animate-ping" />
+                         <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-4 h-4 bg-red-500 rounded-full blur-sm animate-ping opacity-75" />
+                      </div>
+                   </div>
+                </motion.div>
+             </div>
+
+             {/* SSE Multiplier & State Overlays Display */}
+             <div className="flex-1 flex flex-col items-center justify-center relative z-25">
                 {/* AI Predictor Overlay */}
-                <div className="absolute top-4 right-4 z-20">
-                  <div className="bg-black/90 backdrop-blur-md border border-red-500/30 rounded-xl p-2.5 flex flex-col items-center shadow-[0_0_20px_rgba(220,38,38,0.3)]">
+                <div className="absolute top-4 right-4 z-30">
+                  <div className="bg-black/90 backdrop-blur-md border border-red-500/30 rounded-xl p-2.5 flex flex-col items-center shadow-[0_0_20px_rgba(220,38,38,0.35)]">
                     <div className="flex items-center gap-1.5 mb-1.5">
                       <Zap size={10} className="text-red-500 animate-pulse" />
                       <span className="text-[8px] font-black text-white italic tracking-widest uppercase">এআই প্রেডিক্টর (V2)</span>
@@ -496,12 +813,13 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
                     </div>
                   </div>
                 </div>
+
                 {gameState === 'waiting' && (
-                  <div className="flex flex-col items-center gap-3">
+                  <div className="flex flex-col items-center gap-4 bg-black/50 backdrop-blur-sm px-6 py-5 rounded-3xl border border-white/5 shadow-2xl animate-fade-in relative overflow-hidden">
                      <div className="w-12 h-12 rounded-full border-4 border-t-red-600 border-white/10 animate-spin" />
                      <div className="flex flex-col items-center">
-                       <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">পরবর্তী রাউন্ডের জন্য অপেক্ষা করুন</p>
-                       <p className="text-3xl font-black text-rose-500 italic mt-0.5">{nextGameTimer}s</p>
+                       <p className="text-[10px] font-black text-rose-500 tracking-[0.35em] uppercase leading-none">WAITING FOR NEXT ROUND</p>
+                       <p className="text-4xl font-black text-white italic mt-2 drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">{nextGameTimer}s</p>
                      </div>
                   </div>
                 )}
@@ -510,64 +828,19 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
                   <div className="flex flex-col items-center justify-center w-full h-full relative">
                      <motion.h1 
                       key={multiplier}
-                      initial={{ scale: 0.95, opacity: 0.8 }}
+                      initial={{ scale: 0.94, opacity: 0.85 }}
                       animate={{ scale: 1, opacity: 1 }}
-                      className="text-7xl md:text-9xl font-black text-white italic tracking-tighter drop-shadow-[0_0_30px_rgba(255,255,255,0.15)] z-20"
+                      className="text-8xl md:text-[10.5rem] font-sans font-black text-white italic tracking-tighter drop-shadow-[0_0_40px_rgba(239,68,68,0.35)] z-20"
                      >
-                       {multiplier.toFixed(2)}<span className="text-3xl md:text-5xl pl-1 font-bold text-red-600">x</span>
+                       {multiplier.toFixed(2)}<span className="text-4xl md:text-5xl pl-1 font-bold text-red-500">x</span>
                      </motion.h1>
-                     
-                     {/* Plane flying with dynamic position based on multiplier */}
-                     <motion.div 
-                      className="absolute z-10"
-                      initial={{ x: -100, y: 100, rotate: 0 }}
-                      animate={{ 
-                        // Move plane along a parabolic curve as multiplier increases
-                        x: Math.min(300, (multiplier - 1.0) * 120), 
-                        y: Math.max(-200, -(multiplier - 1.0) * 60),
-                        rotate: Math.max(-30, -(multiplier - 1.0) * 5)
-                      }}
-                      transition={{ type: 'spring', damping: 25, stiffness: 60 }}
-                      style={{ left: '20%', bottom: '30%' }}
-                     >
-                        <div className="relative group">
-                           {/* Glow trail behind plane */}
-                           <div className="absolute -inset-6 bg-red-600/20 blur-2xl rounded-full scale-150 animate-pulse" />
-                           
-                           {/* The Plane Icon */}
-                           <div className="relative">
-                             <Plane 
-                               size={52} 
-                               className="text-red-600 fill-red-600 drop-shadow-[0_0_15px_rgba(220,38,38,0.9)] transform rotate-[15deg] transition-transform duration-300" 
-                             />
-                             
-                             {/* Engine thrust effect */}
-                             <div className="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 bg-yellow-400 rounded-full blur-sm animate-ping opacity-75" />
-                           </div>
-                           
-                           {/* Flame / Propeller rotation / Particle tail */}
-                           <div className="absolute right-full top-1/2 w-48 h-24 origin-right -translate-y-1/2 overflow-hidden pointer-events-none opacity-40">
-                              <svg className="w-full h-full">
-                                 <motion.path 
-                                  d="M 192 48 Q 96 48 0 96"
-                                  fill="transparent"
-                                  stroke="rgba(239, 68, 68, 0.6)"
-                                  strokeWidth="4"
-                                  strokeDasharray="6,4"
-                                  animate={{ strokeDashoffset: [0, -100] }}
-                                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                                 />
-                              </svg>
-                           </div>
-                        </div>
-                     </motion.div>
                   </div>
                 )}
 
                 {gameState === 'crashed' && (
-                  <div className="flex flex-col items-center justify-center animate-pulse">
-                     <p className="text-xs font-black text-red-500 uppercase tracking-[0.4em] mb-1">FLEW AWAY!</p>
-                     <h1 className="text-6xl md:text-8xl font-black text-red-600 italic tracking-tighter opacity-90">
+                  <div className="flex flex-col items-center justify-center animate-pulse z-20 bg-black/60 backdrop-blur-md px-8 py-6 rounded-3xl border border-red-500/20 shadow-[0_0_40px_rgba(239,68,68,0.25)]">
+                     <p className="text-xs font-black text-red-500 uppercase tracking-[0.45em] mb-1 leading-none drop-shadow-[0_0_4px_rgba(239,68,68,0.5)]">FLEW AWAY!</p>
+                     <h1 className="text-7xl md:text-[7rem] font-black text-red-600 italic tracking-tighter opacity-95 leading-none">
                        {multiplier.toFixed(2)}x
                      </h1>
                   </div>
@@ -575,10 +848,10 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
              </div>
 
              {/* Graph indicators */}
-             <div className="absolute left-3 bottom-3 flex flex-col gap-1 z-0">
-               {[2.5, 1.5, 1.0].map(val => (
-                 <div key={val} className="text-[9px] font-black text-gray-700">{val.toFixed(1)}x</div>
-               ))}
+             <div className="absolute left-4 bottom-4 flex flex-col gap-1.5 z-0 pointer-events-none">
+                {[2.5, 1.5, 1.0].map(val => (
+                  <div key={val} className="text-[9px] font-mono font-black text-gray-700/80 tracking-wider">00:{val.toFixed(1)}</div>
+                ))}
              </div>
           </div>
 
@@ -704,28 +977,42 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
                 </div>
 
                 {/* Auto panel attributes */}
-                {isAutoBet1 && (
-                  <div className="flex items-center gap-1.5 pt-2 mt-2 border-t border-white/5 animate-fade-in">
-                     <div className="flex-1 flex items-center bg-black/40 rounded-xl px-2.5 py-1.5 border border-white/5">
-                        <span className="text-[8px] font-black text-gray-500 uppercase mr-1.5 shrink-0">Auto Cash Out:</span>
-                        <input 
-                          type="number"
-                          placeholder="1.50"
-                          step="0.05"
-                          min="1.01"
-                          value={autoCashOut1 || ''}
-                          onChange={(e) => setAutoCashOut1(Number(parseFloat(e.target.value)) || null)}
-                          className="bg-transparent text-gray-200 text-xs font-black focus:outline-none w-full"
-                        />
-                        {autoCashOut1 !== null && (
-                          <button onClick={() => setAutoCashOut1(null)} className="text-gray-400 hover:text-white"><X size={12} /></button>
-                        )}
-                     </div>
-                     <div className="w-8 h-8 rounded-xl bg-red-600/10 border border-red-500/20 flex items-center justify-center text-red-500">
-                        <Zap size={14} />
-                     </div>
-                  </div>
-                )}
+                <div className="flex items-center justify-between gap-3 pt-2.5 mt-2.5 border-t border-white/5">
+                   <div className="flex items-center gap-2">
+                      <button
+                         type="button"
+                         onClick={() => setIsAutoWithdraw1(!isAutoWithdraw1)}
+                         className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${
+                            isAutoWithdraw1 ? 'bg-red-600' : 'bg-white/10'
+                         }`}
+                      >
+                         <div
+                            className={`bg-white w-4 h-4 rounded-full shadow-md transform duration-200 ease-in-out ${
+                               isAutoWithdraw1 ? 'translate-x-4' : 'translate-x-0'
+                            }`}
+                         />
+                      </button>
+                      <span className="text-[10px] font-black text-gray-300 uppercase tracking-wide">অটো ক্যাশআউট</span>
+                   </div>
+
+                   <div className="flex items-center gap-1.5">
+                      <div className={`flex items-center bg-black/50 rounded-xl px-2.5 py-1 border border-white/10 transition-all ${isAutoWithdraw1 ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+                         <input 
+                           type="number"
+                           step="0.05"
+                           min="1.01"
+                           placeholder="2.00"
+                           value={autoCashOut1 || ''}
+                           onChange={(e) => setAutoCashOut1(Number(parseFloat(e.target.value)) || null)}
+                           className="bg-transparent text-gray-200 text-xs font-black focus:outline-none w-[60px] text-center"
+                         />
+                         <span className="text-[10px] font-extrabold text-red-500">x</span>
+                      </div>
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${isAutoWithdraw1 ? 'bg-red-600/20 text-red-500' : 'bg-white/5 text-gray-600'}`}>
+                         <Zap size={12} />
+                      </div>
+                   </div>
+                </div>
              </div>
 
              {/* Workstation 2 */}
@@ -845,28 +1132,42 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
                   </div>
 
                   {/* Auto panel attributes */}
-                  {isAutoBet2 && (
-                    <div className="flex items-center gap-1.5 pt-2 mt-2 border-t border-white/5 animate-fade-in">
-                       <div className="flex-1 flex items-center bg-black/40 rounded-xl px-2.5 py-1.5 border border-white/5">
-                          <span className="text-[8px] font-black text-gray-500 uppercase mr-1.5 shrink-0">Auto Cash Out:</span>
-                          <input 
-                            type="number"
-                            placeholder="2.00"
-                            step="0.05"
-                            min="1.01"
-                            value={autoCashOut2 || ''}
-                            onChange={(e) => setAutoCashOut2(Number(parseFloat(e.target.value)) || null)}
-                            className="bg-transparent text-gray-200 text-xs font-black focus:outline-none w-full"
-                          />
-                          {autoCashOut2 !== null && (
-                            <button onClick={() => setAutoCashOut2(null)} className="text-gray-400 hover:text-white"><X size={12} /></button>
-                          )}
-                       </div>
-                       <div className="w-8 h-8 rounded-xl bg-red-600/10 border border-red-500/20 flex items-center justify-center text-red-500">
-                          <Zap size={14} />
-                       </div>
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between gap-3 pt-2.5 mt-2.5 border-t border-white/5">
+                     <div className="flex items-center gap-2">
+                        <button
+                           type="button"
+                           onClick={() => setIsAutoWithdraw2(!isAutoWithdraw2)}
+                           className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${
+                              isAutoWithdraw2 ? 'bg-red-600' : 'bg-white/10'
+                           }`}
+                        >
+                           <div
+                              className={`bg-white w-4 h-4 rounded-full shadow-md transform duration-200 ease-in-out ${
+                                 isAutoWithdraw2 ? 'translate-x-4' : 'translate-x-0'
+                              }`}
+                           />
+                        </button>
+                        <span className="text-[10px] font-black text-gray-300 uppercase tracking-wide">অটো ক্যাশআউট</span>
+                     </div>
+
+                     <div className="flex items-center gap-1.5">
+                        <div className={`flex items-center bg-black/50 rounded-xl px-2.5 py-1 border border-white/10 transition-all ${isAutoWithdraw2 ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+                           <input 
+                             type="number"
+                             step="0.05"
+                             min="1.01"
+                             placeholder="2.00"
+                             value={autoCashOut2 || ''}
+                             onChange={(e) => setAutoCashOut2(Number(parseFloat(e.target.value)) || null)}
+                             className="bg-transparent text-gray-200 text-xs font-black focus:outline-none w-[60px] text-center"
+                           />
+                           <span className="text-[10px] font-extrabold text-red-500">x</span>
+                        </div>
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${isAutoWithdraw2 ? 'bg-red-600/20 text-red-500' : 'bg-white/5 text-gray-600'}`}>
+                           <Zap size={12} />
+                        </div>
+                     </div>
+                  </div>
                </div>
              )}
 
@@ -1008,16 +1309,20 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
                    <p className="text-xl font-black text-rose-500">{showFairness.mult?.toFixed(2)}x</p>
                  </div>
                  <div>
-                   <p className="text-[10px] text-gray-500 font-bold mb-1">Server Seed (Hashed)</p>
-                   <p className="text-xs font-mono text-gray-300 break-all">{showFairness.serverSeed}</p>
+                   <p className="text-[10px] text-gray-400 font-bold mb-1">Server Seed (Active)</p>
+                   <p className="text-xs font-mono text-amber-300 break-all">{showFairness.serverSeed}</p>
+                 </div>
+                 <div>
+                   <p className="text-[10px] text-gray-500 font-bold mb-1">Server Seed (SHA-256 Hashed)</p>
+                   <p className="text-xs font-mono text-slate-400 break-all">{showFairness.serverSeed ? computeFairnessHash(showFairness.serverSeed, '') : ''}</p>
                  </div>
                  <div>
                    <p className="text-[10px] text-gray-500 font-bold mb-1">Client Seed</p>
                    <p className="text-xs font-mono text-gray-300 break-all">{showFairness.clientSeed}</p>
                  </div>
                  <div>
-                   <p className="text-[10px] text-gray-500 font-bold mb-1">Result Hash</p>
-                   <p className="text-xs font-mono text-green-400 break-all">{showFairness.hash}</p>
+                   <p className="text-[10px] text-gray-500 font-bold mb-1">Combined Hash (SHA-256)</p>
+                   <p className="text-xs font-mono text-emerald-400 break-all">{showFairness.hash}</p>
                  </div>
                </div>
                

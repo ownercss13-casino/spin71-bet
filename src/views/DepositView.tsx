@@ -18,6 +18,7 @@ import {
   Info, 
   Lock 
 } from 'lucide-react';
+import Receipt from '../components/Receipt';
 import { motion, AnimatePresence } from 'motion/react';
 import { ToastType } from '../components/ui/Toast';
 import GlobalImage from '../components/ui/GlobalImage';
@@ -30,21 +31,21 @@ const paymentMethods = [
     id: 'nagad', 
     name: 'NAGAD', 
     label: 'নগদ',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Nagad_Logo.svg/1200px-Nagad_Logo.svg.png',
+    logo: 'https://cdn.iconscout.com/icon/free/png-256/free-nagad-2728957-2261625.png',
     number: '01789527096'
   },
   { 
     id: 'bkash', 
     name: 'Bkash', 
     label: 'বিকাশ',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/BKash_Logo.svg/1200px-BKash_Logo.svg.png',
+    logo: 'https://cdn.iconscout.com/icon/free/png-256/free-bkash-2728956-2261624.png',
     number: '01860137045'
   },
   { 
     id: 'rocket', 
     name: 'Rocket', 
     label: 'রকেট',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Rocket_logo.svg/1200px-Rocket_logo.svg.png',
+    logo: 'https://cdn.iconscout.com/icon/free/png-256/free-rocket-2728958-2261626.png',
     number: '01860137045'
   },
   { 
@@ -123,6 +124,8 @@ export default function DepositView({
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [showTrxTutorial, setShowTrxTutorial] = useState(false);
   const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [receiptData, setReceiptData] = useState<any>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -243,6 +246,9 @@ export default function DepositView({
         // Fallback testing
         showToast('Deposit confirmed! / ডিপোজিট সফল হয়েছে!', 'success');
       }
+      
+      setReceiptData({ type: 'deposit', amount: parseFloat(amount), trxId, date: new Date().toLocaleString(), status: 'Pending' });
+      setShowReceipt(true);
       
       setIsSubmitting(false);
       setTrxId('');
@@ -392,7 +398,18 @@ export default function DepositView({
                       {d.method}
                     </span>
                   </div>
-                  <p className="font-mono text-[10px] text-gray-500 select-all break-all">{d.trxId}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-mono text-[10px] text-gray-500 break-all">{d.trxId}</p>
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText(d.trxId);
+                        showToast('TrxID কপি করা হয়েছে!', 'success');
+                      }}
+                      className="text-gray-500 hover:text-[#3ed0ca] transition-colors"
+                    >
+                      <Copy size={12} />
+                    </button>
+                  </div>
                   {d.senderNumber && (
                     <p className="text-[10px] text-gray-400">
                       From: <span className="font-mono text-gray-300 font-bold">{d.senderNumber}</span>
@@ -413,6 +430,16 @@ export default function DepositView({
                   }`}>
                     {d.status === 'approved' ? 'সফল' : d.status === 'rejected' ? 'বাতিল' : 'পেন্ডিং'}
                   </p>
+                  {d.status === 'pending' && (
+                    <div className="w-full bg-white/5 rounded-full h-1 mt-1 overflow-hidden">
+                      <motion.div 
+                        initial={{ width: "0%" }}
+                        animate={{ width: "100%" }}
+                        transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
+                        className="bg-amber-500 h-1 rounded-full"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             ))
@@ -425,6 +452,12 @@ export default function DepositView({
             </div>
           )}
         </main>
+        {showReceipt && receiptData && (
+          <Receipt 
+            {...receiptData} 
+            onClose={() => setShowReceipt(false)} 
+          />
+        )}
       </div>
     );
   }

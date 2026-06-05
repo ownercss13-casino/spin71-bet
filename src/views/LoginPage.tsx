@@ -60,6 +60,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 type RegisterFormValues = z.infer<typeof registerSchema>;
 type ResetFormValues = z.infer<typeof resetSchema>;
 
+import { formatDisplayUID } from '../utils/idUtils';
 import { ToastType } from '../components/ui/Toast';
 import { auth, db } from '../services/firebase';
 import { 
@@ -67,7 +68,8 @@ import {
   createUserWithEmailAndPassword,
   updateProfile,
   signInWithPopup,
-  GoogleAuthProvider
+  GoogleAuthProvider,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 
 import { doc, setDoc, getDoc, updateDoc, increment, collection, query, where, getDocs, limit, writeBatch } from 'firebase/firestore';
@@ -78,16 +80,16 @@ interface LoginPageProps {
   onContinue: () => void;
   onLoginSuccess: (user: any) => void;
   showToast: (msg: string, type?: ToastType) => void;
+  showNotification: (msg: string, type: 'success' | 'info' | 'error') => void;
   casinoName?: string;
   isLoggedIn?: boolean;
   welcomeBonus?: number;
   initialMode?: 'login' | 'register';
 }
 
-export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSuccess, showToast, casinoName = "SPIN71.bet", isLoggedIn = false, welcomeBonus = 507, initialMode = 'login' }: LoginPageProps) {
+export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSuccess, showToast, showNotification, casinoName = "SPIN71.bet", isLoggedIn = false, welcomeBonus = 507, initialMode = 'login' }: LoginPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'forgot-password' | 'register'>(initialMode);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -160,7 +162,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
 
   const handleAuthError = (err: any) => {
     setIsLoading(false);
-    console.error("Auth Error:", err);
+    console.log("Auth Error:", err.message);
     
     // Ignore error if user closed the popup deliberately
     if (err.code === 'auth/popup-closed-by-user') {
@@ -178,15 +180,19 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     let msg = "কিছু ভুল হয়েছে। (Something went wrong.)";
     
     // Firebase Auth Error Codes
-    if (err.code === 'auth/wrong-password') msg = "ভুল পাসওয়ার্ড! (Wrong password)";
-    if (err.code === 'auth/user-not-found') msg = "অ্যাকাউন্ট পাওয়া যায়নি! (No account found)";
-    if (err.code === 'auth/invalid-credential') msg = "ভুল তথ্য (Invalid credentials)";
-    if (err.code === 'auth/email-already-in-use') msg = "এই ইউজারনেমটি ইতিমধ্যে ব্যবহার করা হয়েছে! (Username already in use)";
-    if (err.code === 'auth/invalid-email') msg = "সঠিক ফরম্যাট দিন! (Invalid format)";
-    if (err.code === 'auth/weak-password') msg = "পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে (Weak password)";
-    if (err.code === 'auth/too-many-requests') msg = "অতিরিক্ত রিকোয়েস্ট! কিছুক্ষণ পর চেষ্টা করুন। (Too many requests)";
-    if (err.code === 'auth/operation-not-allowed') msg = "ইমেইল/পাসওয়ার্ড পদ্ধতিটি ফায়ারবেস কনসোলে বন্ধ করা আছে!";
-    if (err.message && err.message.includes('missing or insufficient permissions')) msg = "ডেটাবেস পারমিশন সমস্যা! (Permission Denied)";
+    if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential' || err.code === 'auth/invalid-login-credentials' || err.code === 'auth/user-not-found') {
+      msg = "অ্যাকাউন্ট পাওয়া যায়নি বা username/পাসওয়ার্ড ভুল হচ্ছে!";
+    } else {
+      if (err.code === 'auth/wrong-password') msg = "ভুল পাসওয়ার্ড! (Wrong password)";
+      if (err.code === 'auth/user-not-found') msg = "অ্যাকাউন্ট পাওয়া যায়নি! (No account found)";
+      if (err.code === 'auth/invalid-credential') msg = "username বা পাসওয়ার্ড ভুল হচ্ছে (Invalid credentials)";
+      if (err.code === 'auth/email-already-in-use') msg = "এই ইউজারনেমটি ইতিমধ্যে ব্যবহার করা হয়েছে! (Username already in use)";
+      if (err.code === 'auth/invalid-email') msg = "সঠিক ফরম্যাট দিন! (Invalid format)";
+      if (err.code === 'auth/weak-password') msg = "পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে (Weak password)";
+      if (err.code === 'auth/too-many-requests') msg = "অতিরিক্ত রিকোয়েস্ট! কিছুক্ষণ পর চেষ্টা করুন। (Too many requests)";
+      if (err.code === 'auth/operation-not-allowed') msg = "ইমেইল/পাসওয়ার্ড পদ্ধতিটি ফায়ারবেস কনসোলে বন্ধ করা আছে!";
+      if (err.message && err.message.includes('missing or insufficient permissions')) msg = "ডেটাবেস পারমিশন সমস্যা! (Permission Denied)";
+    }
     
     // Custom error messages from thrown errors
     if (err.message && err.message.length < 100) {
@@ -196,7 +202,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     }
 
     setError(msg);
-    showToast(msg, "error");
+    showNotification(msg, "error");
   };
 
 
@@ -228,12 +234,10 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         const cleanDisplayName = (user.displayName || 'Google User').replace(/[^a-zA-Z0-9]/g, '').substring(0, 13) || `g${user.uid.substring(0,5)}`;
         const isAdmin = user.email === 'owner.css13@gmail.com' || user.email === 'cutelegend7045@gmail.com';
         
-        const batch = writeBatch(db);
-
         const newUser = {
           username: cleanDisplayName,
           email: user.email || "",
-          balance: inviterUid ? 50 : 500, // New user gets 500 by default or 50 if referred? Wait, App.tsx says 500.
+          balance: 500, // Default signup balance
           role: isAdmin ? 'admin' : 'user',
           isAdmin: isAdmin,
           totalDeposits: 0,
@@ -248,50 +252,28 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
           totalReferralEarnings: 0
         };
         
-        batch.set(userDocRef, newUser);
+        await setDoc(userDocRef, newUser);
         
         if (isAdmin) {
-          batch.set(doc(db, 'admins', user.uid), {
+          await setDoc(doc(db, 'admins', user.uid), {
             email: user.email,
             addedAt: new Date().toISOString()
           });
         }
         
         if (inviterUid) {
-          const inviterRef = doc(db, 'users', inviterUid);
-          batch.update(inviterRef, {
-            referralCount: increment(1),
-            validReferralCount: increment(1),
-            balance: increment(50),
-            totalReferralEarnings: increment(50)
-          });
-
-          // Log transaction for inviter
-          const inviterTrxRef = doc(collection(db, 'transactions'));
-          batch.set(inviterTrxRef, {
-            type: 'bonus',
-            status: 'approved',
-            userId: inviterUid,
-            amount: 50,
-            description: `Referral Bonus (Google: ${cleanDisplayName})`,
-            date: new Date().toISOString(),
-            createdAt: new Date().toISOString()
-          });
-
-          // Transaction for new user
-          const newUserTrxRef = doc(collection(db, 'transactions'));
-          batch.set(newUserTrxRef, {
-            type: 'bonus',
-            status: 'approved',
-            userId: user.uid,
-            amount: 50,
-            description: 'Referral Signup Bonus',
-            date: new Date().toISOString(),
-            createdAt: new Date().toISOString()
-          });
+          // Trigger server-side bonus processing
+          fetch('/api/referral/process', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              userId: user.uid, 
+              inviterUid, 
+              referralType: 'Google Signup' 
+            })
+          }).catch(err => console.error("Referral API error:", err));
         }
         
-        await batch.commit();
         localStorage.removeItem('referralCode');
       }
       
@@ -336,7 +318,10 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
 
       showToast("লগইন সফল হয়েছে", "success");
       
-      // Notify Telegram
+      // Give a tiny delay before switching views so user sees popup
+      setTimeout(() => {
+        onLoginSuccess({ id: user.uid, ...userData });
+      }, 1500);
       const escapeHTML = (str: string) => str.replace(/[&<>"']/g, m => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'}[m] || m));
       try {
         await fetch('/api/telegram/event', {
@@ -374,16 +359,16 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       // 2. Set Firebase Auth display name
       await updateProfile(user, { displayName: data.username });
 
-      const inviterCode = data.promoCode || localStorage.getItem('referralCode');
+      const inviterCodeRaw = (data.promoCode || localStorage.getItem('referralCode') || '').trim();
       let inviterUid = null;
-      if (inviterCode) {
+      if (inviterCodeRaw) {
          try {
            const usersRef = collection(db, 'users');
-           const q = query(usersRef, where('referralCode', '==', inviterCode), limit(1));
+           const q = query(usersRef, where('referralCode', 'in', [inviterCodeRaw, inviterCodeRaw.toUpperCase(), inviterCodeRaw.toLowerCase()]), limit(1));
            const snap = await getDocs(q);
            if (!snap.empty) {
              inviterUid = snap.docs[0].id;
-             console.log("Found inviter:", inviterUid);
+             console.log("[Invitaton Debug] Found inviter UID:", inviterUid, "for code:", inviterCodeRaw);
            }
          } catch (e) {
            console.error("Referral lookup failed:", e);
@@ -398,11 +383,12 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         username: data.username,
         email: registerEmail,
         mobile: data.mobile,
-        balance: inviterUid ? 50 : 0, 
+        balance: 0, // Signup starts with 0
         role: 'user',
         totalDeposits: 0,
         totalWithdrawals: 0,
-        bonusesClaimed: [], // Track claimed bonuses
+        totalBets: 0,
+        bonusesClaimed: [],
         createdAt: new Date().toISOString(),
         profilePictureUrl: "https://www.image2url.com/r2/default/images/1779828873931-409cfe92-d243-4926-91bd-67da3a1e0adc.png",
         referralCode: generateReferralCode(),
@@ -412,44 +398,21 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         referredBy: inviterUid
       };
       
-      batch.set(userDocRef, newUser);
+      await setDoc(userDocRef, newUser);
       
-      // Handle referral bonus if inviter exists
       if (inviterUid) {
-        const inviterRef = doc(db, 'users', inviterUid);
-        batch.update(inviterRef, {
-          referralCount: increment(1),
-          // We give a small signup bonus to both if referred
-          balance: increment(50),
-          totalReferralEarnings: increment(50)
-        });
-
-        // Log transaction for inviter
-        const inviterTrxRef = doc(collection(db, 'transactions'));
-        batch.set(inviterTrxRef, {
-          type: 'bonus',
-          status: 'approved',
-          userId: inviterUid,
-          amount: 50,
-          description: `Referral Signup Bonus (${data.username})`,
-          date: new Date().toISOString(),
-          createdAt: new Date().toISOString()
-        });
-
-        // Give signup bonus to the new user too
-        const newUserTrxRef = doc(collection(db, 'transactions'));
-        batch.set(newUserTrxRef, {
-          type: 'bonus',
-          status: 'approved',
-          userId: user.uid,
-          amount: 50,
-          description: 'Referral Signup Bonus',
-          date: new Date().toISOString(),
-          createdAt: new Date().toISOString()
-        });
+        // Trigger server-side bonus processing
+        fetch('/api/referral/process', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            userId: user.uid, 
+            inviterUid, 
+            referralType: 'Email Signup' 
+          })
+        }).catch(err => console.error("Referral API error:", err));
       }
-
-      await batch.commit();
+      
       localStorage.removeItem('referralCode');
 
       // Notify Telegram
@@ -461,7 +424,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
             event: 'Registration',
             userId: user.uid,
             username: data.username,
-            balance: inviterUid ? 50 : 0,
+            balance: 0,
             details: `Mobile: ${data.mobile}${inviterUid ? ' | Referred by: ' + inviterUid : ''}`
           })
         });
@@ -470,8 +433,9 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       }
       
       showToast("নিবন্ধন সফল হয়েছে!", "success");
-      setShowSuccessPopup(true);
-      onLoginSuccess({ id: user.uid, ...newUser, balance: inviterUid ? 50 : 0 });
+      setTimeout(() => {
+        onLoginSuccess({ id: user.uid, ...newUser, balance: 0 });
+      }, 1500);
 
       // Notify Telegram
       const escapeHTML = (str: string) => str.replace(/[&<>"']/g, m => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'}[m] || m));
@@ -479,7 +443,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: `🆕 <b>New User Registered!</b>\n\n👤 <b>Username:</b> ${escapeHTML(data.username)}\n🔢 <b>UID:</b> <code>${user.uid}</code>${inviterUid ? '\n🤝 <b>Referred By:</b> <code>' + inviterUid + '</code>' : ''}`
+          message: `🆕 <b>New User Registered!</b>\n\n👤 <b>Username:</b> ${escapeHTML(data.username)}\n🔢 <b>UID:</b> <code>${formatDisplayUID(user.uid)}</code>${inviterUid ? '\n🤝 <b>Referred By:</b> <code>' + inviterUid + '</code>' : ''}`
         })
       });
     } catch (err: any) {
@@ -493,8 +457,8 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     setIsLoading(true);
     setError(null);
     try {
-      // Mock password reset
-      showToast("পাসওয়ার্ড রিসেট রিকোয়েস্ট সফল! (Password reset request successful)", "success");
+      await sendPasswordResetEmail(auth, data.email);
+      showToast("রিসেট লিঙ্ক আপনার ইমেইলে পাঠানো হয়েছে। (Reset link sent to your email)", "success");
       setAuthMode('login');
     } catch (err: any) {
       handleAuthError(err);
@@ -507,10 +471,13 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     <div className="fixed inset-0 z-[1000] bg-[#1a1a1a] flex flex-col font-sans text-white overflow-y-auto overflow-x-hidden pb-4">
       
       {/* Top Banner Image with Close Button */}
-      <div className="relative w-full bg-[#0d1a29] flex justify-center shrink-0 pt-12 pb-8">
-        <span className="text-4xl md:text-5xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 drop-shadow-[0_0_15px_rgba(253,216,53,0.5)]">
-          SPIN71.BET
-        </span>
+      <div className="relative w-full bg-[#0d1a29] flex justify-center shrink-0 py-8">
+        <img 
+          src="https://www.image2url.com/r2/default/images/1780593621856-8a111c3d-ba6c-4653-b27b-cd669339690b.jpg" 
+          alt="Spin71.Bet Logo" 
+          className="h-32 md:h-48 lg:h-56 object-contain drop-shadow-[0_0_30px_rgba(253,216,53,0.4)]"
+          referrerPolicy="no-referrer"
+        />
         <button 
           onClick={() => onContinue && onContinue()}
           className="absolute top-4 right-4 p-2 text-white/70 hover:text-white transition-colors z-10 bg-black/40 rounded-full"
@@ -536,6 +503,12 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
               exit={{ opacity: 0, x: 20 }}
             >
               <form onSubmit={handleSubmitLogin(onEmailLogin)} className="space-y-4">
+                
+                {error && (
+                  <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-3 text-red-500 text-sm text-center font-medium">
+                    {error}
+                  </div>
+                )}
                 
                 {/* User Input */}
                 <div>
@@ -618,6 +591,12 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
             >
               <form onSubmit={handleSubmitRegister(onEmailRegister)} className="space-y-4">
                 
+                {error && (
+                  <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-3 text-red-500 text-sm text-center font-medium">
+                    {error}
+                  </div>
+                )}
+                
                 {/* User Input */}
                 <div>
                   <div className="flex bg-[#2a2b2d] rounded-lg overflow-hidden h-14">
@@ -698,22 +677,6 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
                     />
                   </div>
                   {registerErrors.mobile && <p className="text-red-500 text-xs mt-1 ml-4">{registerErrors.mobile.message}</p>}
-                </div>
-
-                {/* Promo Code Input */}
-                <div>
-                  <div className="flex bg-[#2a2b2d] rounded-lg overflow-hidden h-14">
-                    <div className="w-1.5 bg-yellow-500 shrink-0"></div>
-                    <div className="pl-4 pr-3 flex items-center justify-center">
-                      <Gift className="w-5 h-5 text-gray-400" />
-                    </div>
-                    <input 
-                      {...registerRegister('promoCode')}
-                      type="text" 
-                      placeholder="আমন্ত্রণ কোড (Invite / Promo Code) - ঐচ্ছিক"
-                      className="w-full bg-transparent text-white text-base focus:outline-none py-3 pr-4 placeholder:text-gray-200 uppercase"
-                    />
-                  </div>
                 </div>
 
                 <div className="flex gap-4 mt-8">
@@ -812,42 +775,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
 
       </div>
 
-      <AnimatePresence>
-        {showSuccessPopup && (
-          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
-            <motion.div 
-              initial={{ scale: 0.5, opacity: 0, y: 50 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.5, opacity: 0, y: 50 }}
-              className="relative bg-[#2a2b2d] border-l-4 border-l-green-500 rounded-xl p-8 max-w-sm w-full text-center shadow-2xl overflow-hidden"
-            >
-              <div className="relative z-10">
-                <div className="w-16 h-16 bg-[#4ade80]/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <CheckCircle2 size={32} className="text-[#4ade80]" />
-                </div>
-                
-                <h2 className="text-2xl font-bold text-white mb-2">অভিনন্দন!</h2>
-                <p className="text-gray-300 font-medium text-base mb-6">আপনার নিবন্ধন সফল হয়েছে</p>
-
-                
-                <div className="mb-6 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-                  <p className="text-[#4ade80] text-sm font-bold">প্রথম ডিপোজিটে ১১৯% বোনাস এবং ৩x টানউবার</p>
-                </div>
-
-                <button 
-                  onClick={() => {
-                    setShowSuccessPopup(false);
-                    onContinue();
-                  }} 
-                  className="w-full font-bold py-3.5 rounded-full transition-all flex items-center justify-center gap-2 bg-[#4ade80] text-[#111] hover:bg-[#22c55e] active:scale-95"
-                >
-                  গেম শুরু করুন <ArrowRight size={20} />
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* Removed successPopup UI */}
 
     </div>
   );

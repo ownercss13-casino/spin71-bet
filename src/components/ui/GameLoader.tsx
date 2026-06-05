@@ -14,6 +14,9 @@ interface GameLoaderProps {
 export default function GameLoader({ gameName, provider, logo, hasError = false, onClose, onLoadComplete }: GameLoaderProps) {
   const [progress, setProgress] = useState(0);
 
+  const onLoadCompleteRef = React.useRef(onLoadComplete);
+  onLoadCompleteRef.current = onLoadComplete;
+
   useEffect(() => {
     if (hasError) {
       setProgress(100);
@@ -36,14 +39,14 @@ export default function GameLoader({ gameName, provider, logo, hasError = false,
     }, interval);
 
     const finishTimeout = setTimeout(() => {
-      if (onLoadComplete) onLoadComplete();
+      if (onLoadCompleteRef.current) onLoadCompleteRef.current();
     }, duration + 100);
 
     return () => {
       clearInterval(timer);
       clearTimeout(finishTimeout);
     };
-  }, [hasError, onLoadComplete]);
+  }, [hasError]);
 
   return (
     <div className="fixed inset-0 z-[1010] bg-black flex flex-col items-center justify-center p-6 overflow-hidden">

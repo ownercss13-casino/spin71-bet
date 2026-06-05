@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Skeleton from '../components/ui/Skeleton';
+import DepositHistorySection from '../components/DepositHistorySection';
 import { db } from '../services/firebase';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 
@@ -235,6 +236,8 @@ export default function WalletView({ balance, userData, onTabChange, onSubTabCha
         </div>
 
         {/* Transaction History Section */}
+        <DepositHistorySection userData={userData} />
+        
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-[var(--text-main)] font-black italic uppercase tracking-tighter flex items-center gap-2">

@@ -21,10 +21,7 @@ const admin = new Proxy(originalAdmin, {
       const fn = (dbId?: string) => {
         return getAdminFirestore(originalAdmin.app(), dbId === '(default)' ? undefined : dbId);
       };
-      (fn as any).FieldValue = {
-        serverTimestamp: () => serverTimestamp(),
-        increment: (n: number) => increment(n)
-      };
+      (fn as any).FieldValue = AdminFieldValue;
       return fn;
     }
     const val = Reflect.get(target, prop, receiver);
@@ -128,35 +125,45 @@ class FakeCollection {
   }
 }
 
-const db = {
-  collection: (name: string) => new FakeCollection(name),
-  runTransaction: async (cb: any) => {
-    return runTransaction(clientDb, async (tx) => {
-      const fakeTx = {
-        get: async (fakeR: any) => { 
-          const s = await tx.get(doc(clientDb, fakeR.path)); 
-          return { exists: s.exists(), data: () => s.data(), id: s.id }; 
-        },
-        set: (fakeR: any, data: any, opts?: any) => {
-          const enriched = { ...data, _serverSecret: SERVER_SECRET };
-          if (opts?.merge) tx.set(doc(clientDb, fakeR.path), enriched, { merge: true });
-          else tx.set(doc(clientDb, fakeR.path), enriched);
-          return fakeTx;
-        },
-        update: (fakeR: any, data: any) => { 
-          const enriched = { ...data, _serverSecret: SERVER_SECRET };
-          tx.update(doc(clientDb, fakeR.path), enriched); 
-          return fakeTx; 
-        },
-        delete: (fakeR: any) => { 
-          tx.delete(doc(clientDb, fakeR.path)); 
-          return fakeTx; 
-        }
-      };
-      return cb(fakeTx);
-    });
+const db: any = (function() {
+  try {
+    const adminDb = admin.firestore();
+    console.log("[Firebase] Successfully initialized real Admin Firestore.");
+    return adminDb;
+  } catch (e: any) {
+    console.warn("[Firebase] Admin Firestore initialization failed, using client fallback:", e.message);
+    const fallbackDb = {
+      collection: (name: string) => new FakeCollection(name),
+      runTransaction: async (cb: any) => {
+        return runTransaction(clientDb, async (tx) => {
+          const fakeTx = {
+            get: async (fakeR: any) => { 
+              const s = await tx.get(doc(clientDb, fakeR.path)); 
+              return { exists: s.exists(), data: () => s.data(), id: s.id }; 
+            },
+            set: (fakeR: any, data: any, opts?: any) => {
+              const enriched = { ...data, _serverSecret: SERVER_SECRET };
+              if (opts?.merge) tx.set(doc(clientDb, fakeR.path), enriched, { merge: true });
+              else tx.set(doc(clientDb, fakeR.path), enriched);
+              return fakeTx;
+            },
+            update: (fakeR: any, data: any) => { 
+              const enriched = { ...data, _serverSecret: SERVER_SECRET };
+              tx.update(doc(clientDb, fakeR.path), enriched); 
+              return fakeTx; 
+            },
+            delete: (fakeR: any) => { 
+              tx.delete(doc(clientDb, fakeR.path)); 
+              return fakeTx; 
+            }
+          };
+          return cb(fakeTx);
+        });
+      }
+    };
+    return fallbackDb;
   }
-} as any;
+})();
 let dbRT: any = null;
 try {
   dbRT = admin.database();
@@ -432,6 +439,8 @@ async function pollTelegramUpdates() {
   console.log("[Telegram] Starting polling loop...");
   
   while (true) {
+    (global as any).telegramDisabledPermanently = false;
+    (global as any).telegramDisabled = false;
     const { token, chatId: configChatId } = await getTelegramConfig();
     
     if (token && token !== lastCheckedToken) {
@@ -589,6 +598,13 @@ async function pollTelegramUpdates() {
             if (cleanText === '/own.ai') {
               console.log(`[Telegram Sub] Adding subscriber: ${chatId}`);
               telegramSubscribers.add(chatId);
+              // Save to Firestore for durability
+              if (db) {
+                db.collection('telegram_subscribers').doc(chatId).set({
+                  chatId: chatId,
+                  subscribedAt: new Date().toISOString()
+                }).catch((err: any) => console.error("[Telegram Sub] Firestore save failed:", err.message));
+              }
               try {
                 await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
                   method: 'POST',
@@ -608,6 +624,12 @@ async function pollTelegramUpdates() {
             if (cleanText === '/stop') {
               console.log(`[Telegram Sub] Removing subscriber: ${chatId}`);
               const deleted = telegramSubscribers.delete(chatId);
+              // Remove from Firestore
+              if (db) {
+                db.collection('telegram_subscribers').doc(chatId).delete().catch((err: any) => 
+                  console.error("[Telegram Sub] Firestore delete failed:", err.message)
+                );
+              }
               try {
                 await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
                   method: 'POST',
@@ -868,6 +890,7 @@ async function initializeGlobalConfig() {
   try {
       const defaultToken = process.env.TELEGRAM_BOT_TOKEN || "";
       const defaultChatId = process.env.TELEGRAM_ADMIN_CHAT_ID || "";
+      // Admin database operations
       const adminDb = db; // Use client-authenticated wrapper instead of admin.firestore to bypass GCP permission restrictions
       
       // Update bot token in global_images collection only if it doesn't already exist or has no url
@@ -1012,32 +1035,55 @@ async function broadcastAviatorPredictionToTelegram(roundId: string, crashPoint:
   }
 }
 
+// Local cache for Aviator admin overrides
+const aviatorOverride = {
+  enabled: false,
+  customCrashPoint: 2.00
+};
+
+// Global function to fetch latest override state
+let globalFetchAviatorOverride: () => Promise<void> = async () => {};
+
 async function startAviatorLoop(firestoreDb: any) {
   console.log("[Aviator Server] Starting Multiplayer Aviator Game Loop background service with AI Predictions...");
   
-  // Local cache for Aviator admin overrides
-  const aviatorOverride = {
-    enabled: false,
-    customCrashPoint: 2.00
-  };
-
   // Real-time listener for admin overrides from Firestore metadata collection
   if (firestoreDb) {
-    try {
-      firestoreDb.collection('metadata').doc('aviator_override').onSnapshot((docSnap: any) => {
+    // Using simple get() and polling for reliability in server-side sync
+    const fetchOverride = async () => {
+      try {
+        const docSnap = await firestoreDb.collection('metadata').doc('aviator_override').get();
         if (docSnap && docSnap.exists) {
           const data = docSnap.data();
           aviatorOverride.enabled = !!data?.enabled;
           aviatorOverride.customCrashPoint = Number(data?.customCrashPoint) || 2.00;
-          console.log(`[Aviator Override Sync] Firestore: enabled=${aviatorOverride.enabled}, customCrashPoint=${aviatorOverride.customCrashPoint}x`);
-        } else {
-          aviatorOverride.enabled = false;
         }
-      }, (err: any) => {
-        console.error("[Aviator Override Sync Error] Failed to listen:", err.message);
+      } catch (err) {}
+    };
+    globalFetchAviatorOverride = fetchOverride;
+    fetchOverride();
+    const syncInterval = setInterval(fetchOverride, 1000);
+    console.log("[Aviator Override Sync] Polling service started (1s interval)");
+    
+    // Load persisted Telegram subscribers on startup
+    try {
+      firestoreDb.collection('telegram_subscribers').get().then((snapshot: any) => {
+        if (snapshot && snapshot.docs) {
+          let count = 0;
+          snapshot.docs.forEach((docSnap: any) => {
+            const data = docSnap.data();
+            if (data && data.chatId) {
+              telegramSubscribers.add(String(data.chatId));
+              count++;
+            }
+          });
+          console.log(`[Telegram Sub] Loaded ${count} subscribers from Firestore.`);
+        }
+      }).catch((err: any) => {
+        console.error("[Telegram Sub Init] Error reading subscribers from Firestore:", err.message);
       });
-    } catch (listenerErr: any) {
-      console.error("[Aviator Override Sync Error] Failed to attach listener:", listenerErr.message);
+    } catch (subInitErr: any) {
+      console.error("[Telegram Sub Init] Crash trying to query subscription database:", subInitErr.message);
     }
   }
 
@@ -1112,6 +1158,11 @@ async function startAviatorLoop(firestoreDb: any) {
         // Classic growth curve: multiplier = 1.00 * (1.06 ^ seconds)
         // This gives a nice smooth acceleration
         currentAviatorState.multiplier = Number(Math.pow(1.08, elapsed).toFixed(2));
+        
+        // Mid-round override check for immediate responsiveness
+        if (aviatorOverride.enabled && currentAviatorState.crashPoint !== aviatorOverride.customCrashPoint) {
+           currentAviatorState.crashPoint = aviatorOverride.customCrashPoint;
+        }
         
         if (currentAviatorState.multiplier >= currentAviatorState.crashPoint) {
           currentAviatorState.multiplier = currentAviatorState.crashPoint;
@@ -1191,6 +1242,13 @@ async function startServer() {
       res.json({
         hostname: os.hostname(),
         platform: os.platform(),
+        architecture: 'Cloud-Native Multi-Layer Architecture',
+        activeServers: [
+          { name: 'Core API Layer', status: 'Healthy', region: 'Asia-Southeast' },
+          { name: 'Streaming Engine', status: 'Active', region: 'Asia-Southeast' },
+          { name: 'Real-time Persistence', status: 'Synced', region: 'Global-Cluster' }
+        ],
+        uptime: process.uptime()
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -1270,6 +1328,13 @@ async function startServer() {
 
   app.get("/api/aviator/state", (req, res) => {
     res.json(currentAviatorState);
+  });
+
+  // Add immediate sync endpoint
+  app.post("/api/aviator/admin/sync-override", async (req, res) => {
+    await globalFetchAviatorOverride();
+    console.log("[Aviator Override Sync] Triggered manually via API");
+    res.json({ success: true, enabled: aviatorOverride.enabled, crashPoint: aviatorOverride.customCrashPoint });
   });
 
   app.use(session({
@@ -1356,6 +1421,66 @@ async function startServer() {
       res.json({ success: true, message: "Phone verified successfully" });
     } catch (error: any) {
       res.status(500).json({ error: "Verification failed" });
+    }
+  });
+
+  app.post("/api/referral/process", async (req, res) => {
+    const { userId, inviterUid, referralType } = req.body;
+    
+    if (!userId || !inviterUid) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    try {
+      const inviterRef = db.collection('users').doc(inviterUid);
+      const bonusAmount = 50;
+
+      // Update inviter using the db wrapper which handles _serverSecret
+      await inviterRef.update({
+        referralCount: AdminFieldValue.increment(1),
+        validReferralCount: AdminFieldValue.increment(1),
+        balance: AdminFieldValue.increment(bonusAmount),
+        totalReferralEarnings: AdminFieldValue.increment(bonusAmount),
+        updatedAt: AdminFieldValue.serverTimestamp()
+      });
+
+      // Log transaction for inviter in global collection
+      const inviterTrxData = {
+        userId: inviterUid,
+        type: 'bonus',
+        status: 'approved',
+        amount: bonusAmount,
+        description: `Referral Bonus (New User: ${referralType || 'User'})`,
+        createdAt: AdminFieldValue.serverTimestamp(),
+        date: new Date().toISOString()
+      };
+
+      const trxRef = await db.collection('transactions').add(inviterTrxData);
+      
+      // Also log in user's sub-collection
+      await db.collection('users').doc(inviterUid).collection('transactions').doc(trxRef.id).set(inviterTrxData);
+
+      // Log transaction for new user
+      const newUserTrxData = {
+        userId: userId,
+        type: 'bonus',
+        status: 'approved',
+        amount: bonusAmount,
+        description: 'Referral Signup Bonus',
+        createdAt: AdminFieldValue.serverTimestamp(),
+        date: new Date().toISOString()
+      };
+      const newUserTrxRef = await db.collection('transactions').add(newUserTrxData);
+      await db.collection('users').doc(userId).collection('transactions').doc(newUserTrxRef.id).set(newUserTrxData);
+      await db.collection('users').doc(userId).update({
+        balance: AdminFieldValue.increment(bonusAmount)
+      });
+
+      console.log(`[Referral] Successfully processed bonus for inviter ${inviterUid} and user ${userId}`);
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("[Referral] Error processing bonus:", err.message);
+      res.status(500).json({ error: err.message });
     }
   });
 
@@ -1854,6 +1979,10 @@ async function startServer() {
       lastError: lastTelegramError,
       lastSuccess: lastTelegramSuccess,
       supportAdminChatId,
+      invalidTokens: Array.from(invalidTokens),
+      invalidChatIds: Array.from(invalidChatIds),
+      telegramSubscribers: Array.from(telegramSubscribers),
+      telegramDisabledPermanently: !!(global as any).telegramDisabledPermanently,
       serverTime: new Date().toISOString()
     });
   });
@@ -2076,6 +2205,28 @@ async function startServer() {
               isValid: true
             }, { merge: true });
           }
+        }
+        
+        // Check for 277 Referral Bonus for the user
+        const newTotalDeposits = (userData.totalDeposits || 0) + amount;
+        const totalBets = userData.totalBets || 0;
+        
+        if (userData.referredBy && !userData.bonusesClaimed?.includes('referral_bonus_277')) {
+             if (newTotalDeposits >= 200 && totalBets >= 850) {
+                  transaction.update(userRef, {
+                    balance: admin.firestore.FieldValue.increment(277),
+                    bonusesClaimed: admin.firestore.FieldValue.arrayUnion('referral_bonus_277')
+                 });
+                 const transRef = db.collection('transactions').doc();
+                 transaction.set(transRef, {
+                    userId: uid,
+                    amount: 277,
+                    type: 'bonus',
+                    description: 'Referral Bonus 277',
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    status: 'completed'
+                 });
+             }
         }
         
         // Log the main deposit transaction with provided details

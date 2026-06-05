@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AnimatedBalance } from '../components/AnimatedBalance';
-import { Clock, Download, X, RefreshCw, ChevronRight, Wallet, Users, Star, TrendingUp, History, User, Menu, Bell, Search, Volume2, Flame, Gamepad2, Hexagon, Tv, Club, Fish, Ticket, ChevronLeft, Mail, Sparkles, Zap, Gift, Send, MessageSquare, Plane, Smartphone } from 'lucide-react';
+import { Clock, Download, X, RefreshCw, ChevronRight, Wallet, Users, Star, TrendingUp, History, User, Menu, Bell, Search, Volume2, Flame, Gamepad2, Hexagon, Tv, Club, Fish, Ticket, ChevronLeft, Mail, Sparkles, Zap, Gift, Send, MessageSquare, Plane, Smartphone, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GAME_IMAGES } from '../constants/gameAssets';
 import { GameGrid, games } from "../components/ui/GameGrid";
@@ -58,6 +58,7 @@ interface HomeViewProps {
   globalUrls: Record<string, string>;
   globalOptions: Record<string, string>;
   globalImages?: Record<string, string>;
+  appLogo?: string;
   balance: number;
   isRefreshing: boolean;
   handleRefresh: () => void;
@@ -103,6 +104,7 @@ export default function HomeView({
   globalUrls,
   globalOptions,
   globalImages = {},
+  appLogo,
   balance,
   isRefreshing,
   handleRefresh,
@@ -183,9 +185,13 @@ export default function HomeView({
             <Menu size={26} />
           </button>
           <div className="flex items-center ml-2">
-            <span className="text-xl md:text-2xl font-black italic tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 drop-shadow-[0_0_8px_rgba(253,216,53,0.5)]">
-              SPIN71.BET
-            </span>
+            {appLogo ? (
+              <img src={appLogo} alt="Logo" className="h-8 max-w-[120px] object-contain" />
+            ) : (
+              <span className="text-xl md:text-2xl font-black italic tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 drop-shadow-[0_0_8px_rgba(253,216,53,0.5)]">
+                {casinoName || "SPIN71.BET"}
+              </span>
+            )}
           </div>
         </div>
         
@@ -196,13 +202,13 @@ export default function HomeView({
                 onClick={() => onOpenLogin?.('login')}
                 className="bg-transparent border border-[#1e3a5f] px-4 py-2 rounded-xl text-[10px] font-black text-[#90a4ae] hover:text-white transition-colors"
               >
-                LOGIN
+                লগইন
               </button>
               <button 
                 onClick={() => onOpenLogin?.('register')}
                 className="bg-gradient-to-r from-yellow-400 to-yellow-600 px-5 py-2 rounded-xl text-[10px] font-black text-black hover:scale-105 transition-transform"
               >
-                JOIN NOW
+                রেজিস্ট্রেশন
               </button>
             </div>
           ) : (
@@ -212,7 +218,7 @@ export default function HomeView({
                 onClick={() => onNavigate?.('wallet')}
               >
                 <div className="flex flex-col items-end">
-                  <span className="text-[10px] text-gray-500 font-black tracking-tighter leading-none">BALANCE</span>
+                  <span className="text-[10px] text-gray-500 font-black tracking-tighter leading-none">ব্যালেন্স</span>
                   <AnimatedBalance value={balance} decimals={0} className="text-sm font-black text-[#fdd835] tracking-tight" />
                 </div>
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 p-[1px] shadow-lg overflow-hidden">
@@ -220,9 +226,9 @@ export default function HomeView({
                     className="w-full h-full rounded-full bg-[#0d1a29] flex items-center justify-center text-[#fdd835] font-black text-xs overflow-hidden"
                   >
                     {userData.profilePictureUrl ? (
-                      <img src={userData.profilePictureUrl} alt="Avatar" className="w-full h-full object-cover" />
+                      <img src={userData.profilePictureUrl} alt="ছবি" className="w-full h-full object-cover" />
                     ) : (
-                      <img src="https://www.image2url.com/r2/default/images/1779828873931-409cfe92-d243-4926-91bd-67da3a1e0adc.png" alt="Avatar" className="w-full h-full object-cover" />
+                      <img src="https://www.image2url.com/r2/default/images/1779828873931-409cfe92-d243-4926-91bd-67da3a1e0adc.png" alt="ছবি" className="w-full h-full object-cover" />
                     )}
                   </div>
                 </div>
@@ -275,10 +281,10 @@ export default function HomeView({
                   transition={{ delay: 0.3 }}
                 >
                   <h2 className="text-xl md:text-3xl font-black text-white italic leading-tight drop-shadow-lg scale-y-110 tracking-tight">
-                    {activeCategory === 'ক্র্যাশ' ? 'AVIATOR SIGNALS' : activeCategory === 'স্লট' ? 'MEGA JACKPOTS' : 'PREMIUM CASINO'}
+                    {activeCategory === 'ক্র্যাশ' ? 'এভিয়েটর সিগন্যাল' : activeCategory === 'স্লট' ? 'মেগা জ্যাকপট' : 'প্রিমিয়াম ক্যাসিনো'}
                   </h2>
                   <p className="text-[10px] md:text-sm text-yellow-400 font-bold uppercase tracking-widest mt-1">
-                    {activeCategory === 'ক্র্যাশ' ? 'Predict & Win Big' : activeCategory === 'স্লট' ? 'Highest Return Rates' : 'Official Licensed Platform'}
+                    {activeCategory === 'ক্র্যাশ' ? 'প্রেডিক্ট করুন ও বড় জয় নিন' : activeCategory === 'স্লট' ? 'সবচেয়ে বেশি রিটার্ন রেট' : 'অফিসিয়াল লাইসেন্সড প্ল্যাটফর্ম'}
                   </p>
                 </motion.div>
                 
@@ -289,7 +295,7 @@ export default function HomeView({
                   onClick={() => onNavigate?.('deposit')}
                   className="mt-3 bg-gradient-to-r from-yellow-400 to-yellow-600 text-black px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-yellow-600/30 active:scale-95 transition-all"
                 >
-                  Deposit Now
+                  ডিপোজিট করুন
                 </motion.button>
               </div>
             </motion.div>
@@ -316,6 +322,29 @@ export default function HomeView({
            <Gift size={18} />
            <Mail size={18} />
         </div>
+      </div>
+
+      {/* Leaderboard Quick Access Card */}
+      <div className="px-3 py-4">
+        <motion.div 
+          whileTap={{ scale: 0.98 }}
+          onClick={() => onNavigate?.('leaderboard')}
+          className="bg-gradient-to-r from-teal-900 to-blue-900 p-5 rounded-[28px] border border-white/10 shadow-xl flex items-center justify-between group overflow-hidden relative"
+        >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-150 transition-transform duration-1000" />
+          <div className="flex items-center gap-4 relative z-10">
+            <div className="w-12 h-12 bg-yellow-500/20 rounded-2xl flex items-center justify-center text-yellow-500 backdrop-blur-md border border-yellow-500/20 group-hover:rotate-12 transition-transform">
+              <Trophy size={26} />
+            </div>
+            <div className="text-left">
+              <span className="text-lg font-black text-white italic tracking-tighter block uppercase">লিডারবোর্ড (Top Winners)</span>
+              <span className="text-[9px] font-bold text-teal-300 uppercase tracking-widest leading-none">আজকের সবচেয়ে বড় বিজয়ীদের দেখুন</span>
+            </div>
+          </div>
+          <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white shrink-0 group-hover:translate-x-1 transition-transform">
+            <ChevronRight size={20} />
+          </div>
+        </motion.div>
       </div>
 
       {/* Game Search Bar */}
@@ -436,6 +465,8 @@ export default function HomeView({
           userData={userData} 
           onOpenLogin={onOpenLogin} 
           showToast={showToast} 
+          globalLogos={globalLogos}
+          globalNames={globalNames}
         />
       </div>
 

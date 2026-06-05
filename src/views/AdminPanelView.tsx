@@ -20,8 +20,10 @@ import {
   limit,
   startAfter
 } from 'firebase/firestore';
+import { formatDisplayUID } from '../utils/idUtils';
 import { 
   Users, 
+
   Wallet, 
   ArrowUpRight, 
   ArrowDownLeft, 
@@ -49,6 +51,7 @@ import {
   Plus,
   Minus,
   UserPlus,
+  Lock,
   Gift,
   Trash2,
   AlertCircle,
@@ -139,8 +142,10 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
 
   const [isRefreshingData, setIsRefreshingData] = useState(false);
 
+  const isUserAdmin = props.userData?.role === 'admin' || props.userData?.isAdmin === true || props.userData?.email === 'owner.css13@gmail.com' || props.userData?.email === 'cutelegend7045@gmail.com' || props.userData?.email === 'owner@spin71.bet';
+
   const fetchUsers = async (isFirstLoad = true) => {
-    if (props.userData?.role !== 'admin' && props.userData?.isAdmin !== true) return;
+    if (!isUserAdmin) return;
     if (isFirstLoad) setIsRefreshingData(true);
     try {
       let q = query(
@@ -177,7 +182,7 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
   };
 
   const fetchTransactions = async (isFirstLoad = true) => {
-    if (props.userData?.role !== 'admin' && props.userData?.isAdmin !== true) return;
+    if (!isUserAdmin) return;
     if (isFirstLoad) setIsRefreshingData(true);
     try {
       let q = query(
@@ -214,7 +219,7 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
   };
 
   const fetchAdminData = async () => {
-    if (props.userData?.role !== 'admin' && props.userData?.isAdmin !== true) return;
+    if (!isUserAdmin) return;
     setIsRefreshingData(true);
     try {
       await Promise.all([
@@ -412,6 +417,8 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
         updatedAt: serverTimestamp()
       });
       showToast('Balance updated', 'success');
+      // Refresh user list to reflect the balance change immediately
+      fetchUsers(true);
     } catch (err) {
       showToast('Update failed', 'error');
     }
@@ -1283,7 +1290,7 @@ function UserManagement({ users, searchQuery, setSearchQuery, onToggleBan, onAdj
                       </div>
                       <div>
                         <p className="text-sm font-black text-white">{user.username}</p>
-                        <p className="text-[10px] font-bold text-teal-400 font-mono tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity uppercase">ID: {user.id}</p>
+                        <p className="text-[10px] font-bold text-teal-400 font-mono tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity uppercase">ID: {formatDisplayUID(user.id)}</p>
                       </div>
                     </div>
                   </td>
@@ -1703,12 +1710,11 @@ function GameManagement(props: AdminPanelViewProps) {
             <div key={game.id} className="bg-[#0d9488] p-6 rounded-[32px] border border-white/10 shadow-xl space-y-4">
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 bg-white/5 rounded-2xl overflow-hidden relative border border-white/10 group">
-                  {props.globalLogos[game.id] || GAME_LOGO_URLS[game.id] ? (
-                    <img src={props.globalLogos[game.id] || GAME_LOGO_URLS[game.id]} alt="Logo" className="w-full h-full object-cover" />
+                  {(props.globalLogos[game.id] || GAME_LOGO_URLS[game.id] || game.image) ? (
+                    <img src={props.globalLogos[game.id] || GAME_LOGO_URLS[game.id] || game.image} alt="Logo" className="w-full h-full object-cover" />
                   ) : (
                      <div className="w-full h-full flex items-center justify-center text-teal-300">
                         <ImageIcon size={24} />
-                        <img src={game.image} alt="Ref" className="absolute inset-0 opacity-20 pointer-events-none object-cover" />
                      </div>
                   )}
                   <label className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
@@ -2020,6 +2026,13 @@ function GlobalSettings(props: AdminPanelViewProps) {
         updatedAt: serverTimestamp()
       }, { merge: true });
       
+      // Trigger server-side sync immediately
+      try {
+        await fetch('/api/aviator/admin/sync-override', { method: 'POST' });
+      } catch (fErr) {
+        console.warn("Server sync trigger failed, but data was saved to Firestore");
+      }
+      
       props.showToast(`Aviator কন্ট্রোলার আপডেট করা হয়েছে! (সক্রিয়: ${enabledVal ? 'হ্যাঁ' : 'না'}, ক্র্যাশ পয়েন্ট: ${pointVal}x)`, 'success');
     } catch (err) {
       console.error("Aviator Override Save Failed:", err);
@@ -2079,6 +2092,44 @@ function GlobalSettings(props: AdminPanelViewProps) {
         <div className="space-y-6">
           <h3 className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.2em] border-b border-white/10 pb-2">Branding & UI</h3>
           <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-teal-200 uppercase mb-2 ml-1">Platform Logo (App Icon)</label>
+              <div className="flex items-center gap-4 bg-black/20 p-4 rounded-2xl border border-white/10">
+                <div className="w-16 h-16 rounded-2xl bg-[#0d1a29] border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                  <img src={props.globalImages['app_logo'] || '/images/app_logo.png'} alt="Logo" className="w-full h-full object-contain" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <p className="text-[10px] font-bold text-teal-400 uppercase tracking-widest">Update platform brand identity</p>
+                    <div className="flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md">
+                      <Lock size={8} className="text-amber-500" />
+                      <span className="text-[7px] font-black text-amber-500 uppercase">Super Owner Lock</span>
+                    </div>
+                  </div>
+                  <label className="inline-flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-xl text-[10px] font-black text-white uppercase tracking-widest cursor-pointer transition-all border border-white/10">
+                    <ImageIcon size={14} />
+                    ছবি পরিবর্তন করুন (Change)
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = (re) => {
+                            if (props.updateGlobalImage) {
+                              props.updateGlobalImage('app_logo', re.target?.result as string);
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
             <div>
               <label className="block text-xs font-bold text-teal-200 uppercase mb-2 ml-1">Platform Name</label>
               <input 
@@ -2384,6 +2435,68 @@ function GlobalSettings(props: AdminPanelViewProps) {
                   placeholder="Acc: 123456789, IFSC: SBIN000123"
                  />
                </div>
+            </div>
+         </div>
+
+         <div className="space-y-6">
+            <h3 className="text-[10px] font-black text-[#facc15] uppercase tracking-[0.2em] border-b border-white/10 pb-2 flex items-center gap-2">
+              <Zap size={14} className="animate-pulse" />
+              Aviator Predictor Override (এভিয়েটর সিগন্যাল হ্যাক কন্ট্রোলার)
+            </h3>
+            
+            <div className="bg-[#052e2e] p-6 rounded-[32px] border border-emerald-500/20 shadow-2xl space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <label className="text-xs font-black text-white uppercase tracking-tight">সক্রিয় করুন (Enable Override)</label>
+                  <p className="text-[10px] font-bold text-teal-400 uppercase tracking-widest">বট সিগন্যাল হ্যাক সক্রিয় করুন</p>
+                </div>
+                <button 
+                  onClick={() => {
+                    const nextVal = !aviatorEnabled;
+                    setAviatorEnabled(nextVal);
+                    handleSaveAviatorOverride(nextVal, aviatorCrashPoint);
+                  }}
+                  className={`w-14 h-7 rounded-full relative transition-all shadow-inner ${aviatorEnabled ? "bg-emerald-500 ring-4 ring-emerald-500/20" : "bg-white/10"}`}
+                >
+                  <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-all ${aviatorEnabled ? "right-1" : "left-1"}`} />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                 <div className="flex justify-between items-center">
+                    <label className="text-xs font-black text-white uppercase tracking-tight">ক্র্যাশ পয়েন্ট সেট করুন (Set Crash Point)</label>
+                    <div className="px-4 py-2 bg-emerald-500/20 rounded-xl border border-emerald-500/30 text-emerald-400 font-mono font-black text-lg">
+                       {aviatorCrashPoint}x
+                    </div>
+                 </div>
+                 
+                 <div className="relative pt-4">
+                    <input 
+                      type="range"
+                      min="1.00"
+                      max="100.00"
+                      step="0.01"
+                      value={aviatorCrashPoint}
+                      onChange={(e) => setAviatorCrashPoint(Number(e.target.value))}
+                      onMouseUp={() => handleSaveAviatorOverride(aviatorEnabled, aviatorCrashPoint)}
+                      className="w-full h-2 bg-black/40 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                    />
+                    <div className="flex justify-between text-[8px] font-black text-teal-500 uppercase tracking-widest mt-2 px-1">
+                      <span>1.0x (Instant)</span>
+                      <span>10.0x (Medium)</span>
+                      <span>100.0x (Jackpot)</span>
+                    </div>
+                 </div>
+              </div>
+
+              <div className="bg-emerald-500/5 border border-emerald-500/10 p-4 rounded-2xl">
+                 <div className="flex items-start gap-3">
+                    <ShieldCheck size={18} className="text-emerald-500 shrink-0 mt-0.5" />
+                    <p className="text-[10px] font-bold text-teal-300 leading-relaxed">
+                      এই অপশনটি চালু করলে এভিয়েটর গেমটি আপনার সেট করা পয়েন্ট ঠিক সেই মুহূর্তে ক্র্যাশ হবে। এটি সিগন্যাল হ্যাক হিসেবে ব্যবহার করা হয়। (গেম লুপ চেক করুন)
+                    </p>
+                 </div>
+              </div>
             </div>
          </div>
       </div>

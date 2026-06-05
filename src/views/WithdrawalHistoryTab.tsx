@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Clock, ArrowUpRight, History, Filter, ArrowDownUp, FileSearch } from 'lucide-react';
+import { X, Clock, ArrowUpRight, History, Filter, ArrowDownUp, FileSearch, Share2 } from 'lucide-react';
+import Receipt from '../components/Receipt';
 import { db } from '../services/firebase';
 import { collection, query, orderBy, getDocs, limit, startAfter, onSnapshot } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
@@ -24,6 +25,8 @@ export default function WithdrawalHistoryTab({ userData, onBack }: WithdrawalHis
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTrx, setSelectedTrx] = useState<Withdrawal | null>(null);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [receiptData, setReceiptData] = useState<any>(null);
   const [sortBy, setSortBy] = useState<'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'>('date_desc');
   const [lastVisible, setLastVisible] = useState<any>(null);
   const [hasMore, setHasMore] = useState(true);
@@ -300,6 +303,16 @@ export default function WithdrawalHistoryTab({ userData, onBack }: WithdrawalHis
                 <X size={20} />
               </button>
 
+              <button 
+                onClick={() => {
+                  setReceiptData({ type: 'withdrawal', amount: selectedTrx.amount, trxId: selectedTrx.trxId || selectedTrx.id, date: selectedTrx.date, status: getStatusText(selectedTrx.status) });
+                  setShowReceipt(true);
+                }}
+                className="absolute top-6 right-16 text-teal-400 hover:text-white p-2 rounded-xl bg-white/5 transition-all"
+              >
+                <Share2 size={20} />
+              </button>
+
               <h3 className="text-xl font-black italic text-white flex items-center gap-2 mb-8">
                 <FileSearch className="text-orange-500" size={24} /> 
                 উত্তোলনের তথ্য
@@ -350,6 +363,12 @@ export default function WithdrawalHistoryTab({ userData, onBack }: WithdrawalHis
           </div>
         )}
       </AnimatePresence>
+      {showReceipt && receiptData && (
+        <Receipt 
+          {...receiptData} 
+          onClose={() => setShowReceipt(false)} 
+        />
+      )}
     </div>
   );
 }

@@ -37,7 +37,7 @@ import {
 } from 'lucide-react';
 
 import { db, auth } from '../services/firebase';
-import { collection, query, where, getDocs, orderBy, onSnapshot, serverTimestamp, runTransaction, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, orderBy, onSnapshot, serverTimestamp, runTransaction, doc } from 'firebase/firestore';
 import { 
   signInWithEmailAndPassword, 
   sendEmailVerification, 
@@ -71,7 +71,9 @@ export default function ProfileView({
   minWithdraw = 500,
   onUpdateUser,
   onAddTransaction,
-  onInstallApp
+  onInstallApp,
+  telegramLink = "https://t.me/spin71bet_official",
+  whatsappLink = "https://wa.me/..."
 }: { 
   onTabChange: (tab: any) => void, 
   balance: number, 
@@ -90,14 +92,16 @@ export default function ProfileView({
   updateGlobalGameOption?: (gameId: string, option: string) => Promise<void>,
   allButtonName?: string,
   updateAllButtonName?: (newName: string) => Promise<void>,
-  initialSubTab?: 'dashboard' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory' | 'reward-center' | 'betting-record' | 'profit-loss' | 'deposit-record' | 'withdraw-record' | 'account-record' | 'security' | 'rebate' | 'mail' | 'feedback' | 'support' | 'invite' | 'faq' | 'referral-dashboard',
+  initialSubTab?: 'dashboard' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory' | 'reward-center' | 'betting-record' | 'profit-loss' | 'deposit-record' | 'withdraw-record' | 'account-record' | 'security' | 'rebate' | 'mail' | 'feedback' | 'support' | 'invite' | 'faq' | 'referral-dashboard' | 'support-tickets',
   minWithdraw?: number,
   onUpdateUser?: (updates: any) => Promise<void>,
   onAddTransaction?: (transaction: any) => Promise<void>,
   loading?: boolean,
-  onInstallApp?: () => void
+  onInstallApp?: () => void,
+  telegramLink?: string,
+  whatsappLink?: string
 }) {
-  const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory' | 'reward-center' | 'betting-record' | 'profit-loss' | 'deposit-record' | 'withdraw-record' | 'account-record' | 'security' | 'rebate' | 'mail' | 'feedback' | 'support' | 'invite' | 'faq' | 'referral-dashboard'>(initialSubTab as any);
+  const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory' | 'reward-center' | 'betting-record' | 'profit-loss' | 'deposit-record' | 'withdraw-record' | 'account-record' | 'security' | 'rebate' | 'mail' | 'feedback' | 'support' | 'invite' | 'faq' | 'referral-dashboard' | 'support-tickets'>(initialSubTab as any);
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
   const unreadNotificationsCount = 0; // Temporary definition
   
@@ -272,7 +276,7 @@ export default function ProfileView({
     // Totals fetching removed (Firebase disconnected)
   }, []);
 
-  const handleSubTabChange = (tab: 'dashboard' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory') => {
+  const handleSubTabChange = (tab: 'dashboard' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory' | 'reward-center' | 'betting-record' | 'profit-loss' | 'deposit-record' | 'withdraw-record' | 'account-record' | 'security' | 'rebate' | 'mail' | 'feedback' | 'support' | 'invite' | 'faq' | 'referral-dashboard' | 'support-tickets') => {
     if (tab === activeSubTab) return;
     setIsTabLoading(true);
     setTimeout(() => {
@@ -508,6 +512,8 @@ export default function ProfileView({
             onEditProfilePic={() => fileInputRef.current?.click()}
             profilePic={profilePic}
             onInstallApp={onInstallApp}
+            telegramLink={telegramLink}
+            whatsappLink={whatsappLink}
           />
         )}
 
@@ -601,8 +607,9 @@ export default function ProfileView({
         )}
         {activeSubTab === 'mail' && <MailTab onBack={() => handleSubTabChange('dashboard')} />}
         {activeSubTab === 'feedback' && <FeedbackTab showToast={showToast} onBack={() => handleSubTabChange('dashboard')} />}
-        {activeSubTab === 'support' && <HelpCenterTab onBack={() => handleSubTabChange('dashboard')} />}
-        {activeSubTab === 'faq' && <HelpCenterTab onBack={() => handleSubTabChange('dashboard')} />}
+        {activeSubTab === 'support' && <HelpCenterTab onBack={() => handleSubTabChange('dashboard')} onSubTabChange={handleSubTabChange} telegramLink={telegramLink} whatsappLink={whatsappLink} />}
+        {activeSubTab === 'support-tickets' && <SupportTicketsTab userData={userData} showToast={showToast} onBack={() => handleSubTabChange('dashboard')} />}
+        {activeSubTab === 'faq' && <HelpCenterTab onBack={() => handleSubTabChange('dashboard')} onSubTabChange={handleSubTabChange} telegramLink={telegramLink} whatsappLink={whatsappLink} />}
         {activeSubTab === 'invite' && (
           <InviteView 
             onTabChange={onTabChange}
@@ -1252,7 +1259,7 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
       // Use Transaction PIN if it exists, otherwise fall back to login password for email/pw users
       if (userData?.transactionPin) {
         if (transactionPassword !== userData.transactionPin) {
-          throw new Error('ভুল লেনদেন পিন। (Wrong Transaction PIN)');
+          throw new Error('পাসওয়ার্ড ভুল');
         }
       } else if (auth.currentUser && auth.currentUser.email) {
         const hasPasswordProvider = auth.currentUser.providerData.some(p => p.providerId === 'password');
@@ -1262,7 +1269,7 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
       }
     } catch (e: any) {
       setIsSubmitting(false);
-      showToast(e.message || 'ভুল পাসওয়ার্ড। (Wrong password)', 'error');
+      showToast(e.message === 'Firebase: Error (auth/wrong-password).' || e.message === 'ভুল পাসওয়ার্ড। (Wrong password)' ? 'পাসওয়ার্ড ভুল' : (e.message || 'পাসওয়ার্ড ভুল'), 'error');
       return;
     }
     setIsSubmitting(false);
@@ -1668,6 +1675,8 @@ interface OverviewTabProps {
   onEditProfilePic: () => void;
   profilePic: string | null;
   onInstallApp?: () => void;
+  telegramLink?: string;
+  whatsappLink?: string;
 }
 
 function ProfileTab({ 
@@ -2303,7 +2312,341 @@ function FeedbackTab({ showToast, onBack }: { showToast: (msg: string) => void, 
   );
 }
 
-function HelpCenterTab({ onBack }: { onBack: () => void }) {
+function SupportTicketsTab({ userData, showToast, onBack }: { userData: any, showToast: (msg: string, type?: any) => void, onBack: () => void }) {
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isAdding, setIsAdding] = useState(false);
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+  const [viewingTicket, setViewingTicket] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (!userData?.id) return;
+    const q = query(
+      collection(db, 'support_tickets'),
+      where('userId', '==', userData.id),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const ticketsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setTickets(ticketsData);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching tickets:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [userData?.id]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!subject.trim() || !message.trim()) {
+      showToast("সবগুলো তথ্য পূরণ করুন।", "error");
+      return;
+    }
+
+    setIsAdding(true);
+    try {
+      await addDoc(collection(db, 'support_tickets'), {
+        userId: userData.id,
+        userEmail: userData.email,
+        username: userData.username,
+        subject,
+        message,
+        status: 'Open',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      showToast("টিকিট সফলভাবে খোলা হয়েছে। আমাদের প্রতিনিধি শীঘ্রই আপনার সাথে যোগাযোগ করবেন।", "success");
+      setSubject('');
+      setMessage('');
+      setIsAdding(false);
+    } catch (error) {
+      console.error("Error adding ticket:", error);
+      showToast("টিকিট খুলতে সমস্যা হয়েছে।", "error");
+      setIsAdding(false);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Open': return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
+      case 'In Progress': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+      case 'Resolved': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
+      default: return 'bg-gray-500/10 text-gray-500 border-gray-500/20';
+    }
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 bg-[#0d1a29] min-h-screen p-4 pb-24 font-sans">
+      <div className="bg-gradient-to-br from-teal-800 to-teal-950 rounded-[40px] p-8 shadow-lg relative overflow-hidden group border border-teal-700/50">
+        <div className="absolute top-0 right-0 p-8 opacity-10 rotate-12 group-hover:rotate-0 transition-transform duration-700">
+          <FileText size={120} className="text-teal-200" />
+        </div>
+        <div className="relative z-10 flex justify-between items-start">
+          <div>
+            <div className="w-16 h-16 rounded-2xl bg-teal-500/20 flex items-center justify-center text-teal-400 mb-4 shadow-xl border border-teal-500/20">
+              <Headset size={32} />
+            </div>
+            <h2 className="text-2xl font-black text-white italic uppercase tracking-tight">সাপোর্ট টিকিট</h2>
+            <p className="text-teal-400 text-[10px] font-black uppercase tracking-widest mt-2">Track Your Support Inquiries</p>
+          </div>
+          <button 
+            onClick={onBack}
+            className="w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center text-white hover:bg-white/10 transition-all border border-white/10"
+          >
+            <X size={20} />
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <Loader2 size={40} className="text-teal-500 animate-spin" />
+          <p className="text-teal-400 text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">টিকিট লোড হচ্ছে...</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <div className="bg-white/5 p-8 rounded-[40px] border border-white/10 shadow-sm space-y-6 backdrop-blur-md">
+            <div className="flex items-center gap-3 mb-2">
+              <Plus size={20} className="text-teal-400" />
+              <h3 className="text-lg font-black text-white italic uppercase">নতুন টিকিট খুলুন</h3>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-teal-400 uppercase tracking-widest ml-1">বিষয় (Subject)</label>
+                <input 
+                  type="text"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  placeholder="টিকিটের বিষয় লিখুন"
+                  className="w-full bg-[#162130] border border-white/5 rounded-2xl py-4 px-6 text-white text-sm font-bold focus:outline-none focus:border-teal-500 transition-all"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-teal-400 uppercase tracking-widest ml-1">আপনার সমস্যা (Message)</label>
+                <textarea 
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="বিস্তারিত বর্ণনা করুন..."
+                  className="w-full bg-[#162130] border border-white/5 rounded-2xl p-6 text-white text-sm font-bold min-h-[150px] focus:outline-none focus:border-teal-500 transition-all resize-none"
+                />
+              </div>
+              <button 
+                type="submit"
+                disabled={isAdding}
+                className="w-full bg-gradient-to-r from-teal-500 to-emerald-500 text-white font-black py-5 rounded-2xl shadow-xl shadow-teal-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-3"
+              >
+                {isAdding ? <Loader2 size={18} className="animate-spin" /> : <><Send size={18} /> টিকিট পাঠান</>}
+              </button>
+            </form>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between px-2">
+              <div className="flex items-center gap-3">
+                <HistoryIcon size={20} className="text-teal-400" />
+                <h3 className="text-lg font-black text-white italic uppercase">আপনার টিকিটসমূহ</h3>
+              </div>
+              <div className="px-3 py-1 bg-teal-500/10 border border-teal-500/20 rounded-full">
+                <span className="text-[10px] font-black text-teal-400 uppercase">{tickets.length} TICKETS</span>
+              </div>
+            </div>
+
+            {tickets.length === 0 ? (
+              <div className="bg-white/5 border border-dashed border-white/10 rounded-[32px] p-12 text-center flex flex-col items-center justify-center gap-4">
+                <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center text-teal-500/30">
+                  <FileSearch size={32} />
+                </div>
+                <p className="text-teal-200/40 text-xs font-bold uppercase tracking-widest">এখনও কোনো টিকিট নেই</p>
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                {tickets.map((ticket) => (
+                  <motion.div 
+                    key={ticket.id}
+                    layoutId={ticket.id}
+                    onClick={() => setViewingTicket(ticket)}
+                    className="bg-[#162130]/80 border border-white/5 p-6 rounded-[32px] hover:bg-white/5 transition-all cursor-pointer group relative overflow-hidden"
+                  >
+                    <div className="flex items-start justify-between relative z-10">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest border ${getStatusColor(ticket.status)}`}>
+                            {ticket.status}
+                          </span>
+                          <span className="text-[9px] text-teal-500/50 font-mono font-bold">#{ticket.id.slice(0, 8).toUpperCase()}</span>
+                        </div>
+                        <h4 className="text-white font-black text-sm italic group-hover:text-teal-400 transition-colors">{ticket.subject}</h4>
+                        <p className="text-teal-200/40 text-[10px] font-bold flex items-center gap-1.5 pt-1">
+                          <Clock size={12} />
+                          {ticket.createdAt?.toDate?.() ? ticket.createdAt.toDate().toLocaleDateString('bn-BD', { day: 'numeric', month: 'long', year: 'numeric' }) : 'প্রসেসিং...'}
+                        </p>
+                      </div>
+                      <div className="w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center text-teal-400/50 group-hover:bg-teal-500 group-hover:text-white transition-all">
+                        <ChevronRight size={20} />
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Ticket Detail View Overlay */}
+      <AnimatePresence>
+        {viewingTicket && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 sm:p-10">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setViewingTicket(null)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-[#162130] border border-white/10 rounded-[40px] w-full max-w-xl max-h-[80vh] flex flex-col shadow-2xl overflow-hidden"
+            >
+              <div className="p-8 border-b border-white/5 bg-gradient-to-br from-teal-900/40 to-transparent flex items-center justify-between">
+                <div>
+                  <div className={`inline-block text-[9px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest border mb-3 ${getStatusColor(viewingTicket.status)}`}>
+                    {viewingTicket.status} STATUS
+                  </div>
+                  <h3 className="text-xl font-black text-white italic uppercase tracking-tight">{viewingTicket.subject}</h3>
+                </div>
+                <button 
+                  onClick={() => setViewingTicket(null)}
+                  className="w-11 h-11 rounded-full bg-white/5 flex items-center justify-center text-white hover:bg-red-500 transition-all border border-white/10 shrink-0"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-8 space-y-8 scrollbar-hide">
+                <div className="space-y-3">
+                  <p className="text-[10px] font-black text-teal-400 uppercase tracking-widest ml-1">আপনার বার্তা (Your Message)</p>
+                  <div className="bg-white/5 p-6 rounded-3xl border border-white/5 relative">
+                    <p className="text-white text-sm font-medium leading-relaxed whitespace-pre-wrap">{viewingTicket.message}</p>
+                    <div className="absolute top-4 right-4 opacity-5">
+                      <MessageCircle size={60} />
+                    </div>
+                  </div>
+                </div>
+
+                {viewingTicket.reply && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 ml-1">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+                      <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">এডমিন রিপ্লাই (Admin Reply)</p>
+                    </div>
+                    <div className="bg-emerald-500/5 p-6 rounded-3xl border border-emerald-500/20 relative">
+                      <p className="text-emerald-50 text-sm font-black leading-relaxed whitespace-pre-wrap italic">{viewingTicket.reply}</p>
+                      <div className="absolute bottom-4 right-4 text-emerald-500/20">
+                        <CheckCircle2 size={32} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-8 bg-black/20 border-t border-white/5 flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-teal-500/10 flex items-center justify-center text-teal-400 border border-teal-500/20">
+                    <User size={18} />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black text-teal-400 uppercase tracking-widest">User Details</p>
+                    <p className="text-white text-[10px] font-bold">{viewingTicket.username || 'Anonymous'}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                    <p className="text-[9px] font-black text-teal-400 uppercase tracking-widest">Posted On</p>
+                    <p className="text-white text-[10px] font-bold">
+                      {viewingTicket.createdAt?.toDate?.() ? viewingTicket.createdAt.toDate().toLocaleString('bn-BD') : 'Pending'}
+                    </p>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function OneClickSupport({ telegramLink, whatsappLink }: { telegramLink: string, whatsappLink: string }) {
+  return (
+    <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm space-y-6">
+      <div className="flex items-center gap-3">
+        <Zap size={20} className="text-yellow-600" />
+        <h3 className="text-lg font-black text-[#333] italic uppercase">ওয়ান-ক্লিক সাপোর্ট</h3>
+      </div>
+      
+      <div className="grid grid-cols-1 gap-4">
+        <a 
+          href={telegramLink} 
+          target="_blank" 
+          rel="noreferrer"
+          className="flex items-center justify-between p-5 bg-gradient-to-r from-sky-500 to-sky-600 rounded-[24px] text-white shadow-lg shadow-sky-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all group"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/20">
+              <Send size={24} className="group-hover:rotate-12 transition-transform" />
+            </div>
+            <div>
+              <p className="font-black text-sm italic uppercase">Telegram Support</p>
+              <p className="text-[10px] text-sky-100 font-bold opacity-80 uppercase tracking-widest">Instant Chat</p>
+            </div>
+          </div>
+          <ChevronRight size={20} className="opacity-50 group-hover:opacity-100 transition-opacity" />
+        </a>
+
+        <a 
+          href={whatsappLink} 
+          target="_blank" 
+          rel="noreferrer"
+          className="flex items-center justify-between p-5 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-[24px] text-white shadow-lg shadow-emerald-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all group"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/20">
+              <MessageCircle size={24} className="group-hover:rotate-12 transition-transform" />
+            </div>
+            <div>
+              <p className="font-black text-sm italic uppercase">WhatsApp Support</p>
+              <p className="text-[10px] text-emerald-100 font-bold opacity-80 uppercase tracking-widest">Chat with Us</p>
+            </div>
+          </div>
+          <ChevronRight size={20} className="opacity-50 group-hover:opacity-100 transition-opacity" />
+        </a>
+
+        <button 
+          onClick={() => window.dispatchEvent(new CustomEvent('openSupportChat'))}
+          className="flex items-center justify-between p-5 bg-gradient-to-r from-gray-800 to-gray-900 rounded-[24px] text-white shadow-lg shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all group"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/20">
+              <Headset size={24} className="group-hover:rotate-12 transition-transform text-yellow-500" />
+            </div>
+            <div>
+              <p className="font-black text-sm italic uppercase">Live Chat Support</p>
+              <p className="text-[10px] text-gray-400 font-bold opacity-80 uppercase tracking-widest">24/7 Service</p>
+            </div>
+          </div>
+          <ChevronRight size={20} className="opacity-50 group-hover:opacity-100 transition-opacity" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function HelpCenterTab({ onBack, onSubTabChange, telegramLink, whatsappLink }: { onBack: () => void, onSubTabChange?: (tab: any) => void, telegramLink?: string, whatsappLink?: string }) {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 bg-gray-50 min-h-screen p-4 pb-20 font-sans">
       <div className="bg-gradient-to-br from-[#f5e6ba] via-[#eee0be] to-[#d4c291] rounded-[40px] p-8 shadow-lg relative overflow-hidden group border border-[#e5d5ac]">
@@ -2326,6 +2669,12 @@ function HelpCenterTab({ onBack }: { onBack: () => void }) {
           </button>
         </div>
       </div>
+
+      <OneClickSupport 
+        telegramLink={telegramLink || "https://t.me/spin71bet_official"} 
+        whatsappLink={whatsappLink || "https://wa.me/..."} 
+      />
+
       <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm space-y-4">
         {[
           { q: 'কিভাবে ডিপোজিট করব?', a: 'ডিপোজিট করতে "জমা দিন" বাটনে ক্লিক করুন এবং আপনার পছন্দের মাধ্যম নির্বাচন করুন।' },
@@ -2338,11 +2687,19 @@ function HelpCenterTab({ onBack }: { onBack: () => void }) {
           </div>
         ))}
         <button 
-          onClick={() => (window as any).LC_API?.open_chat_window()}
+          onClick={() => window.dispatchEvent(new CustomEvent('openSupportChat'))}
           className="w-full bg-[#333] text-white font-black py-4 rounded-2xl shadow-lg hover:bg-black transition-all active:scale-95 uppercase tracking-widest text-xs"
         >
           লাইভ চ্যাট (Live Chat Support)
         </button>
+        {onSubTabChange && (
+          <button 
+            onClick={() => onSubTabChange('support-tickets')}
+            className="w-full bg-white text-[#333] font-black py-4 rounded-2xl border border-gray-100 hover:bg-gray-50 transition-all active:scale-95 uppercase tracking-widest text-xs"
+          >
+            আমার টিকিটসমূহ (My Support Tickets)
+          </button>
+        )}
       </div>
     </div>
   );
@@ -2374,7 +2731,9 @@ function OverviewTab(props: OverviewTabProps) {
     unreadNotificationsCount,
     onEditProfilePic,
     profilePic,
-    onInstallApp
+    onInstallApp,
+    telegramLink,
+    whatsappLink
   } = props;
 
 
@@ -2407,10 +2766,13 @@ function OverviewTab(props: OverviewTabProps) {
     { title: 'প্রচার', subtitle: 'শেয়ার করুন~ কমিশন পান', icon: Megaphone, action: () => onTabChange('invite'), color: 'text-yellow-500' },
     { title: 'বেট হিস্ট্রি (History)', subtitle: 'আপনার সকল বেটের তালিকা', icon: HistoryIcon, action: () => onTabChange('history'), color: 'text-yellow-500' },
     { title: 'রেফারেল ড্যাশবোর্ড', subtitle: 'Referral metrics and share links', icon: Users, action: () => onSubTabChange('referral-dashboard'), color: 'text-yellow-500' },
-    { title: 'সাপোর্ট (Support)', icon: Headset, action: () => setIsChatOpen?.(true), color: 'text-yellow-500' },
+    { title: 'সাপোর্ট (Support)', icon: Headset, action: () => onSubTabChange('support'), color: 'text-yellow-500' },
+    { title: 'সাপোর্ট টিকিট', subtitle: 'আপনার সমস্যার সমাধান ট্র্যাক করুন', icon: FileText, action: () => onSubTabChange('support-tickets'), color: 'text-yellow-500', badge: 'NEW' },
   );
 
-  if (userData?.role === 'admin' || userData?.isAdmin === true) {
+  const isAdmin = userData?.role === 'admin' || userData?.isAdmin === true || userData?.email === 'owner.css13@gmail.com' || userData?.email === 'cutelegend7045@gmail.com';
+
+  if (isAdmin) {
     mainList.push({ 
       title: 'Admin Panel', 
       subtitle: 'Manage Users & Games', 
@@ -2420,7 +2782,7 @@ function OverviewTab(props: OverviewTabProps) {
     });
   }
 
-  if (userData?.role === 'agent' || userData?.role === 'admin' || userData?.isAdmin === true) {
+  if (userData?.role === 'agent' || isAdmin) {
     mainList.push({ 
       title: 'Agent Panel', 
       subtitle: 'Agent Management Dashboard', 
@@ -2448,6 +2810,33 @@ function OverviewTab(props: OverviewTabProps) {
         animate={{ opacity: 1, y: 0 }}
         className="relative pt-6 pb-16 px-4 overflow-hidden"
       >
+        {/* Admin Dashboard Access Button - VIP Style */}
+        {(userData?.role === 'admin' || userData?.isAdmin === true) && (
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="mb-6"
+          >
+            <button 
+              onClick={() => onTabChange('admin')}
+              className="w-full bg-gradient-to-r from-red-600 via-rose-600 to-red-600 p-4 rounded-3xl border border-white/20 shadow-xl shadow-red-600/20 flex items-center justify-between group overflow-hidden relative"
+            >
+               <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-150 transition-transform duration-1000" />
+               <div className="flex items-center gap-4 relative z-10">
+                  <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-white backdrop-blur-md border border-white/20 group-hover:rotate-12 transition-transform">
+                    <Shield size={24} />
+                  </div>
+                  <div className="text-left">
+                    <span className="text-lg font-black text-white italic tracking-tighter block uppercase">এডমিন প্যানেল</span>
+                    <span className="text-[9px] font-bold text-red-200 uppercase tracking-widest leading-none">Admin Control Center</span>
+                  </div>
+               </div>
+               <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white shrink-0 group-hover:translate-x-1 transition-transform">
+                  <ChevronRight size={20} />
+               </div>
+            </button>
+          </motion.div>
+        )}
         {/* Abstract Background Patterns */}
         <div className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-10">
           <svg className="w-full h-full" viewBox="0 0 400 400" preserveAspectRatio="none">
@@ -2638,6 +3027,13 @@ function OverviewTab(props: OverviewTabProps) {
                   </div>
                 </motion.button>
               ))}
+           </div>
+           
+           <div className="mt-8 mb-6">
+              <OneClickSupport 
+                telegramLink={telegramLink || "https://t.me/spin71bet_official"} 
+                whatsappLink={whatsappLink || "https://wa.me/..."} 
+              />
            </div>
         </div>
       </motion.div>

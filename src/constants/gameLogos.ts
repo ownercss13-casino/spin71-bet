@@ -49,7 +49,7 @@ export const GAME_LOGO_URLS: Record<string, string> = {
   'pg_fortune_ox': 'https://www.pgsoft.com/en/games/106/poster/', // Fortune Ox
 
   // SPRIBE
-  'spribe_aviator': 'https://www.image2url.com/r2/default/images/1779289104541-c8fef507-d817-42b9-a088-c9419b066c80.jpg',
+  'spribe_aviator': '/src/assets/images/aviator_g_promo_1780444424200.png',
   'rocket_1': 'https://spribe.co/games/aviator-logo.png',
   'spribe_2': 'https://spribe.co/games/mines-logo.png',
   'spribe_3': 'https://spribe.co/games/dice-logo.png',

@@ -55,7 +55,7 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ deferredProm
               id="pwa-install-button"
             >
               <Download size={14} />
-              JOIN
+              INSTALL
             </button>
             
             <button

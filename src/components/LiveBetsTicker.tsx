@@ -8,6 +8,8 @@ interface LiveBetsTickerProps {
   userData: any;
   onOpenLogin?: (mode?: 'login' | 'register') => void;
   showToast: (msg: string, type?: any) => void;
+  globalLogos?: Record<string, string>;
+  globalNames?: Record<string, string>;
 }
 
 interface BetItem {
@@ -23,20 +25,20 @@ interface BetItem {
 }
 
 const POPULAR_GAMES = [
-  { name: 'Aviator', provider: 'SPRIBE', logo: '🚀' },
-  { name: 'Super Ace', provider: 'JILI', logo: '🃏' },
-  { name: 'Golden Empire', provider: 'JILI', logo: '👑' },
-  { name: 'Fortune Gems', provider: 'JILI', logo: '💎' },
-  { name: 'Money Coming', provider: 'JILI', logo: '💰' },
-  { name: 'Mahjong Ways', provider: 'PG', logo: '🀄' },
-  { name: 'Mahjong Ways 2', provider: 'PG', logo: '🀄' },
-  { name: 'Lucky Neko', provider: 'PG', logo: '🐱' },
-  { name: 'Treasure of Aztec', provider: 'PG', logo: '🏰' },
-  { name: 'Crazy Time', provider: 'EVOLUTION', logo: '🎡' },
-  { name: 'Lightning Roulette', provider: 'EVOLUTION', logo: '⚡' },
-  { name: 'Baccarat', provider: 'EVOLUTION', logo: '♣️' },
-  { name: 'Mega Fishing', provider: 'JILI', logo: '🐟' },
-  { name: 'Color Game', provider: 'JILI', logo: '🎨' },
+  { id: 'spribe_aviator', name: 'Aviator', provider: 'SPRIBE', logo: '🚀' },
+  { id: 'jili_1', name: 'Super Ace', provider: 'JILI', logo: '🃏' },
+  { id: 'jili_2', name: 'Golden Empire', provider: 'JILI', logo: '👑' },
+  { id: 'jili_3', name: 'Fortune Gems', provider: 'JILI', logo: '💎' },
+  { id: 'jili_5', name: 'Money Coming', provider: 'JILI', logo: '💰' },
+  { id: 'pg_1', name: 'Mahjong Ways', provider: 'PG', logo: '🀄' },
+  { id: 'pg_2', name: 'Mahjong Ways 2', provider: 'PG', logo: '🀄' },
+  { id: 'pg_4', name: 'Lucky Neko', provider: 'PG', logo: '🐱' },
+  { id: 'pg_3', name: 'Treasure of Aztec', provider: 'PG', logo: '🏰' },
+  { id: 'evo_1', name: 'Crazy Time', provider: 'EVOLUTION', logo: '🎡' },
+  { id: 'evo_2', name: 'Lightning Roulette', provider: 'EVOLUTION', logo: '⚡' },
+  { id: 'evo_4', name: 'Baccarat', provider: 'EVOLUTION', logo: '♣️' },
+  { id: 'fish_1', name: 'Mega Fishing', provider: 'JILI', logo: '🐟' },
+  { id: 'lottery_8', name: 'Color Game', provider: 'JILI', logo: '🎨' },
 ];
 
 const BANG_NAMES_PREFIX = ['sh', 'bo', 'ra', 'ma', 'fa', 'ta', 'al', 'sa', 'ro', 'md', 'me', 'ab', 'as', 'ti', 'ki', 'ni', 'jo', 'mo', 're'];
@@ -83,12 +85,20 @@ function generateSimulatedBet(): BetItem {
   };
 }
 
-export default function LiveBetsTicker({ userData, onOpenLogin, showToast }: LiveBetsTickerProps) {
+export default function LiveBetsTicker({ userData, onOpenLogin, showToast, globalLogos, globalNames }: LiveBetsTickerProps) {
   const [activeTab, setActiveTab] = useState<'live' | 'high' | 'my'>('live');
   const [liveBets, setLiveBets] = useState<BetItem[]>([]);
   const [highRollers, setHighRollers] = useState<BetItem[]>([]);
   const [myBets, setMyBets] = useState<BetItem[]>([]);
   const [loadingMyBets, setLoadingMyBets] = useState(false);
+
+  // Helper to get consistent game info
+  const getGameInfo = (gameName: string) => {
+    const gameId = POPULAR_GAMES.find(g => g.name === gameName)?.id;
+    const displayName = (gameId && globalNames?.[gameId]) || gameName;
+    const displayLogo = (gameId && globalLogos?.[gameId]) || null;
+    return { id: gameId, name: displayName, logo: displayLogo };
+  };
 
   // Initialize live bets slider
   useEffect(() => {
@@ -290,11 +300,15 @@ export default function LiveBetsTicker({ userData, onOpenLogin, showToast }: Liv
                     >
                       {/* Game name & Provider */}
                       <td className="py-3 px-4 flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-[#14253a] border border-[#1e3a5f]/40 flex items-center justify-center text-base shadow-inner">
-                          {POPULAR_GAMES.find(g => g.name === bet.game)?.logo || '🎰'}
+                        <div className="w-8 h-8 rounded-lg bg-[#14253a] border border-[#1e3a5f]/40 flex items-center justify-center text-base shadow-inner overflow-hidden">
+                          {getGameInfo(bet.game).logo ? (
+                            <img src={getGameInfo(bet.game).logo!} alt="Game" className="w-full h-full object-cover" />
+                          ) : (
+                            POPULAR_GAMES.find(g => g.name === bet.game)?.logo || '🎰'
+                          )}
                         </div>
                         <div>
-                          <p className="text-[11px] font-black text-white tracking-tight">{bet.game}</p>
+                          <p className="text-[11px] font-black text-white tracking-tight">{getGameInfo(bet.game).name}</p>
                           <p className={`text-[8px] font-black uppercase px-1 rounded inline-block ${
                             bet.provider === 'SPRIBE' 
                               ? 'bg-red-500/10 text-red-500 border border-red-500/20' 
