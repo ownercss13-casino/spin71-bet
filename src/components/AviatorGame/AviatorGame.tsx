@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { db } from '../../services/firebase';
+import { db, auth } from '../../services/firebase';
 import GameLoader from '../ui/GameLoader';
 import { collection, addDoc, serverTimestamp, doc, updateDoc, increment } from 'firebase/firestore';
 import { 
@@ -23,8 +23,14 @@ import {
   CheckCircle,
   ShieldCheck,
   History,
-  Send
+  Send,
+  Volume2,
+  VolumeX,
+  Maximize2,
+  Minimize2,
+  Info
 } from 'lucide-react';
+import { useSound } from '../../context/SoundContext';
 
 interface AviatorGameProps {
   balance: number;
@@ -142,6 +148,7 @@ type GameState = 'waiting' | 'in_progress' | 'crashed';
 
 export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClose, userData, globalLogos, globalNames }: AviatorGameProps) {
   const [showLoader, setShowLoader] = useState(true);
+
   const [gameState, setGameState] = useState<GameState>('waiting');
   const [multiplier, setMultiplier] = useState(1.00);
   const [gameHistory, setGameHistory] = useState<number[]>([]);
@@ -167,10 +174,7 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
   // Double Panel control
   const [showSecondPanel, setShowSecondPanel] = useState(true);
 
-  // Audio simulation
-  const playSound = (type: 'win' | 'bet' | 'crash') => {
-    console.log(`Sound triggered: ${type}`);
-  };
+  // Audio simulation removed in favor of global useSound context
 
   // Keep latest states in refs to preserve them during async EventSource trigger
   const balanceRef = useRef(balance);
@@ -189,6 +193,12 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
   const isAutoWithdraw1Ref = useRef(isAutoWithdraw1);
   const isAutoWithdraw2Ref = useRef(isAutoWithdraw2);
 
+  // Synchronous locking references to prevent high-frequency duplication
+  const isPlacingBet1Ref = useRef(false);
+  const isPlacingBet2Ref = useRef(false);
+  const isCashingOut1Ref = useRef(false);
+  const isCashingOut2Ref = useRef(false);
+
   // New Features States
   const [activeTab, setActiveTab] = useState<'all' | 'my' | 'top'>('all');
   const [showSignal, setShowSignal] = useState(false);
@@ -202,6 +212,65 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
   ]);
   const [chatInput, setChatInput] = useState('');
   const [showChat, setShowChat] = useState(false);
+  const [showHowToPlay, setShowHowToPlay] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const { soundEnabled, toggleSound, playSound } = useSound();
+  const gameContainerRef = useRef<HTMLDivElement>(null);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      if (gameContainerRef.current?.requestFullscreen) {
+        gameContainerRef.current.requestFullscreen();
+      }
+      setIsFullscreen(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+      setIsFullscreen(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const prevGameStateRef = useRef(gameState);
+  useEffect(() => {
+    if (prevGameStateRef.current !== gameState) {
+      if (gameState === 'in_progress') {
+        playSound('takeoff');
+      } else if (gameState === 'crashed') {
+        playSound('crash');
+      }
+      prevGameStateRef.current = gameState;
+    }
+  }, [gameState, playSound]);
+
+  // Simulated Live Chat
+  useEffect(() => {
+    if (gameState === 'in_progress' && showChat) {
+      const interval = setInterval(() => {
+        if (Math.random() < 0.4) {
+          const fakeUsers = ['Rafi', 'Boss_71', 'Tiger', 'Sumon', 'King_12', 'BD_Star', 'Sakib'];
+          const fakeMsgs = ['উড়বে এখন 🔥', 'আমি তো ক্যাশআউট করলাম 🤑', '২x যাবে কি?', 'ওরে ভাই...!', 'আজকে শিউর ২x পার হবে', 'কপাল খারাপ ভাই', 'লস রিকভার 🚀'];
+          setChatMessages(prev => {
+            const arr = [...prev, {
+              id: Date.now().toString(),
+              user: fakeUsers[Math.floor(Math.random() * fakeUsers.length)],
+              text: fakeMsgs[Math.floor(Math.random() * fakeMsgs.length)]
+            }];
+            return arr.slice(-40);
+          });
+        }
+      }, 1200);
+      return () => clearInterval(interval);
+    }
+  }, [gameState, showChat]);
 
   useEffect(() => { balanceRef.current = balance; }, [balance]);
   useEffect(() => { onBalanceUpdateRef.current = onBalanceUpdate; }, [onBalanceUpdate]);
@@ -230,70 +299,128 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
     }
   }, [gameState]);
 
-  // Firestore Bet Database Registration
-  const logBet = async (betVal: number, winVal: number, multVal: number) => {
-    if (!userData?.id) return;
-    try {
-      await addDoc(collection(db, 'bets'), {
-        userId: userData.id,
-        betAmount: betVal,
-        winAmount: winVal,
-        gameType: 'aviator',
-        multiplier: multVal,
-        symbols: ['plane'],
-        createdAt: serverTimestamp()
-      });
-      console.log("[Aviator REST] Bet written securely in Firestore.");
-    } catch (err) {
-      console.error("[Aviator Firestore Error] Failed to log bet:", err);
+  // Call server API securely for balance updates (or local fallback in Guest mode)
+  const performAviatorAction = async (action: 'bet' | 'cashout' | 'cancel', amount: number, multiplier?: number): Promise<number | null> => {
+    if (!auth.currentUser) {
+      // Guest mode: just compute and return local balance
+      const currentLocBal = balanceRef.current;
+      if (action === 'bet') {
+        const nextBal = currentLocBal - amount;
+        onBalanceUpdate(nextBal, false);
+        return nextBal;
+      } else if (action === 'cancel') {
+        const nextBal = currentLocBal + amount;
+        onBalanceUpdate(nextBal, false);
+        return nextBal;
+      } else if (action === 'cashout') {
+        const winAmount = Math.floor(amount * (multiplier || 1));
+        const nextBal = currentLocBal + winAmount;
+        onBalanceUpdate(nextBal, false);
+        return nextBal;
+      }
+      return null;
     }
+
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      const response = await fetch('/api/game/aviator/action', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          action,
+          amount,
+          idToken,
+          multiplier
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to perform aviator action');
+      }
+
+      const resData = await response.json();
+      if (resData.success) {
+        onBalanceUpdate(resData.newBalance, false);
+        return resData.newBalance;
+      }
+    } catch (err: any) {
+      console.error("[Aviator API Error]:", err);
+      showToast(err.message || "সার্ভার কানেকশন এরর", "error");
+    }
+    return null;
   };
 
   // High-reliability Cash Out method
-  const handleCashOut = (panel: 1 | 2, forceMult?: number) => {
+  const handleCashOut = async (panel: 1 | 2, forceMult?: number) => {
     const activeMult = forceMult || multiplierRef.current;
     
     if (panel === 1) {
+      if (isCashingOut1Ref.current) return;
+      
       const activeBet = currentBet1Ref.current;
       if (!activeBet || activeBet.cashedOut) return;
 
+      isCashingOut1Ref.current = true;
       const winAmount = Math.floor(activeBet.amount * activeMult);
       console.log(`[Aviator Debug V2] Cashout Panel 1 Triggered. Old Balance: ${balanceRef.current}, Win: ${winAmount}, New: ${balanceRef.current + winAmount}`);
-      if (onBalanceUpdateRef.current) {
-        onBalanceUpdateRef.current(balanceRef.current + winAmount);
-      } else {
-        console.error("[Aviator Debug V2] Cashout Panel 1: onBalanceUpdateRef.current is null!");
+      
+      try {
+        const newBal = await performAviatorAction('cashout', activeBet.amount, activeMult);
+        if (newBal === null) {
+          isCashingOut1Ref.current = false;
+          return;
+        }
+
+        const updatedBet = { ...activeBet, cashedOut: true };
+        setCurrentBet1(updatedBet);
+        currentBet1Ref.current = updatedBet;
+
+        setMyBetsHistory(prev => [{ amount: activeBet.amount, cashOut: winAmount, mult: activeMult, date: Date.now() }, ...prev]);
+        playSound('win');
+        showToast(`৳${winAmount} উইন হয়েছেন! (${activeMult.toFixed(2)}x)`, "success");
+      } catch (e) {
+        console.error(e);
+      } finally {
+        isCashingOut1Ref.current = false;
       }
-
-      const updatedBet = { ...activeBet, cashedOut: true };
-      setCurrentBet1(updatedBet);
-      currentBet1Ref.current = updatedBet;
-
-      setMyBetsHistory(prev => [{ amount: activeBet.amount, cashOut: winAmount, mult: activeMult, date: Date.now() }, ...prev]);
-      logBet(activeBet.amount, winAmount, activeMult);
-      playSound('win');
-      showToast(`৳${winAmount} উইন হয়েছেন! (${activeMult.toFixed(2)}x)`, "success");
     } else {
+      if (isCashingOut2Ref.current) return;
+
       const activeBet = currentBet2Ref.current;
       if (!activeBet || activeBet.cashedOut) return;
 
+      isCashingOut2Ref.current = true;
       const winAmount = Math.floor(activeBet.amount * activeMult);
-      console.log(`[Aviator Debug] Cashout Panel 2: Old balance: ${balanceRef.current}, Win amount: ${winAmount}, New balance: ${balanceRef.current + winAmount}`);
-      onBalanceUpdateRef.current(balanceRef.current + winAmount);
+      console.log(`[Aviator Debug V2] Cashout Panel 2 Triggered. Old Balance: ${balanceRef.current}, Win: ${winAmount}, New: ${balanceRef.current + winAmount}`);
       
-      const updatedBet = { ...activeBet, cashedOut: true };
-      setCurrentBet2(updatedBet);
-      currentBet2Ref.current = updatedBet;
+      try {
+        const newBal = await performAviatorAction('cashout', activeBet.amount, activeMult);
+        if (newBal === null) {
+          isCashingOut2Ref.current = false;
+          return;
+        }
 
-      setMyBetsHistory(prev => [{ amount: activeBet.amount, cashOut: winAmount, mult: activeMult, date: Date.now() }, ...prev]);
-      logBet(activeBet.amount, winAmount, activeMult);
-      playSound('win');
-      showToast(`৳${winAmount} উইন হয়েছেন! (${activeMult.toFixed(2)}x)`, "success");
+        const updatedBet = { ...activeBet, cashedOut: true };
+        setCurrentBet2(updatedBet);
+        currentBet2Ref.current = updatedBet;
+
+        setMyBetsHistory(prev => [{ amount: activeBet.amount, cashOut: winAmount, mult: activeMult, date: Date.now() }, ...prev]);
+        playSound('win');
+        showToast(`৳${winAmount} উইন হয়েছেন! (${activeMult.toFixed(2)}x)`, "success");
+      } catch (e) {
+        console.error(e);
+      } finally {
+        isCashingOut2Ref.current = false;
+      }
     }
   };
 
   // Handles Bet placements, cancellation and waiting statuses
   const handleBetAction = async (panel: 1 | 2) => {
+    playSound('click');
     const isWaiting = panel === 1 ? isWaitingBet1 : isWaitingBet2;
     const currentBet = panel === 1 ? currentBet1 : currentBet2;
     const betAmount = panel === 1 ? betAmount1 : betAmount2;
@@ -315,7 +442,8 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
 
     // 1. Cancel next booked bet
     if (isWaiting) {
-      onBalanceUpdate(balanceRef.current + betAmount);
+      const newBal = await performAviatorAction('cancel', betAmount);
+      if (newBal === null) return;
       if (panel === 1) {
         setIsWaitingBet1(false);
         isWaitingBet1Ref.current = false;
@@ -335,7 +463,9 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       }
       if (currentBet) return; // Already placed
 
-      onBalanceUpdate(balanceRef.current - betAmount);
+      const newBal = await performAviatorAction('bet', betAmount);
+      if (newBal === null) return;
+
       const placedBet = { amount: betAmount, cashedOut: false };
       
       if (panel === 1) {
@@ -371,7 +501,9 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       }
       if (currentBet && !currentBet.cashedOut) return; // Active in current round, cannot place another until ended
 
-      onBalanceUpdate(balanceRef.current - betAmount);
+      const newBal = await performAviatorAction('bet', betAmount);
+      if (newBal === null) return;
+
       if (panel === 1) {
         setIsWaitingBet1(true);
         isWaitingBet1Ref.current = true;
@@ -425,27 +557,61 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
 
         // State Change Checks
         if (serverState === 'waiting') {
-          // A. Convert waiting pre-bets to active bets for the new round
-          if ((isWaitingBet1Ref.current || isAutoBet1Ref.current) && !currentBet1Ref.current) {
-            if (balanceRef.current >= betAmount1Ref.current) {
-              onBalanceUpdateRef.current(balanceRef.current - betAmount1Ref.current);
-              const placedBet = { amount: betAmount1Ref.current, cashedOut: false };
-              setCurrentBet1(placedBet);
-              currentBet1Ref.current = placedBet;
-              setIsWaitingBet1(false);
-              isWaitingBet1Ref.current = false;
-              playSound('bet');
+          // A. Convert waiting pre-bets or auto-bets to active bets for the new round
+          if ((isWaitingBet1Ref.current || isAutoBet1Ref.current) && !currentBet1Ref.current && !isPlacingBet1Ref.current) {
+            const bAmount = betAmount1Ref.current;
+            if (balanceRef.current >= bAmount) {
+              const alreadyBooked = isWaitingBet1Ref.current;
+              
+              const proceedConversion = () => {
+                const placedBet = { amount: bAmount, cashedOut: false };
+                setCurrentBet1(placedBet);
+                currentBet1Ref.current = placedBet;
+                setIsWaitingBet1(false);
+                isWaitingBet1Ref.current = false;
+                playSound('bet');
+              };
+
+              if (alreadyBooked) {
+                proceedConversion();
+              } else {
+                isPlacingBet1Ref.current = true;
+                performAviatorAction('bet', bAmount).then((newBal) => {
+                  if (newBal !== null) {
+                    proceedConversion();
+                  }
+                }).finally(() => {
+                  isPlacingBet1Ref.current = false;
+                });
+              }
             }
           }
-          if ((isWaitingBet2Ref.current || isAutoBet2Ref.current) && !currentBet2Ref.current) {
-             if (balanceRef.current >= betAmount2Ref.current) {
-              onBalanceUpdateRef.current(balanceRef.current - betAmount2Ref.current);
-              const placedBet = { amount: betAmount2Ref.current, cashedOut: false };
-              setCurrentBet2(placedBet);
-              currentBet2Ref.current = placedBet;
-              setIsWaitingBet2(false);
-              isWaitingBet2Ref.current = false;
-              playSound('bet');
+          if ((isWaitingBet2Ref.current || isAutoBet2Ref.current) && !currentBet2Ref.current && !isPlacingBet2Ref.current) {
+            const bAmount = betAmount2Ref.current;
+            if (balanceRef.current >= bAmount) {
+              const alreadyBooked = isWaitingBet2Ref.current;
+
+              const proceedConversion = () => {
+                const placedBet = { amount: bAmount, cashedOut: false };
+                setCurrentBet2(placedBet);
+                currentBet2Ref.current = placedBet;
+                setIsWaitingBet2(false);
+                isWaitingBet2Ref.current = false;
+                playSound('bet');
+              };
+
+              if (alreadyBooked) {
+                proceedConversion();
+              } else {
+                isPlacingBet2Ref.current = true;
+                performAviatorAction('bet', bAmount).then((newBal) => {
+                  if (newBal !== null) {
+                    proceedConversion();
+                  }
+                }).finally(() => {
+                  isPlacingBet2Ref.current = false;
+                });
+              }
             }
           }
         }
@@ -476,7 +642,6 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
           const actBet1 = currentBet1Ref.current;
           if (actBet1 && !actBet1.cashedOut) {
             setMyBetsHistory(prev => [{ amount: actBet1.amount, date: Date.now() }, ...prev]);
-            logBet(actBet1.amount, 0, 0);
           }
           setCurrentBet1(null);
           currentBet1Ref.current = null;
@@ -484,7 +649,6 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
           const actBet2 = currentBet2Ref.current;
           if (actBet2 && !actBet2.cashedOut) {
             setMyBetsHistory(prev => [{ amount: actBet2.amount, date: Date.now() }, ...prev]);
-            logBet(actBet2.amount, 0, 0);
           }
           setCurrentBet2(null);
           currentBet2Ref.current = null;
@@ -561,20 +725,26 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
   const progressY = Math.max(20, 80 - Math.pow(Math.max(1, multiplier) - 1.0, 0.7) * 18);
   
   return (
-    <div id="aviator-root-game" className="fixed inset-0 z-[150] bg-[#0c0c0d] flex flex-col font-sans select-none">
+    <div ref={gameContainerRef} id="aviator-root-game" className="fixed inset-0 z-[150] bg-[#0c0c0d] flex flex-col font-sans select-none">
       {showLoader && <GameLoader gameName="Aviator" onLoadComplete={() => setShowLoader(false)} />}
       {!showLoader && (
         <div className="flex flex-col flex-1">
           {/* Upper Navigation Bar */}
           <div id="aviator-header" className="h-[70px] bg-[#141518] flex items-center justify-between px-4 border-b border-white/5 shadow-md">
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                 <button onClick={() => setShowHowToPlay(true)} className="text-gray-400 hover:text-white transition-colors bg-white/5 p-2 rounded-xl border border-white/5 shadow-sm" title="How to play">
+                    <Info size={18} />
+                 </button>
+                 <button onClick={toggleSound} className="text-gray-400 hover:text-white transition-colors bg-white/5 p-2 rounded-xl border border-white/5 shadow-sm" title="Toggle Sound">
+                    {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+                 </button>
+                 <button onClick={toggleFullscreen} className="hidden sm:block text-gray-400 hover:text-white transition-colors bg-white/5 p-2 rounded-xl border border-white/5 shadow-sm" title="Fullscreen">
+                    {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                 </button>
                  <button onClick={() => setShowChat(true)} className="relative text-gray-400 hover:text-white transition-colors bg-white/5 p-2 rounded-xl border border-white/5 shadow-sm">
                     <MessageSquare size={18} />
                     <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-black animate-pulse" />
-                 </button>
-                 <button id="aviator-back" onClick={onClose} className="text-gray-400 hover:text-white transition-colors bg-white/5 p-2 rounded-xl border border-white/5 shadow-sm">
-                   <X size={20} />
                  </button>
               </div>
               <div className="flex items-center gap-3">
@@ -790,29 +960,7 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
 
              {/* SSE Multiplier & State Overlays Display */}
              <div className="flex-1 flex flex-col items-center justify-center relative z-25">
-                {/* AI Predictor Overlay */}
-                <div className="absolute top-4 right-4 z-30">
-                  <div className="bg-black/90 backdrop-blur-md border border-red-500/30 rounded-xl p-2.5 flex flex-col items-center shadow-[0_0_20px_rgba(220,38,38,0.35)]">
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <Zap size={10} className="text-red-500 animate-pulse" />
-                      <span className="text-[8px] font-black text-white italic tracking-widest uppercase">এআই প্রেডিক্টর (V2)</span>
-                    </div>
-                    <div className="flex flex-col items-center gap-1">
-                       {signalLoading ? (
-                         <div className="flex items-center gap-1">
-                           <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                           <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                           <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                         </div>
-                       ) : (
-                         <div className="flex flex-col items-center">
-                           <span className="text-lg font-black text-red-500 italic drop-shadow-[0_0_8px_rgba(220,38,38,0.6)] leading-none">{currentSignal}</span>
-                           <span className="text-[7px] text-emerald-400 font-bold uppercase mt-1">হ্যাক সচল আছে</span>
-                         </div>
-                       )}
-                    </div>
-                  </div>
-                </div>
+                {/* AI Predictor Overlay removed per user request */}
 
                 {gameState === 'waiting' && (
                   <div className="flex flex-col items-center gap-4 bg-black/50 backdrop-blur-sm px-6 py-5 rounded-3xl border border-white/5 shadow-2xl animate-fade-in relative overflow-hidden">
@@ -1329,6 +1477,45 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
                <button onClick={() => setShowFairness({ show: false })} className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold transition-colors">
                  DONE
                </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* How To Play Modal */}
+      <AnimatePresence>
+        {showHowToPlay && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[300] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-[#141518] border border-white/10 p-6 rounded-3xl w-full max-w-sm shadow-2xl relative"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center gap-2">
+                  <Info size={24} className="text-red-500" />
+                  <h2 className="text-xl font-black text-white uppercase tracking-wider">How to Play</h2>
+                </div>
+                <button onClick={() => setShowHowToPlay(false)} className="text-gray-400 hover:text-white bg-white/5 p-2 rounded-full">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-4 text-sm text-gray-300">
+                <p><strong>1. Place your bet:</strong> Enter your amount and click the "Bet" button before the round starts.</p>
+                <p><strong>2. Watch the plane:</strong> The lucky plane takes off and the multiplier starts increasing from 1.00x.</p>
+                <p><strong>3. Cash out:</strong> Click the "Cash Out" button before the plane flies away to win your bet multiplied by the current multiplier.</p>
+                <p className="text-red-400 text-xs mt-4 uppercase tracking-widest font-black">Warning: If the plane flies away before you cash out, your bet is lost!</p>
+              </div>
+
+              <button 
+                onClick={() => setShowHowToPlay(false)}
+                className="mt-8 w-full py-3 bg-red-600 hover:bg-red-700 font-bold text-white uppercase tracking-widest rounded-xl transition-all"
+              >
+                Got It, Let's Play!
+              </button>
             </motion.div>
           </motion.div>
         )}

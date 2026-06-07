@@ -185,13 +185,15 @@ export default function HomeView({
             <Menu size={26} />
           </button>
           <div className="flex items-center ml-2">
-            {appLogo ? (
-              <img src={appLogo} alt="Logo" className="h-8 max-w-[120px] object-contain" />
-            ) : (
-              <span className="text-xl md:text-2xl font-black italic tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 drop-shadow-[0_0_8px_rgba(253,216,53,0.5)]">
-                {casinoName || "SPIN71.BET"}
-              </span>
-            )}
+            <img 
+              src={appLogo || '/images/app_logo.png'} 
+              onError={(e) => {
+                e.currentTarget.src = '/images/app_logo.png';
+              }}
+              alt="Logo" 
+              className="h-9 max-w-[130px] object-contain cursor-pointer hover:scale-105 transition-all"
+              onClick={() => onNavigate?.('home')}
+            />
           </div>
         </div>
         
@@ -267,7 +269,7 @@ export default function HomeView({
                     ? "/src/assets/images/casino_hero_banner_2_1780243907033.png" 
                     : activeCategory === 'স্লট' 
                       ? "/src/assets/images/casino_hero_banner_3_1780243929232.png"
-                      : "/src/assets/images/casino_hero_banner_1_1780243889809.png"
+                      : "https://www.image2url.com/r2/default/images/1780756072411-5bf24ebb-fb2f-467a-a559-8875dfb29a60.png"
                 } 
                 alt="Casino Banner" 
                 className="w-full h-full object-cover"

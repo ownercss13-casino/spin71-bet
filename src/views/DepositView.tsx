@@ -16,7 +16,8 @@ import {
   HelpCircle, 
   Activity, 
   Info, 
-  Lock 
+  Lock,
+  ExternalLink
 } from 'lucide-react';
 import Receipt from '../components/Receipt';
 import { motion, AnimatePresence } from 'motion/react';
@@ -38,7 +39,7 @@ const paymentMethods = [
     id: 'bkash', 
     name: 'Bkash', 
     label: 'বিকাশ',
-    logo: 'https://cdn.iconscout.com/icon/free/png-256/free-bkash-2728956-2261624.png',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f6/bKash_logo.png/1200px-bKash_logo.png',
     number: '01860137045'
   },
   { 
@@ -126,6 +127,50 @@ export default function DepositView({
   const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
   const [showReceipt, setShowReceipt] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
+
+  const copyToClipboard = (text: string) => {
+    const fallbackCopy = (val: string) => {
+      const textArea = document.createElement("textarea");
+      textArea.value = val;
+      // Position out of sight securely
+      textArea.style.position = "fixed";
+      textArea.style.top = "0";
+      textArea.style.left = "0";
+      textArea.style.opacity = "0";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+          setIsCopied(true);
+          showToast('নাম্বার কপি করা হয়েছে!', 'success');
+          setTimeout(() => setIsCopied(false), 2000);
+        } else {
+          showToast('কপি ব্যর্থ হয়েছে! অনুগ্রহ করে ম্যানুয়ালি কপি করুন।', 'warning');
+        }
+      } catch (err) {
+        console.error('Fallback copy failed:', err);
+        showToast('কপি ব্যর্থ হয়েছে!', 'error');
+      }
+      document.body.removeChild(textArea);
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(() => {
+          setIsCopied(true);
+          showToast('নাম্বার কপি করা হয়েছে!', 'success');
+          setTimeout(() => setIsCopied(false), 2000);
+        })
+        .catch((err) => {
+          console.warn('Navigator clipboard failed, trying fallback:', err);
+          fallbackCopy(text);
+        });
+    } else {
+      fallbackCopy(text);
+    }
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -264,6 +309,44 @@ export default function DepositView({
   const isNextEnabled = amount !== '' && parseFloat(amount) >= minDeposit;
 
   // Real-time Number validation helper
+  // Custom App Launcher Logic
+  const handleAppLaunch = () => {
+    const isAndroid = /android/i.test(navigator.userAgent || '');
+    let url = '';
+    let androidIntent = '';
+
+    switch (selectedMethod) {
+      case 'bkash':
+        url = 'bkash://';
+        androidIntent = `intent://#Intent;scheme=bkash;package=com.bKash.customerapp;S.browser_fallback_url=https://play.google.com/store/apps/details?id=com.bKash.customerapp;end`;
+        break;
+      case 'nagad':
+        url = 'nagad://';
+        androidIntent = `intent://#Intent;scheme=nagad;package=com.konasl.nagad;S.browser_fallback_url=https://play.google.com/store/apps/details?id=com.konasl.nagad;end`;
+        break;
+      case 'rocket':
+        url = 'rocket://';
+        androidIntent = `intent://#Intent;scheme=rocket;package=com.dbbl.mbs.apps.main;S.browser_fallback_url=https://play.google.com/store/apps/details?id=com.dbbl.mbs.apps.main;end`;
+        break;
+      case 'upi':
+        url = `upi://pay?pa=${newAccountNumber}&pn=Merchant&am=${amount}`;
+        androidIntent = `intent://pay?pa=${newAccountNumber}&pn=Merchant&am=${amount}#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;S.browser_fallback_url=https://play.google.com/store/apps/details?id=com.google.android.apps.nbu.paisa.user;end`;
+        break;
+      case 'paytm':
+        url = `paytmmp://pay?pa=${newAccountNumber}&pn=Merchant&am=${amount}`;
+        androidIntent = `intent://pay?pa=${newAccountNumber}&pn=Merchant&am=${amount}#Intent;scheme=paytmmp;package=net.one97.paytm;S.browser_fallback_url=https://play.google.com/store/apps/details?id=net.one97.paytm;end`;
+        break;
+      default:
+        return;
+    }
+
+    if (isAndroid && androidIntent) {
+      window.location.href = androidIntent;
+    } else {
+      window.location.href = url;
+    }
+  };
+
   const isSenderValid = () => {
     const clean = senderNumber.trim();
     if (selectedMethod === 'upi') return clean.length > 3;
@@ -795,19 +878,26 @@ export default function DepositView({
                 </p>
               </div>
 
-              <div className="flex items-center justify-between gap-3 bg-black/40 border border-white/5 p-4 rounded-2xl">
-                <span className="text-lg font-black text-red-500 tracking-wider break-all select-all font-mono">
-                  {newAccountNumber}
-                </span>
+              <div 
+                onClick={() => copyToClipboard(newAccountNumber)}
+                className="flex items-center justify-between gap-3 bg-black/40 hover:bg-black/60 border border-white/5 hover:border-white/10 p-4 rounded-2xl cursor-pointer transition-all duration-200 active:scale-[0.99] group"
+                title="কপি করতে ক্লিক করুন"
+              >
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-lg font-black text-red-500 tracking-wider break-all select-all font-mono group-hover:text-red-400 dynamic-number">
+                    {newAccountNumber}
+                  </span>
+                  <span className="text-[9px] text-gray-500 group-hover:text-gray-400 font-bold transition-colors">
+                    কপি করতে ক্লিক করুন (Click to copy)
+                  </span>
+                </div>
                 
                 <button 
-                  onClick={() => {
-                    navigator.clipboard.writeText(newAccountNumber);
-                    setIsCopied(true);
-                    showToast('নাম্বার কপি করা হয়েছে!', 'success');
-                    setTimeout(() => setIsCopied(false), 2000);
+                  onClick={(e) => {
+                    e.stopPropagation(); // Avoid double copying when clicking button
+                    copyToClipboard(newAccountNumber);
                   }}
-                  className={`px-4 py-2 border rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 ${
+                  className={`px-4 py-2 border rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 shrink-0 ${
                     isCopied 
                       ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400' 
                       : 'border-white/15 bg-white/5 hover:bg-white/10 text-white'
@@ -817,6 +907,17 @@ export default function DepositView({
                   <span>{isCopied ? 'কপি হয়েছে' : 'কপি করুন'}</span>
                 </button>
               </div>
+
+              {/* Seamless App Launcher */}
+              {['bkash', 'nagad', 'rocket', 'upi', 'paytm'].includes(selectedMethod) && (
+                <button 
+                  onClick={handleAppLaunch}
+                  className="w-full flex justify-center items-center gap-2 py-3.5 px-4 bg-gradient-to-r from-[#3ed0ca]/10 to-transparent border border-[#3ed0ca]/30 rounded-2xl text-[#3ed0ca] font-black text-xs uppercase tracking-widest hover:bg-[#3ed0ca]/20 transition-all active:scale-95 shadow-[0_4px_15px_rgba(62,208,202,0.1)]"
+                >
+                  <ExternalLink size={16} strokeWidth={2.5} />
+                  <span>Open {paymentMethods.find(m => m.id === selectedMethod)?.name} App & Pay ৳{amount}</span>
+                </button>
+              )}
             </div>
 
             {/* Inputs Area */}

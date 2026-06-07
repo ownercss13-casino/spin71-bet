@@ -17,12 +17,24 @@ interface BottomNavProps {
 }
 
 const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange, onToggleNotifications, unreadNotificationsCount, isAdmin }) => {
+  const [lang, setLang] = React.useState<'bn' | 'en'>(() => {
+    return (localStorage.getItem('app_lang') as 'bn' | 'en') || 'bn';
+  });
+
+  React.useEffect(() => {
+    const handleLanguageChange = () => {
+      setLang((localStorage.getItem('app_lang') as 'bn' | 'en') || 'bn');
+    };
+    window.addEventListener('languageChange', handleLanguageChange);
+    return () => window.removeEventListener('languageChange', handleLanguageChange);
+  }, []);
+
   const tabs: TabItem[] = [
-    { id: 'home', icon: Home, label: 'Home' },
-    { id: 'bonus', icon: Gift, label: 'Bonus Center' },
-    { id: 'wallet', icon: Wallet, label: 'Wallet' },
-    { id: 'invite', icon: Users, label: 'আমন্ত্রণ' },
-    { id: 'profile', icon: User, label: 'Member' },
+    { id: 'home', icon: Home, label: lang === 'bn' ? 'হোম' : 'Home' },
+    { id: 'bonus', icon: Gift, label: lang === 'bn' ? 'বোনাস সেন্টার' : 'Bonus' },
+    { id: 'wallet', icon: Wallet, label: lang === 'bn' ? 'ওয়ালেট' : 'Wallet' },
+    { id: 'invite', icon: Users, label: lang === 'bn' ? 'আমন্ত্রণ' : 'Invite' },
+    { id: 'profile', icon: User, label: lang === 'bn' ? 'প্রোফাইল' : 'Profile' },
   ];
 
   if (isAdmin) {

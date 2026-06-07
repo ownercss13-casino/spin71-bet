@@ -14,8 +14,21 @@ interface SlotMachineProps {
 }
 
 const SlotMachine: React.FC<SlotMachineProps> = ({ onBack, balance, onBalanceUpdate, showToast, userData }) => {
+  const [isUnderMaintenance] = useState(true);
   const { db, auth } = useFirebase();
   const [betAmount, setBetAmount] = useState(10);
+  
+  if (isUnderMaintenance) {
+    return (
+      <div className="fixed inset-0 z-[200] bg-[#0c0c0d] flex flex-col items-center justify-center p-6 text-center">
+        <div className="bg-[#141518] border border-white/5 p-8 rounded-3xl max-w-sm shadow-2xl">
+          <h2 className="text-2xl font-black text-white mb-4 italic">Maintenance Notice</h2>
+          <p className="text-gray-400 mb-6 font-medium">আমরা আন্তরিকভাবে দুঃখিত। গেমটি ১২ ঘন্টার জন্য রক্ষণাবেক্ষণ (Maintenance) এ আছে। (০৭-০৬-২০২৬ পর্যন্ত)</p>
+          <p className="text-gray-500 text-sm italic">We are sorry for the inconvenience. The game will be under maintenance for 12 hours. (Until 07-06-2026)</p>
+        </div>
+      </div>
+    );
+  }
   const [isSpinning, setIsSpinning] = useState(false);
   const [autoSpin, setAutoSpin] = useState(false);
   const [turboMode, setTurboMode] = useState(false);

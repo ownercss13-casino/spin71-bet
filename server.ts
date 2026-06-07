@@ -7,30 +7,63 @@ import originalAdmin from 'firebase-admin';
 import { getFirestore as getAdminFirestore, FieldValue as AdminFieldValue } from 'firebase-admin/firestore';
 import { getDatabase } from 'firebase-admin/database';
 import { initializeApp as initClientApp } from 'firebase/app';
-import { getAuth as getClientAuth, signInWithEmailAndPassword } from 'firebase/auth';
-import { getFirestore as getClientFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, runTransaction, onSnapshot, increment, serverTimestamp, query, where, limit, orderBy } from 'firebase/firestore';
+import { getAuth as getClientAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, initializeAuth, browserLocalPersistence } from 'firebase/auth';
+import { getFirestore as getClientFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, runTransaction, onSnapshot, increment, serverTimestamp, query, where, limit, orderBy, arrayUnion, arrayRemove, writeBatch } from 'firebase/firestore';
 import cors from 'cors';
 import session from 'express-session';
 import fetch from 'node-fetch';
 import { getAIResponse } from "./geminiBackend";
 import { OpenAI } from 'openai';
 
-const admin = new Proxy(originalAdmin, {
-  get(target, prop, receiver) {
-    if (prop === 'firestore') {
-      const fn = (dbId?: string) => {
-        return getAdminFirestore(originalAdmin.app(), dbId === '(default)' ? undefined : dbId);
-      };
-      (fn as any).FieldValue = AdminFieldValue;
-      return fn;
-    }
-    const val = Reflect.get(target, prop, receiver);
-    if (typeof val === 'function' && val !== null) {
-      return val.bind(target);
-    }
-    return val;
+// Define file-backed localStorage polyfill before Firebase initializes
+interface StorageCache {
+  [key: string]: string;
+}
+
+try {
+  const cacheFile = path.resolve(process.cwd(), '.firebase_storage_cache.json');
+  let cache: StorageCache = {};
+  if (fs.existsSync(cacheFile)) {
+    try { cache = JSON.parse(fs.readFileSync(cacheFile, 'utf8')); } catch (e) {}
   }
-});
+  
+  const saveCache = () => {
+    fs.writeFileSync(cacheFile, JSON.stringify(cache, null, 2), 'utf8');
+  };
+
+  const mockLocalStorage = {
+    getItem(key: string): string | null {
+      return cache[key] !== undefined ? cache[key] : null;
+    },
+    setItem(key: string, value: string) {
+      cache[key] = value;
+      saveCache();
+    },
+    removeItem(key: string) {
+      delete cache[key];
+      saveCache();
+    },
+    clear() {
+      cache = {};
+      saveCache();
+    },
+    get length() {
+      return Object.keys(cache).length;
+    },
+    key(index: number): string | null {
+      const keys = Object.keys(cache);
+      return keys[index] !== undefined ? keys[index] : null;
+    }
+  };
+
+  (globalThis as any).localStorage = mockLocalStorage;
+  (globalThis as any).window = globalThis;
+  console.log("[Firebase] Integrated file-backed localStorage persistence for Node.js Auth client.");
+} catch (err: any) {
+  console.warn("[Firebase] Failed to setup file-backed localStorage:", err.message);
+}
+
+let useFallbackConfig = false;
 
 const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
 const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf8'));
@@ -41,21 +74,21 @@ const SESSION_SECRET = process.env.SESSION_SECRET || "mFmqcdqsiI5hs3XgwbGrwrnBqw
 console.log("Server process starting... NODE_ENV:", process.env.NODE_ENV);
 
 // Initialize Firebase Admin
-if (!admin.apps.length) {
+if (!originalAdmin.apps.length) {
   try {
     const databaseURL = process.env.FIREBASE_DATABASE_URL || `https://${firebaseConfig.projectId}-default-rtdb.asia-southeast1.firebasedatabase.app/`;
-    admin.initializeApp({
+    originalAdmin.initializeApp({
       projectId: firebaseConfig.projectId,
       databaseURL: databaseURL
     });
     console.log(`[Firebase] Initialized with projectId: ${firebaseConfig.projectId} and databaseURL: ${databaseURL}`);
   } catch (e: any) {
     console.error("[Firebase] Standard app initialization error:", e.message);
-    admin.initializeApp();
+    originalAdmin.initializeApp();
   }
 }
 
-const firebaseApp = admin.app();
+const firebaseApp = originalAdmin.app();
 
 // Initialize Firestore - prioritizing the config but allowing fallback
 let currentDbId = firebaseConfig.firestoreDatabaseId || '(default)';
@@ -64,6 +97,17 @@ console.log(`[Firebase] Initializing with Database ID: ${currentDbId}`);
 const clientApp = initClientApp(firebaseConfig);
 const clientDb = getClientFirestore(clientApp, currentDbId);
 
+let clientAuth: any;
+try {
+  clientAuth = initializeAuth(clientApp, {
+    persistence: browserLocalPersistence
+  });
+  console.log("[Firebase] Initialized clientAuth with browserLocalPersistence successful.");
+} catch (e: any) {
+  console.warn("[Firebase] Failed to initialize clientAuth with browserLocalPersistence, falling back to getAuth:", e.message);
+  clientAuth = getClientAuth(clientApp);
+}
+
 const SERVER_SECRET = "be4c6d81-1cb2-4249-a5cd-7822e9fa2a91_server_secret";
 
 class FakeDoc {
@@ -71,7 +115,12 @@ class FakeDoc {
   get id() { return this.path.split('/').pop() || ''; }
   async get() { 
     const s = await getDoc(doc(clientDb, this.path)); 
-    return { exists: s.exists(), data: () => s.data(), id: s.id }; 
+    return { 
+      exists: s.exists(), 
+      data: () => s.data(), 
+      id: s.id,
+      ref: this
+    }; 
   }
   async set(data: any, opts?: any) {
     const enriched = { ...data, _serverSecret: SERVER_SECRET };
@@ -86,7 +135,7 @@ class FakeDoc {
     await deleteDoc(doc(clientDb, this.path)); 
   }
   onSnapshot(cb: any, err?: any) { 
-    return onSnapshot(doc(clientDb, this.path), (s) => cb({ exists: s.exists(), data: () => s.data(), id: s.id }), err); 
+    return onSnapshot(doc(clientDb, this.path), (s) => cb({ exists: s.exists(), data: () => s.data(), id: s.id, ref: this }), err); 
   }
   collection(name: string) { return new FakeCollection(this.path + '/' + name); }
 }
@@ -114,7 +163,17 @@ class FakeCollection {
       q = collection(clientDb, this.path);
     }
     const s = await getDocs(q); 
-    return { empty: s.empty, docs: s.docs.map(d => ({ exists: true, data: () => d.data(), id: d.id })) }; 
+    const docs = s.docs.map(d => ({ 
+      exists: true, 
+      data: () => d.data(), 
+      id: d.id,
+      ref: new FakeDoc(this.path + '/' + d.id)
+    }));
+    return { 
+      empty: s.empty, 
+      docs: docs,
+      forEach: (cb: any) => docs.forEach(cb)
+    }; 
   }
   
   async add(data: any) { 
@@ -125,52 +184,231 @@ class FakeCollection {
   }
 }
 
-const db: any = (function() {
-  try {
-    const adminDb = admin.firestore();
-    console.log("[Firebase] Successfully initialized real Admin Firestore.");
-    return adminDb;
-  } catch (e: any) {
-    console.warn("[Firebase] Admin Firestore initialization failed, using client fallback:", e.message);
-    const fallbackDb = {
-      collection: (name: string) => new FakeCollection(name),
-      runTransaction: async (cb: any) => {
-        return runTransaction(clientDb, async (tx) => {
-          const fakeTx = {
-            get: async (fakeR: any) => { 
-              const s = await tx.get(doc(clientDb, fakeR.path)); 
-              return { exists: s.exists(), data: () => s.data(), id: s.id }; 
-            },
-            set: (fakeR: any, data: any, opts?: any) => {
-              const enriched = { ...data, _serverSecret: SERVER_SECRET };
-              if (opts?.merge) tx.set(doc(clientDb, fakeR.path), enriched, { merge: true });
-              else tx.set(doc(clientDb, fakeR.path), enriched);
-              return fakeTx;
-            },
-            update: (fakeR: any, data: any) => { 
-              const enriched = { ...data, _serverSecret: SERVER_SECRET };
-              tx.update(doc(clientDb, fakeR.path), enriched); 
-              return fakeTx; 
-            },
-            delete: (fakeR: any) => { 
-              tx.delete(doc(clientDb, fakeR.path)); 
-              return fakeTx; 
-            }
-          };
-          return cb(fakeTx);
-        });
+const fallbackFieldValue = {
+  serverTimestamp: () => serverTimestamp(),
+  increment: (n: number) => increment(n),
+  arrayUnion: (...elements: any[]) => arrayUnion(...elements),
+  arrayRemove: (...elements: any[]) => arrayRemove(...elements)
+};
+
+const admin = new Proxy(originalAdmin, {
+  get(target, prop, receiver) {
+    if (prop === 'firestore') {
+      const fn = (dbId?: string) => {
+        return useFallbackConfig ? fallbackDb : getAdminFirestore(originalAdmin.app(), dbId === '(default)' ? undefined : dbId);
+      };
+      Object.defineProperty(fn, 'FieldValue', {
+        get() {
+          return useFallbackConfig ? fallbackFieldValue : AdminFieldValue;
+        },
+        configurable: true
+      });
+      return fn;
+    }
+    const val = Reflect.get(target, prop, receiver);
+    if (typeof val === 'function' && val !== null) {
+      return val.bind(target);
+    }
+    return val;
+  }
+});
+
+const fallbackDb = {
+  collection: (name: string) => new FakeCollection(name),
+  runTransaction: async (cb: any) => {
+    return runTransaction(clientDb, async (tx) => {
+      const fakeTx = {
+        get: async (fakeR: any) => { 
+          const s = await tx.get(doc(clientDb, fakeR.path)); 
+          return { 
+            exists: s.exists(), 
+            data: () => s.data(), 
+            id: s.id,
+            ref: fakeR
+          }; 
+        },
+        set: (fakeR: any, data: any, opts?: any) => {
+          const enriched = { ...data, _serverSecret: SERVER_SECRET };
+          if (opts?.merge) tx.set(doc(clientDb, fakeR.path), enriched, { merge: true });
+          else tx.set(doc(clientDb, fakeR.path), enriched);
+          return fakeTx;
+        },
+        update: (fakeR: any, data: any) => { 
+          const enriched = { ...data, _serverSecret: SERVER_SECRET };
+          tx.update(doc(clientDb, fakeR.path), enriched); 
+          return fakeTx; 
+        },
+        delete: (fakeR: any) => { 
+          tx.delete(doc(clientDb, fakeR.path)); 
+          return fakeTx; 
+        }
+      };
+      return cb(fakeTx);
+    });
+  },
+  batch: () => {
+    const b = writeBatch(clientDb);
+    const fakeBatch = {
+      set: (fakeR: any, data: any, opts?: any) => {
+        const enriched = { ...data, _serverSecret: SERVER_SECRET };
+        if (opts?.merge) b.set(doc(clientDb, fakeR.path), enriched, { merge: true });
+        else b.set(doc(clientDb, fakeR.path), enriched);
+        return fakeBatch;
+      },
+      update: (fakeR: any, data: any) => {
+        const enriched = { ...data, _serverSecret: SERVER_SECRET };
+        b.update(doc(clientDb, fakeR.path), enriched);
+        return fakeBatch;
+      },
+      delete: (fakeR: any) => {
+        b.delete(doc(clientDb, fakeR.path));
+        return fakeBatch;
+      },
+      commit: async () => {
+        await b.commit();
       }
     };
-    return fallbackDb;
+    return fakeBatch;
   }
-})();
+};
+
+const db: any = new Proxy({}, {
+  get(target, prop, receiver) {
+    const activeDb = useFallbackConfig ? fallbackDb : getAdminFirestore(originalAdmin.app(), currentDbId === '(default)' ? undefined : currentDbId);
+    return Reflect.get(activeDb, prop);
+  }
+});
+
+async function authenticateClientDb() {
+  const email = "system.backend.bot@spin71.bet";
+  const password = "SuperSecurePassword123!!_be4c6d81";
+  const botUid = "system-backend-bot-spin71";
+  
+  // Wait up to 1500ms for Firebase Auth to restore session from localStorage persistence
+  await new Promise<void>((resolve) => {
+    let resolved = false;
+    const unsubscribe = clientAuth.onAuthStateChanged((user: any) => {
+      if (user && user.email === email) {
+        console.log("[Firebase] Auth state restored on start for:", user.email);
+        resolved = true;
+        unsubscribe();
+        resolve();
+      }
+    });
+    setTimeout(() => {
+      if (!resolved) {
+        unsubscribe();
+        resolve();
+      }
+    }, 1500);
+  });
+
+  if (clientAuth.currentUser && clientAuth.currentUser.email === email) {
+    console.log("[Firebase] Dynamic fallback skip login - already signed in as:", email);
+    return;
+  }
+  
+  try {
+    const adminAuth = originalAdmin.auth();
+    try {
+      // First try to check by UID
+      const userRecord = await adminAuth.getUser(botUid);
+      // Ensure password, email and verification are up to date
+      await adminAuth.updateUser(botUid, {
+        email,
+        password,
+        emailVerified: true
+      });
+      console.log("[Firebase] Admin SDK updated fallback bot user successfully of UID: " + botUid);
+    } catch (authError: any) {
+      if (authError.code === 'auth/user-not-found') {
+        // Double check if there's an existing user with the same email but different UID (which would block us)
+        try {
+          const dupUser = await adminAuth.getUserByEmail(email);
+          console.log("[Firebase] Found duplicate email user, deleting: " + dupUser.uid);
+          await adminAuth.deleteUser(dupUser.uid);
+        } catch (e) {}
+        
+        await adminAuth.createUser({
+          uid: botUid,
+          email,
+          password,
+          emailVerified: true
+        });
+        console.log("[Firebase] Admin SDK created fallback bot user with fixed UID: " + botUid);
+      } else {
+        console.warn("[Firebase] Admin SDK Auth user sync warning:", authError.message);
+      }
+    }
+  } catch (err: any) {
+    console.warn("[Firebase] Admin Auth SDK helper failed, falling back to client-only auth flows:", err.message);
+  }
+
+  try {
+    await signInWithEmailAndPassword(clientAuth, email, password);
+    console.log("[Firebase] Dynamic fallback authenticated as bot:", email);
+  } catch (error: any) {
+    console.log("[Firebase] Fallback bot authentication failed on login:", error.message);
+    if (error.code === 'auth/invalid-credential' || error.message.includes('credential')) {
+      console.log("[Firebase] Since login failed with invalid credentials, attempting to delete and re-create bot via Admin Auth...");
+      try {
+        const adminAuth = originalAdmin.auth();
+        try {
+          await adminAuth.deleteUser(botUid);
+          console.log("[Firebase] Bot UID deleted successfully.");
+        } catch (dErr) {}
+        try {
+          const dupUser = await adminAuth.getUserByEmail(email);
+          await adminAuth.deleteUser(dupUser.uid);
+        } catch (dErr) {}
+        
+        await adminAuth.createUser({
+          uid: botUid,
+          email,
+          password,
+          emailVerified: true
+        });
+        console.log("[Firebase] Recreated fallback bot user.");
+      } catch (adminErr: any) {
+        console.error("[Firebase] Admin delete-and-recreate attempt failed:", adminErr.message);
+      }
+    }
+    
+    // Final sign-in/up attempt client-side
+    try {
+      await signInWithEmailAndPassword(clientAuth, email, password);
+      console.log("[Firebase] Dynamic fallback authenticated as bot (after correction):", email);
+    } catch (finalError: any) {
+      console.error("[Firebase] Dynamic fallback final login failed:", finalError.message);
+    }
+  }
+}
+
+async function runAdminConnectionProbe() {
+  try {
+    const realAdminDb = getAdminFirestore(originalAdmin.app(), currentDbId === '(default)' ? undefined : currentDbId);
+    const testRef = realAdminDb.collection('metadata').doc('probe_test');
+    await testRef.set({ timestamp: Date.now() });
+    await testRef.get();
+    console.log("[Firebase] Admin connection probe write successful. Root Firestore bypass works.");
+  } catch (err: any) {
+    console.warn("[Firebase] Admin connection probe failed or lacks permission:", err.message);
+    console.warn("[Firebase] Enforcing client-authenticated connection fallback dynamically...");
+    useFallbackConfig = true;
+    await authenticateClientDb();
+  }
+}
+
+// Fire check on load asynchronously
+runAdminConnectionProbe();
+
 let dbRT: any = null;
 try {
-  dbRT = admin.database();
+  dbRT = originalAdmin.database();
 } catch (e: any) {
   console.warn("[Firebase] Realtime Database skipped or failed to initialize:", e.message);
 }
-const auth = admin.auth();
+const auth = originalAdmin.auth();
 
 const TELEGRAM_BOT_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
 console.log("[Telegram] Token status:", TELEGRAM_BOT_TOKEN ? "Present" : "Missing", "Source:", process.env.TELEGRAM_BOT_TOKEN ? "Environment variable" : "Firestore/Fallback");
@@ -206,18 +444,6 @@ async function getTelegramConfig() {
   
   let envToken = (process.env.TELEGRAM_BOT_TOKEN || defaultToken).trim();
   let envChatId = (process.env.TELEGRAM_ADMIN_CHAT_ID || defaultChatId).trim();
-
-  // Explicit safety check: If environment contains exactly the old or stale token, discard and use default
-  if (
-    envToken === "7613844889:AAFqpJxJloWaHxRTi2XuB08JYIpyTr9b2ok"
-  ) {
-    console.log("[Telegram] Discarded old/stale environment bot token, forcing correct token.");
-    envToken = defaultToken;
-  }
-  if (!envChatId || envChatId === "6543227982_stale") {
-    console.log("[Telegram] Discarded old/stale admin chat ID, forcing correct admin split.");
-    envChatId = defaultChatId;
-  }
   
   // Basic validation for token format (digits:random_chars)
   const isTokenValidFormat = (t: string) => /^\d+:[^:\s]{30,}$/.test(t);
@@ -276,14 +502,6 @@ async function getTelegramConfig() {
         console.error("[Telegram] Error fetching Telegram configs from Firestore:", errMsg);
       }
     }
-  }
-  
-  // One final fallback safety overlay to ensure no old/stale keys slip past
-  if (token === "7613844889:AAFqpJxJloWaHxRTi2XuB08JYIpyTr9b2ok") {
-    token = defaultToken;
-  }
-  if (chatId === "6543227982_stale") {
-    chatId = defaultChatId;
   }
 
   if (cachedTelegramConfig) {
@@ -594,9 +812,12 @@ async function pollTelegramUpdates() {
 
             // --- AUTOMATED SIGNAL COMMANDS ---
             const cleanText = text.trim().toLowerCase();
+            const isOwnAi = cleanText === '/own.ai' || cleanText === 'own.ai' || cleanText.startsWith('/own.ai@');
+            const isStop = cleanText === '/stop' || cleanText === 'stop' || cleanText.startsWith('/stop@');
             
-            if (cleanText === '/own.ai') {
+            if (isOwnAi) {
               console.log(`[Telegram Sub] Adding subscriber: ${chatId}`);
+              telegramOptedOut.delete(chatId);
               telegramSubscribers.add(chatId);
               // Save to Firestore for durability
               if (db) {
@@ -604,6 +825,9 @@ async function pollTelegramUpdates() {
                   chatId: chatId,
                   subscribedAt: new Date().toISOString()
                 }).catch((err: any) => console.error("[Telegram Sub] Firestore save failed:", err.message));
+                db.collection('telegram_opt_outs').doc(chatId).delete().catch((err: any) => 
+                  console.error("[Telegram OptOut] Firestore delete failed:", err.message)
+                );
               }
               try {
                 await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
@@ -621,14 +845,19 @@ async function pollTelegramUpdates() {
               continue;
             }
             
-            if (cleanText === '/stop') {
+            if (isStop) {
               console.log(`[Telegram Sub] Removing subscriber: ${chatId}`);
+              telegramOptedOut.add(chatId);
               const deleted = telegramSubscribers.delete(chatId);
               // Remove from Firestore
               if (db) {
                 db.collection('telegram_subscribers').doc(chatId).delete().catch((err: any) => 
                   console.error("[Telegram Sub] Firestore delete failed:", err.message)
                 );
+                db.collection('telegram_opt_outs').doc(chatId).set({
+                  chatId: chatId,
+                  optedOutAt: new Date().toISOString()
+                }).catch((err: any) => console.error("[Telegram OptOut] Firestore save failed:", err.message));
               }
               try {
                 await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
@@ -636,9 +865,7 @@ async function pollTelegramUpdates() {
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     chat_id: chatId,
-                    text: deleted ? 
-                      `🚫 <b>অটোমেটিক সিগন্যাল বন্ধ করা হয়েছে!</b>\nআবার চালু করতে /own.ai টাইপ করুন।` :
-                      `⚠️ <b>অটোমেটিক সিগন্যাল ইতিমধ্যেই বন্ধ আছে।</b>\nচালু করতে /own.ai টাইপ করুন।`,
+                    text: `🚫 <b>অটোমেটিক সিগন্যাল বন্ধ করা হয়েছে!</b>\nআবার চালু করতে /own.ai টাইপ করুন।`,
                     parse_mode: 'HTML'
                   })
                 });
@@ -953,6 +1180,7 @@ let currentAviatorState = {
 
 const aviatorClients: any[] = [];
 const telegramSubscribers = new Set<string>();
+const telegramOptedOut = new Set<string>();
 
 async function broadcastAviatorPredictionToTelegram(roundId: string, crashPoint: number) {
   try {
@@ -962,13 +1190,15 @@ async function broadcastAviatorPredictionToTelegram(roundId: string, crashPoint:
     // Collect all chats we want to notify
     const recipientChats = new Set<string>();
     
-    if (configChatId && configChatId !== "telegram_admin_chat_id") {
+    if (configChatId && configChatId !== "telegram_admin_chat_id" && !telegramOptedOut.has(configChatId)) {
       recipientChats.add(configChatId);
     }
     
     // Only add manually subscribed users.
     telegramSubscribers.forEach(chat => {
-      recipientChats.add(chat);
+      if (!telegramOptedOut.has(chat)) {
+        recipientChats.add(chat);
+      }
     });
 
     if (recipientChats.size === 0) return;
@@ -1065,7 +1295,7 @@ async function startAviatorLoop(firestoreDb: any) {
     const syncInterval = setInterval(fetchOverride, 1000);
     console.log("[Aviator Override Sync] Polling service started (1s interval)");
     
-    // Load persisted Telegram subscribers on startup
+    // Load persisted Telegram subscribers and opt-outs on startup
     try {
       firestoreDb.collection('telegram_subscribers').get().then((snapshot: any) => {
         if (snapshot && snapshot.docs) {
@@ -1082,8 +1312,24 @@ async function startAviatorLoop(firestoreDb: any) {
       }).catch((err: any) => {
         console.error("[Telegram Sub Init] Error reading subscribers from Firestore:", err.message);
       });
+
+      firestoreDb.collection('telegram_opt_outs').get().then((snapshot: any) => {
+        if (snapshot && snapshot.docs) {
+          let count = 0;
+          snapshot.docs.forEach((docSnap: any) => {
+            const data = docSnap.data();
+            if (data && data.chatId) {
+              telegramOptedOut.add(String(data.chatId));
+              count++;
+            }
+          });
+          console.log(`[Telegram Opt-out] Loaded ${count} opted-out chats from Firestore.`);
+        }
+      }).catch((err: any) => {
+        console.error("[Telegram Opt-out Init] Error reading opt-outs from Firestore:", err.message);
+      });
     } catch (subInitErr: any) {
-      console.error("[Telegram Sub Init] Crash trying to query subscription database:", subInitErr.message);
+      console.error("[Telegram Sub Init] Crash trying to query subscription database/opt-outs:", subInitErr.message);
     }
   }
 
@@ -2467,6 +2713,126 @@ async function startServer() {
 
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // --- Aviator Game Actions API ---
+  app.post("/api/game/aviator/action", async (req, res) => {
+    const { action, amount, idToken, multiplier } = req.body;
+    
+    if (!idToken || !action) {
+      return res.status(400).json({ error: "Missing action or token" });
+    }
+
+    try {
+      console.log(`[Aviator Action - Request] Start, Action: ${action}, Amount: ${amount}`);
+      const decodedToken = await auth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      console.log(`[Aviator Action - Authenticated] User: ${uid}`);
+      const userRef = db.collection('users').doc(uid);
+
+      let finalBalance = 0;
+      let responseData: any = { success: true };
+
+      console.log(`[Aviator Action] User: ${uid}, Action: ${action}, Amount: ${amount}`);
+      await db.runTransaction(async (transaction: any) => {
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists) throw new Error("User missing");
+        
+        const userData = userDoc.data()!;
+        const currentBalance = userData.balance || 0;
+
+        if (action === 'bet') {
+          if (amount <= 0 || typeof amount !== 'number') {
+            throw new Error("Invalid bet amount");
+          }
+          if (currentBalance < amount) {
+            throw new Error("insuff_balance");
+          }
+          finalBalance = currentBalance - amount;
+          transaction.update(userRef, {
+            balance: finalBalance,
+            updatedAt: new Date().toISOString()
+          });
+          
+          // Log secure bet in Firestore
+          const betRef = db.collection('bets').doc();
+          transaction.set(betRef, {
+            userId: uid,
+            betAmount: amount,
+            winAmount: 0,
+            status: 'placed',
+            gameType: 'aviator',
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          responseData.betId = betRef.id;
+
+        } else if (action === 'cancel') {
+          if (amount <= 0 || typeof amount !== 'number') {
+            throw new Error("Invalid amount");
+          }
+          finalBalance = currentBalance + amount;
+          transaction.update(userRef, {
+            balance: finalBalance,
+            updatedAt: new Date().toISOString()
+          });
+
+        } else if (action === 'cashout') {
+          if (amount <= 0 || typeof amount !== 'number') {
+            throw new Error("Invalid bet amount");
+          }
+          const multVal = Number(multiplier);
+          if (isNaN(multVal) || multVal < 1.0) {
+            throw new Error("Invalid cashout multiplier");
+          }
+
+          // Anti-Cheat: Validate multiplier with current server state
+          const maxAllowedMult = currentAviatorState.crashPoint;
+          if (multVal > maxAllowedMult + 0.05) {
+            throw new Error("cheat_detected");
+          }
+
+          const winAmount = Math.floor(amount * multVal);
+          finalBalance = currentBalance + winAmount;
+
+          transaction.update(userRef, {
+            balance: finalBalance,
+            updatedAt: new Date().toISOString()
+          });
+
+          // Log win bet record in Firestore
+          const betRef = db.collection('bets').doc();
+          transaction.set(betRef, {
+            userId: uid,
+            betAmount: amount,
+            winAmount: winAmount,
+            multiplier: multVal,
+            symbols: ['plane'],
+            status: 'cashed_out',
+            gameType: 'aviator',
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          responseData.winAmount = winAmount;
+          responseData.betId = betRef.id;
+        } else {
+          throw new Error("Unknown action");
+        }
+      });
+
+      res.json({
+        ...responseData,
+        newBalance: finalBalance
+      });
+
+    } catch (error: any) {
+      console.error("[Aviator API Action Error]:", error.message);
+      if (error.message === "insuff_balance") {
+        res.status(400).json({ error: "আপনার ব্যালেন্স পর্যাপ্ত নয়" });
+      } else if (error.message === "cheat_detected") {
+        res.status(400).json({ error: "ক্র্যাশ অতিক্রম করার কারণে ক্যাশআউট ব্যর্থ হয়েছে!" });
+      } else {
+        res.status(500).json({ error: error.message || "Failed to process Aviator action" });
+      }
     }
   });
 

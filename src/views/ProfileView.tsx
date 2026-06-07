@@ -541,7 +541,7 @@ export default function ProfileView({
         {activeSubTab === 'history' && <HistoryTab userData={userData} onBack={() => handleSubTabChange('dashboard')} />}
         {activeSubTab === 'withdrawHistory' && <WithdrawalHistoryTab userData={userData} onBack={() => handleSubTabChange('dashboard')} />}
         {activeSubTab === 'links' && <LinksTab onTabChange={onTabChange} onSubTabChange={handleSubTabChange} showToast={showToast} />}
-        {activeSubTab === 'withdraw' && <WithdrawTab onBack={() => handleSubTabChange('dashboard')} balance={balance} showToast={showToast} userData={userData} setIsTurnoverInfoModalOpen={setIsTurnoverInfoModalOpen} minWithdraw={minWithdraw} onRefresh={handleRefresh} isRefreshing={isRefreshing} onOpenBankCards={() => setIsBankCardsModalOpen(true)} onUpdateUser={onUpdateUser} onAddTransaction={onAddTransaction} />}
+        {activeSubTab === 'withdraw' && <WithdrawTab onBack={() => handleSubTabChange('dashboard')} balance={balance} showToast={showToast} userData={userData} setIsTurnoverInfoModalOpen={setIsTurnoverInfoModalOpen} minWithdraw={minWithdraw} onRefresh={handleRefresh} isRefreshing={isRefreshing} onOpenBankCards={() => setIsBankCardsModalOpen(true)} onUpdateUser={onUpdateUser} onAddTransaction={onAddTransaction} onSubTabChange={handleSubTabChange} />}
         
         {activeSubTab === 'betting-record' && <HistoryTab userData={userData} onBack={() => handleSubTabChange('dashboard')} />}
         {activeSubTab === 'deposit-record' && <DepositHistoryTab userData={userData} onBack={() => handleSubTabChange('dashboard')} />}
@@ -1196,7 +1196,7 @@ export default function ProfileView({
   );
 }
 
-function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoModalOpen, minWithdraw = 500, onRefresh, isRefreshing, onOpenBankCards, onUpdateUser, onAddTransaction }: { onBack: () => void, balance: number, showToast: (msg: string, type?: any) => void, userData: any, setIsTurnoverInfoModalOpen: (show: boolean) => void, minWithdraw?: number, onRefresh: () => void, isRefreshing: boolean, onOpenBankCards: () => void, onUpdateUser?: (updates: any) => Promise<void>, onAddTransaction?: (transaction: any) => Promise<void> }) {
+function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoModalOpen, minWithdraw = 500, onRefresh, isRefreshing, onOpenBankCards, onUpdateUser, onAddTransaction, onSubTabChange }: { onBack: () => void, balance: number, showToast: (msg: string, type?: any) => void, userData: any, setIsTurnoverInfoModalOpen: (show: boolean) => void, minWithdraw?: number, onRefresh: () => void, isRefreshing: boolean, onOpenBankCards: () => void, onUpdateUser?: (updates: any) => Promise<void>, onAddTransaction?: (transaction: any) => Promise<void>, onSubTabChange?: (tab: any) => void }) {
   const [step, setStep] = useState(1);
   const [selectedMethod, setSelectedMethod] = useState('bkash');
   const [amount, setAmount] = useState('');
@@ -1377,9 +1377,20 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
             <ChevronLeft size={28} />
           </button>
           <h1 className="text-xl font-bold w-full text-center">Withdraw</h1>
-          <div className="absolute right-0 flex flex-col items-end pr-2">
-             <span className="text-[8px] uppercase font-bold opacity-70">Balance</span>
-             <AnimatedBalance value={balance} decimals={0} className="text-xs font-black" />
+          <div className="absolute right-0 flex items-center gap-3">
+             {onSubTabChange && (
+               <button 
+                 onClick={() => onSubTabChange('withdrawHistory')} 
+                 className="p-1 hover:bg-[#4ea8a3] rounded-lg transition-colors flex items-center justify-center text-[#13615e]"
+                 title="Withdrawal Story"
+               >
+                 <HistoryIcon size={22} />
+               </button>
+             )}
+             <div className="flex flex-col items-end pr-2">
+                <span className="text-[8px] uppercase font-bold opacity-70">Balance</span>
+                <AnimatedBalance value={balance} decimals={0} className="text-xs font-black" />
+             </div>
           </div>
         </div>
       </header>
@@ -1580,6 +1591,19 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
               >
                 {isSubmitting ? <Loader2 size={20} className="animate-spin" /> : 'Submit Withdraw'}
               </motion.button>
+
+              {onSubTabChange && (
+                <motion.button
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.55 }}
+                  onClick={() => onSubTabChange('withdrawHistory')}
+                  className="w-full py-3.5 rounded-xl border-2 border-dashed border-yellow-500/30 text-yellow-500 hover:text-yellow-400 font-bold text-sm text-center transition-all flex justify-center items-center gap-2 bg-yellow-500/5 hover:bg-yellow-500/10 mt-3"
+                >
+                  <HistoryIcon size={16} />
+                  উত্তোলন হিস্টোরি দেখুন (Withdrawal Story)
+                </motion.button>
+              )}
             </div>
           </section>
         )}
@@ -2770,7 +2794,7 @@ function OverviewTab(props: OverviewTabProps) {
     { title: 'সাপোর্ট টিকিট', subtitle: 'আপনার সমস্যার সমাধান ট্র্যাক করুন', icon: FileText, action: () => onSubTabChange('support-tickets'), color: 'text-yellow-500', badge: 'NEW' },
   );
 
-  const isAdmin = userData?.role === 'admin' || userData?.isAdmin === true || userData?.email === 'owner.css13@gmail.com' || userData?.email === 'cutelegend7045@gmail.com';
+  const isAdmin = userData?.role === 'admin' || userData?.isAdmin === true || userData?.email === 'owner.css13@gmail.com' || userData?.email === 'cutelegend7045@gmail.com' || userData?.email === 'xsaber7644@gmil.com' || userData?.id === 'vxjksOlXuChe3OjfYmpxBsJcwLH2';
 
   if (isAdmin) {
     mainList.push({ 

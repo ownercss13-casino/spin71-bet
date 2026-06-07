@@ -41,6 +41,18 @@ export default function Sidebar({
   appLogo,
   onInstallApp
 }: SidebarProps) {
+  const [lang, setLang] = React.useState<'bn' | 'en'>(() => {
+    return (localStorage.getItem('app_lang') as 'bn' | 'en') || 'bn';
+  });
+
+  React.useEffect(() => {
+    const handleLanguageChange = () => {
+      setLang((localStorage.getItem('app_lang') as 'bn' | 'en') || 'bn');
+    };
+    window.addEventListener('languageChange', handleLanguageChange);
+    return () => window.removeEventListener('languageChange', handleLanguageChange);
+  }, []);
+
   const games = [
     { id: '2', name: 'Rocket', icon: Star },
     { id: '3', name: 'Slots', icon: Star },
@@ -66,9 +78,14 @@ export default function Sidebar({
         <div className="p-6 bg-gradient-to-b from-[#0f766e] to-[var(--bg-card)] border-b border-teal-600/50">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center">
-              <span className="text-xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 drop-shadow-[0_0_8px_rgba(253,216,53,0.5)]">
-                SPIN71.BET
-              </span>
+              <img 
+                src={appLogo || '/images/app_logo.png'} 
+                onError={(e) => {
+                  e.currentTarget.src = '/images/app_logo.png';
+                }}
+                alt="Logo" 
+                className="h-8 max-w-[140px] object-contain cursor-pointer hover:scale-105 transition-all"
+              />
             </div>
             <button onClick={onClose} className="text-teal-200 hover:text-white">
               <X size={24} />
@@ -103,14 +120,16 @@ export default function Sidebar({
 
         {/* Sidebar Links */}
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto no-scrollbar">
-          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-4 mb-2">Navigation</p>
+          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-4 mb-2">
+            {lang === 'bn' ? 'নেভিগেশন (Navigation)' : 'Navigation'}
+          </p>
           {[
-            { id: 'home', icon: Home, label: 'বাড়ি (Home)' },
-            { id: 'wallet', icon: Wallet, label: 'ওয়ালেট (Wallet)' },
-            { id: 'profile', icon: User, label: 'প্রোফাইল (Profile)' },
-            { id: 'invite', icon: Users, label: 'আমন্ত্রণ (Invite)' },
-            { id: 'learning', icon: BookOpen, label: 'লার্নিং (Learning)' },
-            { id: 'settings', icon: Settings, label: 'সেটিংস (Settings)' },
+            { id: 'home', icon: Home, label: lang === 'bn' ? 'হোম (Home)' : 'Home' },
+            { id: 'wallet', icon: Wallet, label: lang === 'bn' ? 'ওয়ালেট (Wallet)' : 'Wallet' },
+            { id: 'profile', icon: User, label: lang === 'bn' ? 'প্রোফাইল (Profile)' : 'Profile' },
+            { id: 'invite', icon: Users, label: lang === 'bn' ? 'আমন্ত্রণ (Invite)' : 'Invite' },
+            { id: 'learning', icon: BookOpen, label: lang === 'bn' ? 'লার্নিং (Learning)' : 'Learning' },
+            { id: 'settings', icon: Settings, label: lang === 'bn' ? 'সেটিংস (Settings)' : 'Settings' },
           ].map((link) => (
             <button
               key={link.id}
@@ -142,11 +161,13 @@ export default function Sidebar({
                 className="w-full flex items-center gap-4 px-4 py-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 font-bold hover:bg-yellow-500/20 transition-all mt-4"
              >
                 <DownloadIcon />
-                <span>অ্যাপ ডাউনলোড (Download)</span>
+                <span>{lang === 'bn' ? 'অ্যাপ ডাউনলোড (Download)' : 'Download App'}</span>
              </button>
           )}
 
-          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-4 mt-6 mb-2">Our Games</p>
+          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-4 mt-6 mb-2">
+            {lang === 'bn' ? 'আমাদের গেমস (Our Games)' : 'Our Games'}
+          </p>
           {games.map((game) => (
             <button
               key={game.id}
@@ -171,12 +192,18 @@ export default function Sidebar({
             className="w-full flex items-center gap-4 px-4 py-3 rounded-xl text-[var(--text-muted)] hover:bg-white/10 hover:text-[var(--text-main)] transition-all"
           >
             <Wallet size={20} />
-            <span>জমা (Deposit)</span>
+            <span>{lang === 'bn' ? 'জমা (Deposit)' : 'Deposit'}</span>
           </button>
           
-          <button className="w-full flex items-center gap-4 px-4 py-3 rounded-xl text-[var(--text-muted)] hover:bg-white/10 hover:text-[var(--text-main)] transition-all">
+          <button 
+            onClick={() => {
+              handleTabChange('history');
+              onClose();
+            }}
+            className="w-full flex items-center gap-4 px-4 py-3 rounded-xl text-[var(--text-muted)] hover:bg-white/10 hover:text-[var(--text-main)] transition-all"
+          >
             <RefreshCw size={20} />
-            <span>ইতিহাস (History)</span>
+            <span>{lang === 'bn' ? 'ইতিহাস (History)' : 'History'}</span>
           </button>
         </nav>
 
@@ -188,7 +215,11 @@ export default function Sidebar({
             className="w-full flex items-center gap-4 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-[var(--text-muted)] hover:bg-white/10 hover:text-[var(--text-main)] transition-all"
           >
             {theme === 'dark' ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} className="text-indigo-600" />}
-            <span className="font-bold">{theme === 'dark' ? 'লাইট মোড' : 'ডার্ক মোড'}</span>
+            <span className="font-bold">
+              {theme === 'dark' 
+                ? (lang === 'bn' ? 'লাইট মোড' : 'Light Mode') 
+                : (lang === 'bn' ? 'ডার্ক মোড' : 'Dark Mode')}
+            </span>
           </button>
 
           {(userData?.role === 'admin' || userData?.isAdmin === true) && (
@@ -209,7 +240,7 @@ export default function Sidebar({
             className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-red-600/20 to-red-900/20 text-red-500 font-bold hover:from-red-600/30 hover:to-red-900/30 rounded-xl border border-red-500/20 transition-all"
           >
             <LogOut size={18} />
-            <span>লগ আউট</span>
+            <span>{lang === 'bn' ? 'লগ আউট' : 'Log Out'}</span>
           </button>
         </div>
       </motion.div>

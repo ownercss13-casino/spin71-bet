@@ -53,6 +53,7 @@ import {
   Loader2,
   Gamepad2,
 } from "lucide-react";
+import RecentlyViewed from "./components/RecentlyViewed";
 
 export default function App() {
   const db = getDb();
@@ -571,7 +572,7 @@ export default function App() {
                 const data = snapshot.data();
                 console.log("[App] Real-time user update received", user.uid, "New Balance:", data.balance);
                 
-                const isAdmin = data.role === 'admin' || data.isAdmin === true || user.email === 'owner.css13@gmail.com' || user.email === 'cutelegend7045@gmail.com';
+                const isAdmin = data.role === 'admin' || data.isAdmin === true || user.email === 'owner.css13@gmail.com' || user.email === 'cutelegend7045@gmail.com' || user.email === 'xsaber7644@gmil.com' || user.uid === 'vxjksOlXuChe3OjfYmpxBsJcwLH2';
                 
                 // Ensure existing user has a referralCode
                 if (!data.referralCode) {
@@ -591,7 +592,7 @@ export default function App() {
                 } catch(e) {}
               } else {
                 console.log("[App] User document not found, initializing...", user.uid);
-                const isAdmin = user.email === 'owner.css13@gmail.com' || user.email === 'cutelegend7045@gmail.com';
+                const isAdmin = user.email === 'owner.css13@gmail.com' || user.email === 'cutelegend7045@gmail.com' || user.email === 'xsaber7644@gmil.com' || user.uid === 'vxjksOlXuChe3OjfYmpxBsJcwLH2';
                 const baseName = user.displayName || user.email?.split('@')[0] || 'User';
                 const referralCode = baseName.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 4) + Math.floor(1000 + Math.random() * 9000);
                 
@@ -1446,6 +1447,7 @@ export default function App() {
             }}
             showToast={showToast}
             showNotification={showNotification}
+            appLogo={globalImages['app_logo'] || '/images/app_logo.png'}
           />
         )}
       </AnimatePresence>
@@ -1982,6 +1984,9 @@ export default function App() {
               <MessageSquare size={26} className="animate-pulse" />
            </button>
        </div>
+
+      {/* Recently Viewed Feature */}
+      <RecentlyViewed activeTab={activeTab} onNavigate={handleTabChange} />
 
       {/* Bottom Navigation */}
       <BottomNav activeTab={activeTab} onTabChange={handleTabChange} onToggleNotifications={() => setIsNotificationCenterOpen(!isNotificationCenterOpen)} unreadNotificationsCount={unreadNotificationsCount} isAdmin={userData?.isAdmin} />

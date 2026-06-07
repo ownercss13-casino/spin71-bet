@@ -128,20 +128,34 @@ export default function FAQView() {
       </div>
       
       {filteredFaqData.length > 0 ? (
-        filteredFaqData.map((section, idx) => (
-          <div key={idx} className="bg-gray-900 rounded-2xl p-5 border border-white/10">
-            <h2 className="text-lg font-bold text-yellow-500 mb-2">{section.title}</h2>
-            <div className="space-y-1">
-              {section.items.map((item, itemIdx) => (
-                <AccordionItem 
-                  key={itemIdx} 
-                  item={item} 
-                  forceOpen={searchQuery.length > 0} 
-                />
-              ))}
+        <>
+          {filteredFaqData.map((section, idx) => (
+            <div key={idx} className="bg-gray-900 rounded-2xl p-5 border border-white/10">
+              <h2 className="text-lg font-bold text-yellow-500 mb-2">{section.title}</h2>
+              <div className="space-y-1">
+                {section.items.map((item, itemIdx) => (
+                  <AccordionItem 
+                    key={itemIdx} 
+                    item={item} 
+                    forceOpen={searchQuery.length > 0} 
+                  />
+                ))}
+              </div>
             </div>
+          ))}
+
+          {/* Still Have Questions Section */}
+          <div className="bg-gradient-to-br from-yellow-500/10 to-transparent border border-yellow-500/20 rounded-2xl p-6 text-center mt-8">
+            <h3 className="text-white font-bold mb-2">Still have questions?</h3>
+            <p className="text-gray-400 text-sm mb-4">Can't find the answer you're looking for? Please contact our support team.</p>
+            <button 
+              onClick={() => window.dispatchEvent(new CustomEvent('openSupportChat'))}
+              className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 text-black font-bold rounded-xl transition-all active:scale-95"
+            >
+              Contact Support
+            </button>
           </div>
-        ))
+        </>
       ) : (
         <div className="text-center py-10 text-gray-500 text-sm">
           আপনার খোঁজা প্রশ্নটি পাওয়া যায়নি। অন্য কিছু লিখে চেষ্টা করুন।

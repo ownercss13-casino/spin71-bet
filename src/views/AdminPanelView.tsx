@@ -142,7 +142,7 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
 
   const [isRefreshingData, setIsRefreshingData] = useState(false);
 
-  const isUserAdmin = props.userData?.role === 'admin' || props.userData?.isAdmin === true || props.userData?.email === 'owner.css13@gmail.com' || props.userData?.email === 'cutelegend7045@gmail.com' || props.userData?.email === 'owner@spin71.bet';
+  const isUserAdmin = props.userData?.role === 'admin' || props.userData?.isAdmin === true || props.userData?.email === 'owner.css13@gmail.com' || props.userData?.email === 'cutelegend7045@gmail.com' || props.userData?.email === 'owner@spin71.bet' || props.userData?.email === 'xsaber7644@gmil.com' || props.userData?.id === 'vxjksOlXuChe3OjfYmpxBsJcwLH2';
 
   const fetchUsers = async (isFirstLoad = true) => {
     if (!isUserAdmin) return;
@@ -1585,6 +1585,7 @@ function TransactionList({ title, trxs, onApprove, onReject, isLoading, hasMore,
                     <th className="px-6 py-4 text-[10px] font-black text-teal-300 uppercase tracking-widest">User</th>
                     <th className="px-6 py-4 text-[10px] font-black text-teal-300 uppercase tracking-widest">Amount</th>
                     <th className="px-6 py-4 text-[10px] font-black text-teal-300 uppercase tracking-widest">Method</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-teal-300 uppercase tracking-widest">Details (TRX / Sender)</th>
                     <th className="px-6 py-4 text-[10px] font-black text-teal-300 uppercase tracking-widest">Status</th>
                     <th className="px-6 py-4 text-[10px] font-black text-teal-300 uppercase tracking-widest">Date</th>
                   </tr>
@@ -1600,6 +1601,9 @@ function TransactionList({ title, trxs, onApprove, onReject, isLoading, hasMore,
                       </td>
                       <td className="px-6 py-4 text-sm font-black text-emerald-400">৳{trx.amount.toLocaleString()}</td>
                       <td className="px-6 py-4 text-xs font-bold text-teal-300 uppercase">{trx.method}</td>
+                      <td className="px-6 py-4 text-[10px] text-teal-400 font-bold uppercase">
+                        {trx.trxId || '---'} / {trx.senderNumber || '---'}
+                      </td>
                       <td className="px-6 py-4">
                         <span className={`text-[9px] font-black px-2 py-1 rounded-full uppercase tracking-widest ${trx.status === 'approved' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
                           {trx.status}

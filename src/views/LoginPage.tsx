@@ -85,9 +85,10 @@ interface LoginPageProps {
   isLoggedIn?: boolean;
   welcomeBonus?: number;
   initialMode?: 'login' | 'register';
+  appLogo?: string;
 }
 
-export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSuccess, showToast, showNotification, casinoName = "SPIN71.bet", isLoggedIn = false, welcomeBonus = 507, initialMode = 'login' }: LoginPageProps) {
+export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSuccess, showToast, showNotification, casinoName = "SPIN71.bet", isLoggedIn = false, welcomeBonus = 507, initialMode = 'login', appLogo }: LoginPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'forgot-password' | 'register'>(initialMode);
@@ -232,7 +233,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         }
 
         const cleanDisplayName = (user.displayName || 'Google User').replace(/[^a-zA-Z0-9]/g, '').substring(0, 13) || `g${user.uid.substring(0,5)}`;
-        const isAdmin = user.email === 'owner.css13@gmail.com' || user.email === 'cutelegend7045@gmail.com';
+        const isAdmin = user.email === 'owner.css13@gmail.com' || user.email === 'cutelegend7045@gmail.com' || user.email === 'xsaber7644@gmil.com' || user.uid === 'vxjksOlXuChe3OjfYmpxBsJcwLH2';
         
         const newUser = {
           username: cleanDisplayName,
@@ -473,7 +474,10 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       {/* Top Banner Image with Close Button */}
       <div className="relative w-full bg-[#0d1a29] flex justify-center shrink-0 py-8">
         <img 
-          src="https://www.image2url.com/r2/default/images/1780593621856-8a111c3d-ba6c-4653-b27b-cd669339690b.jpg" 
+          src={appLogo || '/images/app_logo.png'} 
+          onError={(e) => {
+            e.currentTarget.src = '/images/app_logo.png';
+          }}
           alt="Spin71.Bet Logo" 
           className="h-32 md:h-48 lg:h-56 object-contain drop-shadow-[0_0_30px_rgba(253,216,53,0.4)]"
           referrerPolicy="no-referrer"
