@@ -38,28 +38,28 @@ export default function LeaderboardView({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     setLoading(true);
-    const usersRef = collection(db, 'users');
     
-    let sortField = 'totalReferralEarnings';
-    if (activeCategory === 'balance') sortField = 'balance';
-    if (activeCategory === 'deposits') sortField = 'totalDeposits';
+    let isMounted = true;
+    fetch(`/api/leaderboard?category=${activeCategory}`)
+      .then(res => res.json())
+      .then(data => {
+        if (isMounted) {
+          if (data.success && data.users) {
+            setUsers(data.users);
+          }
+          setLoading(false);
+        }
+      })
+      .catch(err => {
+        console.error("Leaderboard fetch error:", err);
+        if (isMounted) {
+          setLoading(false);
+        }
+      });
 
-    const q = query(usersRef, orderBy(sortField, 'desc'), limit(15));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const usersData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as LeaderboardUser[];
-      
-      setUsers(usersData);
-      setLoading(false);
-    }, (error) => {
-      console.error("Leaderboard fetch error:", error);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    return () => {
+      isMounted = false;
+    };
   }, [activeCategory, timeframe]);
 
   const categories = [

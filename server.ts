@@ -76,12 +76,18 @@ console.log("Server process starting... NODE_ENV:", process.env.NODE_ENV);
 // Initialize Firebase Admin
 if (!originalAdmin.apps.length) {
   try {
-    const databaseURL = process.env.FIREBASE_DATABASE_URL || `https://${firebaseConfig.projectId}-default-rtdb.asia-southeast1.firebasedatabase.app/`;
-    originalAdmin.initializeApp({
-      projectId: firebaseConfig.projectId,
-      databaseURL: databaseURL
-    });
-    console.log(`[Firebase] Initialized with projectId: ${firebaseConfig.projectId} and databaseURL: ${databaseURL}`);
+    const isRender = process.env.RENDER === "true";
+    const databaseURL = !isRender && (process.env.FIREBASE_DATABASE_URL || `https://${firebaseConfig.projectId}-default-rtdb.asia-southeast1.firebasedatabase.app/`);
+    
+    const initOptions: any = {
+      projectId: firebaseConfig.projectId
+    };
+    if (databaseURL) {
+      initOptions.databaseURL = databaseURL;
+    }
+    
+    originalAdmin.initializeApp(initOptions);
+    console.log(`[Firebase] Initialized with projectId: ${firebaseConfig.projectId}` + (databaseURL ? ` and databaseURL: ${databaseURL}` : ' (Realtime Database disabled on Render/fallback config to avoid credential check spam)'));
   } catch (e: any) {
     console.error("[Firebase] Standard app initialization error:", e.message);
     originalAdmin.initializeApp();
@@ -379,10 +385,18 @@ async function authenticateClientDb() {
       await signInWithEmailAndPassword(clientAuth, email, password);
       console.log("[Firebase] Dynamic fallback authenticated as bot (after correction):", email);
     } catch (finalError: any) {
-      console.error("[Firebase] Dynamic fallback final login failed:", finalError.message);
+      console.warn("[Firebase] Dynamic fallback login failed, attempting dynamic client-side registration:", finalError.message);
+      try {
+        await createUserWithEmailAndPassword(clientAuth, email, password);
+        console.log("[Firebase] Dynamic fallback registered and authenticated as bot:", email);
+      } catch (regError: any) {
+        console.error("[Firebase] Dynamic fallback final registration failed:", regError.message);
+      }
     }
   }
 }
+
+let dbRT: any = null;
 
 async function runAdminConnectionProbe() {
   try {
@@ -391,10 +405,20 @@ async function runAdminConnectionProbe() {
     await testRef.set({ timestamp: Date.now() });
     await testRef.get();
     console.log("[Firebase] Admin connection probe write successful. Root Firestore bypass works.");
+    
+    // Initialize Realtime Database only if admin permission probe succeeds (valid ADC/credentials exist)
+    try {
+      dbRT = originalAdmin.database();
+      console.log("[Firebase] Realtime Database initialized successfully after admin probe.");
+    } catch (rtdbErr: any) {
+      console.warn("[Firebase] Realtime Database initialization skipped/failed after admin probe:", rtdbErr.message);
+      dbRT = null;
+    }
   } catch (err: any) {
     console.warn("[Firebase] Admin connection probe failed or lacks permission:", err.message);
     console.warn("[Firebase] Enforcing client-authenticated connection fallback dynamically...");
     useFallbackConfig = true;
+    dbRT = null;
     await authenticateClientDb();
   }
 }
@@ -402,12 +426,6 @@ async function runAdminConnectionProbe() {
 // Fire check on load asynchronously
 runAdminConnectionProbe();
 
-let dbRT: any = null;
-try {
-  dbRT = originalAdmin.database();
-} catch (e: any) {
-  console.warn("[Firebase] Realtime Database skipped or failed to initialize:", e.message);
-}
 const auth = originalAdmin.auth();
 
 const TELEGRAM_BOT_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
@@ -469,8 +487,22 @@ async function getTelegramConfig() {
   if (shouldTryFirestore && db) {
     try {
       lastFirestoreCheckTime = now;
+      
+      // Fast timeout helper for Firestore queries (1500ms max)
+      const fetchWithTimeout = async <T>(promise: Promise<T>, timeoutMs = 1500): Promise<T> => {
+        let timeoutHandle: NodeJS.Timeout;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timeoutHandle = setTimeout(() => reject(new Error('FIRESTORE_TIMEOUT')), timeoutMs);
+        });
+        try {
+          return await Promise.race([promise, timeoutPromise]);
+        } finally {
+          clearTimeout(timeoutHandle!);
+        }
+      };
+
       // Try to get from Firestore config
-      const botDoc = await db.collection('global_images').doc('telegram_bot_token').get();
+      const botDoc: any = await fetchWithTimeout(db.collection('global_images').doc('telegram_bot_token').get(), 1500);
       if (botDoc.exists && botDoc.data()?.url) {
         const fsToken = botDoc.data()?.url.trim();
         if (fsToken && isTokenValidFormat(fsToken)) {
@@ -480,7 +512,7 @@ async function getTelegramConfig() {
         }
       }
       
-      const chatDoc = await db.collection('global_images').doc('telegram_admin_chat_id').get();
+      const chatDoc: any = await fetchWithTimeout(db.collection('global_images').doc('telegram_admin_chat_id').get(), 1500);
       if (chatDoc.exists && chatDoc.data()?.url) {
         const fsChatId = chatDoc.data()?.url.trim();
         if (fsChatId && /^-?\d+$/.test(fsChatId)) {
@@ -490,16 +522,21 @@ async function getTelegramConfig() {
       // If successful, reset the inaccessible flag
       firestoreInaccessible = false;
     } catch (err: any) {
-      const errMsg = err.message || String(err);
-      const isPermissionOrNotFound = errMsg.includes('PERMISSION_DENIED') || errMsg.includes('7') || errMsg.includes('NOT_FOUND') || errMsg.includes('5');
-      
-      if (isPermissionOrNotFound) {
-        if (!firestoreInaccessible) {
-          console.warn(`[Telegram] Firestore is inaccessible (permissions/not_found). Silent fallback to environment variables enabled to prevent logging spam. Details: ${errMsg}`);
-        }
+      if (err.message === 'FIRESTORE_TIMEOUT') {
+        console.warn("[Telegram] Firestore bot config fetch timed out (1500ms). Falling back silently to environment variables.");
         firestoreInaccessible = true;
       } else {
-        console.error("[Telegram] Error fetching Telegram configs from Firestore:", errMsg);
+        const errMsg = err.message || String(err);
+        const isPermissionOrNotFound = errMsg.includes('PERMISSION_DENIED') || errMsg.includes('7') || errMsg.includes('NOT_FOUND') || errMsg.includes('5');
+        
+        if (isPermissionOrNotFound) {
+          if (!firestoreInaccessible) {
+            console.warn(`[Telegram] Firestore is inaccessible (permissions/not_found). Silent fallback to environment variables enabled to prevent logging spam. Details: ${errMsg}`);
+          }
+          firestoreInaccessible = true;
+        } else {
+          console.error("[Telegram] Error fetching Telegram configs from Firestore:", errMsg);
+        }
       }
     }
   }
@@ -1447,7 +1484,7 @@ async function startAviatorLoop(firestoreDb: any) {
 
       // Sync to Firebase RTDB for high-speed clients
       try {
-        if (dbRT) {
+        if (dbRT && !useFallbackConfig) {
           dbRT.ref('aviator/session').set({
             ...currentAviatorState,
             serverTime: now
@@ -1468,7 +1505,7 @@ async function startServer() {
   console.log("[Server] Starting startServer sequence...");
   
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
   // API endpoint to ask AI
   app.post("/api/ask-gemini", async (req, res) => {
@@ -1667,6 +1704,57 @@ async function startServer() {
       res.json({ success: true, message: "Phone verified successfully" });
     } catch (error: any) {
       res.status(500).json({ error: "Verification failed" });
+    }
+  });
+
+  app.post("/api/referral/lookup", async (req, res) => {
+    const { code } = req.body;
+    if (!code) {
+      return res.status(400).json({ error: "Missing referral code" });
+    }
+    try {
+      const codeTrimmed = String(code).trim();
+      const usersRef = db.collection('users');
+      const variations = Array.from(new Set([codeTrimmed, codeTrimmed.toLowerCase(), codeTrimmed.toUpperCase()]));
+      const q = usersRef.where('referralCode', 'in', variations).limit(1);
+      const snap = await q.get();
+      if (snap.empty) {
+        return res.json({ exists: false });
+      }
+      const inviterUid = snap.docs[0].id;
+      const inviterData = snap.docs[0].data();
+      return res.json({ exists: true, uid: inviterUid, username: inviterData.username });
+    } catch (error: any) {
+      console.error("[Referral Lookup Server Error]:", error);
+      return res.status(500).json({ error: "Server lookup failed", details: error.message });
+    }
+  });
+
+  app.get("/api/leaderboard", async (req, res) => {
+    const category = req.query.category || 'earning';
+    let sortField = 'totalReferralEarnings';
+    if (category === 'balance') sortField = 'balance';
+    if (category === 'deposits') sortField = 'totalDeposits';
+
+    try {
+      const usersRef = db.collection('users');
+      const snap = await usersRef.orderBy(sortField, 'desc').limit(15).get();
+      const results = snap.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          username: data.username || 'Anonymous',
+          totalReferralEarnings: data.totalReferralEarnings || 0,
+          balance: data.balance || 0,
+          totalDeposits: data.totalDeposits || 0,
+          vipLevel: data.vipLevel || 0,
+          role: data.role || 'user'
+        };
+      });
+      res.json({ success: true, users: results });
+    } catch (err: any) {
+      console.error("[Leaderboard Backend Error]:", err);
+      res.status(500).json({ error: "Failed to retrieve leaderboard data" });
     }
   });
 

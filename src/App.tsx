@@ -487,9 +487,9 @@ export default function App() {
             balance: balance,
             gameName: game.name
           })
-        }).catch(e => console.error("Telegram notify failed", e));
+        }).catch(e => console.warn("Telegram notify skipped or offline:", e));
       } catch (e) {
-        console.error("Telegram notify failed", e);
+        console.warn("Telegram notify skipped or offline:", e);
       }
 
       setTimeout(() => {
@@ -1182,7 +1182,7 @@ export default function App() {
               })
             });
           } catch (tErr) {
-            console.error("Telegram notify failed", tErr);
+            console.warn("Telegram notify skipped or offline:", tErr);
           }
           
           showToast(`৳${amount} ডিপোজিট রিকোয়েস্ট পাঠানো হয়েছে। অ্যাডমিন অ্যাপ্রুভ করার জন্য অপেক্ষা করুন।`, "success");

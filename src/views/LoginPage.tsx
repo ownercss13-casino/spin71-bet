@@ -224,11 +224,18 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         let inviterUid = null;
         
         if (inviterCode) {
-           const usersRef = collection(db, 'users');
-           const q = query(usersRef, where('referralCode', '==', inviterCode), limit(1));
-           const snap = await getDocs(q);
-           if (!snap.empty) {
-             inviterUid = snap.docs[0].id;
+           try {
+             const lookupRes = await fetch('/api/referral/lookup', {
+               method: 'POST',
+               headers: { 'Content-Type': 'application/json' },
+               body: JSON.stringify({ code: inviterCode })
+             });
+             const lookupData = await lookupRes.json();
+             if (lookupData.exists) {
+               inviterUid = lookupData.uid;
+             }
+           } catch (lookupErr) {
+             console.error("[Referral Lookup Error]:", lookupErr);
            }
         }
 
@@ -324,20 +331,16 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         onLoginSuccess({ id: user.uid, ...userData });
       }, 1500);
       const escapeHTML = (str: string) => str.replace(/[&<>"']/g, m => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'}[m] || m));
-      try {
-        await fetch('/api/telegram/event', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            event: 'Login',
-            userId: user.uid,
-            username: userData.username,
-            balance: userData.balance
-          })
-        });
-      } catch (err) {
-        console.error("Telegram notification error", err);
-      }
+      fetch('/api/telegram/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'Login',
+          userId: user.uid,
+          username: userData.username,
+          balance: userData.balance
+        })
+      }).catch(err => console.warn("Telegram notification error (skipped):", err));
 
       onLoginSuccess({ id: user.uid, ...userData });
     } catch (err: any) {
@@ -364,12 +367,15 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       let inviterUid = null;
       if (inviterCodeRaw) {
          try {
-           const usersRef = collection(db, 'users');
-           const q = query(usersRef, where('referralCode', 'in', [inviterCodeRaw, inviterCodeRaw.toUpperCase(), inviterCodeRaw.toLowerCase()]), limit(1));
-           const snap = await getDocs(q);
-           if (!snap.empty) {
-             inviterUid = snap.docs[0].id;
-             console.log("[Invitaton Debug] Found inviter UID:", inviterUid, "for code:", inviterCodeRaw);
+           const lookupRes = await fetch('/api/referral/lookup', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ code: inviterCodeRaw })
+           });
+           const lookupData = await lookupRes.json();
+           if (lookupData.exists) {
+             inviterUid = lookupData.uid;
+             console.log("[Invitaton Debug] Found inviter UID (via server API):", inviterUid, "for code:", inviterCodeRaw);
            }
          } catch (e) {
            console.error("Referral lookup failed:", e);
@@ -416,37 +422,37 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       
       localStorage.removeItem('referralCode');
 
-      // Notify Telegram
-      try {
-        await fetch('/api/telegram/event', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            event: 'Registration',
-            userId: user.uid,
-            username: data.username,
-            balance: 0,
-            details: `Mobile: ${data.mobile}${inviterUid ? ' | Referred by: ' + inviterUid : ''}`
-          })
-        });
-      } catch (e) {
-        console.error("Telegram notify failed", e);
-      }
+      // Notify Telegram (non-blocking)
+      fetch('/api/telegram/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'Registration',
+          userId: user.uid,
+          username: data.username,
+          balance: 0,
+          details: `Mobile: ${data.mobile}${inviterUid ? ' | Referred by: ' + inviterUid : ''}`
+        })
+      }).catch(e => console.warn("Telegram notify skipped:", e));
       
       showToast("নিবন্ধন সফল হয়েছে!", "success");
       setTimeout(() => {
         onLoginSuccess({ id: user.uid, ...newUser, balance: 0 });
       }, 1500);
 
-      // Notify Telegram
-      const escapeHTML = (str: string) => str.replace(/[&<>"']/g, m => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'}[m] || m));
-      await fetch('/api/telegram/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: `🆕 <b>New User Registered!</b>\n\n👤 <b>Username:</b> ${escapeHTML(data.username)}\n🔢 <b>UID:</b> <code>${formatDisplayUID(user.uid)}</code>${inviterUid ? '\n🤝 <b>Referred By:</b> <code>' + inviterUid + '</code>' : ''}`
-        })
-      });
+      // Notify Telegram (non-blocking)
+      try {
+        const escapeHTML = (str: string) => str.replace(/[&<>"']/g, m => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'}[m] || m));
+        fetch('/api/telegram/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: `🆕 <b>New User Registered!</b>\n\n👤 <b>Username:</b> ${escapeHTML(data.username)}\n🔢 <b>UID:</b> <code>${formatDisplayUID(user.uid)}</code>${inviterUid ? '\n🤝 <b>Referred By:</b> <code>' + inviterUid + '</code>' : ''}`
+          })
+        }).catch(e => console.warn("Telegram submit notify skipped:", e));
+      } catch (tErr) {
+        console.warn("Telegram notification skipped during registration:", tErr);
+      }
     } catch (err: any) {
       handleAuthError(err);
     } finally {
@@ -474,12 +480,12 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       {/* Top Banner Image with Close Button */}
       <div className="relative w-full bg-[#0d1a29] flex justify-center shrink-0 py-8">
         <img 
-          src={appLogo || '/images/app_logo.png'} 
+          src="https://www.image2url.com/r2/default/images/1780868316316-d0893d59-2e15-4b63-b4f7-8e3dd47601b0.jpg" 
           onError={(e) => {
-            e.currentTarget.src = '/images/app_logo.png';
+            e.currentTarget.src = 'https://www.image2url.com/r2/default/images/1780868316316-d0893d59-2e15-4b63-b4f7-8e3dd47601b0.jpg';
           }}
           alt="Spin71.Bet Logo" 
-          className="h-32 md:h-48 lg:h-56 object-contain drop-shadow-[0_0_30px_rgba(253,216,53,0.4)]"
+          className="h-44 md:h-56 lg:h-64 object-contain drop-shadow-[0_0_35px_rgba(253,216,53,0.5)] transition-all duration-300"
           referrerPolicy="no-referrer"
         />
         <button 

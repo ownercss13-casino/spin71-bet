@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore, initializeFirestore, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -39,6 +39,19 @@ export const switchToDefaultDb = () => {
 };
 
 export const auth = getAuth(app);
+
+// Explicitly configure browserLocalPersistence to guarantee user session longevity
+try {
+  setPersistence(auth, browserLocalPersistence)
+    .then(() => {
+      console.log("[Firebase] Session persistence successfully initialized to LOCAL.");
+    })
+    .catch((err) => {
+      console.error("[Firebase] Error setting auth session persistence:", err);
+    });
+} catch (persistenceError) {
+  console.error("[Firebase] Refused to apply session persistence:", persistenceError);
+}
 export { dbInstance as db }; 
 
 // --- Firestore Error Handling (as per security guidelines) ---
