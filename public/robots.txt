@@ -1,0 +1,12 @@
+# Robots.txt for SPIN71 BET - spin71.bet
+# Allow all search engines to crawl and index the entire site
+User-agent: *
+Allow: /
+
+# Exclude sensitive routes like admin panel or configuration logs from public search listing
+Disallow: /admin
+Disallow: /config/
+Disallow: /api/
+
+# Link to sitemap
+Sitemap: https://spin71.bet/sitemap.xml

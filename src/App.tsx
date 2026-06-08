@@ -55,6 +55,34 @@ import {
 } from "lucide-react";
 import RecentlyViewed from "./components/RecentlyViewed";
 
+const triggerPushNotification = (title: string, body: string, targetUrl?: string) => {
+  const isEnabled = localStorage.getItem('app_push_notif') !== 'false';
+  if (isEnabled && 'Notification' in window && Notification.permission === 'granted') {
+    try {
+      if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+        navigator.serviceWorker.ready.then((registration) => {
+          registration.showNotification(title, {
+            body: body,
+            icon: '/images/app_logo.png',
+            badge: '/apple-touch-icon.png',
+            data: {
+              url: targetUrl || '/'
+            },
+            vibrate: [200, 100, 200]
+          } as any);
+        });
+      } else {
+        new Notification(title, {
+          body: body,
+          icon: '/images/app_logo.png'
+        });
+      }
+    } catch (e) {
+      console.error("[Push Service Error]:", e);
+    }
+  }
+};
+
 export default function App() {
   const db = getDb();
   const [dbStatus, setDbStatus] = useState<'testing' | 'success' | 'error'>('testing');
@@ -669,6 +697,14 @@ export default function App() {
                     const createdAt = data.createdAt?.seconds ? data.createdAt.seconds * 1000 : (data.createdAt ? new Date(data.createdAt).getTime() : now);
                     if (now - createdAt < 10000) {
                       showToast(data.title || "নতুন নোটিফিকেশন!", "info");
+                      
+                      // Explicitly trigger a real browser native push notification
+                      triggerPushNotification(
+                        data.title || "Spin71.bet Alert",
+                        data.message || "New activity notification",
+                        data.url || "/"
+                      );
+
                       if (data.title === "ডিপোজিট সফল") {
                         canvasConfetti({
                           particleCount: 150,
@@ -955,6 +991,23 @@ export default function App() {
 
   useEffect(() => {
     loadAllAppConfig();
+
+    // Auto-setup of web push notifications
+    if ('Notification' in window) {
+      const savedPushNotif = localStorage.getItem('app_push_notif');
+      if (savedPushNotif === null) {
+        localStorage.setItem('app_push_notif', 'true');
+      }
+      
+      // Prompt for notifications gracefully 7 seconds after load
+      if (Notification.permission === 'default') {
+        setTimeout(() => {
+          Notification.requestPermission()
+            .then(p => console.log("[Push Notification] Permission status:", p))
+            .catch(e => console.warn("[Push Notification] Failed to inquire permission:", e));
+        }, 7000);
+      }
+    }
   }, []);
 
   // Referral tracking and Admin tab switch

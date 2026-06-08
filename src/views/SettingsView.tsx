@@ -208,6 +208,18 @@ export default function SettingsView({ userData, onUpdateUser, showToast }: Sett
                   const nextValue = !pushNotifications;
                   setPushNotifications(nextValue);
                   localStorage.setItem('app_push_notif', String(nextValue));
+                  
+                  if (nextValue && 'Notification' in window) {
+                    try {
+                      const permission = await Notification.requestPermission();
+                      if (permission !== 'granted') {
+                        showToast(lang === 'bn' ? "ব্রাউজার নোটিফিকেশন পারমিশন ব্লকেড বা অসমর্থিত!" : "Notification permission is not granted by browser!", "warning");
+                      }
+                    } catch (err) {
+                      console.error("Error requesting permission:", err);
+                    }
+                  }
+
                   try {
                     await onUpdateUser({ pushNotifications: nextValue });
                     showToast(lang === 'bn' ? "পুশ নোটিফিকেশন সেটিংস আপডেট হয়েছে!" : "Push notifications preference updated!", "success");

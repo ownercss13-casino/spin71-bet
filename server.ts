@@ -3653,7 +3653,7 @@ async function startServer() {
     // Start background loops after server is listening
     initializeGlobalConfig().catch(err => console.error("Config initialization failed:", err.message));
     pollTelegramUpdates().catch(err => console.error("Telegram polling failed to start:", err.message));
-    startAviatorLoop(db).catch(err => console.error("Aviator background loop failed to start:", err.message));
+    // startAviatorLoop(db).catch(err => console.error("Aviator background loop failed to start:", err.message));
   });
 
   // Global Error Handlers

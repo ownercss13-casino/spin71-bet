@@ -79,18 +79,25 @@ export default function InviteView({
         setIsLoading(true);
         try {
           // Fetch users who were referred
+          // Fetch users who were referred (omitting orderBy to prevent index errors)
           const q = query(
             collection(db, 'users'), 
-            where('referredBy', '==', userData.id),
-            orderBy('createdAt', 'desc')
+            where('referredBy', '==', userData.id)
           );
           const querySnapshot = await getDocs(q);
           
-          // Also try to fetch from the referrals subcollection to get commission data
-          const subRefQ = query(collection(db, 'users', userData.id, 'referrals'));
-          const subSnapshot = await getDocs(subRefQ);
+          // Try to fetch from the referrals subcollection to get commission data, handle errors gracefully
+          let subSnapshotDocs: any[] = [];
+          try {
+            const subRefQ = query(collection(db, 'users', userData.id, 'referrals'));
+            const subSnapshot = await getDocs(subRefQ);
+            subSnapshotDocs = subSnapshot.docs;
+          } catch (subErr) {
+            console.warn("[InviteView] Non-critical: Could not fetch subcollection referrals", subErr);
+          }
+
           const subDataMap = new Map();
-          subSnapshot.docs.forEach(doc => {
+          subSnapshotDocs.forEach(doc => {
             subDataMap.set(doc.id, doc.data());
           });
 
@@ -103,6 +110,13 @@ export default function InviteView({
               commissionFromUser: subData.bonusEarned || 0,
               lastReferralActivity: subData.timestamp || null
             };
+          });
+
+          // Sort by createdAt descending in memory
+          list.sort((a: any, b: any) => {
+            const timeA = a.createdAt?.seconds || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+            const timeB = b.createdAt?.seconds || (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+            return timeB - timeA;
           });
           
           setReferralsList(list);

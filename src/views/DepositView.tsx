@@ -29,45 +29,45 @@ import { collection, query, where, orderBy, getDocs, limit, onSnapshot } from 'f
 
 const paymentMethods = [
   { 
-    id: 'nagad', 
-    name: 'NAGAD', 
-    label: 'নগদ',
-    logo: 'https://cdn.iconscout.com/icon/free/png-256/free-nagad-2728957-2261625.png',
-    number: '01789527096'
-  },
-  { 
     id: 'bkash', 
     name: 'Bkash', 
     label: 'বিকাশ',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f6/bKash_logo.png/1200px-bKash_logo.png',
+    logo: 'https://www.image2url.com/r2/default/images/1780940921769-2384e7bb-e411-4886-b24e-cd73b416106f.png',
     number: '01860137045'
+  },
+  { 
+    id: 'nagad', 
+    name: 'NAGAD', 
+    label: 'নগদ',
+    logo: 'https://www.image2url.com/r2/default/images/1780940834051-a83da4c8-921d-40ef-bca3-e8b271ebc2ff.png',
+    number: '01789527096'
   },
   { 
     id: 'rocket', 
     name: 'Rocket', 
     label: 'রকেট',
-    logo: 'https://cdn.iconscout.com/icon/free/png-256/free-rocket-2728958-2261626.png',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/DBBL_Rocket_Logo.png/512px-DBBL_Rocket_Logo.png',
     number: '01860137045'
   },
   { 
     id: 'upi', 
     name: 'UPI', 
     label: 'UPI',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/UPI-Logo.svg/1200px-UPI-Logo.svg.png',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/UPI-Logo.svg/256px-UPI-Logo.svg.png',
     number: 'upi@example'
   },
   { 
     id: 'paytm', 
     name: 'PayTM', 
     label: 'PayTM',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Paytm_Logo_%28standalone%29.svg/1200px-Paytm_Logo_%28standalone%29.svg.png',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Paytm_Logo_%28standalone%29.svg/256px-Paytm_Logo_%28standalone%29.svg.png',
     number: 'paytm@example'
   },
   { 
     id: 'googlepay', 
     name: 'Google Pay', 
     label: 'গুগল পে',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/Google_Pay_Logo_%282020%29.svg/1200px-Google_Pay_Logo_%282020%29.svg.png',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/Google_Pay_Logo_%282020%29.svg/256px-Google_Pay_Logo_%282020%29.svg.png',
     number: 'gpay@example'
   },
   { 
@@ -580,58 +580,71 @@ export default function DepositView({
 
       <main className="flex-1 overflow-y-auto pb-24">
         {step === 1 ? (
-          <div className="p-4 space-y-6">
+          <div className="p-4 space-y-4">
             {/* Step indicators */}
-            <div className="flex items-center justify-between px-2 py-1 bg-white/5 rounded-2xl border border-white/5">
+            <div className="flex items-center justify-between px-3 py-1.5 bg-white/5 rounded-xl border border-white/5">
               <div className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-[#3ed0ca] text-black font-black text-xs flex items-center justify-center">1</span>
-                <span className="text-[11px] font-black uppercase tracking-wider text-[#3ed0ca]">ডিপোজিট বিবরণ</span>
+                <span className="w-5 h-5 rounded-full bg-[#3ed0ca] text-black font-black text-[10px] flex items-center justify-center">1</span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#3ed0ca]">ডিপোজিট বিবরণ</span>
               </div>
-              <div className="w-8 h-[1px] bg-white/10" />
-              <div className="flex items-center gap-2 opacity-55">
-                <span className="w-6 h-6 rounded-full bg-white/10 text-gray-400 font-bold text-xs flex items-center justify-center">2</span>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">লেনদেন নিশ্চিতকরণ</span>
+              <div className="w-6 h-[1px] bg-white/10" />
+              <div className="flex items-center gap-2 opacity-50">
+                <span className="w-5 h-5 rounded-full bg-white/10 text-gray-400 font-bold text-[10px] flex items-center justify-center">2</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">লেনদেন নিশ্চিতকরণ</span>
               </div>
             </div>
 
             {/* Payment Method Selection Group */}
-            <div className="space-y-2.5">
-              <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest block ml-1">১. পেমেন্ট মেথড নির্বাচন করুন</h3>
-              <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-widest block ml-1">১. পেমেন্ট মেথড নির্বাচন করুন</h3>
+              <div className="grid grid-cols-2 gap-2.5">
                 {paymentMethods.map((method) => {
                   const isActive = selectedMethod === method.id;
+                  let brandBorder = isActive ? 'border-[#3ed0ca] bg-[#142121]' : 'border-white/5 bg-[#161616] hover:border-white/10 hover:bg-[#1a1a1a]';
+                  let textStyle = isActive ? 'text-[#3ed0ca]' : 'text-gray-400';
+                  
+                  if (method.id === 'bkash') {
+                    brandBorder = isActive ? 'border-[#e2125a] bg-[#1e0f14]' : brandBorder;
+                    textStyle = isActive ? 'text-[#e2125a]' : textStyle;
+                  } else if (method.id === 'nagad') {
+                    brandBorder = isActive ? 'border-[#f47321] bg-[#22120a]' : brandBorder;
+                    textStyle = isActive ? 'text-[#f47321]' : textStyle;
+                  } else if (method.id === 'rocket') {
+                    brandBorder = isActive ? 'border-[#8c2d82] bg-[#1a0f19]' : brandBorder;
+                    textStyle = isActive ? 'text-[#8c2d82]' : textStyle;
+                  } else if (isActive) {
+                    brandBorder = 'border-[#ffd15c] bg-[#1c1a13]';
+                    textStyle = 'text-[#ffd15c]';
+                  }
+
                   return (
                     <div
                       key={method.id}
                       onClick={() => setSelectedMethod(method.id)}
-                      className={`relative p-4 rounded-3xl border-2 transition-all cursor-pointer flex flex-col items-center justify-center gap-2 h-28 group overflow-hidden ${
-                        isActive 
-                          ? 'border-[#ffc107] bg-gradient-to-br from-[#ffc107]/10 to-transparent shadow-[0_0_20px_rgba(255,193,7,0.15)] bg-[#1c1c1c]' 
-                          : 'border-white/5 bg-[#161616] hover:bg-[#1a1a1a] hover:border-white/10'
-                      }`}
+                      className={`relative p-2.5 rounded-2xl border-2 transition-all duration-300 cursor-pointer flex flex-col items-center justify-center gap-1.5 h-20 group overflow-hidden ${brandBorder}`}
                     >
                       {isActive && (
-                        <div className="absolute top-2.5 right-2.5 w-4 h-4 rounded-full bg-[#ffc107] flex items-center justify-center">
-                          <Check size={10} className="text-black" strokeWidth={4} />
+                        <div className="absolute top-1.5 right-1.5 w-3.5 h-3.5 rounded-full flex items-center justify-center bg-current z-10" style={{ color: method.id === 'bkash' ? '#e2125a' : method.id === 'nagad' ? '#f47321' : method.id === 'rocket' ? '#8c2d82' : '#3ed0ca' }}>
+                          <Check size={8} className="text-white animate-scale-in" strokeWidth={5} />
                         </div>
                       )}
                       
-                      <div className="w-11 h-11 flex items-center justify-center bg-white rounded-2xl p-1.5 flex-shrink-0 group-hover:scale-105 transition-all shadow-inner">
+                      <div className="relative w-12 h-9 flex items-center justify-center p-0.5 group-hover:scale-105 transition-all">
                         <GlobalImage 
                           imageKey={`payment_logo_${method.id}`}
                           defaultUrl={method.logo}
                           currentUrl={globalImages[`payment_logo_${method.id}`]}
                           alt={method.name}
                           showToast={showToast}
-                          className="max-w-full max-h-full object-contain"
+                          className="w-full h-full object-contain filter drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.6)]"
                           isAdmin={false}
                           updateGlobalImage={(url) => onUpdateGlobalImage ? onUpdateGlobalImage(`payment_logo_${method.id}`, url) : Promise.resolve()}
                         />
                       </div>
                       
                       <div className="text-center">
-                        <p className={`text-[12px] font-black uppercase tracking-wider ${isActive ? 'text-[#ffc107]' : 'text-gray-300'}`}>
-                          {method.name}
+                        <p className={`text-[11px] font-black uppercase tracking-wider ${textStyle}`}>
+                          {method.label}
                         </p>
                       </div>
                     </div>
@@ -641,22 +654,22 @@ export default function DepositView({
             </div>
 
             {/* Payment Channel */}
-            <div className="space-y-2.5 border-t border-white/5 pt-5">
-              <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest block ml-1">২. গেটওয়ে চ্যানেল নির্বাচন</h3>
-              <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1.5 border-t border-white/5 pt-3.5">
+              <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-widest block ml-1">২. গেটওয়ে চ্যানেল নির্বাচন</h3>
+              <div className="grid grid-cols-4 gap-2">
                 {channels.map((channel) => {
                   const isActive = selectedChannel === channel.id;
                   return (
                     <button
                       key={channel.id}
                       onClick={() => setSelectedChannel(channel.id)}
-                      className={`py-3 px-2 rounded-2xl border-2 text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${
+                      className={`py-2 px-1 rounded-xl border-2 text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 ${
                         isActive 
-                          ? 'border-[#3ed0ca] text-[#3ed0ca] bg-[#3ed0ca]/10 shadow-[0_0_15px_rgba(62,208,202,0.1)]' 
-                          : 'border-white/5 text-gray-400 bg-[#161616] hover:text-white'
+                          ? 'border-[#3ed0ca] text-[#3ed0ca] bg-[#3ed0ca]/15 shadow-[0_0_10px_rgba(62,208,202,0.15)] bg-emerald-500/5' 
+                          : 'border-white/5 text-gray-400 bg-[#161616] hover:text-white hover:border-white/10'
                       }`}
                     >
-                      {isActive && <Check size={12} strokeWidth={4} />}
+                      {isActive && <Check size={10} strokeWidth={4} />}
                       {channel.name}
                     </button>
                   );
@@ -665,21 +678,21 @@ export default function DepositView({
             </div>
 
             {/* Deposit Amount Input */}
-            <div className="space-y-3.5 border-t border-white/5 pt-5">
+            <div className="space-y-2.5 border-t border-white/5 pt-3.5">
               <div className="flex items-center justify-between px-1">
-                <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">৩. ডিপোজিট পরিমাণ</h3>
-                <span className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">সর্বনিম্ন: ৳{minDeposit}</span>
+                <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-widest">৩. ডিপোজিট পরিমাণ</h3>
+                <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">সর্বনিম্ন: ৳{minDeposit}</span>
               </div>
               
               <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-black text-gray-500">৳</span>
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-base font-black text-gray-500">৳</span>
                 <input
                   type="number"
                   pattern="[0-9]*"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder={`${minDeposit} - 30,000`}
-                  className="w-full bg-[#161616] border border-white/5 focus:border-[#3ed0ca]/30 rounded-2xl py-4.5 pl-9 pr-6 text-white font-black text-xl focus:outline-none placeholder:text-gray-600 tracking-wider"
+                  className="w-full bg-[#161616] border border-white/5 focus:border-[#3ed0ca]/30 rounded-xl py-3 pl-9 pr-6 text-white font-black text-lg focus:outline-none placeholder:text-gray-700 tracking-wider"
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-amber-500">*</span>
               </div>
@@ -692,13 +705,13 @@ export default function DepositView({
                     <button
                       key={amt}
                       onClick={() => setAmount(amt.toString())}
-                      className={`py-2 rounded-xl border text-[11px] font-black transition-all ${
+                      className={`py-1.5 rounded-lg border text-[10px] font-black transition-all ${
                         isActive 
                           ? 'border-[#ffc107] text-[#ffc107] bg-[#ffc107]/5 font-black' 
-                          : 'border-white/5 text-gray-400 bg-[#161616] hover:text-white'
+                          : 'border-white/5 text-gray-400 bg-[#161616] hover:text-white hover:border-white/10'
                       }`}
                     >
-                      ৳{amt.toLocaleString()}
+                      ৳{amt}
                     </button>
                   );
                 })}
@@ -706,60 +719,54 @@ export default function DepositView({
             </div>
 
             {/* Offer / Claim bonus */}
-            <div className="space-y-3.5 border-t border-white/5 pt-5">
-              <div>
-                <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest block ml-1">৪. বোনাস অফার চয়ন করুন</h3>
-              </div>
+            <div className="space-y-2 border-t border-white/5 pt-3.5">
+              <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-widest block ml-1">৪. বোনাস অফার চয়ন করুন</h3>
               
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <button 
                   onClick={() => setSelectedBonus('daily8')}
-                  className={`w-full p-4 rounded-2xl border-2 flex items-start gap-3.5 transition-all text-left relative overflow-hidden ${
+                  className={`w-full p-2.5 rounded-xl border-2 flex items-start gap-2.5 transition-all text-left relative overflow-hidden ${
                     selectedBonus === 'daily8' 
-                      ? 'border-[#ffc107] bg-[#ffc107]/5 shadow-[0_0_20px_rgba(255,193,7,0.1)]' 
+                      ? 'border-[#ffc107] bg-[#ffc107]/5' 
                       : 'border-white/5 bg-[#161616] hover:bg-[#1a1a1a]'
                   }`}
                 >
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                  <div className={`w-4.5 h-4.5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
                     selectedBonus === 'daily8' ? 'border-[#ffc107]' : 'border-gray-600'
                   }`}>
                     {selectedBonus === 'daily8' && <div className="w-2.5 h-2.5 rounded-full bg-[#ffc107]"></div>}
                   </div>
                   <div className="flex-1">
                     <div className="flex justify-between items-center">
-                      <span className={`block font-black text-sm ${selectedBonus === 'daily8' ? 'text-[#ffc107]' : 'text-gray-200'}`}>
+                      <span className={`block font-black text-xs ${selectedBonus === 'daily8' ? 'text-[#ffc107]' : 'text-gray-200'}`}>
                         Daily Deposit Reward 100%
                       </span>
-                      <span className="text-[10px] font-black text-yellow-500 bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/20">
+                      <span className="text-[9px] font-black text-yellow-500 bg-yellow-500/10 px-1.5 py-0.5 rounded border border-yellow-500/20">
                         b=200
                       </span>
                     </div>
-                    <p className="text-gray-500 text-[10px] mt-1 leading-relaxed">
+                    <p className="text-gray-500 text-[10px] mt-0.5 leading-normal">
                       প্রথম দৈনিক ডিপোজিট অফারে ১০০% অতিরিক্ত বোনাস উপভোগ করুন।
                     </p>
-                    <div className="flex items-center gap-1.5 mt-2.5 text-gray-600 text-[9px] font-bold uppercase tracking-wider">
-                      <Clock size={10} />
-                      <span>মেয়াদ : ২০২৬-১২-৩১</span>
-                    </div>
                   </div>
                 </button>
 
                 <button 
                   onClick={() => setSelectedBonus('none')}
-                  className={`w-full py-4.5 rounded-2xl border-2 flex items-center justify-center gap-3 transition-all relative ${
+                  className={`w-full py-2.5 rounded-xl border-2 flex items-center justify-center gap-2 transition-all relative ${
                     selectedBonus === 'none' 
-                      ? 'border-[#ffc107] bg-white/5' 
+                      ? 'border-white/20 bg-white/5' 
                       : 'border-white/5 bg-[#161616] hover:bg-[#1a1a1a]'
                   }`}
                 >
-                  <div className="absolute left-4">
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                      selectedBonus === 'none' ? 'border-[#ffc107]' : 'border-gray-600'
+                  <div className="absolute left-3">
+                    <div className={`w-4.5 h-4.5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                      selectedBonus === 'none' ? 'border-white' : 'border-gray-600'
                     }`}>
-                      {selectedBonus === 'none' && <div className="w-2.5 h-2.5 rounded-full bg-[#ffc107]"></div>}
+                      {selectedBonus === 'none' && <div className="w-2.5 h-2.5 rounded-full bg-white"></div>}
                     </div>
                   </div>
-                  <span className={`font-black text-xs uppercase tracking-widest ${selectedBonus === 'none' ? 'text-white font-black' : 'text-gray-500'}`}>
+                  <span className={`font-black text-[10px] uppercase tracking-widest ${selectedBonus === 'none' ? 'text-white' : 'text-gray-500'}`}>
                     বোনাস ছাড়া খেলবো (Disclaim Bonus)
                   </span>
                 </button>
@@ -767,13 +774,13 @@ export default function DepositView({
             </div>
 
             {/* Next trigger CTA */}
-            <div className="pt-4">
+            <div className="pt-2">
               <button 
                 onClick={handleNextStep}
                 disabled={!isNextEnabled}
-                className={`w-full py-4 font-black text-xs uppercase tracking-widest rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg active:scale-95 ${
+                className={`w-full py-3 font-black text-xs uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg active:scale-95 ${
                   isNextEnabled 
-                    ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-black shadow-[0_5px_15px_rgba(234,179,8,0.25)]' 
+                    ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-black shadow-[0_4px_12px_rgba(234,179,8,0.2)]' 
                     : 'bg-white/5 text-gray-600 cursor-not-allowed border border-white/5 shadow-inner'
                 }`}
               >
@@ -783,56 +790,56 @@ export default function DepositView({
             </div>
           </div>
         ) : (
-          <div className="p-4 space-y-6">
+          <div className="p-4 space-y-4">
             {/* Step indicators */}
-            <div className="flex items-center justify-between px-2 py-1 bg-white/5 rounded-2xl border border-white/5">
-              <div className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-white/10 text-gray-500 font-bold text-xs flex items-center justify-center">1</span>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500">ডিপোজিট বিবরণ</span>
+            <div className="flex items-center justify-between px-3 py-1.5 bg-white/5 rounded-xl border border-white/5">
+              <div className="flex items-center gap-2 opacity-50">
+                <span className="w-5 h-5 rounded-full bg-white/10 text-gray-500 font-bold text-[10px] flex items-center justify-center">1</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">ডিপোজিট বিবরণ</span>
               </div>
-              <div className="w-8 h-[1px] bg-white/10" />
+              <div className="w-6 h-[1px] bg-white/10" />
               <div className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-[#3ed0ca] text-black font-black text-xs flex items-center justify-center">2</span>
-                <span className="text-[11px] font-black uppercase tracking-wider text-[#3ed0ca]">লেনদেন নিশ্চিতকরণ</span>
+                <span className="w-5 h-5 rounded-full bg-[#3ed0ca] text-black font-black text-[10px] flex items-center justify-center">2</span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#3ed0ca]">লেনদেন নিশ্চিতকরণ</span>
               </div>
             </div>
 
             {/* Premium Countdown Clock */}
-            <div className="bg-[#1c1c1c] border border-white/5 rounded-3xl p-4 flex items-center justify-between relative overflow-hidden">
-              <div className="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-[#3ed0ca]/5 to-transparent pointer-events-none" />
+            <div className="bg-[#1c1c1c] border border-white/5 rounded-2xl p-3 flex items-center justify-between relative overflow-hidden">
+              <div className="absolute inset-y-0 right-0 w-20 bg-gradient-to-l from-[#3ed0ca]/5 to-transparent pointer-events-none" />
               <div className="space-y-0.5">
-                <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">অর্ডার পরিশোধের সুনির্দিষ্ট সময়</p>
-                <p className="text-gray-300 text-xs font-semibold">অনুগ্রহ করে নিম্নোক্ত সময়ের মধ্যে ক্যাশআউট করুন</p>
+                <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest">অর্ডার পরিশোধের সুনির্দিষ্ট সময়</p>
+                <p className="text-gray-300 text-[10px] font-semibold">অনুগ্রহ করে নিম্নোক্ত সময়ের মধ্যে ক্যাশআউট করুন</p>
               </div>
               
-              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl border ${
+              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border ${
                 timeLeft < 120 
                   ? 'bg-red-500/10 border-red-500/20 text-red-400 animate-pulse' 
                   : 'bg-[#3ed0ca]/10 border-[#3ed0ca]/20 text-[#3ed0ca]'
               }`}>
-                <Clock size={14} className={timeLeft < 120 ? 'animate-bounce' : ''} />
-                <span className="font-mono text-base font-black tracking-wider">{formatTime(timeLeft)}</span>
+                <Clock size={12} className={timeLeft < 120 ? 'animate-bounce' : ''} />
+                <span className="font-mono text-sm font-black tracking-wider">{formatTime(timeLeft)}</span>
               </div>
             </div>
 
             {/* Error Rules Warnings */}
-            <div className="border border-red-500/25 bg-red-500/5 rounded-3xl p-4 flex items-start gap-3">
-              <AlertTriangle className="text-red-500 flex-shrink-0 mt-0.5" size={18} />
-              <div className="space-y-1">
-                <p className="text-red-400 font-black text-xs leading-normal">
+            <div className="border border-red-500/20 bg-red-500/5 rounded-2xl p-2.5 flex items-start gap-2.5">
+              <AlertTriangle className="text-red-500 flex-shrink-0 mt-0.5" size={16} />
+              <div className="space-y-0.5">
+                <p className="text-red-400 font-black text-[11px] leading-normal">
                   সতর্কতা: টাকার পরিমাণ কম বা বেশি ক্যাশআউট করবেন না!
                 </p>
-                <p className="text-[10px] text-gray-400 leading-normal">
+                <p className="text-[9px] text-gray-400 leading-normal">
                   আপনি যদি টাকার পরিমাণ পরিবর্তন করেন (৳{amount}-এর পরিবর্তে অন্য কোনো অঙ্ক পাঠান), তাহলে পেমেন্ট স্বয়ংক্রিয় প্রসেস হবে না।
                 </p>
               </div>
             </div>
 
             {/* Prominent Receipt/Voucher Summary card */}
-            <div className="bg-gradient-to-b from-[#222] to-[#1c1c1c] border border-white/15 rounded-3xl overflow-hidden shadow-2xl relative">
-              <div className="p-4 border-b border-white/5 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-white rounded-full p-1.5 flex items-center justify-center shadow-lg">
+            <div className="bg-gradient-to-b from-[#222] to-[#1c1c1c] border border-white/10 rounded-2xl overflow-hidden shadow-xl relative">
+              <div className="p-3 border-b border-white/5 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 bg-white rounded-full p-1 flex items-center justify-center shadow-lg">
                     <GlobalImage 
                       imageKey={`payment_logo_${selectedMethod}`}
                       defaultUrl={paymentMethods.find(m => m.id === selectedMethod)?.logo || ''}
@@ -843,33 +850,33 @@ export default function DepositView({
                       isAdmin={false}
                     />
                   </div>
-                  <span className="text-xs font-black uppercase tracking-widest text-white">
+                  <span className="text-[11px] font-black uppercase tracking-widest text-white">
                     {paymentMethods.find(m => m.id === selectedMethod)?.name} Deposit Order
                   </span>
                 </div>
                 
-                <span className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                <span className="text-[8px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-full uppercase tracking-widest">
                   Active Order
                 </span>
               </div>
 
-              <div className="p-6 text-center space-y-1 bg-black/20">
-                <span className="text-[10px] text-gray-500 uppercase font-black tracking-widest">সঠিক ক্যাশআউট পরিমাণ</span>
-                <p className="text-4xl font-black text-[#ffc107] tracking-tight">৳ {amount}</p>
+              <div className="p-4 text-center space-y-0.5 bg-black/20">
+                <span className="text-[9px] text-gray-500 uppercase font-black tracking-widest">সঠিক ক্যাশআউট পরিমাণ</span>
+                <p className="text-3xl font-black text-[#ffc107] tracking-tight">৳ {amount}</p>
               </div>
             </div>
 
             {/* Cashout Account Details Area */}
-            <div className="bg-[#161616] border border-white/5 rounded-3xl p-5 space-y-4">
-              <div className="space-y-1">
+            <div className="bg-[#161616] border border-white/5 rounded-2xl p-4 space-y-3">
+              <div className="space-y-0.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                  <span className="text-[11px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
                     <span>১. নিচে দেয়া নাম্বারে ক্যাশআউট করুন</span>
-                    <span className="text-[9px] text-yellow-500 bg-yellow-500/10 px-2 py-0.5 rounded font-black border border-yellow-500/20 uppercase tracking-tight">শুধুমাত্র ক্যাশআউট</span>
+                    <span className="text-[8px] text-yellow-500 bg-yellow-500/10 px-1.5 py-0.5 rounded font-black border border-yellow-500/20 uppercase tracking-tight">শুধুমাত্র ক্যাশআউট</span>
                   </span>
                 </div>
                 
-                <p className="text-[10px] text-gray-500 leading-normal">
+                <p className="text-[9px] text-gray-500 leading-normal">
                   {selectedMethod === 'bank' 
                     ? 'এই ব্যাংক একাউন্টে টাকা পাঠান' 
                     : selectedMethod === 'upi' 
@@ -880,14 +887,14 @@ export default function DepositView({
 
               <div 
                 onClick={() => copyToClipboard(newAccountNumber)}
-                className="flex items-center justify-between gap-3 bg-black/40 hover:bg-black/60 border border-white/5 hover:border-white/10 p-4 rounded-2xl cursor-pointer transition-all duration-200 active:scale-[0.99] group"
+                className="flex items-center justify-between gap-2.5 bg-black/40 hover:bg-black/60 border border-white/5 hover:border-white/10 p-3 rounded-xl cursor-pointer transition-all duration-200 active:scale-[0.99] group"
                 title="কপি করতে ক্লিক করুন"
               >
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-lg font-black text-red-500 tracking-wider break-all select-all font-mono group-hover:text-red-400 dynamic-number">
+                <div className="flex flex-col">
+                  <span className="text-base font-black text-red-500 tracking-wider break-all select-all font-mono group-hover:text-red-400 dynamic-number">
                     {newAccountNumber}
                   </span>
-                  <span className="text-[9px] text-gray-500 group-hover:text-gray-400 font-bold transition-colors">
+                  <span className="text-[8px] text-gray-500 group-hover:text-gray-400 font-bold transition-colors">
                     কপি করতে ক্লিক করুন (Click to copy)
                   </span>
                 </div>
@@ -897,13 +904,13 @@ export default function DepositView({
                     e.stopPropagation(); // Avoid double copying when clicking button
                     copyToClipboard(newAccountNumber);
                   }}
-                  className={`px-4 py-2 border rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 shrink-0 ${
+                  className={`px-3 py-1.5 border rounded-lg font-bold text-[10px] flex items-center gap-1 transition-all active:scale-95 shrink-0 ${
                     isCopied 
                       ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400' 
                       : 'border-white/15 bg-white/5 hover:bg-white/10 text-white'
                   }`}
                 >
-                  {isCopied ? <Check size={12} strokeWidth={3} /> : <Copy size={12} />}
+                  {isCopied ? <Check size={10} strokeWidth={3} /> : <Copy size={10} />}
                   <span>{isCopied ? 'কপি হয়েছে' : 'কপি করুন'}</span>
                 </button>
               </div>
@@ -912,25 +919,25 @@ export default function DepositView({
               {['bkash', 'nagad', 'rocket', 'upi', 'paytm'].includes(selectedMethod) && (
                 <button 
                   onClick={handleAppLaunch}
-                  className="w-full flex justify-center items-center gap-2 py-3.5 px-4 bg-gradient-to-r from-[#3ed0ca]/10 to-transparent border border-[#3ed0ca]/30 rounded-2xl text-[#3ed0ca] font-black text-xs uppercase tracking-widest hover:bg-[#3ed0ca]/20 transition-all active:scale-95 shadow-[0_4px_15px_rgba(62,208,202,0.1)]"
+                  className="w-full flex justify-center items-center gap-1.5 py-2.5 px-3 bg-gradient-to-r from-[#3ed0ca]/10 to-transparent border border-[#3ed0ca]/20 rounded-xl text-[#3ed0ca] font-black text-[10px] uppercase tracking-wider hover:bg-[#3ed0ca]/20 transition-all active:scale-95 shadow-[0_3px_10px_rgba(62,208,202,0.08)]"
                 >
-                  <ExternalLink size={16} strokeWidth={2.5} />
+                  <ExternalLink size={12} strokeWidth={2.5} />
                   <span>Open {paymentMethods.find(m => m.id === selectedMethod)?.name} App & Pay ৳{amount}</span>
                 </button>
               )}
             </div>
 
             {/* Inputs Area */}
-            <div className="bg-[#161616] border border-white/5 rounded-3xl p-5 space-y-5">
+            <div className="bg-[#161616] border border-white/5 rounded-2xl p-4 space-y-4">
               {/* Sender Number Field */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <div className="flex justify-between items-center ml-1">
-                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest">
+                  <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest">
                     ২. আপনার পেমেন্ট নম্বর <span className="text-red-500 font-bold">*</span>
                   </label>
                   {isSenderValid() && (
-                    <span className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 uppercase tracking-tight flex items-center gap-1">
-                      <Check size={10} strokeWidth={4} /> Validated
+                    <span className="text-[8px] font-black text-emerald-400 bg-emerald-500/10 px-1 py-0.5 rounded border border-emerald-500/20 uppercase tracking-tight flex items-center gap-0.5">
+                      <Check size={8} strokeWidth={4} /> Validated
                     </span>
                   )}
                 </div>
@@ -940,19 +947,19 @@ export default function DepositView({
                   value={senderNumber}
                   onChange={(e) => setSenderNumber(e.target.value)}
                   placeholder="যে নাম্বার থেকে টাকা পাঠিয়েছেন (১১ ডিজিট)"
-                  className="w-full p-4 bg-black/30 border border-white/5 focus:border-[#3ed0ca]/30 focus:outline-none rounded-2xl text-base font-black text-gray-100 placeholder:text-gray-600 font-mono tracking-widest text-center"
+                  className="w-full p-2.5 bg-black/30 border border-white/5 focus:border-[#3ed0ca]/30 focus:outline-none rounded-xl text-sm font-black text-gray-100 placeholder:text-gray-700 tracking-wider text-center font-mono"
                 />
               </div>
 
               {/* Transaction ID Field */}
-              <div className="space-y-2.5">
+              <div className="space-y-1.5">
                 <div className="flex justify-between items-center ml-1">
-                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest">
+                  <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest">
                     ৩. ট্রানজেকশন আইডি (TrxID) <span className="text-red-500 font-bold">*</span>
                   </label>
                   {trxId.trim().length >= 8 && (
-                    <span className="text-[9px] font-black text-[#ffc107] bg-yellow-500/10 px-1.5 py-0.5 rounded border border-yellow-500/20 uppercase tracking-tight flex items-center gap-1 animate-pulse">
-                      Ready to Submit
+                    <span className="text-[8px] font-black text-[#ffc107] bg-yellow-500/10 px-1 py-0.5 rounded border border-yellow-500/20 uppercase tracking-tight flex items-center gap-0.5 animate-pulse">
+                      Ready
                     </span>
                   )}
                 </div>
@@ -963,21 +970,21 @@ export default function DepositView({
                     value={trxId}
                     onChange={(e) => setTrxId(e.target.value)}
                     placeholder="এখানে ৮ থেকে ১০ ডিজিটের TrxID দিন"
-                    className="w-full p-4 bg-black/30 border-2 border-red-500/40 focus:border-red-500 rounded-2xl text-lg font-black text-red-500 placeholder:text-gray-700 tracking-widest text-center uppercase font-mono transition-colors"
+                    className="w-full p-2.5 bg-black/30 border-2 border-red-500/30 focus:border-red-500 focus:outline-none rounded-xl text-sm font-black text-red-500 placeholder:text-gray-700 tracking-wider text-center uppercase font-mono transition-colors"
                   />
                 </div>
 
                 {/* Tutorial Accordion Block Header clickable */}
                 <div 
                   onClick={() => setShowTrxTutorial(!showTrxTutorial)}
-                  className="bg-white/5 rounded-2xl p-3 flex items-center justify-between cursor-pointer border border-white/5 hover:bg-white/10 transition-all"
+                  className="bg-white/5 rounded-xl p-2 flex items-center justify-between cursor-pointer border border-white/5 hover:bg-white/10 transition-all mt-1"
                 >
-                  <span className="text-[10px] font-black uppercase text-gray-300 tracking-wider flex items-center gap-1.5">
-                    <HelpCircle size={14} className="text-[#3ed0ca]" />
+                  <span className="text-[9px] font-black uppercase text-gray-300 tracking-wider flex items-center gap-1">
+                    <HelpCircle size={12} className="text-[#3ed0ca]" />
                     <span>কিভাবে TrxID খুঁজে বের করবেন? (নির্দেশিকা)</span>
                   </span>
                   
-                  <span className="text-[10px] font-black text-teal-400 uppercase">
+                  <span className="text-[9px] font-black text-teal-400 uppercase">
                     {showTrxTutorial ? 'লুকান ▲' : 'দেখুন ▼'}
                   </span>
                 </div>
@@ -1025,7 +1032,7 @@ export default function DepositView({
               <button 
                 disabled={isSubmitting || !senderNumber.trim() || !trxId.trim()}
                 onClick={handleDeposit}
-                className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 disabled:from-white/5 disabled:to-white/5 text-black disabled:text-gray-600 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-1.5 shadow-[0_5px_15px_rgba(16,185,129,0.1)]"
+                className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 disabled:from-white/5 disabled:to-white/5 text-black disabled:text-gray-600 rounded-xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-1.5 shadow-[0_4px_12px_rgba(16,185,129,0.1)]"
               >
                 {isSubmitting ? (
                   <Loader2 className="animate-spin text-gray-500" size={16} />
@@ -1039,29 +1046,29 @@ export default function DepositView({
             </div>
 
             {/* Privacy Shield footer block */}
-            <div className="pt-2 border-t border-white/5 space-y-2">
-              <div className="flex items-center gap-2 text-emerald-400">
-                <ShieldCheck size={18} />
-                <h4 className="text-xs font-black uppercase tracking-wider">Privacy & Security Shield</h4>
+            <div className="pt-2 border-t border-white/5 space-y-1.5">
+              <div className="flex items-center gap-1.5 text-emerald-400">
+                <ShieldCheck size={16} />
+                <h4 className="text-[10px] font-black uppercase tracking-wider">Privacy & Security Shield</h4>
               </div>
-              <p className="text-gray-500 text-[10px] leading-relaxed">
-                আপনার পেমেন্ট নিরাপদ রাখতে সর্বদা সঠিক এবং নিজের ব্যবহৃত <span className="font-black text-red-400">Transaction ID</span> এবং <span className="font-black text-red-400">পেমেন্ট নম্বর</span> প্রদান করবেন। ভুল তথ্য প্রদান করলে ডিপোজিট সফল হবে না।
+              <p className="text-gray-500 text-[9px] leading-relaxed">
+                আপনার পেমেন্ট নিরাপদ রাখতে সর্বদা সঠিক এবং নিজের ব্যবহৃত <span className="font-black text-red-500">Transaction ID</span> এবং <span className="font-black text-red-400">পেমেন্ট নম্বর</span> প্রদান করবেন। ভুল তথ্য প্রদান করলে ডিপোজিট সফল হবে না।
               </p>
               
               {/* Support Telegram option */}
-              <div className="bg-white/5 border border-white/5 p-4 rounded-3xl mt-6 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#3ed0ca]/10 border border-[#3ed0ca]/15 rounded-full flex items-center justify-center text-[#3ed0ca]">
-                    <MessageCircle size={20} />
+              <div className="bg-white/5 border border-white/5 p-3 rounded-2xl mt-4 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8.5 h-8.5 bg-[#3ed0ca]/10 border border-[#3ed0ca]/15 rounded-full flex items-center justify-center text-[#3ed0ca] shrink-0">
+                    <MessageCircle size={18} />
                   </div>
                   <div className="text-left">
-                    <p className="font-black text-gray-200 text-xs uppercase tracking-wider">Live Support</p>
-                    <p className="text-gray-500 text-[10px] font-semibold">পেমেন্ট সম্পর্কিত যেকোনো প্রয়োজনে চ্যাট করুণ</p>
+                    <p className="font-black text-gray-200 text-[11px] uppercase tracking-wider">Live Support</p>
+                    <p className="text-gray-500 text-[9px] font-semibold">পেমেন্ট সম্পর্কিত যেকোনো প্রয়োজনে চ্যাট করুণ</p>
                   </div>
                 </div>
                 <button 
                   onClick={() => window.open(globalImages['telegram_link'] || 'https://t.me/your_support', '_blank')}
-                  className="bg-[#3ed0ca] text-black hover:bg-[#32b5af] px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95"
+                  className="bg-[#3ed0ca] text-black hover:bg-[#32b5af] px-3.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95"
                 >
                   Live Telegram
                 </button>

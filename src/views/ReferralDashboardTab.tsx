@@ -29,22 +29,11 @@ export default function ReferralDashboardTab({ userData, showToast, onBack }: Re
     if (isFirstLoad) setIsLoading(true);
     
     try {
-      let q = query(
+      // Query without orderBy to skip composite index requirements in Firestore
+      const q = query(
         collection(db, 'users'), 
-        where('referredBy', '==', userData.id),
-        orderBy('createdAt', 'desc'),
-        limit(PAGE_SIZE)
+        where('referredBy', '==', userData.id)
       );
-
-      if (!isFirstLoad && lastVisible) {
-        q = query(
-          collection(db, 'users'), 
-          where('referredBy', '==', userData.id),
-          orderBy('createdAt', 'desc'),
-          startAfter(lastVisible),
-          limit(PAGE_SIZE)
-        );
-      }
 
       const querySnapshot = await getDocs(q);
       const list = querySnapshot.docs.map(doc => ({
@@ -52,16 +41,17 @@ export default function ReferralDashboardTab({ userData, showToast, onBack }: Re
         ...doc.data()
       }));
 
-      if (isFirstLoad) {
-        setReferrals(list);
-      } else {
-        setReferrals(prev => [...prev, ...list]);
-      }
+      // Sort by createdAt descending in memory
+      list.sort((a: any, b: any) => {
+        const timeA = a.createdAt?.seconds || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const timeB = b.createdAt?.seconds || (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return timeB - timeA;
+      });
 
-      setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1]);
-      setHasMore(querySnapshot.docs.length === PAGE_SIZE);
+      setReferrals(list);
+      setHasMore(false); // Feeds all referred users at once, bypassing startAfter requirements
     } catch (error) {
-      console.error("Error fetching referrals:", error);
+      console.warn("[ReferralDashboard] Non-critical error fetching referrals:", error);
     } finally {
       if (isFirstLoad) setIsLoading(false);
     }
@@ -70,6 +60,16 @@ export default function ReferralDashboardTab({ userData, showToast, onBack }: Re
   const fetchTopReferrers = async () => {
     try {
       setIsTopLoading(true);
+
+      // Check if current user is an admin or authorized to list all users
+      const isAdminUser = userData?.role === 'admin' || userData?.isAdmin === true || ['owner.css13@gmail.com', 'cutelegend7045@gmail.com', 'owner@spin71.bet', 'xsaber7644@gmil.com'].includes(userData?.email);
+      
+      if (!isAdminUser) {
+        setTopReferrers([]);
+        setIsTopLoading(false);
+        return;
+      }
+
       const q = query(
         collection(db, 'users'),
         orderBy('totalReferralEarnings', 'desc'),
@@ -82,7 +82,7 @@ export default function ReferralDashboardTab({ userData, showToast, onBack }: Re
       })).filter((u: any) => (u.totalReferralEarnings || 0) > 0);
       setTopReferrers(list);
     } catch (error) {
-      console.error("Error fetching top referrers:", error);
+      console.warn("[ReferralDashboard] Skipping top referrers list (requires elevated privileges):", error);
     } finally {
       setIsTopLoading(false);
     }
