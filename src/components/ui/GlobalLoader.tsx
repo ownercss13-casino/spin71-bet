@@ -9,6 +9,7 @@ interface GlobalLoaderProps {
   onSkip?: () => void;
   onRetry?: () => void;
   showRetry?: boolean;
+  appLogo?: string;
 }
 
 export default function GlobalLoader({ 
@@ -17,7 +18,8 @@ export default function GlobalLoader({
   type = 'initial',
   onSkip,
   onRetry,
-  showRetry = false
+  showRetry = false,
+  appLogo
 }: GlobalLoaderProps) {
   const [progress, setProgress] = useState(0);
   const [autoShowRetry, setAutoShowRetry] = useState(false);
@@ -86,7 +88,7 @@ export default function GlobalLoader({
           >
             <div className="absolute inset-0 rounded-full border-[3px] border-yellow-500/30 animate-pulse"></div>
             <img 
-              src="https://www.image2url.com/r2/default/images/1780650823760-2e7c42d6-ef2e-4d3b-beac-b0f0b7eccac4.png" 
+              src={appLogo || "https://www.image2url.com/r2/default/images/1780650823760-2e7c42d6-ef2e-4d3b-beac-b0f0b7eccac4.png"} 
               alt="Loading" 
               className="w-full h-full object-contain p-2"
             />

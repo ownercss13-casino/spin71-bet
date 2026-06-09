@@ -1,7 +1,14 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
-import { getFirestore, initializeFirestore, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, CACHE_SIZE_UNLIMITED, setLogLevel } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
+
+// Silence verbose connection warnings in console by prioritizing severe errors only
+try {
+  setLogLevel('error');
+} catch (logErr) {
+  console.warn("[Firebase] Failed to silence verbose logging:", logErr);
+}
 
 const app = initializeApp(firebaseConfig);
 

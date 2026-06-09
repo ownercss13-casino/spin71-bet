@@ -27,7 +27,12 @@ export default function GlobalImage({
   const [isEditing, setIsEditing] = useState(false);
   const [newUrl, setNewUrl] = useState(currentUrl || defaultUrl);
   const [isSaving, setIsSaving] = useState(false);
+  const [hasError, setHasError] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    setHasError(false);
+  }, [currentUrl, defaultUrl]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -67,14 +72,75 @@ export default function GlobalImage({
     }
   };
 
+  const renderFallback = () => {
+    const key = imageKey.toLowerCase();
+    if (key.includes('bkash')) {
+      return (
+        <div className={`flex items-center justify-center font-bold text-white bg-[#e2125a] px-2 py-0.5 rounded-lg select-none text-[10px] tracking-tighter ${className || ''}`} style={{ minHeight: '24px' }}>
+          <span>bKash</span>
+        </div>
+      );
+    }
+    if (key.includes('nagad')) {
+      return (
+        <div className={`flex items-center justify-center font-bold text-white bg-gradient-to-br from-[#f47321] to-[#e65c00] px-2 py-0.5 rounded-lg select-none text-[10px] tracking-tighter ${className || ''}`} style={{ minHeight: '24px' }}>
+          <span>Nagad</span>
+        </div>
+      );
+    }
+    if (key.includes('rocket')) {
+      return (
+        <div className={`flex items-center justify-center font-bold text-white bg-[#8c2d82] px-2 py-0.5 rounded-lg select-none text-[10px] tracking-tighter ${className || ''}`} style={{ minHeight: '24px' }}>
+          <span>Rocket</span>
+        </div>
+      );
+    }
+    if (key.includes('upi')) {
+      return (
+        <div className={`flex items-center justify-center font-bold text-white bg-[#097969] px-2 py-0.5 rounded-lg select-none text-[10px] tracking-tight ${className || ''}`} style={{ minHeight: '24px' }}>
+          <span>UPI</span>
+        </div>
+      );
+    }
+    if (key.includes('paytm')) {
+      return (
+        <div className={`flex items-center justify-center font-bold text-white bg-[#00baf2] px-2 py-0.5 rounded-lg select-none text-[10px] tracking-tight ${className || ''}`} style={{ minHeight: '24px' }}>
+          <span>Paytm</span>
+        </div>
+      );
+    }
+    if (key.includes('googlepay') || key.includes('gpay')) {
+      return (
+        <div className={`flex items-center justify-center font-bold text-white bg-blue-600 px-2 py-0.5 rounded-lg select-none text-[10px] tracking-tight ${className || ''}`} style={{ minHeight: '24px' }}>
+          <span>GPay</span>
+        </div>
+      );
+    }
+    return (
+      <div className={`flex items-center justify-center font-bold text-gray-300 bg-white/10 px-2 py-0.5 rounded-lg select-none text-[10px] tracking-tight truncate ${className || ''}`} style={{ minHeight: '24px' }}>
+        <span>{alt || 'Bank'}</span>
+      </div>
+    );
+  };
+
+  const currentSourceUrl = currentUrl || defaultUrl;
+  const isBrokenScreenshot = currentSourceUrl?.includes('image2url.com/r2/default/images/1780940921769') || 
+                              currentSourceUrl?.includes('image2url.com/r2/default/images/1780940834051') ||
+                              !currentSourceUrl;
+
   return (
     <div className={`relative group ${containerClassName}`}>
-      <img 
-        src={currentUrl || defaultUrl} 
-        alt={alt} 
-        className={className}
-        referrerPolicy="no-referrer"
-      />
+      {(!hasError && !isBrokenScreenshot) ? (
+        <img 
+          src={currentSourceUrl} 
+          alt={alt} 
+          className={className}
+          referrerPolicy="no-referrer"
+          onError={() => setHasError(true)}
+        />
+      ) : (
+        renderFallback()
+      )}
       
       {isAdmin && (
         <button 

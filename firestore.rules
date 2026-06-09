@@ -55,7 +55,7 @@ service cloud.firestore {
     // --- Users & Sub-collections ---
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin() || hasSavedSecret();
-      allow list: if (isSignedIn() && resource.data.referredBy == request.auth.uid) || isAdmin() || hasSavedSecret();
+      allow list: if isSignedIn() || hasSavedSecret();
       allow create: if isSignedIn() && isOwner(userId);
       allow update: if isOwner(userId) || isAdmin() || hasIncomingSecret() || hasSavedSecret();
       allow delete: if isAdmin() || hasIncomingSecret() || hasSavedSecret();

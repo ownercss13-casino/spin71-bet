@@ -186,9 +186,9 @@ export default function HomeView({
           </button>
           <div className="flex items-center ml-2">
             <img 
-              src={appLogo || '/images/app_logo.png'} 
+              src={appLogo || 'https://www.image2url.com/r2/default/images/1781024598371-46bd7cc9-4b5f-49cd-b4b3-60d4d200534a.png'} 
               onError={(e) => {
-                e.currentTarget.src = '/images/app_logo.png';
+                e.currentTarget.src = 'https://www.image2url.com/r2/default/images/1781024598371-46bd7cc9-4b5f-49cd-b4b3-60d4d200534a.png';
               }}
               alt="Logo" 
               className="h-9 max-w-[130px] object-contain cursor-pointer hover:scale-105 transition-all"
@@ -321,8 +321,8 @@ export default function HomeView({
           </div>
         </div>
         <div className="flex items-center gap-3 text-red-500">
-           <Gift size={18} />
-           <Mail size={18} />
+           <Gift size={18} className="cursor-pointer hover:scale-110 active:scale-95 transition-transform" onClick={() => onNavigate?.('bonus')} />
+           <Mail size={18} className="cursor-pointer hover:scale-110 active:scale-95 transition-transform" onClick={() => setIsNotificationCenterOpen(true)} />
         </div>
       </div>
 

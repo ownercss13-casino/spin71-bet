@@ -32,14 +32,14 @@ const paymentMethods = [
     id: 'bkash', 
     name: 'Bkash', 
     label: 'বিকাশ',
-    logo: 'https://www.image2url.com/r2/default/images/1780940921769-2384e7bb-e411-4886-b24e-cd73b416106f.png',
+    logo: 'https://www.logo.wine/a/logo/BKash/BKash-Icon-Logo.wine.svg',
     number: '01860137045'
   },
   { 
     id: 'nagad', 
     name: 'NAGAD', 
     label: 'নগদ',
-    logo: 'https://www.image2url.com/r2/default/images/1780940834051-a83da4c8-921d-40ef-bca3-e8b271ebc2ff.png',
+    logo: 'https://www.logo.wine/a/logo/Nagad/Nagad-Logo.wine.svg',
     number: '01789527096'
   },
   { 
@@ -621,15 +621,15 @@ export default function DepositView({
                     <div
                       key={method.id}
                       onClick={() => setSelectedMethod(method.id)}
-                      className={`relative p-2.5 rounded-2xl border-2 transition-all duration-300 cursor-pointer flex flex-col items-center justify-center gap-1.5 h-20 group overflow-hidden ${brandBorder}`}
+                      className={`relative p-2 rounded-xl border transition-all duration-300 cursor-pointer flex flex-col items-center justify-center gap-1.5 h-16 group overflow-hidden ${brandBorder}`}
                     >
                       {isActive && (
-                        <div className="absolute top-1.5 right-1.5 w-3.5 h-3.5 rounded-full flex items-center justify-center bg-current z-10" style={{ color: method.id === 'bkash' ? '#e2125a' : method.id === 'nagad' ? '#f47321' : method.id === 'rocket' ? '#8c2d82' : '#3ed0ca' }}>
+                        <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full flex items-center justify-center bg-current z-10" style={{ color: method.id === 'bkash' ? '#e2125a' : method.id === 'nagad' ? '#f47321' : method.id === 'rocket' ? '#8c2d82' : '#3ed0ca' }}>
                           <Check size={8} className="text-white animate-scale-in" strokeWidth={5} />
                         </div>
                       )}
                       
-                      <div className="relative w-12 h-9 flex items-center justify-center p-0.5 group-hover:scale-105 transition-all">
+                      <div className="relative w-10 h-7 flex items-center justify-center p-0.5 group-hover:scale-105 transition-all">
                         <GlobalImage 
                           imageKey={`payment_logo_${method.id}`}
                           defaultUrl={method.logo}
@@ -643,7 +643,7 @@ export default function DepositView({
                       </div>
                       
                       <div className="text-center">
-                        <p className={`text-[11px] font-black uppercase tracking-wider ${textStyle}`}>
+                        <p className={`text-[10px] font-black uppercase tracking-wider ${textStyle}`}>
                           {method.label}
                         </p>
                       </div>
@@ -801,24 +801,6 @@ export default function DepositView({
               <div className="flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full bg-[#3ed0ca] text-black font-black text-[10px] flex items-center justify-center">2</span>
                 <span className="text-[10px] font-black uppercase tracking-wider text-[#3ed0ca]">লেনদেন নিশ্চিতকরণ</span>
-              </div>
-            </div>
-
-            {/* Premium Countdown Clock */}
-            <div className="bg-[#1c1c1c] border border-white/5 rounded-2xl p-3 flex items-center justify-between relative overflow-hidden">
-              <div className="absolute inset-y-0 right-0 w-20 bg-gradient-to-l from-[#3ed0ca]/5 to-transparent pointer-events-none" />
-              <div className="space-y-0.5">
-                <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest">অর্ডার পরিশোধের সুনির্দিষ্ট সময়</p>
-                <p className="text-gray-300 text-[10px] font-semibold">অনুগ্রহ করে নিম্নোক্ত সময়ের মধ্যে ক্যাশআউট করুন</p>
-              </div>
-              
-              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border ${
-                timeLeft < 120 
-                  ? 'bg-red-500/10 border-red-500/20 text-red-400 animate-pulse' 
-                  : 'bg-[#3ed0ca]/10 border-[#3ed0ca]/20 text-[#3ed0ca]'
-              }`}>
-                <Clock size={12} className={timeLeft < 120 ? 'animate-bounce' : ''} />
-                <span className="font-mono text-sm font-black tracking-wider">{formatTime(timeLeft)}</span>
               </div>
             </div>
 

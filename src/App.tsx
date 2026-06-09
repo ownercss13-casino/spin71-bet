@@ -52,18 +52,20 @@ import {
   MessageSquare,
   Loader2,
   Gamepad2,
+  Info,
 } from "lucide-react";
 import RecentlyViewed from "./components/RecentlyViewed";
 
 const triggerPushNotification = (title: string, body: string, targetUrl?: string) => {
   const isEnabled = localStorage.getItem('app_push_notif') !== 'false';
+  const defaultLogo = 'https://www.image2url.com/r2/default/images/1781024598371-46bd7cc9-4b5f-49cd-b4b3-60d4d200534a.png';
   if (isEnabled && 'Notification' in window && Notification.permission === 'granted') {
     try {
       if (navigator.serviceWorker && navigator.serviceWorker.ready) {
         navigator.serviceWorker.ready.then((registration) => {
           registration.showNotification(title, {
             body: body,
-            icon: '/images/app_logo.png',
+            icon: defaultLogo,
             badge: '/apple-touch-icon.png',
             data: {
               url: targetUrl || '/'
@@ -74,7 +76,7 @@ const triggerPushNotification = (title: string, body: string, targetUrl?: string
       } else {
         new Notification(title, {
           body: body,
-          icon: '/images/app_logo.png'
+          icon: defaultLogo
         });
       }
     } catch (e) {
@@ -117,6 +119,7 @@ export default function App() {
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [activePopupMessage, setActivePopupMessage] = useState<{ id: string; title: string; message: string; sender?: string } | null>(null);
 
   const handleMarkNotifAsRead = async (id: string) => {
     if (!userData?.id) return;
@@ -673,6 +676,95 @@ export default function App() {
             // Set up notifications listener
             const notificationsRef = collection(db, 'users', user.uid, 'notifications');
             notificationsUnsubscribe = onSnapshot(notificationsRef, (snapshot) => {
+              const localSeeded = localStorage.getItem('notifications_seeded_' + user.uid);
+              if (snapshot.empty) {
+                if (localSeeded === 'true' || (userData && userData.notificationsSeeded === true)) {
+                  setNotifications([]);
+                  setUnreadNotificationsCount(0);
+                  return;
+                }
+                const SEED_NOTIFICATIONS = [
+                  {
+                    title: "দৈনিক পরিশোধ",
+                    message: "আপনার অ্যাকাউন্ট এ দৈনিক ক্যাসিনো কমিশন এবং গেম রেট কমিশন সফলভাবে ক্রেডিট করা হয়েছে। নিয়মিত গেম খেলুন ও কমিশন উপভোগ করুন!",
+                    sender: "XX999",
+                    type: "bonus",
+                    read: false,
+                    createdAt: new Date(Date.now() - 4 * 3600 * 1000).toISOString()
+                  },
+                  {
+                    title: "✨✨【VIP এক্সক্লুসিভ সুবিধা】✨✨",
+                    message: "অভিনন্দন! আপনার ভিআইপি মেম্বারশিপ এর লেভেল-আপ এক্সক্লুসিভ বোনাস ৩৯৯ টাকা সফলভাবে যুক্ত করা হয়েছে।",
+                    sender: "ck41bdts2",
+                    type: "promotion",
+                    read: false,
+                    createdAt: new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString()
+                  },
+                  {
+                    title: "দৈনিক পরিশোধ",
+                    message: "আপনার রেফারেল কমিশন ক্যাশব্যাক সফলভাবে যোগ হয়েছে। এখনই রিচার্জ করে অতিরিক্ত বোনাস পান!",
+                    sender: "XX999",
+                    type: "bonus",
+                    read: false,
+                    createdAt: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString()
+                  },
+                  {
+                    title: "দৈনিক পরিশোধ",
+                    message: "ডেইলি রিকভারি লস কমিশন সম্পন্ন হয়েছে। আপনার ব্যালেন্স চেক করে খেলা চালিয়ে যান।",
+                    sender: "XX999",
+                    type: "bonus",
+                    read: false,
+                    createdAt: new Date(Date.now() - 1.5 * 24 * 3600 * 1000).toISOString()
+                  },
+                  {
+                    title: "দৈনিক পরিশোধ",
+                    message: "আপনার অ্যাকাউন্ট ক্যাশব্যাক ১০০ টাকা সেভ ও ট্র্যান্সফার করা হয়েছে।",
+                    sender: "XX999",
+                    type: "bonus",
+                    read: false,
+                    createdAt: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString()
+                  },
+                  {
+                    title: "দৈনিক পরিশোধ",
+                    message: "কমিশন ও উইকলি ট্রানজেকশন বোনাস সফলভাবে অ্যাকাউন্ট ফান্ডে যুক্ত করা হয়েছে।",
+                    sender: "XX999",
+                    type: "bonus",
+                    read: false,
+                    createdAt: new Date(Date.now() - 2.2 * 24 * 3600 * 1000).toISOString()
+                  },
+                  {
+                    title: "✨✨【VIP এক্সক্লুসিভ সুবিধা】✨✨",
+                    message: "স্পিন৭১ এর ভিআইপি বোনাস ও স্পেশাল সুযোগ নিয়ে এসেছে দুর্দান্ত লাকি ড্র ইভেন্ট!",
+                    sender: "ck41bdts2",
+                    type: "promotion",
+                    read: false,
+                    createdAt: new Date(Date.now() - 2.4 * 24 * 3600 * 1000).toISOString()
+                  },
+                  {
+                    title: "✨✨【VIP এক্সক্লুসিভ সুবিধা】✨✨",
+                    message: "আপনার প্রথম ডিপোজিট বোনাস ও রেফার লিংক শেয়ার বোনাস ক্লেইম করুন!",
+                    sender: "ck41bdts2",
+                    type: "promotion",
+                     read: false,
+                    createdAt: new Date(Date.now() - 2.6 * 24 * 3600 * 1000).toISOString()
+                  },
+                  {
+                    title: "👉 নতুন অংশীদার ঘোষণা 👈",
+                    message: "মহাসুসংবাদ! SPIN71 এর নতুন অফিসিয়াল এজেন্ট ও প্রমোশনাল অংশীদার যুক্ত হয়েছে।",
+                    sender: "প্ল্যাটফর্ম",
+                    type: "info",
+                    read: true,
+                    createdAt: new Date(Date.now() - 2.8 * 24 * 3600 * 1000).toISOString()
+                  }
+                ];
+                SEED_NOTIFICATIONS.forEach((notif) => {
+                  const docRef = doc(collection(db, 'users', user.uid, 'notifications'));
+                  setDoc(docRef, notif).catch(e => console.error("Error seeding custom notification list:", e));
+                });
+                updateDoc(doc(db, 'users', user.uid), { notificationsSeeded: true }).catch(err => {});
+                localStorage.setItem('notifications_seeded_' + user.uid, 'true');
+                return;
+              }
               let unread = 0;
               const notifs: any[] = [];
               snapshot.forEach(docSnap => {
@@ -696,7 +788,13 @@ export default function App() {
                     const now = Date.now();
                     const createdAt = data.createdAt?.seconds ? data.createdAt.seconds * 1000 : (data.createdAt ? new Date(data.createdAt).getTime() : now);
                     if (now - createdAt < 10000) {
-                      showToast(data.title || "নতুন নোটিফিকেশন!", "info");
+                      // Trigger custom styled pop message matching 3rd screenshot
+                      setActivePopupMessage({
+                        id: change.doc.id,
+                        title: data.title || "নতুন মেসেজ",
+                        message: data.message || "দৈনিক পরিশোধ",
+                        sender: data.sender || "প্ল্যাটফর্ম"
+                      });
                       
                       // Explicitly trigger a real browser native push notification
                       triggerPushNotification(
@@ -705,7 +803,7 @@ export default function App() {
                         data.url || "/"
                       );
 
-                      if (data.title === "ডিপোজিট সফল") {
+                      if (data.title === "ডিপোজিট সফল" || data.title?.includes("সফল")) {
                         canvasConfetti({
                           particleCount: 150,
                           spread: 70,
@@ -785,6 +883,64 @@ export default function App() {
 
     return () => unsubscribe();
   }, [db]);
+
+  // Real-time listener for global images (app logo, etc.) to ensure instant dynamic updates
+  useEffect(() => {
+    console.log("[App] Initializing real-time global_images listener...");
+    
+    const unsubscribe = onSnapshot(collection(db, 'global_images'), (snapshot) => {
+      const images: Record<string, string> = {};
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.url) images[doc.id] = data.url;
+      });
+      
+      setGlobalImages(prev => ({ ...prev, ...images }));
+      localStorage.setItem('global_images_cache', JSON.stringify(images));
+      console.log("[App] Global images synced real-time from Firestore:", images);
+    }, (err) => {
+      console.error("[App] Global images sync error:", err);
+    });
+
+    return () => unsubscribe();
+  }, [db]);
+
+  // Real-time automatic cleanup of notifications older than 3 days
+  useEffect(() => {
+    if (!userData?.id || notifications.length === 0) return;
+    
+    const lastCleanup = localStorage.getItem('last_cleanup_' + userData.id);
+    const now = Date.now();
+    // Run cleanup at most once every 30 minutes to optimize Firestore reads/writes
+    if (lastCleanup && now - parseInt(lastCleanup) < 30 * 60 * 1000) {
+      return;
+    }
+    
+    const cleanupOldNotifs = async () => {
+      localStorage.setItem('last_cleanup_' + userData.id, now.toString());
+      const threeDaysAgo = now - 3 * 24 * 60 * 60 * 1000;
+      const oldNotifs = notifications.filter(notif => {
+        const dateVal = notif.createdAt instanceof Date ? notif.createdAt.getTime() : new Date(notif.createdAt).getTime();
+        return dateVal < threeDaysAgo;
+      });
+
+      if (oldNotifs.length > 0) {
+        console.log(`[Auto-Cleanup] Deleting ${oldNotifs.length} expired notifications (older than 3 days)...`);
+        for (const old of oldNotifs) {
+          if (old.id) {
+            try {
+              await deleteDoc(doc(db, 'users', userData.id, 'notifications', old.id));
+              console.log(`[Auto-Cleanup] Permanently deleted expired notification: ${old.id}`);
+            } catch (err) {
+              console.error("[Auto-Cleanup] Delete error:", err);
+            }
+          }
+        }
+      }
+    };
+    
+    cleanupOldNotifs();
+  }, [userData?.id, notifications]);
 
   // Fetch all app config data once
   const loadAllAppConfig = async (retryCount = 0, force = false) => {
@@ -891,9 +1047,9 @@ export default function App() {
           if (cached) {
             let images = JSON.parse(cached);
             
-            // CACHE INVALIDATION: If cache contains the old broken logo URL, clear it to force-fetch our new local logo
-            const oldLogoUrlFragment = "1779832061426"; 
-            if (images['app_logo'] && images['app_logo'].includes(oldLogoUrlFragment)) {
+            // CACHE INVALIDATION: If cache contains any legacy logo, clear it to force-fetch our new custom logo
+            const correctLogoFragment = "1781024598371"; 
+            if (images['app_logo'] && !images['app_logo'].includes(correctLogoFragment)) {
                console.log("[App] Detected legacy logo in cache, purging...");
                localStorage.removeItem('global_images_cache');
             } else {
@@ -1028,6 +1184,16 @@ export default function App() {
        // logic to show admin can be here but activeTab is better
     }
   }, []);
+
+  // Auto-dismiss activePopupMessage after 6 seconds
+  useEffect(() => {
+    if (activePopupMessage) {
+      const timer = setTimeout(() => {
+        setActivePopupMessage(null);
+      }, 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [activePopupMessage]);
 
   const showNotification = (message: string, type: 'success' | 'info' | 'error' = 'info') => {
     setNotification({ isOpen: true, message, type });
@@ -1374,6 +1540,7 @@ export default function App() {
         message="অ্যাকাউন্ট লোড হচ্ছে" 
         subMessage="আপনার প্রোফাইল প্রস্তুত করা হচ্ছে" 
         type="data" 
+        appLogo={globalImages['app_logo'] || 'https://www.image2url.com/r2/default/images/1781024598371-46bd7cc9-4b5f-49cd-b4b3-60d4d200534a.png'}
         onRetry={() => {
           setIsDataLoading(true);
           setDbStatus('testing');
@@ -1411,7 +1578,7 @@ export default function App() {
             telegramLink={telegramLink}
             theme={theme}
             toggleTheme={toggleTheme}
-            appLogo={globalImages['app_logo'] || '/images/app_logo.png'}
+            appLogo={globalImages['app_logo'] || 'https://www.image2url.com/r2/default/images/1781024598371-46bd7cc9-4b5f-49cd-b4b3-60d4d200534a.png'}
             onInstallApp={handleInstallApp}
           />
         )}
@@ -1500,7 +1667,7 @@ export default function App() {
             }}
             showToast={showToast}
             showNotification={showNotification}
-            appLogo={globalImages['app_logo'] || '/images/app_logo.png'}
+            appLogo={globalImages['app_logo'] || 'https://www.image2url.com/r2/default/images/1781024598371-46bd7cc9-4b5f-49cd-b4b3-60d4d200534a.png'}
           />
         )}
       </AnimatePresence>
@@ -1704,7 +1871,7 @@ export default function App() {
                 globalUrls={globalUrls}
                 globalOptions={globalOptions}
                 globalImages={globalImages}
-                appLogo={globalImages['app_logo'] || '/images/app_logo.png'}
+                appLogo={globalImages['app_logo'] || 'https://www.image2url.com/r2/default/images/1781024598371-46bd7cc9-4b5f-49cd-b4b3-60d4d200534a.png'}
                 balance={balance}
                 isRefreshing={isRefreshing}
                 handleRefresh={handleRefresh}
@@ -2009,6 +2176,8 @@ export default function App() {
         notifications={notifications}
         onMarkAsRead={handleMarkNotifAsRead}
         onDelete={handleDeleteNotif}
+        showToast={showToast}
+        appLogo={globalImages['app_logo'] || 'https://www.image2url.com/r2/default/images/1781024598371-46bd7cc9-4b5f-49cd-b4b3-60d4d200534a.png'}
         onAction={(url) => {
           if (url.startsWith('tab:')) {
             handleTabChange(url.split(':')[1] as any);
@@ -2058,6 +2227,62 @@ export default function App() {
         isAdmin={userData?.role === 'admin' || userData?.isAdmin === true}
         userData={userData}
       />
+
+      {/* Floating Pop's Message matching 3rd screenshot */}
+      <AnimatePresence>
+        {activePopupMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -30, scale: 0.95 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className="fixed top-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-[380px] z-[9999] bg-white rounded-2xl shadow-[0_15px_40px_rgba(0,0,0,0.25)] border-l-[6px] border-[#00d0f5] flex items-start gap-3.5 p-5 cursor-pointer hover:bg-gray-50 active:scale-[0.99] transition-all overflow-hidden"
+            onClick={async () => {
+              const msgId = activePopupMessage.id;
+              if (msgId && userData?.id) {
+                try {
+                  await updateDoc(doc(db, 'users', userData.id, 'notifications', msgId), { read: true });
+                } catch (e) { console.error(e); }
+              }
+              setActivePopupMessage(null);
+              setIsNotificationCenterOpen(true);
+            }}
+          >
+            {/* Dynamic Game/App Logo framing and container */}
+            <div className="w-[44px] h-[44px] rounded-full overflow-hidden border border-gray-200 shrink-0 flex items-center justify-center bg-[#1c1c1c] shadow-sm">
+              <img 
+                src={globalImages['app_logo'] || 'https://www.image2url.com/r2/default/images/1781024598371-46bd7cc9-4b5f-49cd-b4b3-60d4d200534a.png'} 
+                alt="Logo" 
+                className="w-full h-full object-cover" 
+              />
+            </div>
+
+            {/* Notification content */}
+            <div className="flex-1 min-w-0 pr-6 select-none text-left">
+              <h4 className="text-gray-900 font-extrabold text-sm sm:text-base leading-snug">
+                নতুন মেসেজ
+              </h4>
+              <p className="text-gray-500 font-bold text-xs sm:text-sm mt-0.5 line-clamp-1">
+                {activePopupMessage.title}
+              </p>
+              <p className="text-gray-400 text-[10px] font-semibold mt-1">
+                প্রেরক: {activePopupMessage.sender || 'প্ল্যাটফর্ম'}
+              </p>
+            </div>
+
+            {/* Close button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setActivePopupMessage(null);
+              }}
+              className="absolute top-4 right-4 p-1 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-950 transition-colors"
+            >
+              <X size={16} strokeWidth={2.5} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <NotificationOverlay 
         isOpen={notification.isOpen} 

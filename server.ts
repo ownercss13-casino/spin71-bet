@@ -8,7 +8,7 @@ import { getFirestore as getAdminFirestore, FieldValue as AdminFieldValue } from
 import { getDatabase } from 'firebase-admin/database';
 import { initializeApp as initClientApp } from 'firebase/app';
 import { getAuth as getClientAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, initializeAuth, browserLocalPersistence } from 'firebase/auth';
-import { getFirestore as getClientFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, runTransaction, onSnapshot, increment, serverTimestamp, query, where, limit, orderBy, arrayUnion, arrayRemove, writeBatch } from 'firebase/firestore';
+import { getFirestore as getClientFirestore, initializeFirestore as initClientFirestore, setLogLevel, collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, runTransaction, onSnapshot, increment, serverTimestamp, query, where, limit, orderBy, arrayUnion, arrayRemove, writeBatch } from 'firebase/firestore';
 import cors from 'cors';
 import session from 'express-session';
 import fetch from 'node-fetch';
@@ -96,12 +96,27 @@ if (!originalAdmin.apps.length) {
 
 const firebaseApp = originalAdmin.app();
 
+// Silence verbose connection warnings in Node server console/logs
+try {
+  setLogLevel('error');
+} catch (logErr) {
+  console.warn("[Firebase] Failed to silence verbose logging:", logErr);
+}
+
 // Initialize Firestore - prioritizing the config but allowing fallback
 let currentDbId = firebaseConfig.firestoreDatabaseId || '(default)';
 console.log(`[Firebase] Initializing with Database ID: ${currentDbId}`);
 
 const clientApp = initClientApp(firebaseConfig);
-const clientDb = getClientFirestore(clientApp, currentDbId);
+let clientDb: any;
+try {
+  clientDb = initClientFirestore(clientApp, {
+    experimentalForceLongPolling: true,
+  }, currentDbId);
+} catch (dbInitErr) {
+  console.warn("[Firebase] Failed to initialize named client Firestore, falling back to default:", dbInitErr);
+  clientDb = getClientFirestore(clientApp, currentDbId);
+}
 
 let clientAuth: any;
 try {
@@ -1187,14 +1202,15 @@ async function initializeGlobalConfig() {
 
       // App Logo
       const logoDoc = await adminDb.collection('global_images').doc('app_logo').get();
-      if (!logoDoc.exists || !logoDoc.data()?.url) {
+      const targetLogoUrl = 'https://www.image2url.com/r2/default/images/1781024598371-46bd7cc9-4b5f-49cd-b4b3-60d4d200534a.png';
+      if (!logoDoc.exists || !logoDoc.data()?.url || !logoDoc.data()?.url.includes('1781024598371')) {
         await adminDb.collection('global_images').doc('app_logo').set({
           id: 'app_logo',
           name: 'App Logo',
-          url: '/images/app_logo.png',
+          url: targetLogoUrl,
           updatedAt: new Date().toISOString()
         }, { merge: true });
-        console.log("[Config] App Logo initialized with default.");
+        console.log("[Config] App Logo initialized and force-updated with premium customer logo.");
       }
       
       console.log("[Config] Firestore global config validation complete.");

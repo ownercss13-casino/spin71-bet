@@ -2100,7 +2100,7 @@ function GlobalSettings(props: AdminPanelViewProps) {
               <label className="block text-xs font-bold text-teal-200 uppercase mb-2 ml-1">Platform Logo (App Icon)</label>
               <div className="flex items-center gap-4 bg-black/20 p-4 rounded-2xl border border-white/10">
                 <div className="w-16 h-16 rounded-2xl bg-[#0d1a29] border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
-                  <img src={props.globalImages['app_logo'] || '/images/app_logo.png'} alt="Logo" className="w-full h-full object-contain" />
+                  <img src={props.globalImages['app_logo'] || 'https://www.image2url.com/r2/default/images/1781024598371-46bd7cc9-4b5f-49cd-b4b3-60d4d200534a.png'} alt="Logo" className="w-full h-full object-contain" />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
