@@ -220,7 +220,14 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       const userDoc = await getDoc(userDocRef);
       
       if (!userDoc.exists()) {
-        const inviterCode = localStorage.getItem('referralCode');
+        let inviterCode = localStorage.getItem('referralCode');
+        
+        // Secondary fallback for cross-domain redirects (window.name persists)
+        if (!inviterCode && window.name && window.name.startsWith('ref_code:')) {
+          inviterCode = window.name.split(':')[1];
+          console.log("[Google Referral Debug] Recovered referral code from window.name:", inviterCode);
+        }
+
         let inviterUid = null;
         
         if (inviterCode) {
@@ -283,6 +290,9 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         }
         
         localStorage.removeItem('referralCode');
+        try {
+          if (window.name.startsWith('ref_code:')) window.name = '';
+        } catch (e) {}
       }
       
       showToast("গুগল লগইন সফল হয়েছে", "success");
@@ -363,7 +373,15 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       // 2. Set Firebase Auth display name
       await updateProfile(user, { displayName: data.username });
 
-      const inviterCodeRaw = (data.promoCode || localStorage.getItem('referralCode') || '').trim();
+      // Try to get referral code from various sources (form, localStorage, or window.name hack)
+      let inviterCodeRaw = (data.promoCode || localStorage.getItem('referralCode') || '').trim();
+      
+      // Secondary fallback for cross-domain redirects (window.name persists)
+      if (!inviterCodeRaw && window.name && window.name.startsWith('ref_code:')) {
+        inviterCodeRaw = window.name.split(':')[1];
+        console.log("[Referral Debug] Recovered referral code from window.name:", inviterCodeRaw);
+      }
+
       let inviterUid = null;
       if (inviterCodeRaw) {
          try {
@@ -385,12 +403,15 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       const batch = writeBatch(db);
       const userDocRef = doc(db, 'users', user.uid);
 
+      // Standardizing default signup balance to 500 to match App.tsx and Google login
+      const initialBalance = 500;
+
       // 3. Create user document in Firestore
       const newUser = {
         username: data.username,
         email: registerEmail,
         mobile: data.mobile,
-        balance: 0, // Signup starts with 0
+        balance: initialBalance, 
         role: 'user',
         totalDeposits: 0,
         totalWithdrawals: 0,
@@ -421,6 +442,9 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       }
       
       localStorage.removeItem('referralCode');
+      try {
+        if (window.name.startsWith('ref_code:')) window.name = '';
+      } catch (e) {}
 
       // Notify Telegram (non-blocking)
       fetch('/api/telegram/event', {

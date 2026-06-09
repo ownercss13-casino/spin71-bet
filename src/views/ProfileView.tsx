@@ -12,6 +12,7 @@ import ReferralDashboardTab from './ReferralDashboardTab';
 import WithdrawalHistoryTab from './WithdrawalHistoryTab';
 import ImageCropper from '../components/ui/ImageCropper';
 import ShareModal from '../components/modals/ShareModal';
+import { getReferralLink } from '../config';
 import { VIP_LEVELS, getVIPLevel, getNextVIPLevel } from '../constants/vipLevels';
 import VIPBadge from '../components/VIPBadge';
 import VIPCard from '../components/VIPCard';
@@ -31,7 +32,7 @@ import {
   LogOut, ArrowDownLeft, BarChart3, Headset, Send, History as HistoryIcon, 
   Filter, Play, Clock, ArrowUpRight, ShieldCheck, Check, AlertCircle, 
   AlertTriangle, KeyRound, Copy, Lock, UserCheck, IdCard, Loader2, ChevronRight,
-  Search, TrendingUp, Gamepad2, Key, Download, Bell, Trophy, Star, FileText,
+  Search, TrendingUp, Gamepad2, Key, Download, Bell, Trophy, Star, FileText, Home,
   ClipboardCheck, FileSearch, UserCircle, UserPlus, Coins, AtSign, Zap, ArrowRight, Activity,
   ChevronDown, Megaphone, Compass, Globe, Share2
 } from 'lucide-react';
@@ -995,7 +996,7 @@ export default function ProfileView({
         showToast={showToast}
         title={`${casinoName || 'SPIN71.bet'} - Play with me!`}
         text={`Hey guys, check out my progress on ${casinoName || 'SPIN71.bet'}! I have ৳ ${balance.toLocaleString()} in my wallet. Join me and play!`}
-        url={window.location.href}
+        url={getReferralLink(userData?.referralCode || userData?.id?.substring(0, 6).toUpperCase() || 'SPIN71')}
       />
 
       {/* Casino Name Edit Modal */}
@@ -3066,179 +3067,55 @@ function OverviewTab(props: OverviewTabProps) {
 }
 
 function LinksTab({ onTabChange, onSubTabChange, showToast }: { onTabChange: (tab: any) => void, onSubTabChange: (tab: string) => void, showToast: (msg: string, type?: ToastType) => void }) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState('all');
-  const [sortBy, setSortBy] = useState('recent');
-
   // Real app links/pages
-  const [links] = useState([
-    { id: 'home', title: 'হোম পেজ (Home)', url: 'https://spin71-bet-e0m5.onrender.com/', type: 'page', clicks: 1245, lastVisited: new Date().toISOString(), action: () => onTabChange('home') },
-    { id: 'deposit', title: 'ডিপোজিট (Deposit)', url: 'https://spin71-bet-e0m5.onrender.com/deposit', type: 'finance', clicks: 432, lastVisited: new Date(Date.now() - 86400000).toISOString(), action: () => onTabChange('deposit') },
-    { id: 'withdraw', title: 'উত্তোলন (Withdraw)', url: 'https://spin71-bet-e0m5.onrender.com/profile/withdraw', type: 'finance', clicks: 210, lastVisited: new Date(Date.now() - 120000000).toISOString(), action: () => onSubTabChange('withdraw') },
-    { id: 'bonus', title: 'বোনাস সেন্টার (Bonus)', url: 'https://spin71-bet-e0m5.onrender.com/bonus', type: 'page', clicks: 890, lastVisited: new Date(Date.now() - 172800000).toISOString(), action: () => onTabChange('bonus') },
-    { id: 'invite', title: 'আমন্ত্রণ (Invite)', url: 'https://spin71-bet-e0m5.onrender.com/invite', type: 'referral', clicks: 156, lastVisited: new Date(Date.now() - 259200000).toISOString(), action: () => onTabChange('invite') },
-    { id: 'profile', title: 'প্রোফাইল (Profile)', url: 'https://spin71-bet-e0m5.onrender.com/profile', type: 'page', clicks: 567, lastVisited: new Date().toISOString(), action: () => onTabChange('profile') },
-    { id: 'history', title: 'ইতিহাস (History)', url: 'https://spin71-bet-e0m5.onrender.com/profile/history', type: 'page', clicks: 345, lastVisited: new Date(Date.now() - 50000000).toISOString(), action: () => onSubTabChange('history') },
-    { id: 'settings', title: 'সেটিংস (Settings)', url: 'https://spin71-bet-e0m5.onrender.com/profile/settings', type: 'page', clicks: 120, lastVisited: new Date(Date.now() - 400000000).toISOString(), action: () => onSubTabChange('profile') },
-    { id: 'telegram', title: 'টেলিগ্রাম সাপোর্ট (Support)', url: 'https://t.me/spin71_predictor_bot', type: 'support', clicks: 89, lastVisited: new Date(Date.now() - 345600000).toISOString(), action: () => window.open('https://t.me/spin71_predictor_bot', '_blank') },
-  ]);
-
-  const filteredAndSortedLinks = useMemo(() => {
-    let result = [...links];
-
-    // Search
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(link => 
-        link.title.toLowerCase().includes(q) || 
-        link.url.toLowerCase().includes(q)
-      );
-    }
-
-    // Filter
-    if (filterType !== 'all') {
-      result = result.filter(link => link.type === filterType);
-    }
-
-    // Sort
-    result.sort((a, b) => {
-      if (sortBy === 'recent') {
-        return new Date(b.lastVisited).getTime() - new Date(a.lastVisited).getTime();
-      } else if (sortBy === 'clicks_desc') {
-        return b.clicks - a.clicks;
-      } else if (sortBy === 'title_asc') {
-        return a.title.localeCompare(b.title);
-      }
-      return 0;
-    });
-
-    return result;
-  }, [links, searchQuery, filterType, sortBy]);
+  const links = [
+    { id: 'invite', title: 'বন্ধু আমন্ত্রণ করুন (Invite Friends)', type: 'referral', action: () => onTabChange('invite'), icon: Users, color: 'text-yellow-400' },
+    { id: 'bonus', title: 'বোনাস কালেক্ট করুন (Collect Bonus)', type: 'page', action: () => onTabChange('bonus'), icon: Gift, color: 'text-pink-400' },
+    { id: 'home', title: 'হোম পেজ (Home)', type: 'page', action: () => onTabChange('home'), icon: Home, color: 'text-blue-400' },
+    { id: 'deposit', title: 'টাকা জমা (Deposit)', type: 'finance', action: () => onTabChange('deposit'), icon: Wallet, color: 'text-emerald-400' },
+    { id: 'withdraw', title: 'টাকা উত্তোলন (Withdraw)', type: 'finance', action: () => onSubTabChange('withdraw'), icon: ArrowDownLeft, color: 'text-amber-400' },
+    { id: 'history', title: 'বেটিং ইতিহাস (Bet History)', type: 'page', action: () => onSubTabChange('history'), icon: HistoryIcon, color: 'text-cyan-400' },
+    { id: 'telegram', title: 'টেলিগ্রাম সাপোর্ট (Telegram)', type: 'support', action: () => window.open('https://t.me/spin71bet_official', '_blank'), icon: Send, color: 'text-sky-400' },
+    { id: 'whatsapp', title: 'হোয়াটসঅ্যাপ সাপোর্ট (WhatsApp)', type: 'support', action: () => window.open('https://wa.me/...', '_blank'), icon: MessageCircle, color: 'text-green-400' },
+  ];
 
   return (
-    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
-      <div className="flex justify-between items-center mb-2">
-        <h3 className="font-bold text-[var(--text-main)]">আমার লিংক (My Links)</h3>
+    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 p-2">
+      <div className="flex border-b border-white/5 pb-4 mb-4">
+        <h3 className="font-black text-white text-xl italic uppercase tracking-wider">Quick Access Links</h3>
       </div>
 
-      <div className="flex flex-col gap-3 mb-4">
-        {/* Search */}
-        <div className="relative">
-          <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-            <Search size={16} className="text-[var(--brand-primary)]" />
-          </div>
-          <input 
-            type="text" 
-            placeholder="লিংক খুঁজুন..." 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] text-[var(--text-main)] text-sm rounded-xl pl-10 pr-4 py-3 focus:outline-none focus:border-yellow-500 transition-colors"
-          />
-        </div>
-
-        {/* Filters & Sort */}
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory scroll-smooth">
-          <div className="relative flex-1 min-w-[130px] snap-start">
-            <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
-              <Filter size={14} className="text-[var(--brand-primary)]" />
+      <div className="grid grid-cols-1 gap-3">
+        {links.map((link) => (
+          <motion.button 
+            key={link.id}
+            whileHover={{ scale: 1.01, x: 5 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={link.action}
+            className="group flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-yellow-500/30 rounded-[20px] transition-all"
+          >
+            <div className="flex items-center gap-4">
+              <div className={`p-2.5 rounded-xl bg-black/40 ${link.color} shadow-inner`}>
+                <link.icon size={24} strokeWidth={2} />
+              </div>
+              <div className="text-left">
+                <h4 className="text-white font-black text-sm md:text-base tracking-tight group-hover:text-yellow-400 transition-colors">{link.title}</h4>
+                <span className="text-[9px] text-white/30 font-bold uppercase tracking-widest leading-none">{link.type}</span>
+              </div>
             </div>
-            <select 
-              value={filterType} 
-              onChange={(e) => setFilterType(e.target.value)}
-              className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] text-[var(--text-main)] text-xs rounded-lg pl-8 pr-2 py-2.5 appearance-none focus:outline-none focus:border-yellow-500"
-            >
-              <option value="all">সব ধরন</option>
-              <option value="page">পেজ</option>
-              <option value="finance">ফাইন্যান্স</option>
-              <option value="referral">রেফারেল</option>
-              <option value="support">সাপোর্ট</option>
-            </select>
-          </div>
-          
-          <div className="relative flex-1 min-w-[140px] snap-start">
-            <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
-              <ArrowDownUp size={14} className="text-[var(--brand-primary)]" />
+            <div className="w-10 h-10 rounded-full flex items-center justify-center bg-white/5 group-hover:bg-yellow-500/20 group-hover:text-yellow-400 transition-all text-white/20">
+              <ChevronRight size={20} />
             </div>
-            <select 
-              value={sortBy} 
-              onChange={(e) => setSortBy(e.target.value)}
-              className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] text-[var(--text-main)] text-xs rounded-lg pl-8 pr-2 py-2.5 appearance-none focus:outline-none focus:border-yellow-500"
-            >
-              <option value="recent">সাম্প্রতিক</option>
-              <option value="clicks_desc">সবচেয়ে বেশি ক্লিক</option>
-              <option value="title_asc">নাম (A-Z)</option>
-            </select>
-          </div>
-        </div>
+          </motion.button>
+        ))}
       </div>
-
-      <div className="space-y-3">
-        {filteredAndSortedLinks.length > 0 ? (
-          filteredAndSortedLinks.map((link) => (
-            <div key={link.id} className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border-color)] hover:bg-black/5 transition-colors">
-              <div className="flex justify-between items-start mb-2">
-                <div className="flex items-center gap-2">
-                  <div className={`p-2 rounded-lg ${
-                    link.type === 'page' ? 'bg-purple-500/20 text-purple-400' :
-                    link.type === 'finance' ? 'bg-green-500/20 text-green-400' :
-                    link.type === 'referral' ? 'bg-yellow-500/20 text-yellow-400' :
-                    'bg-blue-500/20 text-blue-400'
-                  }`}>
-                    {link.type === 'page' ? <Play size={16} /> :
-                     link.type === 'finance' ? <Wallet size={16} /> :
-                     link.type === 'referral' ? <Users size={16} /> :
-                     <Info size={16} />}
-                  </div>
-                  <div>
-                    <h4 className="text-[var(--text-main)] font-bold text-sm">{link.title}</h4>
-                    <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">{link.type}</span>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={link.action}
-                    className="px-3 py-1.5 bg-yellow-500 text-black font-bold text-xs rounded-md hover:bg-yellow-400 transition-colors"
-                  >
-                    ভিজিট
-                  </button>
-                  <button 
-                    onClick={() => {
-                      navigator.clipboard.writeText(link.url);
-                      showToast('লিংক কপি করা হয়েছে!', 'success');
-                    }}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-black/10 rounded-md transition-colors border border-[var(--border-color)]"
-                    title="Copy Link"
-                  >
-                    <Copy size={14} />
-                    <span className="text-[10px] font-bold">কপি</span>
-                  </button>
-                </div>
-              </div>
-              
-              <div className="bg-black/5 p-2 rounded-lg mb-3 overflow-hidden">
-                <p className="text-xs text-[var(--text-muted)] truncate font-mono">{link.url}</p>
-              </div>
-              
-              <div className="flex justify-between items-center text-[10px] text-[var(--text-muted)]">
-                <span className="flex items-center gap-1">
-                  <TrendingUp size={12} /> {link.clicks} ক্লিক
-                </span>
-                <span className="flex items-center gap-1">
-                  <Calendar size={12} /> {new Date(link.lastVisited).toLocaleDateString('en-GB')}
-                </span>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="text-center py-8 text-[var(--text-muted)]">
-            <p>কোনো লিংক পাওয়া যায়নি</p>
-          </div>
-        )}
+      
+      <div className="mt-8 pt-4 border-t border-white/5 text-center">
+        <p className="text-[10px] text-white/20 font-black uppercase tracking-[0.3em]">SPIN71 Secure Navigation</p>
       </div>
     </div>
   );
 }
-
 function HistoryTab({ userData, onBack }: { userData?: any, onBack: () => void }) {
   const [filterType, setFilterType] = useState('all');
   const [sortBy, setSortBy] = useState('date_desc');

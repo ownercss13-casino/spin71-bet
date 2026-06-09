@@ -472,19 +472,41 @@ export default function HomeView({
         />
       </div>
 
-      {/* Referral Program Banner - Simplified */}
+        {/* Referral Program Banner - Simplified */}
       <div className="px-3 mt-4">
         <div 
-          className="relative overflow-hidden rounded-2xl bg-[#14253a] border border-[#1e3a5f] p-5 cursor-pointer"
+          className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-900 via-blue-900 to-indigo-900 border border-indigo-500/30 p-5 cursor-pointer shadow-lg shadow-indigo-900/20"
           onClick={() => onNavigate?.('invite')}
         >
           <div className="flex items-center justify-between gap-4">
             <div className="space-y-1">
               <h4 className="text-xl font-black text-white italic tracking-tight">Refer & Earn</h4>
-              <p className="text-[10px] text-[#90a4ae] font-bold">Invite friends and get ৳108 bonus per person!</p>
+              <p className="text-[10px] text-indigo-200 font-bold">Invite friends and get ৳108 bonus per person!</p>
             </div>
-            <button className="bg-[#fdd835] text-black px-4 py-2 rounded-lg text-[10px] font-black uppercase">Invite</button>
+            <button className="bg-[#fdd835] text-black px-4 py-2 rounded-lg text-[10px] font-black uppercase shadow-lg shadow-yellow-500/20 active:scale-95 transition-all">Invite</button>
           </div>
+        </div>
+      </div>
+
+      {/* Customer Support Section */}
+      <div className="px-3 mt-4 mb-10">
+        <h4 className="text-sm font-black text-white italic mb-3 flex items-center gap-2">
+            <MessageSquare size={16} className="text-blue-400" />
+            Customer Support
+        </h4>
+        <div className="grid grid-cols-3 gap-3">
+          <a href={telegramLink} target="_blank" rel="noopener noreferrer" className="bg-[#0088cc] flex flex-col items-center justify-center p-3 rounded-2xl gap-1 hover:scale-105 transition-transform">
+             <Send size={20} className="text-white" />
+             <span className="text-[9px] font-bold text-white uppercase">Telegram</span>
+          </a>
+          <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="bg-[#25D366] flex flex-col items-center justify-center p-3 rounded-2xl gap-1 hover:scale-105 transition-transform">
+             <MessageSquare size={20} className="text-white" />
+             <span className="text-[9px] font-bold text-white uppercase">WhatsApp</span>
+          </a>
+          <button onClick={() => setIsSupportChatOpen?.(true)} className="bg-[#0cf] flex flex-col items-center justify-center p-3 rounded-2xl gap-1 hover:scale-105 transition-transform">
+             <MessageSquare size={20} className="text-white" />
+             <span className="text-[9px] font-bold text-white uppercase">Live Chat</span>
+          </button>
         </div>
       </div>
 

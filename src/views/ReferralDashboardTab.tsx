@@ -8,6 +8,7 @@ import {
   Trophy, Medal, TrendingUp
 } from 'lucide-react';
 import { ToastType } from '../components/ui/Toast';
+import { getReferralLink } from '../config';
 
 interface ReferralDashboardTabProps {
   userData: any;
@@ -105,7 +106,7 @@ export default function ReferralDashboardTab({ userData, showToast, onBack }: Re
   const totalEarnings = userData?.totalReferralEarnings || 0;
 
   const referralCode = userData?.referralCode || (userData?.id ? userData.id.substring(0, 6).toUpperCase() : 'SPIN71');
-  const referralLink = `${window.location.origin}/?ref=${referralCode}`;
+  const referralLink = getReferralLink(referralCode);
 
   const copyLink = () => {
     navigator.clipboard.writeText(referralLink);

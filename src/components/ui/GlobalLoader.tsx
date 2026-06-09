@@ -75,27 +75,29 @@ export default function GlobalLoader({
 
       {/* Center Artwork - Logo Placeholder */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center w-full">
-        <motion.div 
+          <motion.div 
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", bounce: 0.5 }}
           className="relative flex flex-col items-center justify-center p-8"
         >
           <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
-            className="relative w-32 h-32 mb-4"
+            className="relative w-32 h-32 flex items-center justify-center"
           >
-            <div className="absolute inset-0 rounded-full border-[3px] border-yellow-500/30 animate-pulse"></div>
+            {/* The rotating glowing ring */}
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+              className="absolute inset-0 rounded-full border-[4px] border-transparent border-t-yellow-500 border-b-yellow-500"
+            />
+            
+            {/* The static centered image */}
             <img 
-              src={appLogo || "https://www.image2url.com/r2/default/images/1780650823760-2e7c42d6-ef2e-4d3b-beac-b0f0b7eccac4.png"} 
+              src={appLogo || "https://www.image2url.com/r2/default/images/1781036888076-ad11252a-71cf-419a-9052-da9ff7a1a3fd.png"}
               alt="Loading" 
-              className="w-full h-full object-contain p-2"
+              className="w-24 h-24 object-cover rounded-full shadow-[0_0_20px_rgba(253,216,53,0.5)]"
             />
           </motion.div>
-          <span className="text-4xl sm:text-6xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-yellow-200 to-yellow-500 drop-shadow-[0_0_10px_rgba(253,216,53,0.3)]">
-            SPIN71.BET
-          </span>
         </motion.div>
       </div>
 
@@ -114,7 +116,7 @@ export default function GlobalLoader({
         </div>
 
         <div className="flex flex-col items-center gap-1">
-          {/* Loading texts removed per request */}
+          {/* Loading status text removed per request */}
           {(showRetry || autoShowRetry) && (
             <motion.div 
               initial={{ opacity: 0, y: 10 }}

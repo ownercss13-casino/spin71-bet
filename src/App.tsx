@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import canvasConfetti from 'canvas-confetti';
 import { formatDisplayUID } from './utils/idUtils';
 import { SoundProvider } from './context/SoundContext';
@@ -26,6 +26,7 @@ import SupportChat from "./layout/SupportChat";
 import NotificationOverlay from "./components/ui/NotificationOverlay";
 import PromoCodeModal from "./components/modals/PromoCodeModal";
 import AppInstallModal from "./components/modals/AppInstallModal";
+import AutoLogoutModal from "./components/modals/AutoLogoutModal";
 import { PWAInstallBanner } from "./components/PWAInstallBanner";
 
 import DepositRequiredModal from "./components/ui/DepositRequiredModal";
@@ -105,10 +106,11 @@ export default function App() {
   const [toasts, setToasts] = useState<{ id: string; message: string; type: ToastType }[]>([]);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showExitPopup, setShowExitPopup] = useState(false);
-  const [activeTab, setActiveTab] = useState<'home' | 'slot' | 'aviator' | 'profile' | 'invite' | 'deposit' | 'bonus' | 'wallet' | 'faq' | 'leaderboard' | 'terms' | 'analytics' | 'admin' | 'settings' | 'history'>(() => {
+  const [activeTab, setActiveTab] = useState<'home' | 'slot' | 'aviator' | 'profile' | 'invite' | 'deposit' | 'bonus' | 'wallet' | 'faq' | 'leaderboard' | 'terms' | 'analytics' | 'admin' | 'settings' | 'history' | 'register' | 'login'>(() => {
     const rawPath = window.location.pathname.replace(/^\/+|$/g, '').split('/')[0];
-    const validTabs: any[] = ['home', 'slot', 'aviator', 'profile', 'invite', 'deposit', 'bonus', 'wallet', 'faq', 'leaderboard', 'terms', 'analytics', 'admin', 'settings', 'history'];
+    const validTabs: any[] = ['home', 'slot', 'aviator', 'profile', 'invite', 'deposit', 'bonus', 'wallet', 'faq', 'leaderboard', 'terms', 'analytics', 'admin', 'settings', 'history', 'register', 'login'];
     if (validTabs.includes(rawPath)) {
+      if (rawPath === 'register' || rawPath === 'login') return 'home';
       return rawPath as any;
     }
     return 'home';
@@ -159,6 +161,11 @@ export default function App() {
   const [loginModalMode, setLoginModalMode] = useState<'login' | 'register'>('login');
   const [userData, setUserData] = useState<any>(null); // State to store user info from DB
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  
+  // Auto-logout inactivity states
+  const [showAutoLogoutWarning, setShowAutoLogoutWarning] = useState(false);
+  const [autoLogoutCountdown, setAutoLogoutCountdown] = useState(60);
+  const lastActivityTime = useRef<number>(Date.now());
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -204,14 +211,23 @@ export default function App() {
 
   useEffect(() => {
     const rawPath = window.location.pathname.replace(/^\/+|$/g, '').split('/')[0];
-    const validTabs: any[] = ['home', 'slot', 'aviator', 'profile', 'invite', 'deposit', 'bonus', 'wallet', 'faq', 'leaderboard', 'terms', 'analytics', 'admin', 'settings', 'history'];
-    const tabToUse = validTabs.includes(rawPath) ? rawPath : 'home';
+    const validTabs: any[] = ['home', 'slot', 'aviator', 'profile', 'invite', 'deposit', 'bonus', 'wallet', 'faq', 'leaderboard', 'terms', 'analytics', 'admin', 'settings', 'history', 'register', 'login'];
+    const tabToUse = validTabs.includes(rawPath) ? (rawPath === 'register' || rawPath === 'login' ? 'home' : rawPath) : 'home';
+
+    if (rawPath === 'register') {
+      setLoginModalMode('register');
+      setShowLoginModal(true);
+    } else if (rawPath === 'login') {
+      setLoginModalMode('login');
+      setShowLoginModal(true);
+    }
 
     // Check if we are already dealing with our structured history (e.g., hot refresh)
     if (!window.history.state || window.history.state.tab !== tabToUse) {
       // Setup the initial trap state backwards
-      window.history.replaceState({ page: 'exit-trap' }, '', `/${tabToUse}`);
-      window.history.pushState({ page: 'tab', tab: tabToUse }, '', `/${tabToUse}`);
+      const displayPath = rawPath || (tabToUse === 'home' ? '' : tabToUse);
+      window.history.replaceState({ page: 'exit-trap' }, '', `/${displayPath}${window.location.search}`);
+      window.history.pushState({ page: 'tab', tab: tabToUse }, '', `/${displayPath}${window.location.search}`);
     }
 
     const handlePopState = (event: PopStateEvent) => {
@@ -226,14 +242,22 @@ export default function App() {
         // Put the state back so user doesn't actually exit yet
         const currentPath = window.location.pathname.replace(/^\/+|$/g, '').split('/')[0] || 'home';
         window.history.pushState({ page: 'tab', tab: currentPath }, '', `/${currentPath}`);
-      } else if (state && state.tab) {
-        setActiveTab(state.tab);
+      } else if (state && (state.tab || state.path)) {
+        const targetTab = state.tab || 'home';
+        setActiveTab(targetTab);
         setShowExitPopup(false);
       } else {
         // Fallback
         const path = window.location.pathname.replace(/^\/+|$/g, '').split('/')[0];
         if (validTabs.includes(path)) {
-          setActiveTab(path as any);
+          setActiveTab(path === 'register' || path === 'login' ? 'home' : path as any);
+          if (path === 'register') {
+            setLoginModalMode('register');
+            setShowLoginModal(true);
+          } else if (path === 'login') {
+            setLoginModalMode('login');
+            setShowLoginModal(true);
+          }
         } else {
           setActiveTab('home');
         }
@@ -248,7 +272,8 @@ export default function App() {
   useEffect(() => {
     const rawPath = window.location.pathname.replace(/^\/+|$/g, '').split('/')[0];
     if (rawPath !== activeTab) {
-      window.history.pushState({ page: 'tab', tab: activeTab }, '', `/${activeTab}`);
+      const displayPath = activeTab === 'home' ? '' : activeTab;
+      window.history.pushState({ page: 'tab', tab: activeTab }, '', `/${displayPath}${window.location.search}`);
     }
   }, [activeTab]);
 
@@ -272,7 +297,8 @@ export default function App() {
 
     if (tab === activeTab) return;
 
-    window.history.pushState({ page: 'tab', tab: tab }, '', `/${tab}`);
+    const displayPath = tab === 'home' ? '' : tab;
+    window.history.pushState({ page: 'tab', tab: tab }, '', `/${displayPath}${window.location.search}`);
     setIsTabLoading(true);
     // Professional delay to ensure smooth transition and show the loading state
     setTimeout(() => {
@@ -298,6 +324,62 @@ export default function App() {
       showToast("লগআউট করতে সমস্যা হয়েছে", "error");
     }
   };
+
+  // Auto-logout inactivity tracking hook (30 minutes)
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setShowAutoLogoutWarning(false);
+      return;
+    }
+
+    lastActivityTime.current = Date.now();
+
+    const handleUserActivity = () => {
+      lastActivityTime.current = Date.now();
+      // Reset is triggered on any basic interaction
+      setShowAutoLogoutWarning(prev => {
+        if (prev) return false;
+        return prev;
+      });
+    };
+
+    const activityEvents = [
+      'mousemove',
+      'mousedown',
+      'keypress',
+      'scroll',
+      'touchstart',
+      'click'
+    ];
+
+    activityEvents.forEach(event => {
+      window.addEventListener(event, handleUserActivity, { passive: true });
+    });
+
+    const checkInterval = setInterval(() => {
+      const inactiveMs = Date.now() - lastActivityTime.current;
+      const warningThreshold = 29 * 60 * 1000; // Warning at 29 minutes
+      const logoutThreshold = 30 * 60 * 1000;  // Logout at 30 minutes
+
+      if (inactiveMs >= logoutThreshold) {
+        clearInterval(checkInterval);
+        handleLogout();
+      } else if (inactiveMs >= warningThreshold) {
+        setShowAutoLogoutWarning(true);
+        const secRemaining = Math.max(0, Math.ceil((logoutThreshold - inactiveMs) / 1000));
+        setAutoLogoutCountdown(secRemaining);
+      } else {
+        setShowAutoLogoutWarning(false);
+      }
+    }, 1000);
+
+    return () => {
+      activityEvents.forEach(event => {
+        window.removeEventListener(event, handleUserActivity);
+      });
+      clearInterval(checkInterval);
+    };
+  }, [isLoggedIn]);
 
   const handleUpdateGlobalGameLogo = async (gameId: string, logo: string) => {
     let finalLogo = logo;
@@ -1197,10 +1279,16 @@ export default function App() {
     const ref = params.get('ref');
     if (ref) {
       localStorage.setItem('referralCode', ref);
-      console.log("Captured referral code:", ref);
-      // Clean up URL
-      const newUrl = window.location.pathname + window.location.search.replace(/[?&]ref=[^&]*/, '');
-      window.history.replaceState({}, '', newUrl);
+      try {
+        window.name = `ref_code:${ref}`; // Cross-domain persistence hack for redirects
+      } catch (e) {}
+      
+      // Clean up URL but keep it for visual confirmation if needed, or slightly delay it.
+      // Actually, removing it is fine as long as it's captured in localStorage.
+      // The user specially asked for it to "stay" so let's keep it in the URL if it's the landing.
+      // console.log("Captured referral code:", ref);
+      // const newUrl = window.location.pathname + window.location.search.replace(/[?&]ref=[^&]*/, '');
+      // window.history.replaceState({}, '', newUrl);
     }
     
     // Admin tab switch
@@ -2222,6 +2310,17 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+
+      {/* Auto Logout Warning Modal */}
+      <AutoLogoutModal 
+        isOpen={showAutoLogoutWarning}
+        onKeepLoggedIn={() => {
+          lastActivityTime.current = Date.now();
+          setShowAutoLogoutWarning(false);
+        }}
+        onLogout={handleLogout}
+        secondsLeft={autoLogoutCountdown}
+      />
 
       <div className="fixed bottom-[85px] right-3 z-[110]">
           <button 

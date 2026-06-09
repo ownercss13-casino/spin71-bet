@@ -3678,8 +3678,9 @@ async function startServer() {
       }
     }));
     app.get('*', (req, res, next) => {
-      // Don't serve index.html for what looks like a missing asset/file
-      if (req.url.includes('.') && !req.url.endsWith('.html')) {
+      const urlPath = req.path;
+      // Don't serve index.html for what looks like a missing asset/file (dot in path, e.g. .js, .css, .png)
+      if (urlPath.includes('.') && !urlPath.endsWith('.html')) {
         return res.status(404).send('Asset not found');
       }
       res.sendFile(path.join(distPath, 'index.html'));

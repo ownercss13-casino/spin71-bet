@@ -118,7 +118,7 @@ interface AdminPanelViewProps {
 
 export default function AdminPanelView(props: AdminPanelViewProps) {
   const { onBack, showToast, userData } = props;
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'deposits' | 'withdrawals' | 'games' | 'settings' | 'promo' | 'support' | 'notifications' | 'maintenance'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'deposits' | 'withdrawals' | 'games' | 'settings' | 'promo' | 'referrals' | 'support' | 'notifications' | 'maintenance'>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -547,6 +547,7 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
     { id: 'deposits', label: 'Deposits', icon: Wallet, badge: pendingDeposits.length, group: 'Financial' },
     { id: 'withdrawals', label: 'Withdrawals', icon: DollarSign, badge: pendingWithdrawals.length, group: 'Financial' },
     { id: 'promo', label: 'Bonuses', icon: Gift, group: 'Management' },
+    { id: 'referrals', label: 'Referrals', icon: UserPlus, group: 'Management' },
     { id: 'notifications', label: 'Push', icon: Bell, group: 'Communication' },
     { id: 'support', label: 'Support', icon: MessageSquare, group: 'Communication' },
     { id: 'games', label: 'Games', icon: Gamepad2, group: 'Settings' },
@@ -767,6 +768,7 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
               {activeTab === 'games' && <GameManagement {...props} />}
               {activeTab === 'settings' && <GlobalSettings {...props} />}
               {activeTab === 'promo' && <PromoManagement showToast={showToast} userData={userData} />}
+              {activeTab === 'referrals' && <ReferralBoard users={users} transactions={transactions} />}
               {activeTab === 'notifications' && <NotificationManagement showToast={showToast} users={users} />}
               {activeTab === 'support' && <SupportInbox showToast={showToast} userData={props.userData} />}
               {activeTab === 'maintenance' && <MaintenanceTab showToast={showToast} />}
@@ -1395,9 +1397,13 @@ function UserManagement({ users, searchQuery, setSearchQuery, onToggleBan, onAdj
 
 function UserEditModal({ user, onClose, onSave, onAdjustBalance }: any) {
   const [formData, setFormData] = useState({
-    username: user.username,
+    username: user.username || '',
     role: user.role || 'user',
-    status: user.status || 'active'
+    status: user.status || 'active',
+    email: user.email || '',
+    phone: user.phone || '',
+    fullName: user.fullName || '',
+    mobileNumber: user.mobileNumber || ''
   });
   const [adjustAmount, setAdjustAmount] = useState<number>(0);
 
@@ -1407,11 +1413,11 @@ function UserEditModal({ user, onClose, onSave, onAdjustBalance }: any) {
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-[#0d9488] w-full max-w-lg rounded-[40px] shadow-2xl relative overflow-hidden flex flex-col border border-white/10"
+        className="bg-[#0d9488] w-full max-w-xl rounded-[40px] shadow-2xl relative overflow-hidden flex flex-col border border-white/10"
       >
-        <div className="p-8 border-b border-white/5 flex items-center justify-between">
+        <div className="p-8 border-b border-white/5 flex items-center justify-between bg-black/10">
           <div>
-            <h3 className="text-xl font-black text-white uppercase tracking-tight">Edit Profile</h3>
+            <h3 className="text-xl font-black text-white uppercase tracking-tight">Edit Profile & Details</h3>
             <p className="text-xs font-bold text-teal-300 uppercase tracking-widest mt-1">User ID: {user.id}</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-2xl text-teal-100">
@@ -1419,55 +1425,110 @@ function UserEditModal({ user, onClose, onSave, onAdjustBalance }: any) {
           </button>
         </div>
 
-        <div className="p-8 space-y-6 overflow-y-auto max-h-[70vh] no-scrollbar">
-          <div className="bg-white/5 p-6 rounded-[32px] border border-white/10 flex items-center justify-between">
-             <div>
-                <p className="text-[10px] font-black text-teal-200 uppercase tracking-widest">Current Balance</p>
-                <p className="text-3xl font-black text-emerald-400">৳{user.balance?.toLocaleString()}</p>
+        <div className="p-8 space-y-6 overflow-y-auto max-h-[75vh] no-scrollbar">
+          {/* Stats Section */}
+          <div className="grid grid-cols-2 gap-4">
+             <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+                <p className="text-[9px] font-black text-teal-400 uppercase tracking-widest mb-1">Total Balance</p>
+                <p className="text-xl font-black text-emerald-400">৳{(user.balance || 0).toLocaleString()}</p>
              </div>
+             <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+                <p className="text-[9px] font-black text-teal-400 uppercase tracking-widest mb-1">Total Deposit</p>
+                <p className="text-xl font-black text-white">৳{(user.totalDeposits || 0).toLocaleString()}</p>
+             </div>
+             <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+                <p className="text-[9px] font-black text-teal-400 uppercase tracking-widest mb-1">Total Withdraw</p>
+                <p className="text-xl font-black text-white">৳{(user.totalWithdrawals || 0).toLocaleString()}</p>
+             </div>
+             <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+                <p className="text-[9px] font-black text-teal-400 uppercase tracking-widest mb-1">Last Withdraw</p>
+                <p className="text-xl font-black text-white">৳{(user.lastWithdrawAmount || 0).toLocaleString()}</p>
+             </div>
+          </div>
+
+          <div className="bg-amber-500/10 p-6 rounded-[32px] border border-amber-500/20 flex flex-col gap-4">
+             <p className="text-xs font-black text-amber-200 uppercase tracking-widest text-center">Adjust Balance</p>
              <div className="flex gap-2">
-                <input 
-                  type="number"
-                  placeholder="Amount"
-                  className="w-24 bg-black/20 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold font-mono outline-none focus:border-emerald-500 text-white"
-                  onChange={(e) => setAdjustAmount(Number(e.target.value))}
-                />
+                <div className="relative flex-1">
+                  <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-400" size={16} />
+                  <input 
+                    type="number"
+                    placeholder="Enter amount..."
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold font-mono outline-none focus:border-emerald-500 text-white"
+                    onChange={(e) => setAdjustAmount(Number(e.target.value))}
+                  />
+                </div>
                 <button 
                    onClick={() => onAdjustBalance(user.id, adjustAmount)}
-                   className="p-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-all font-black text-xs"
+                   className="px-6 bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all font-black text-xs uppercase shadow-lg shadow-emerald-500/20"
                 >
-                  <Plus size={16} />
+                  Add
                 </button>
                 <button 
                    onClick={() => onAdjustBalance(user.id, -adjustAmount)}
-                   className="p-3 bg-rose-500 text-white rounded-xl hover:bg-rose-600 transition-all font-black text-xs"
+                   className="px-6 bg-rose-500 text-white rounded-2xl hover:bg-rose-600 transition-all font-black text-xs uppercase shadow-lg shadow-rose-500/20"
                 >
-                  <Minus size={16} />
+                  Sub
                 </button>
              </div>
           </div>
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-teal-200 uppercase mb-2 ml-1">Username</label>
-              <input 
-                type="text"
-                value={formData.username}
-                onChange={(e) => setFormData({...formData, username: e.target.value})}
-                className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold text-white focus:outline-none focus:border-emerald-500"
-              />
+          <div className="space-y-4 pt-4 border-t border-white/10">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-teal-200 uppercase mb-2 ml-1">Username</label>
+                <input 
+                  type="text"
+                  value={formData.username}
+                  onChange={(e) => setFormData({...formData, username: e.target.value})}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-teal-200 uppercase mb-2 ml-1">Full Name</label>
+                <input 
+                  type="text"
+                  value={formData.fullName}
+                  onChange={(e) => setFormData({...formData, fullName: e.target.value})}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold text-white focus:outline-none focus:border-emerald-500"
+                  placeholder="Not set"
+                />
+              </div>
             </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-teal-200 uppercase mb-2 ml-1">Email (Auth)</label>
+                <input 
+                  type="text"
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-teal-200 uppercase mb-2 ml-1">Mobile / Phone</label>
+                <input 
+                  type="text"
+                  value={formData.phone || formData.mobileNumber}
+                  onChange={(e) => setFormData({...formData, phone: e.target.value, mobileNumber: e.target.value})}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold text-white focus:outline-none focus:border-emerald-500"
+                  placeholder="017xxxxxxxx"
+                />
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-teal-200 uppercase mb-2 ml-1">Role</label>
                 <select 
                   value={formData.role}
                   onChange={(e) => setFormData({...formData, role: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-emerald-500 appearance-none"
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-emerald-500 appearance-none bg-[#062e24]"
                 >
-                  <option value="user" className="text-black">User</option>
-                  <option value="admin" className="text-black">Admin</option>
-                  <option value="agent" className="text-black">Agent</option>
+                  <option value="user">User</option>
+                  <option value="admin">Admin</option>
+                  <option value="agent">Agent</option>
                 </select>
               </div>
               <div>
@@ -1475,26 +1536,33 @@ function UserEditModal({ user, onClose, onSave, onAdjustBalance }: any) {
                 <select 
                   value={formData.status}
                   onChange={(e) => setFormData({...formData, status: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-emerald-500 appearance-none"
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-emerald-500 appearance-none bg-[#062e24]"
                 >
-                  <option value="active" className="text-black">Active</option>
-                  <option value="banned" className="text-black">Banned</option>
+                  <option value="active">Active</option>
+                  <option value="banned">Banned</option>
                 </select>
               </div>
             </div>
+
+            {user.referredBy && (
+              <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+                 <p className="text-[10px] font-black text-teal-400 uppercase tracking-widest mb-1">Referred By (Uploader ID)</p>
+                 <p className="text-sm font-black text-white">{user.referredBy}</p>
+              </div>
+            )}
           </div>
         </div>
 
         <div className="p-8 bg-black/20 border-t border-white/5 flex gap-4">
           <button 
              onClick={onClose}
-             className="flex-1 bg-white/5 border border-white/10 text-teal-200 font-black py-4 rounded-2xl hover:bg-white/10 transition-all uppercase tracking-widest text-[10px]"
+             className="flex-1 bg-white/5 border border-white/10 text-teal-200 font-black py-4 rounded-2xl hover:bg-white/10 transition-all uppercase tracking-widest text-xs"
           >
             Cancel
           </button>
           <button 
              onClick={() => onSave(formData)}
-             className="flex-1 bg-emerald-600 text-white font-black py-4 rounded-2xl hover:bg-emerald-700 transition-all uppercase tracking-widest text-[10px] shadow-xl shadow-emerald-600/20"
+             className="flex-1 bg-emerald-600 text-white font-black py-4 rounded-2xl hover:bg-emerald-700 transition-all uppercase tracking-widest text-xs shadow-xl shadow-emerald-600/20"
           >
             Save Changes
           </button>
@@ -1503,6 +1571,81 @@ function UserEditModal({ user, onClose, onSave, onAdjustBalance }: any) {
     </div>
   );
 }
+
+function ReferralBoard({ users, transactions }: any) {
+  const referrers = users.filter((u: any) => (u.totalReferralEarnings || 0) > 0 || users.some((child: any) => child.referredBy === u.id));
+  
+  const referralBonuses = transactions.filter((t: any) => t.type === 'referral_bonus');
+  const totalPlatformEarnings = referralBonuses.reduce((acc: number, t: any) => acc + (t.amount || 0), 0);
+
+  const topReferrers = [...users].sort((a, b) => (b.totalReferralEarnings || 0) - (a.totalReferralEarnings || 0)).slice(0, 10);
+
+  return (
+    <div className="space-y-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+         <MetricCard label="Total Refer Bonus Distributed" value={`৳${totalPlatformEarnings.toLocaleString()}`} icon={Gift} color="bg-indigo-600" />
+         <MetricCard label="Active Referrers" value={topReferrers.filter(u => (u.totalReferralEarnings || 0) > 0).length} icon={Users} color="bg-violet-600" />
+         <MetricCard label="Total Referrals" value={referralBonuses.length} icon={UserPlus} color="bg-fuchsia-600" />
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+         <div className="xl:col-span-2 bg-[#0d9488] rounded-[32px] border border-white/10 shadow-xl overflow-hidden">
+            <div className="p-6 border-b border-white/5 bg-black/10">
+               <h3 className="text-lg font-black text-white uppercase tracking-tight">Top Referrers</h3>
+            </div>
+            <div className="overflow-x-auto no-scrollbar">
+               <table className="w-full text-left">
+                  <thead>
+                     <tr className="border-b border-white/5">
+                        <th className="px-6 py-4 text-[10px] font-black text-teal-300 uppercase tracking-widest">User</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-teal-300 uppercase tracking-widest">Earnings</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-teal-300 uppercase tracking-widest">Friends Ref</th>
+                     </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                     {topReferrers.map((u, idx) => (
+                        <tr key={u.id} className="hover:bg-white/5 transition-colors">
+                           <td className="px-6 py-4">
+                              <div className="flex items-center gap-3">
+                                 <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-[10px] font-black">#{idx+1}</div>
+                                 <div className="text-sm font-black text-white">{u.username}</div>
+                              </div>
+                           </td>
+                           <td className="px-6 py-4 text-emerald-400 font-black">৳{(u.totalReferralEarnings || 0).toLocaleString()}</td>
+                           <td className="px-6 py-4 text-white font-bold">
+                              {users.filter((c: any) => c.referredBy === u.id).length}
+                           </td>
+                        </tr>
+                     ))}
+                  </tbody>
+               </table>
+            </div>
+         </div>
+
+         <div className="bg-[#0d9488] rounded-[32px] border border-white/10 shadow-xl p-6">
+            <h3 className="text-lg font-black text-white uppercase tracking-tight mb-6">Recent Refer Bonuses</h3>
+            <div className="space-y-4">
+               {referralBonuses.slice(0, 10).map((t: any) => (
+                  <div key={t.id} className="bg-black/10 p-4 rounded-2xl border border-white/5">
+                     <div className="flex justify-between items-start mb-2">
+                        <p className="text-xs font-black text-white">{t.username || 'System Bonus'}</p>
+                        <p className="text-sm font-black text-emerald-400">+৳{t.amount}</p>
+                     </div>
+                     <p className="text-[10px] font-bold text-teal-400 uppercase tracking-widest">{t.description}</p>
+                  </div>
+               ))}
+               {referralBonuses.length === 0 && (
+                  <div className="text-center py-10 text-teal-400/50 text-xs font-bold uppercase tracking-widest">
+                     No referral bonuses yet.
+                  </div>
+               )}
+            </div>
+         </div>
+      </div>
+    </div>
+  );
+}
+
 
 function TransactionList({ title, trxs, onApprove, onReject, isLoading, hasMore, onLoadMore }: any) {
   const pending = trxs.filter((t: any) => t.status === 'pending');
