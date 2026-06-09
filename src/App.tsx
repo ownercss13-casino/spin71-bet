@@ -105,7 +105,14 @@ export default function App() {
   const [toasts, setToasts] = useState<{ id: string; message: string; type: ToastType }[]>([]);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showExitPopup, setShowExitPopup] = useState(false);
-  const [activeTab, setActiveTab] = useState<'home' | 'slot' | 'aviator' | 'profile' | 'invite' | 'deposit' | 'bonus' | 'wallet' | 'faq' | 'leaderboard' | 'terms' | 'analytics' | 'admin' | 'settings' | 'history'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'slot' | 'aviator' | 'profile' | 'invite' | 'deposit' | 'bonus' | 'wallet' | 'faq' | 'leaderboard' | 'terms' | 'analytics' | 'admin' | 'settings' | 'history'>(() => {
+    const rawPath = window.location.pathname.replace(/^\/+|$/g, '').split('/')[0];
+    const validTabs: any[] = ['home', 'slot', 'aviator', 'profile', 'invite', 'deposit', 'bonus', 'wallet', 'faq', 'leaderboard', 'terms', 'analytics', 'admin', 'settings', 'history'];
+    if (validTabs.includes(rawPath)) {
+      return rawPath as any;
+    }
+    return 'home';
+  });
   const [profileSubTab, setProfileSubTab] = useState<string>('dashboard');
   const [recentlyPlayed, setRecentlyPlayed] = useState<Game[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -196,11 +203,15 @@ export default function App() {
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
   useEffect(() => {
+    const rawPath = window.location.pathname.replace(/^\/+|$/g, '').split('/')[0];
+    const validTabs: any[] = ['home', 'slot', 'aviator', 'profile', 'invite', 'deposit', 'bonus', 'wallet', 'faq', 'leaderboard', 'terms', 'analytics', 'admin', 'settings', 'history'];
+    const tabToUse = validTabs.includes(rawPath) ? rawPath : 'home';
+
     // Check if we are already dealing with our structured history (e.g., hot refresh)
-    if (!window.history.state || window.history.state.page !== 'home') {
+    if (!window.history.state || window.history.state.tab !== tabToUse) {
       // Setup the initial trap state backwards
-      window.history.replaceState({ page: 'exit-trap' }, '');
-      window.history.pushState({ page: 'home', tab: 'home' }, '');
+      window.history.replaceState({ page: 'exit-trap' }, '', `/${tabToUse}`);
+      window.history.pushState({ page: 'tab', tab: tabToUse }, '', `/${tabToUse}`);
     }
 
     const handlePopState = (event: PopStateEvent) => {
@@ -212,20 +223,34 @@ export default function App() {
       
       if (state && state.page === 'exit-trap') {
         setShowExitPopup(true);
-        // Put the home state back so user doesn't actually exit yet
-        window.history.pushState({ page: 'tab', tab: 'home' }, '');
+        // Put the state back so user doesn't actually exit yet
+        const currentPath = window.location.pathname.replace(/^\/+|$/g, '').split('/')[0] || 'home';
+        window.history.pushState({ page: 'tab', tab: currentPath }, '', `/${currentPath}`);
       } else if (state && state.tab) {
         setActiveTab(state.tab);
         setShowExitPopup(false);
       } else {
         // Fallback
-        setActiveTab('home');
+        const path = window.location.pathname.replace(/^\/+|$/g, '').split('/')[0];
+        if (validTabs.includes(path)) {
+          setActiveTab(path as any);
+        } else {
+          setActiveTab('home');
+        }
       }
     };
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  // Synchronize URL pathname with activeTab state automatically
+  useEffect(() => {
+    const rawPath = window.location.pathname.replace(/^\/+|$/g, '').split('/')[0];
+    if (rawPath !== activeTab) {
+      window.history.pushState({ page: 'tab', tab: activeTab }, '', `/${activeTab}`);
+    }
+  }, [activeTab]);
 
   const handleTabChange = (tab: any) => {
     if (!isLoggedIn && tab !== 'home') {
@@ -247,7 +272,7 @@ export default function App() {
 
     if (tab === activeTab) return;
 
-    window.history.pushState({ page: 'tab', tab: tab }, '');
+    window.history.pushState({ page: 'tab', tab: tab }, '', `/${tab}`);
     setIsTabLoading(true);
     // Professional delay to ensure smooth transition and show the loading state
     setTimeout(() => {

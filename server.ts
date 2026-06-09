@@ -63,7 +63,8 @@ try {
   console.warn("[Firebase] Failed to setup file-backed localStorage:", err.message);
 }
 
-let useFallbackConfig = false;
+let useFallbackConfig = process.env.RENDER === "true";
+let hasRealAdminCredential = false;
 
 const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
 const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf8'));
@@ -79,9 +80,46 @@ if (!originalAdmin.apps.length) {
     const isRender = process.env.RENDER === "true";
     const databaseURL = !isRender && (process.env.FIREBASE_DATABASE_URL || `https://${firebaseConfig.projectId}-default-rtdb.asia-southeast1.firebasedatabase.app/`);
     
+    let credential: any = undefined;
+    const localSaPath = path.resolve(process.cwd(), 'firebase-service-account.json');
+    
+    // 1. Try environment variable
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      try {
+        const trimmedSa = process.env.FIREBASE_SERVICE_ACCOUNT.trim();
+        if (trimmedSa.startsWith('{') && trimmedSa.endsWith('}')) {
+          const sa = JSON.parse(trimmedSa);
+          credential = originalAdmin.credential.cert(sa);
+          useFallbackConfig = false; // We have real credentials!
+          hasRealAdminCredential = true;
+          console.log("[Firebase] Loaded custom service account credential from FIREBASE_SERVICE_ACCOUNT environment variable.");
+        } else {
+          console.warn("[Firebase] FIREBASE_SERVICE_ACCOUNT environment variable is not valid JSON string.");
+        }
+      } catch (jsonErr: any) {
+        console.error("[Firebase] Failed to parse FIREBASE_SERVICE_ACCOUNT JSON:", jsonErr.message);
+      }
+    }
+    
+    // 2. If no credential was loaded and local file exists, load local file
+    if (!credential && fs.existsSync(localSaPath)) {
+      try {
+        const sa = JSON.parse(fs.readFileSync(localSaPath, 'utf8'));
+        credential = originalAdmin.credential.cert(sa);
+        useFallbackConfig = false; // We have real credentials!
+        hasRealAdminCredential = true;
+        console.log("[Firebase] Loaded service account credential from firebase-service-account.json file.");
+      } catch (fileErr: any) {
+        console.error("[Firebase] Failed to read or parse firebase-service-account.json file:", fileErr.message);
+      }
+    }
+    
     const initOptions: any = {
       projectId: firebaseConfig.projectId
     };
+    if (credential) {
+      initOptions.credential = credential;
+    }
     if (databaseURL) {
       initOptions.databaseURL = databaseURL;
     }
@@ -329,40 +367,43 @@ async function authenticateClientDb() {
     return;
   }
   
-  try {
-    const adminAuth = originalAdmin.auth();
+  // Try to sync with admin auth only if we have real credentials (even if Firestore write probe fell back)
+  if (hasRealAdminCredential) {
     try {
-      // First try to check by UID
-      const userRecord = await adminAuth.getUser(botUid);
-      // Ensure password, email and verification are up to date
-      await adminAuth.updateUser(botUid, {
-        email,
-        password,
-        emailVerified: true
-      });
-      console.log("[Firebase] Admin SDK updated fallback bot user successfully of UID: " + botUid);
-    } catch (authError: any) {
-      if (authError.code === 'auth/user-not-found') {
-        // Double check if there's an existing user with the same email but different UID (which would block us)
-        try {
-          const dupUser = await adminAuth.getUserByEmail(email);
-          console.log("[Firebase] Found duplicate email user, deleting: " + dupUser.uid);
-          await adminAuth.deleteUser(dupUser.uid);
-        } catch (e) {}
-        
-        await adminAuth.createUser({
-          uid: botUid,
+      const adminAuth = originalAdmin.auth();
+      try {
+        // First try to check by UID
+        const userRecord = await adminAuth.getUser(botUid);
+        // Ensure password, email and verification are up to date
+        await adminAuth.updateUser(botUid, {
           email,
           password,
           emailVerified: true
         });
-        console.log("[Firebase] Admin SDK created fallback bot user with fixed UID: " + botUid);
-      } else {
-        console.warn("[Firebase] Admin SDK Auth user sync warning:", authError.message);
+        console.log("[Firebase] Admin SDK updated fallback bot user successfully of UID: " + botUid);
+      } catch (authError: any) {
+        if (authError.code === 'auth/user-not-found') {
+          // Double check if there's an existing user with the same email but different UID (which would block us)
+          try {
+            const dupUser = await adminAuth.getUserByEmail(email);
+            console.log("[Firebase] Found duplicate email user, deleting: " + dupUser.uid);
+            await adminAuth.deleteUser(dupUser.uid);
+          } catch (e) {}
+          
+          await adminAuth.createUser({
+            uid: botUid,
+            email,
+            password,
+            emailVerified: true
+          });
+          console.log("[Firebase] Admin SDK created fallback bot user with fixed UID: " + botUid);
+        } else {
+          console.warn("[Firebase] Admin SDK Auth user sync warning:", authError.message);
+        }
       }
+    } catch (err: any) {
+      console.warn("[Firebase] Admin Auth SDK helper failed, falling back to client-only auth flows:", err.message);
     }
-  } catch (err: any) {
-    console.warn("[Firebase] Admin Auth SDK helper failed, falling back to client-only auth flows:", err.message);
   }
 
   try {
@@ -370,42 +411,24 @@ async function authenticateClientDb() {
     console.log("[Firebase] Dynamic fallback authenticated as bot:", email);
   } catch (error: any) {
     console.log("[Firebase] Fallback bot authentication failed on login:", error.message);
-    if (error.code === 'auth/invalid-credential' || error.message.includes('credential')) {
-      console.log("[Firebase] Since login failed with invalid credentials, attempting to delete and re-create bot via Admin Auth...");
-      try {
-        const adminAuth = originalAdmin.auth();
-        try {
-          await adminAuth.deleteUser(botUid);
-          console.log("[Firebase] Bot UID deleted successfully.");
-        } catch (dErr) {}
-        try {
-          const dupUser = await adminAuth.getUserByEmail(email);
-          await adminAuth.deleteUser(dupUser.uid);
-        } catch (dErr) {}
-        
-        await adminAuth.createUser({
-          uid: botUid,
-          email,
-          password,
-          emailVerified: true
-        });
-        console.log("[Firebase] Recreated fallback bot user.");
-      } catch (adminErr: any) {
-        console.error("[Firebase] Admin delete-and-recreate attempt failed:", adminErr.message);
-      }
+    
+    if (error.code === 'auth/too-many-requests' || error.message.includes('too-many-requests')) {
+      console.warn("[Firebase] Too many login requests to Firebase Auth. Skipping further login attempts to avoid throttling.");
+      return;
     }
     
-    // Final sign-in/up attempt client-side
-    try {
-      await signInWithEmailAndPassword(clientAuth, email, password);
-      console.log("[Firebase] Dynamic fallback authenticated as bot (after correction):", email);
-    } catch (finalError: any) {
-      console.warn("[Firebase] Dynamic fallback login failed, attempting dynamic client-side registration:", finalError.message);
+    if (error.code === 'auth/user-not-found' || error.message.includes('user-not-found') || error.code === 'auth/invalid-credential' || error.message.includes('credential')) {
+      console.log("[Firebase] Bot user not found or invalid credentials on Client Auth. Attempting client-side registration...");
       try {
         await createUserWithEmailAndPassword(clientAuth, email, password);
-        console.log("[Firebase] Dynamic fallback registered and authenticated as bot:", email);
+        console.log("[Firebase] Dynamic fallback registered and authenticated as bot client-side:", email);
       } catch (regError: any) {
-        console.error("[Firebase] Dynamic fallback final registration failed:", regError.message);
+         console.error("[Firebase] Dynamic fallback final registration failed:", regError.message);
+         if (regError.code === 'auth/email-already-in-use' || regError.message?.includes('already-in-use')) {
+           console.warn("[Firebase] CRITICAL ADVICE: Fallback bot email is already in use, but client sign-in failed.\n" +
+             "This usually indicates that the 'Email/Password' sign-in provider is NOT enabled in your Firebase Console.\n" +
+             "Please go to: Firebase Console -> Authentication -> Sign-in Method, and enable 'Email/Password'.");
+         }
       }
     }
   }
