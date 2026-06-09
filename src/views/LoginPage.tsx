@@ -269,6 +269,19 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         
         await setDoc(userDocRef, newUser);
         
+        // If code was provided, try to claim it as a promo code as well
+        if (inviterCode) {
+          const idToken = await user.getIdToken();
+          fetch('/api/promo/claim', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({ code: inviterCode.toUpperCase() })
+          }).catch(err => console.warn("Promo claim during registration failed:", err));
+        }
+        
         if (isAdmin) {
           await setDoc(doc(db, 'admins', user.uid), {
             email: user.email,
@@ -427,6 +440,19 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       };
       
       await setDoc(userDocRef, newUser);
+      
+      // If code was provided, try to claim it as a promo code as well (in case it's a bonus code)
+      if (inviterCodeRaw) {
+        const idToken = await user.getIdToken();
+        fetch('/api/promo/claim', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+          },
+          body: JSON.stringify({ code: inviterCodeRaw.toUpperCase() })
+        }).catch(err => console.warn("Promo claim during registration failed (might be referral instead):", err));
+      }
       
       if (inviterUid) {
         // Trigger server-side bonus processing
