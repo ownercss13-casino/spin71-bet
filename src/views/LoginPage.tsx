@@ -278,7 +278,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${idToken}`
             },
-            body: JSON.stringify({ code: inviterCode.toUpperCase() })
+            body: JSON.stringify({ code: inviterCode.toUpperCase(), userId: user.uid })
           }).catch(err => console.warn("Promo claim during registration failed:", err));
         }
         
@@ -450,7 +450,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${idToken}`
           },
-          body: JSON.stringify({ code: inviterCodeRaw.toUpperCase() })
+          body: JSON.stringify({ code: inviterCodeRaw.toUpperCase(), userId: user.uid })
         }).catch(err => console.warn("Promo claim during registration failed (might be referral instead):", err));
       }
       

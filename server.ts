@@ -1653,7 +1653,7 @@ async function startServer() {
   app.use(cors());
 
   app.use((req, res, next) => {
-    if (!req.path.startsWith('/@v') && !req.path.startsWith('/node_modules')) {
+    if (req.path.startsWith('/api')) {
       console.log(`[API] ${req.method} ${req.path}`);
     }
     next();
@@ -3731,6 +3731,7 @@ async function startServer() {
     });
   }
 
+  console.log(`[Server] Starting in ${process.env.NODE_ENV || 'development'} mode`);
   app.listen(PORT, "0.0.0.0", async () => {
     console.log(`Server running on http://localhost:${PORT}`);
     
