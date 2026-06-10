@@ -67,6 +67,7 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
   const [isAutoBet1, setIsAutoBet1] = useState(false);
   const [currentBet1, setCurrentBet1] = useState<{ amount: number; cashedOut: boolean } | null>(null);
   const [isWaitingBet1, setIsWaitingBet1] = useState(false);
+  const [isCashingOut1, setIsCashingOut1] = useState(false);
 
   const [autoCashout1, setAutoCashout1] = useState(false);
   const [autoCashoutValue1, setAutoCashoutValue1] = useState(2.00);
@@ -75,6 +76,7 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
   const [isAutoBet2, setIsAutoBet2] = useState(false);
   const [currentBet2, setCurrentBet2] = useState<{ amount: number; cashedOut: boolean } | null>(null);
   const [isWaitingBet2, setIsWaitingBet2] = useState(false);
+  const [isCashingOut2, setIsCashingOut2] = useState(false);
   const [autoCashout2, setAutoCashout2] = useState(false);
   const [autoCashoutValue2, setAutoCashoutValue2] = useState(2.00);
 
@@ -123,7 +125,7 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       const idToken = await auth.currentUser?.getIdToken();
       const res = await fetch('/api/game/aviator/action', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-api-key': import.meta.env.VITE_AVIATOR_API_KEY || '' },
         body: JSON.stringify({ action: 'bet', amount, idToken })
       });
       const data = await res.json();
@@ -153,11 +155,13 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
     const bet = panel === 1 ? currentBet1Ref.current : currentBet2Ref.current;
     if (!bet || bet.cashedOut || gameState !== 'in_progress') return;
 
+    if (panel === 1) setIsCashingOut1(true); else setIsCashingOut2(true);
+
     try {
       const idToken = await auth.currentUser?.getIdToken();
       const res = await fetch('/api/game/aviator/action', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-api-key': import.meta.env.VITE_AVIATOR_API_KEY || '' },
         body: JSON.stringify({ 
           action: 'cashout', 
           amount: bet.amount, 
@@ -177,6 +181,8 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       }
     } catch (err) {
       showToast('Cashout request failed', 'error');
+    } finally {
+      if (panel === 1) setIsCashingOut1(false); else setIsCashingOut2(false);
     }
   };
 
@@ -187,6 +193,7 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
     const eventSource = new EventSource('/api/aviator/stream');
     
     eventSource.onmessage = (event) => {
+      setShowLoader(false);
       const data = JSON.parse(event.data);
       setGameState(data.state);
       setMultiplier(data.multiplier);
@@ -221,8 +228,8 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       }
     };
 
-    eventSource.onerror = () => {
-      console.error("SSE Connection failed");
+    eventSource.onerror = (err) => {
+      console.error("SSE Connection failed", err);
       eventSource.close();
     };
 
@@ -243,9 +250,7 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
             <X size={20} />
           </button>
           <div className="flex items-center gap-1">
-            <span className="text-xl font-black italic text-white tracking-tighter">Fly</span>
-            <span className="text-xl font-black italic text-[#ff5722] tracking-tighter">X</span>
-            <span className="text-[8px] font-bold bg-[#ff5722] text-white px-1 ml-0.5 rounded-sm self-start mt-1">TM</span>
+            <span className="text-xl font-black italic text-white tracking-tighter">Aviator</span>
           </div>
         </div>
         
@@ -295,7 +300,7 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
         </div>
 
         {/* Game Stage */}
-        <div className="flex-1 relative overflow-hidden bg-black/40 m-2 rounded-xl border border-white/5">
+        <div className="flex-1 relative overflow-hidden bg-black">
           {/* Animated Background Atmosphere */}
           <div className="absolute inset-0 opacity-20">
             <div className="absolute top-1/4 left-1/4 w-32 h-32 bg-[#ff5722] blur-[100px] rounded-full animate-pulse" />
@@ -390,7 +395,7 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
         </div>
 
         {/* Betting Panels */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 p-2 bg-[#0a0a0a]">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 bg-[#0a0a0a] mt-4">
           
           {[1, 2].map((p) => {
             const panel = p as 1 | 2;
@@ -405,13 +410,14 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
             const setAutoCashOut = panel === 1 ? setAutoCashout1 : setAutoCashout2;
             const cashOutVal = panel === 1 ? autoCashoutValue1 : autoCashoutValue2;
             const setCashOutVal = panel === 1 ? setAutoCashoutValue1 : setAutoCashoutValue2;
+            const isCashingOut = panel === 1 ? isCashingOut1 : isCashingOut2;
 
             return (
-              <div key={panel} className="bg-[#141414] rounded-xl p-3 border border-white/5 relative overflow-hidden group">
+              <div key={panel} className="bg-[#141414] rounded-xl p-2 border border-white/5 relative overflow-hidden group">
                 {/* Background Pattern */}
                 <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
 
-                <div className="relative z-10 flex flex-col gap-3">
+                <div className="relative z-10 flex flex-col gap-2">
                   {/* Top Bar: Controls */}
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
@@ -494,10 +500,17 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
                       {gameState === 'in_progress' && currentBet && !currentBet.cashedOut ? (
                         <button 
                           onClick={() => handleCashout(panel)}
+                          disabled={isCashingOut}
                           className="w-full h-full bg-gradient-to-b from-[#ff9100] to-[#ff6d00] rounded-xl flex flex-col items-center justify-center gap-0.5 shadow-[0_4px_15px_rgba(255,145,0,0.3)] active:scale-95 transition-all animate-pulse"
                         >
-                          <span className="text-xs font-black uppercase text-white tracking-widest">Cash Out</span>
-                          <span className="text-lg font-black text-white italic">{(amount * multiplier).toFixed(2)}</span>
+                          {isCashingOut ? (
+                              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          ) : (
+                            <>
+                                <span className="text-xs font-black uppercase text-white tracking-widest">Cash Out</span>
+                                <span className="text-lg font-black text-white italic">{(amount * multiplier).toFixed(2)}</span>
+                            </>
+                          )}
                         </button>
                       ) : (
                         <button 
@@ -514,21 +527,29 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
                               placeBet(panel);
                             }
                           }}
-                          disabled={gameState === 'crashed'}
+                          disabled={gameState === 'crashed' || isWaiting}
                           className={`w-full h-full rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 shadow-lg ${
                             isWaiting || currentBet 
                               ? 'bg-red-600/20 border border-red-500/50 text-red-500' 
                               : 'bg-gradient-to-b from-[#4caf50] to-[#2e7d32] hover:from-[#66bb6a] hover:to-[#388e3c] border border-[#ffffff20]'
                           }`}
                         >
-                          <span className="text-xl font-black text-white italic uppercase tracking-tighter">
-                            {isWaiting || currentBet ? 'Cancel' : 'Bet'}
-                          </span>
-                          <span className="text-base font-black text-white italic tracking-tighter">
-                            {amount.toFixed(2)}
-                          </span>
-                          {!isWaiting && !currentBet && (
-                             <span className="text-[7px] font-black uppercase tracking-widest text-white/70">(Next Round)</span>
+                          {isWaiting ? (
+                              <div className="w-5 h-5 border-2 border-red-500/30 border-t-red-500 rounded-full animate-spin" />
+                          ) : (
+                            <>
+                                <span className="text-xl font-black text-white italic uppercase tracking-tighter">
+                                  {currentBet ? 'Cancel' : 'Bet'}
+                                </span>
+                                {!currentBet && (
+                                    <span className="text-base font-black text-white italic tracking-tighter">
+                                      {amount.toFixed(2)}
+                                    </span>
+                                )}
+                                {!currentBet && (
+                                   <span className="text-[7px] font-black uppercase tracking-widest text-white/70">(Next Round)</span>
+                                )}
+                            </>
                           )}
                         </button>
                       )}

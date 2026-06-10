@@ -1424,13 +1424,7 @@ export default function App() {
     if (isLoggedIn && userData?.id && persist) {
       try {
         console.log(`[Aviator Debug V2] App.tsx handleBalanceUpdate: Updating Firebase for user ${userData.id}...`);
-        await runTransaction(db, async (transaction) => {
-          const userRef = doc(db, 'users', userData.id);
-          const userDoc = await transaction.get(userRef);
-          if (!userDoc.exists()) throw "User does not exist!";
-          
-          transaction.update(userRef, { balance: newBalance });
-        });
+        await updateDoc(doc(db, 'users', userData.id), { balance: newBalance });
         
         const updatedUser = { ...userData, balance: newBalance };
         setUserData(updatedUser);

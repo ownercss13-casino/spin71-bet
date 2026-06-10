@@ -365,7 +365,17 @@ const db: any = new Proxy({}, {
   }
 });
 
+let botLastAuthAttempt = 0;
+const AUTH_COOLDOWN = 60000; // 1 minute
+
 async function authenticateClientDb() {
+  const now = Date.now();
+  if (now - botLastAuthAttempt < AUTH_COOLDOWN) {
+    console.log("[Firebase] Skipping bot authentication due to cooldown.");
+    return;
+  }
+  botLastAuthAttempt = now;
+
   const email = "system.backend.bot@spin71.bet";
   const password = "SuperSecurePassword123!!_be4c6d81";
   const botUid = "system-backend-bot-spin71";
@@ -431,6 +441,26 @@ async function authenticateClientDb() {
     } catch (err: any) {
       console.warn("[Firebase] Admin Auth SDK helper failed, falling back to client-only auth flows:", err.message);
     }
+    
+    // Backfill server secret to existing users to allow rules reads to bypass
+    try {
+      const adminDb = getAdminFirestore(originalAdmin.app(), currentDbId === '(default)' ? undefined : currentDbId);
+      const usersSnap = await adminDb.collection('users').get();
+      const batch = adminDb.batch();
+      let hasUpdates = false;
+      usersSnap.forEach(doc => {
+        if (!doc.data()._serverSecret) {
+          batch.update(doc.ref, { _serverSecret: SERVER_SECRET });
+          hasUpdates = true;
+        }
+      });
+      if (hasUpdates) {
+        await batch.commit();
+        console.log("[Firebase] Backfilled server secret to " + usersSnap.size + " users.");
+      }
+    } catch (e: any) {
+      console.warn("[Firebase] Backfill failed:", e.message);
+    }
   }
 
   try {
@@ -444,20 +474,8 @@ async function authenticateClientDb() {
       return;
     }
     
-    if (error.code === 'auth/user-not-found' || error.message.includes('user-not-found') || error.code === 'auth/invalid-credential' || error.message.includes('credential')) {
-      console.log("[Firebase] Bot user not found or invalid credentials on Client Auth. Attempting client-side registration...");
-      try {
-        await createUserWithEmailAndPassword(clientAuth, email, password);
-        console.log("[Firebase] Dynamic fallback registered and authenticated as bot client-side:", email);
-      } catch (regError: any) {
-         console.error("[Firebase] Dynamic fallback final registration failed:", regError.message);
-         if (regError.code === 'auth/email-already-in-use' || regError.message?.includes('already-in-use')) {
-           console.warn("[Firebase] CRITICAL ADVICE: Fallback bot email is already in use, but client sign-in failed.\n" +
-             "This usually indicates that the 'Email/Password' sign-in provider is NOT enabled in your Firebase Console.\n" +
-             "Please go to: Firebase Console -> Authentication -> Sign-in Method, and enable 'Email/Password'.");
-         }
-      }
-    }
+    // Non-blocking: Even if Auth fails, we continue. Firestore will rely on secret-based access rules.
+    console.warn("[Firebase] WARNING: Dynamic fallback auth skipped. Application will rely only on server-secret based Firestore bypass rules.");
   }
 }
 
@@ -467,7 +485,7 @@ async function runAdminConnectionProbe() {
   try {
     const realAdminDb = getAdminFirestore(originalAdmin.app(), currentDbId === '(default)' ? undefined : currentDbId);
     const testRef = realAdminDb.collection('metadata').doc('probe_test');
-    await testRef.set({ timestamp: Date.now() });
+    await testRef.set({ timestamp: Date.now(), _serverSecret: SERVER_SECRET });
     await testRef.get();
     console.log("[Firebase] Admin connection probe write successful. Root Firestore bypass works.");
     
@@ -3036,6 +3054,11 @@ async function startServer() {
   app.post("/api/game/aviator/action", async (req, res) => {
     const { action, amount, idToken, multiplier } = req.body;
     
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKey || apiKey !== process.env.AVIATOR_API_KEY) {
+        return res.status(401).json({ error: "Invalid or missing API key" });
+    }
+
     if (!idToken || !action) {
       return res.status(400).json({ error: "Missing action or token" });
     }
@@ -3068,7 +3091,8 @@ async function startServer() {
           finalBalance = currentBalance - amount;
           transaction.update(userRef, {
             balance: finalBalance,
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
+            _serverSecret: SERVER_SECRET
           });
           
           // Log secure bet in Firestore
@@ -3079,7 +3103,8 @@ async function startServer() {
             winAmount: 0,
             status: 'placed',
             gameType: 'aviator',
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            _serverSecret: SERVER_SECRET
           });
           responseData.betId = betRef.id;
 
@@ -3090,7 +3115,8 @@ async function startServer() {
           finalBalance = currentBalance + amount;
           transaction.update(userRef, {
             balance: finalBalance,
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
+            _serverSecret: SERVER_SECRET
           });
 
         } else if (action === 'cashout') {
@@ -3113,7 +3139,8 @@ async function startServer() {
 
           transaction.update(userRef, {
             balance: finalBalance,
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
+            _serverSecret: SERVER_SECRET
           });
 
           // Log win bet record in Firestore
@@ -3126,7 +3153,8 @@ async function startServer() {
             symbols: ['plane'],
             status: 'cashed_out',
             gameType: 'aviator',
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            _serverSecret: SERVER_SECRET
           });
           responseData.winAmount = winAmount;
           responseData.betId = betRef.id;

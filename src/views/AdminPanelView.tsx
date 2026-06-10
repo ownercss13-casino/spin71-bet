@@ -2680,7 +2680,7 @@ function GlobalSettings(props: AdminPanelViewProps) {
                  <div className="flex items-start gap-3">
                     <ShieldCheck size={18} className="text-orange-500 shrink-0 mt-0.5" />
                     <p className="text-[10px] font-bold text-orange-300 leading-relaxed">
-                      এই অপশনটি চালু করলে এভিয়েটর গেমটি (Fly X) আপনার সেট করা পয়েন্ট ঠিক সেই মুহূর্তে ক্র্যাশ হবে। এটি সিগন্যাল হ্যাক হিসেবে ব্যবহার করা হয়।
+                      এই অপশনটি চালু করলে এভিয়েটর গেমটি (Aviator) আপনার সেট করা পয়েন্ট ঠিক সেই মুহূর্তে ক্র্যাশ হবে। এটি সিগন্যাল হ্যাক হিসেবে ব্যবহার করা হয়।
                     </p>
                  </div>
               </div>
