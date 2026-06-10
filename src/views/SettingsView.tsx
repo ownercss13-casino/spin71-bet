@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Settings, Bell, Moon, Sun, Monitor, BellRing, BellOff, Volume2, VolumeX, Shield, Save, Languages } from 'lucide-react';
 import { useSound } from '../context/SoundContext';
+import { useLanguage } from '../context/LanguageContext';
 import { LOCALIZED_STRINGS } from '../constants/localization';
 
 interface SettingsViewProps {
@@ -15,16 +16,10 @@ export default function SettingsView({ userData, onUpdateUser, showToast }: Sett
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [pushNotifications, setPushNotifications] = useState(true);
   const { soundEnabled, toggleSound } = useSound();
+  const { language: lang, setLanguage: setLang, strings } = useLanguage();
   const [bgMusicVolume, setBgMusicVolume] = useState(70);
   const [gameSoundVolume, setGameSoundVolume] = useState(100);
   const [dailyBetLimit, setDailyBetLimit] = useState(userData?.dailyBetLimit || 0);
-  
-  // Language State - Bengali ('bn') is default
-  const [lang, setLang] = useState<'bn' | 'en'>(() => {
-    return (localStorage.getItem('app_lang') as 'bn' | 'en') || 'bn';
-  });
-
-  const strings = LOCALIZED_STRINGS[lang];
 
   const handleSaveLimit = async () => {
     try {
@@ -79,9 +74,6 @@ export default function SettingsView({ userData, onUpdateUser, showToast }: Sett
 
   const handleLanguageChange = (newLang: 'bn' | 'en') => {
     setLang(newLang);
-    localStorage.setItem('app_lang', newLang);
-    // Dispatches storage/custom event so other parts of the app can react if needed
-    window.dispatchEvent(new Event('languageChange'));
     showToast(newLang === 'bn' ? "ভাষা পরিবর্তন করা হয়েছে।" : "Language changed successfully.", "success");
   };
 

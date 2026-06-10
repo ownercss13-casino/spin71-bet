@@ -2132,6 +2132,8 @@ function GlobalSettings(props: AdminPanelViewProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [aviatorEnabled, setAviatorEnabled] = useState(false);
   const [aviatorCrashPoint, setAviatorCrashPoint] = useState(2.00);
+  const [crashXEnabled, setCrashXEnabled] = useState(false);
+  const [crashXCrashPoint, setCrashXCrashPoint] = useState(2.00);
   const [isSavingAviator, setIsSavingAviator] = useState(false);
   const [telegramStatus, setTelegramStatus] = useState<any>(null);
 
@@ -2164,6 +2166,22 @@ function GlobalSettings(props: AdminPanelViewProps) {
     fetchAviatorOverride();
   }, []);
 
+  useEffect(() => {
+    const fetchCrashXOverride = async () => {
+      try {
+        const docSnap = await getDoc(doc(db, 'metadata', 'crashx_override'));
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setCrashXEnabled(!!data?.enabled);
+          setCrashXCrashPoint(Number(data?.customCrashPoint) || 2.00);
+        }
+      } catch (err) {
+        console.error("Load crashx override error:", err);
+      }
+    };
+    fetchCrashXOverride();
+  }, []);
+
   const handleSaveAviatorOverride = async (enabledVal: boolean, pointVal: number) => {
     setIsSavingAviator(true);
     try {
@@ -2183,6 +2201,28 @@ function GlobalSettings(props: AdminPanelViewProps) {
       props.showToast(`Aviator কন্ট্রোলার আপডেট করা হয়েছে! (সক্রিয়: ${enabledVal ? 'হ্যাঁ' : 'না'}, ক্র্যাশ পয়েন্ট: ${pointVal}x)`, 'success');
     } catch (err) {
       console.error("Aviator Override Save Failed:", err);
+      props.showToast('সংরক্ষণ করতে ব্যর্থ হয়েছে!', 'error');
+    } finally {
+      setIsSavingAviator(false);
+    }
+  };
+
+  const handleSaveCrashXOverride = async (enabledVal: boolean, pointVal: number) => {
+    setIsSavingAviator(true); // Re-use saving state for UI feedback
+    try {
+      await setDoc(doc(db, 'metadata', 'crashx_override'), {
+        enabled: enabledVal,
+        customCrashPoint: Number(pointVal),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      
+      try {
+        await fetch('/api/crashx/admin/sync-override', { method: 'POST' });
+      } catch (fErr) {}
+      
+      props.showToast(`Crash X কন্ট্রোলার আপডেট করা হয়েছে! (সক্রিয়: ${enabledVal ? 'হ্যাঁ' : 'না'}, ক্র্যাশ পয়েন্ট: ${pointVal}x)`, 'success');
+    } catch (err) {
+      console.error("CrashX Override Save Failed:", err);
       props.showToast('সংরক্ষণ করতে ব্যর্থ হয়েছে!', 'error');
     } finally {
       setIsSavingAviator(false);
@@ -2586,16 +2626,16 @@ function GlobalSettings(props: AdminPanelViewProps) {
          </div>
 
          <div className="space-y-6">
-            <h3 className="text-[10px] font-black text-[#facc15] uppercase tracking-[0.2em] border-b border-white/10 pb-2 flex items-center gap-2">
+            <h3 className="text-[10px] font-black text-orange-500 uppercase tracking-[0.2em] border-b border-white/10 pb-2 flex items-center gap-2">
               <Zap size={14} className="animate-pulse" />
               Aviator Predictor Override (এভিয়েটর সিগন্যাল হ্যাক কন্ট্রোলার)
             </h3>
             
-            <div className="bg-[#052e2e] p-6 rounded-[32px] border border-emerald-500/20 shadow-2xl space-y-6">
+            <div className="bg-[#1a1410] p-6 rounded-[32px] border border-orange-500/20 shadow-2xl space-y-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
                   <label className="text-xs font-black text-white uppercase tracking-tight">সক্রিয় করুন (Enable Override)</label>
-                  <p className="text-[10px] font-bold text-teal-400 uppercase tracking-widest">বট সিগন্যাল হ্যাক সক্রিয় করুন</p>
+                  <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">বট সিগন্যাল হ্যাক সক্রিয় করুন</p>
                 </div>
                 <button 
                   onClick={() => {
@@ -2603,7 +2643,7 @@ function GlobalSettings(props: AdminPanelViewProps) {
                     setAviatorEnabled(nextVal);
                     handleSaveAviatorOverride(nextVal, aviatorCrashPoint);
                   }}
-                  className={`w-14 h-7 rounded-full relative transition-all shadow-inner ${aviatorEnabled ? "bg-emerald-500 ring-4 ring-emerald-500/20" : "bg-white/10"}`}
+                  className={`w-14 h-7 rounded-full relative transition-all shadow-inner ${aviatorEnabled ? "bg-orange-500 ring-4 ring-orange-500/20" : "bg-white/10"}`}
                 >
                   <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-all ${aviatorEnabled ? "right-1" : "left-1"}`} />
                 </button>
@@ -2612,7 +2652,7 @@ function GlobalSettings(props: AdminPanelViewProps) {
               <div className="space-y-3">
                  <div className="flex justify-between items-center">
                     <label className="text-xs font-black text-white uppercase tracking-tight">ক্র্যাশ পয়েন্ট সেট করুন (Set Crash Point)</label>
-                    <div className="px-4 py-2 bg-emerald-500/20 rounded-xl border border-emerald-500/30 text-emerald-400 font-mono font-black text-lg">
+                    <div className="px-4 py-2 bg-orange-500/20 rounded-xl border border-orange-500/30 text-orange-400 font-mono font-black text-lg">
                        {aviatorCrashPoint}x
                     </div>
                  </div>
@@ -2626,9 +2666,9 @@ function GlobalSettings(props: AdminPanelViewProps) {
                       value={aviatorCrashPoint}
                       onChange={(e) => setAviatorCrashPoint(Number(e.target.value))}
                       onMouseUp={() => handleSaveAviatorOverride(aviatorEnabled, aviatorCrashPoint)}
-                      className="w-full h-2 bg-black/40 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                      className="w-full h-2 bg-black/40 rounded-lg appearance-none cursor-pointer accent-orange-500"
                     />
-                    <div className="flex justify-between text-[8px] font-black text-teal-500 uppercase tracking-widest mt-2 px-1">
+                    <div className="flex justify-between text-[8px] font-black text-orange-500 uppercase tracking-widest mt-2 px-1">
                       <span>1.0x (Instant)</span>
                       <span>10.0x (Medium)</span>
                       <span>100.0x (Jackpot)</span>
@@ -2636,18 +2676,17 @@ function GlobalSettings(props: AdminPanelViewProps) {
                  </div>
               </div>
 
-              <div className="bg-emerald-500/5 border border-emerald-500/10 p-4 rounded-2xl">
+              <div className="bg-orange-500/5 border border-orange-500/10 p-4 rounded-2xl">
                  <div className="flex items-start gap-3">
-                    <ShieldCheck size={18} className="text-emerald-500 shrink-0 mt-0.5" />
-                    <p className="text-[10px] font-bold text-teal-300 leading-relaxed">
-                      এই অপশনটি চালু করলে এভিয়েটর গেমটি আপনার সেট করা পয়েন্ট ঠিক সেই মুহূর্তে ক্র্যাশ হবে। এটি সিগন্যাল হ্যাক হিসেবে ব্যবহার করা হয়। (গেম লুপ চেক করুন)
+                    <ShieldCheck size={18} className="text-orange-500 shrink-0 mt-0.5" />
+                    <p className="text-[10px] font-bold text-orange-300 leading-relaxed">
+                      এই অপশনটি চালু করলে এভিয়েটর গেমটি (Fly X) আপনার সেট করা পয়েন্ট ঠিক সেই মুহূর্তে ক্র্যাশ হবে। এটি সিগন্যাল হ্যাক হিসেবে ব্যবহার করা হয়।
                     </p>
                  </div>
               </div>
             </div>
-         </div>
-      </div>
-
+          </div>
+       </div>
 
     </div>
   );

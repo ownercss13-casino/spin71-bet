@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import canvasConfetti from 'canvas-confetti';
 import { formatDisplayUID } from './utils/idUtils';
 import { SoundProvider } from './context/SoundContext';
+import { LanguageProvider } from './context/LanguageContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, getDb, switchToDefaultDb } from './services/firebase';
 import { apiService } from './services/apiService';
@@ -115,10 +116,19 @@ export default function App() {
     }
     return 'home';
   });
+
   const [profileSubTab, setProfileSubTab] = useState<string>('dashboard');
   const [recentlyPlayed, setRecentlyPlayed] = useState<Game[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
+
+  useEffect(() => {
+    if (!['aviator', 'slot', 'crashx'].includes(activeTab) && !selectedGame) {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(e => console.log(e));
+      }
+    }
+  }, [activeTab, selectedGame]);
   const [activeCategory, setActiveCategory] = useState('সেরা');
   const [searchQuery, setSearchQuery] = useState("");
   const [showPromoModal, setShowPromoModal] = useState(false);
@@ -612,6 +622,12 @@ export default function App() {
 
       // Start loading sequence
       setIsTabLoading(true);
+
+      // Attempt App Fullscreen immediately
+      const elem = document.documentElement;
+      if (elem.requestFullscreen) {
+        elem.requestFullscreen().catch(e => console.log("Fullscreen request failed:", e));
+      }
 
       // Notify Telegram
       try {
@@ -1670,8 +1686,9 @@ export default function App() {
   };
 
   return (
-    <SoundProvider>
-      <div className="max-w-[512px] mx-auto bg-[var(--bg-main)] min-h-[100dvh] relative overflow-x-hidden font-sans text-[var(--text-main)] pb-16 flex flex-col safe-top transition-colors duration-300">
+    <LanguageProvider>
+      <SoundProvider>
+        <div className="max-w-[512px] mx-auto bg-[var(--bg-main)] min-h-[100dvh] relative overflow-x-hidden font-sans text-[var(--text-main)] pb-16 flex flex-col safe-top transition-colors duration-300">
       <AnimatePresence>
         {isSidebarOpen && (
           <Sidebar
@@ -2322,20 +2339,26 @@ export default function App() {
         secondsLeft={autoLogoutCountdown}
       />
 
-      <div className="fixed bottom-[85px] right-3 z-[110]">
-          <button 
-             onClick={() => window.dispatchEvent(new CustomEvent('openSupportChat'))}
-             className="w-14 h-14 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-[0_8px_30px_rgb(0,0,0,0.5)] text-white hover:scale-110 transition-transform active:scale-95 border-2 border-white/20"
-           >
-              <MessageSquare size={26} className="animate-pulse" />
-           </button>
-       </div>
+      {!['aviator', 'slot'].includes(activeTab) && !selectedGame && (
+        <div className="fixed bottom-[85px] right-3 z-[110]">
+            <button 
+               onClick={() => window.dispatchEvent(new CustomEvent('openSupportChat'))}
+               className="w-14 h-14 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-[0_8px_30px_rgb(0,0,0,0.5)] text-white hover:scale-110 transition-transform active:scale-95 border-2 border-white/20"
+             >
+                <MessageSquare size={26} className="animate-pulse" />
+             </button>
+         </div>
+      )}
 
       {/* Recently Viewed Feature */}
-      <RecentlyViewed activeTab={activeTab} onNavigate={handleTabChange} />
+      {!['aviator', 'slot'].includes(activeTab) && !selectedGame && (
+        <RecentlyViewed activeTab={activeTab} onNavigate={handleTabChange} />
+      )}
 
       {/* Bottom Navigation */}
-      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} onToggleNotifications={() => setIsNotificationCenterOpen(!isNotificationCenterOpen)} unreadNotificationsCount={unreadNotificationsCount} isAdmin={userData?.isAdmin} />
+      {!['aviator', 'slot'].includes(activeTab) && !selectedGame && (
+        <BottomNav activeTab={activeTab} onTabChange={handleTabChange} onToggleNotifications={() => setIsNotificationCenterOpen(!isNotificationCenterOpen)} unreadNotificationsCount={unreadNotificationsCount} isAdmin={userData?.isAdmin} />
+      )}
 
 
 
@@ -2509,6 +2532,7 @@ export default function App() {
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
       </div>
-    </SoundProvider>
+      </SoundProvider>
+    </LanguageProvider>
   );
 }

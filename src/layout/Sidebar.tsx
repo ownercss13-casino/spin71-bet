@@ -2,6 +2,9 @@ import React from 'react';
 import { X, User, Copy, Home, Users, Send, Star, Wallet, RefreshCw, LogOut, Moon, Sun, MessageCircle, Facebook, Shield, BookOpen, Settings } from 'lucide-react';
 import { motion } from 'motion/react';
 
+import { useLanguage } from '../context/LanguageContext';
+import { LOCALIZED_STRINGS } from '../constants/localization';
+
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
@@ -41,17 +44,7 @@ export default function Sidebar({
   appLogo,
   onInstallApp
 }: SidebarProps) {
-  const [lang, setLang] = React.useState<'bn' | 'en'>(() => {
-    return (localStorage.getItem('app_lang') as 'bn' | 'en') || 'bn';
-  });
-
-  React.useEffect(() => {
-    const handleLanguageChange = () => {
-      setLang((localStorage.getItem('app_lang') as 'bn' | 'en') || 'bn');
-    };
-    window.addEventListener('languageChange', handleLanguageChange);
-    return () => window.removeEventListener('languageChange', handleLanguageChange);
-  }, []);
+  const { language: lang, strings } = useLanguage();
 
   const games = [
     { id: '2', name: 'Rocket', icon: Star },
@@ -121,36 +114,39 @@ export default function Sidebar({
         {/* Sidebar Links */}
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto no-scrollbar">
           <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-4 mb-2">
-            {lang === 'bn' ? 'নেভিগেশন (Navigation)' : 'Navigation'}
+            Navigation
           </p>
           {[
-            { id: 'home', icon: Home, label: lang === 'bn' ? 'হোম (Home)' : 'Home' },
-            { id: 'wallet', icon: Wallet, label: lang === 'bn' ? 'ওয়ালেট (Wallet)' : 'Wallet' },
-            { id: 'profile', icon: User, label: lang === 'bn' ? 'প্রোফাইল (Profile)' : 'Profile' },
-            { id: 'invite', icon: Users, label: lang === 'bn' ? 'আমন্ত্রণ (Invite)' : 'Invite' },
-            { id: 'learning', icon: BookOpen, label: lang === 'bn' ? 'লার্নিং (Learning)' : 'Learning' },
-            { id: 'settings', icon: Settings, label: lang === 'bn' ? 'সেটিংস (Settings)' : 'Settings' },
-          ].map((link) => (
-            <button
-              key={link.id}
-              onClick={() => {
-                if (link.id === 'telegram') {
-                  window.open(telegramLink, '_blank');
-                } else if (link.id === 'whatsapp') {
-                  window.open(whatsappLink, '_blank');
-                } else if (link.id === 'facebook') {
-                  window.open(facebookLink, '_blank');
-                } else {
-                  handleTabChange(link.id as any);
-                }
-                onClose();
-              }}
-              className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all ${activeTab === link.id ? 'bg-yellow-500 text-black font-bold shadow-lg' : 'text-[var(--text-muted)] hover:bg-white/10 hover:text-[var(--text-main)]'}`}
-            >
-              <link.icon size={20} className={link.id === 'telegram' ? 'text-blue-400' : link.id === 'whatsapp' ? 'text-green-500' : link.id === 'facebook' ? 'text-blue-600' : ''} />
-              <span>{link.label}</span>
-            </button>
-          ))}
+            { id: 'home', icon: Home, label: strings.navHome },
+            { id: 'wallet', icon: Wallet, label: strings.navWallet },
+            { id: 'profile', icon: User, label: strings.navProfile },
+            { id: 'invite', icon: Users, label: strings.navInvite },
+            { id: 'learning', icon: BookOpen, label: 'Learning' },
+            { id: 'settings', icon: 'Settings', label: 'Settings' },
+          ].map((link: any) => {
+             const Icon = link.icon === 'Settings' ? Settings : link.icon;
+             return (
+               <button
+                 key={link.id}
+                 onClick={() => {
+                   if (link.id === 'telegram') {
+                     window.open(telegramLink, '_blank');
+                   } else if (link.id === 'whatsapp') {
+                     window.open(whatsappLink, '_blank');
+                   } else if (link.id === 'facebook') {
+                     window.open(facebookLink, '_blank');
+                   } else {
+                     handleTabChange(link.id as any);
+                   }
+                   onClose();
+                 }}
+                 className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all ${activeTab === link.id ? 'bg-yellow-500 text-black font-bold shadow-lg' : 'text-[var(--text-muted)] hover:bg-white/10 hover:text-[var(--text-main)]'}`}
+               >
+                 <Icon size={20} className={link.id === 'telegram' ? 'text-blue-400' : link.id === 'whatsapp' ? 'text-green-500' : link.id === 'facebook' ? 'text-blue-600' : ''} />
+                 <span>{link.label}</span>
+               </button>
+             )
+          })}
 
           {onInstallApp && (
              <button

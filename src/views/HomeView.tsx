@@ -8,6 +8,9 @@ import GlobalImage from '../components/ui/GlobalImage';
 import Skeleton from '../components/ui/Skeleton';
 import LiveBetsTicker from '../components/LiveBetsTicker';
 
+import { useLanguage } from '../context/LanguageContext';
+import { LOCALIZED_STRINGS } from '../constants/localization';
+
 function WinAnimation({ gameId }: { gameId: string }) {
   const [wins, setWins] = useState<{ id: number; amount: string; x: number; y: number }[]>([]);
 
@@ -139,19 +142,20 @@ export default function HomeView({
   setIsSupportChatOpen,
   onInstallApp
 }: HomeViewProps) {
+  const { strings } = useLanguage();
   const [editingCasinoName, setEditingCasinoName] = React.useState(false);
   const [tempCasinoName, setTempCasinoName] = React.useState(casinoName || "SPIN71.bet");
 
   const categories = [
-    { id: 'সব', icon: Gamepad2, label: 'সব' },
-    { id: 'সেরা', icon: Flame, label: 'সেরা' },
-    { id: 'ক্র্যাশ', icon: TrendingUp, label: 'ক্র্যাশ' },
-    { id: 'পছন্দ', icon: Star, label: 'পছন্দ' },
-    { id: 'স্লট', icon: Gamepad2, label: 'স্লট' },
-    { id: 'Live Casino', icon: Tv, label: 'Live Casino' },
-    { id: 'Table Games', icon: Club, label: 'Table Games' },
-    { id: 'Fishing Games', icon: Fish, label: 'Fishing' },
-    { id: 'Lottery', icon: Ticket, label: 'Lottery' },
+    { id: 'সব', icon: Gamepad2, label: strings.catAll },
+    { id: 'সেরা', icon: Flame, label: strings.catHot },
+    { id: 'ক্র্যাশ', icon: TrendingUp, label: strings.catCrash },
+    { id: 'পছন্দ', icon: Star, label: strings.catFav },
+    { id: 'স্লট', icon: Gamepad2, label: strings.catSlot },
+    { id: 'Live Casino', icon: Tv, label: strings.catLive },
+    { id: 'Table Games', icon: Club, label: strings.catTable },
+    { id: 'Fishing Games', icon: Fish, label: strings.catFishing },
+    { id: 'Lottery', icon: Ticket, label: strings.catLottery },
   ];
 
   const handleSwipe = (event: any, info: any) => {
@@ -204,13 +208,13 @@ export default function HomeView({
                 onClick={() => onOpenLogin?.('login')}
                 className="bg-transparent border border-[#1e3a5f] px-4 py-2 rounded-xl text-[10px] font-black text-[#90a4ae] hover:text-white transition-colors"
               >
-                লগইন
+                {strings.btnLogin}
               </button>
               <button 
                 onClick={() => onOpenLogin?.('register')}
                 className="bg-gradient-to-r from-yellow-400 to-yellow-600 px-5 py-2 rounded-xl text-[10px] font-black text-black hover:scale-105 transition-transform"
               >
-                রেজিস্ট্রেশন
+                {strings.btnRegister}
               </button>
             </div>
           ) : (
@@ -220,7 +224,7 @@ export default function HomeView({
                 onClick={() => onNavigate?.('wallet')}
               >
                 <div className="flex flex-col items-end">
-                  <span className="text-[10px] text-gray-500 font-black tracking-tighter leading-none">ব্যালেন্স</span>
+                  <span className="text-[10px] text-gray-500 font-black tracking-tighter leading-none">{strings.lblBalance}</span>
                   <AnimatedBalance value={balance} decimals={0} className="text-sm font-black text-[#fdd835] tracking-tight" />
                 </div>
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 p-[1px] shadow-lg overflow-hidden">
@@ -283,10 +287,10 @@ export default function HomeView({
                   transition={{ delay: 0.3 }}
                 >
                   <h2 className="text-xl md:text-3xl font-black text-white italic leading-tight drop-shadow-lg scale-y-110 tracking-tight">
-                    {activeCategory === 'ক্র্যাশ' ? 'এভিয়েটর সিগন্যাল' : activeCategory === 'স্লট' ? 'মেগা জ্যাকপট' : 'প্রিমিয়াম ক্যাসিনো'}
+                    {activeCategory === 'ক্র্যাশ' ? strings.heroAviatorTitle : activeCategory === 'স্লট' ? strings.heroJackpotTitle : strings.heroCasinoTitle}
                   </h2>
                   <p className="text-[10px] md:text-sm text-yellow-400 font-bold uppercase tracking-widest mt-1">
-                    {activeCategory === 'ক্র্যাশ' ? 'প্রেডিক্ট করুন ও বড় জয় নিন' : activeCategory === 'স্লট' ? 'সবচেয়ে বেশি রিটার্ন রেট' : 'অফিসিয়াল লাইসেন্সড প্ল্যাটফর্ম'}
+                    {activeCategory === 'ক্র্যাশ' ? strings.heroAviatorDesc : activeCategory === 'স্লট' ? strings.heroJackpotDesc : strings.heroCasinoDesc}
                   </p>
                 </motion.div>
                 
@@ -297,7 +301,7 @@ export default function HomeView({
                   onClick={() => onNavigate?.('deposit')}
                   className="mt-3 bg-gradient-to-r from-yellow-400 to-yellow-600 text-black px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-yellow-600/30 active:scale-95 transition-all"
                 >
-                  ডিপোজিট করুন
+                  {strings.btnDepositNow}
                 </motion.button>
               </div>
             </motion.div>
@@ -317,7 +321,7 @@ export default function HomeView({
         <div className="text-gray-400 group-hover:text-white"><Volume2 size={18}/></div>
         <div className="flex-1 overflow-hidden relative h-4">
           <div className="absolute whitespace-nowrap animate-marquee text-white text-xs font-bold">
-            🏆 SPIN71.BET 🏆 ⭐ প্রথম জমার জন্য ১০০% বোনাস! ⭐ {noticeText}
+            {strings.scrollingNotice} {noticeText}
           </div>
         </div>
         <div className="flex items-center gap-3 text-red-500">
@@ -339,8 +343,8 @@ export default function HomeView({
               <Trophy size={26} />
             </div>
             <div className="text-left">
-              <span className="text-lg font-black text-white italic tracking-tighter block uppercase">লিডারবোর্ড (Top Winners)</span>
-              <span className="text-[9px] font-bold text-teal-300 uppercase tracking-widest leading-none">আজকের সবচেয়ে বড় বিজয়ীদের দেখুন</span>
+              <span className="text-lg font-black text-white italic tracking-tighter block uppercase">{strings.leaderboardTitle}</span>
+              <span className="text-[9px] font-bold text-teal-300 uppercase tracking-widest leading-none">{strings.leaderboardDesc}</span>
             </div>
           </div>
           <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white shrink-0 group-hover:translate-x-1 transition-transform">
@@ -359,7 +363,7 @@ export default function HomeView({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="গেম বা প্রোভাইডার সার্চ করুন (যেমন: Aviator, JILI)..."
+            placeholder={strings.searchPlaceholder}
             className="w-full bg-[#14253a] border border-[#1e3a5f] hover:border-[#00e5ff]/50 focus:border-[#00e5ff] text-white pl-10 pr-10 py-2.5 rounded-xl text-xs font-bold focus:outline-none focus:ring-1 focus:ring-[#00e5ff]/30 placeholder-gray-500 transition-all shadow-[0_4px_12px_rgba(0,0,0,0.3)]"
           />
           {searchQuery && (
@@ -385,7 +389,7 @@ export default function HomeView({
               <cat.icon size={24} />
             </div>
             <span className={`text-[10px] font-bold ${activeCategory === cat.id ? 'text-[#00e5ff]' : 'text-[#90a4ae]'}`}>
-              {cat.id === 'স্লট' ? 'Slots' : cat.id === 'Live Casino' ? 'Live' : cat.id === 'Fishing Games' ? 'Fishing' : cat.id === 'ক্র্যাশ' ? 'Crash' : cat.label}
+              {cat.label}
             </span>
             {activeCategory === cat.id && (
               <div className="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[4px] border-t-[#00e5ff]"></div>
@@ -412,7 +416,7 @@ export default function HomeView({
             {/* Section Header */}
             <div className="flex items-center gap-2 text-lg font-black text-white mb-4">
                <Flame className="text-orange-600 fill-orange-600" size={24} />
-               {activeCategory === 'সব' ? 'All Games' : activeCategory === 'সেরা' ? 'Hot Games' : activeCategory === 'পছন্দ' ? 'Favs' : activeCategory}
+                {activeCategory === 'সব' ? strings.catAll : activeCategory === 'সেরা' ? strings.catHot : activeCategory === 'পছন্দ' ? strings.catFav : activeCategory}
             </div>
 
             {/* Grid */}

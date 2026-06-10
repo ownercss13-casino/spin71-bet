@@ -1282,6 +1282,20 @@ let currentAviatorState = {
 };
 
 const aviatorClients: any[] = [];
+
+// CrashX Game State (FlyX Clone)
+let currentCrashXState = {
+  roundId: "crashx_" + Date.now(),
+  state: 'waiting' as 'waiting' | 'in_progress' | 'crashed',
+  multiplier: 1.00,
+  crashPoint: 2.00,
+  nextCrashPoint: 1.85,
+  timer: 8.0,
+  history: [1.13, 6.38, 1.03, 1.06, 1.03, 1.10, 7.49, 1.38, 1.22, 1.44],
+  updatedAt: Date.now()
+};
+
+const crashXClients: any[] = [];
 const telegramSubscribers = new Set<string>();
 const telegramOptedOut = new Set<string>();
 
@@ -1376,6 +1390,15 @@ const aviatorOverride = {
 
 // Global function to fetch latest override state
 let globalFetchAviatorOverride: () => Promise<void> = async () => {};
+
+// Local cache for CrashX admin overrides
+const crashXOverride = {
+  enabled: false,
+  customCrashPoint: 2.00
+};
+
+// Global function to fetch latest CrashX override state
+let globalFetchCrashXOverride: () => Promise<void> = async () => {};
 
 async function startAviatorLoop(firestoreDb: any) {
   console.log("[Aviator Server] Starting Multiplayer Aviator Game Loop background service with AI Predictions...");
@@ -1567,6 +1590,96 @@ async function startAviatorLoop(firestoreDb: any) {
   setInterval(tick, 100);
 }
 
+async function startCrashXLoop(firestoreDb: any) {
+  console.log("[CrashX Server] Starting CrashX Game Loop...");
+
+  if (firestoreDb) {
+    const fetchOverride = async () => {
+      try {
+        const docSnap = await firestoreDb.collection('metadata').doc('crashx_override').get();
+        if (docSnap && docSnap.exists) {
+          const data = docSnap.data();
+          crashXOverride.enabled = !!data?.enabled;
+          crashXOverride.customCrashPoint = Number(data?.customCrashPoint) || 2.00;
+        }
+      } catch (err) {}
+    };
+    globalFetchCrashXOverride = fetchOverride;
+    fetchOverride();
+    setInterval(fetchOverride, 1000);
+    console.log("[CrashX Override Sync] Polling service started (1s interval)");
+  }
+
+  const tick = async () => {
+    try {
+      const now = Date.now();
+      
+      if (currentCrashXState.state === 'waiting') {
+        const lastUpdate = currentCrashXState.updatedAt || now;
+        const elapsedSinceLastTick = (now - lastUpdate) / 1000;
+        currentCrashXState.timer = Number((currentCrashXState.timer - elapsedSinceLastTick).toFixed(1));
+        
+        if (currentCrashXState.timer <= 0) {
+          currentCrashXState.state = 'in_progress';
+          currentCrashXState.multiplier = 1.00;
+          let chosenPoint = 0.99 / (1 - Math.random());
+          if (chosenPoint < 1.01) chosenPoint = 1.01;
+          
+          if (crashXOverride.enabled) {
+            chosenPoint = crashXOverride.customCrashPoint;
+            console.log(`[CrashX Admin] Override applied: ${chosenPoint}x`);
+          }
+          
+          currentCrashXState.crashPoint = chosenPoint;
+          currentCrashXState.timer = 0;
+          (global as any).crashXStartTime = now;
+          console.log(`[CrashX] Round Started: ${currentCrashXState.crashPoint.toFixed(2)}x`);
+        }
+      } else if (currentCrashXState.state === 'in_progress') {
+        const startTime = (global as any).crashXStartTime || now;
+        const elapsed = (now - startTime) / 1000;
+        
+        // Ensure admin overrides applied mid-flight lock the crash point
+        if (crashXOverride.enabled && currentCrashXState.crashPoint !== crashXOverride.customCrashPoint) {
+           currentCrashXState.crashPoint = crashXOverride.customCrashPoint;
+        }
+
+        currentCrashXState.multiplier = Number(Math.pow(1.08, elapsed).toFixed(2));
+        
+        if (currentCrashXState.multiplier >= currentCrashXState.crashPoint) {
+          currentCrashXState.multiplier = currentCrashXState.crashPoint;
+          currentCrashXState.state = 'crashed';
+          currentCrashXState.history = [currentCrashXState.crashPoint, ...currentCrashXState.history].slice(0, 15);
+          currentCrashXState.timer = 3.5;
+          (global as any).crashXCrashTime = now;
+          console.log(`[CrashX] Crashed: ${currentCrashXState.crashPoint.toFixed(2)}x`);
+        }
+      } else if (currentCrashXState.state === 'crashed') {
+        const lastUpdate = currentCrashXState.updatedAt || now;
+        const elapsedSinceLastTick = (now - lastUpdate) / 1000;
+        currentCrashXState.timer = Number((currentCrashXState.timer - elapsedSinceLastTick).toFixed(1));
+        
+        if (currentCrashXState.timer <= 0) {
+          currentCrashXState.state = 'waiting';
+          currentCrashXState.timer = 6.0;
+          currentCrashXState.roundId = "crashx_" + Date.now();
+        }
+      }
+      
+      currentCrashXState.updatedAt = now;
+
+      // Broadcast SSE
+      const sseData = `data: ${JSON.stringify(currentCrashXState)}\n\n`;
+      crashXClients.forEach(client => {
+        try { client.res.write(sseData); } catch (e) {}
+      });
+    } catch (err: any) {
+      console.error("[CrashX Loop Error]:", err.message);
+    }
+  };
+  setInterval(tick, 100);
+}
+
 async function startServer() {
   console.log("[Server] Starting startServer sequence...");
   
@@ -1684,6 +1797,38 @@ async function startServer() {
 
   app.get("/api/aviator/state", (req, res) => {
     res.json(currentAviatorState);
+  });
+
+  // --- CrashX Server-Sent Events (SSE) and State Endpoints ---
+  app.get("/api/crashx/stream", (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.setHeader('Content-Encoding', 'none');
+    res.flushHeaders();
+
+    res.write(`data: ${JSON.stringify(currentCrashXState)}\n\n`);
+
+    const client = { id: Date.now(), res };
+    crashXClients.push(client);
+
+    req.on('close', () => {
+      const index = crashXClients.findIndex(c => c.id === client.id);
+      if (index !== -1) {
+        crashXClients.splice(index, 1);
+      }
+    });
+  });
+
+  app.get("/api/crashx/state", (req, res) => {
+    res.json(currentCrashXState);
+  });
+
+  app.post("/api/crashx/admin/sync-override", async (req, res) => {
+    await globalFetchCrashXOverride();
+    console.log("[CrashX Override Sync] Triggered manually via API");
+    res.json({ success: true, enabled: crashXOverride.enabled, crashPoint: crashXOverride.customCrashPoint });
   });
 
   // Add immediate sync endpoint
@@ -3007,6 +3152,105 @@ async function startServer() {
     }
   });
 
+  // --- CrashX Game Actions API ---
+  app.post("/api/game/crashx/action", async (req, res) => {
+    const { action, amount, idToken, multiplier } = req.body;
+    
+    if (!idToken || !action) {
+      return res.status(400).json({ error: "Missing action or token" });
+    }
+
+    try {
+      const decodedToken = await auth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const userRef = db.collection('users').doc(uid);
+
+      let finalBalance = 0;
+      let responseData: any = { success: true };
+
+      await db.runTransaction(async (transaction: any) => {
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists) throw new Error("User missing");
+        
+        const userData = userDoc.data()!;
+        const currentBalance = userData.balance || 0;
+
+        if (action === 'bet') {
+          if (amount <= 0 || typeof amount !== 'number') throw new Error("Invalid bet amount");
+          if (currentBalance < amount) throw new Error("insuff_balance");
+          finalBalance = currentBalance - amount;
+          transaction.update(userRef, {
+            balance: finalBalance,
+            updatedAt: new Date().toISOString()
+          });
+          
+          const betRef = db.collection('bets').doc();
+          transaction.set(betRef, {
+            userId: uid,
+            betAmount: amount,
+            winAmount: 0,
+            status: 'placed',
+            gameType: 'crashx',
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          responseData.betId = betRef.id;
+
+        } else if (action === 'cancel') {
+          if (amount <= 0 || typeof amount !== 'number') throw new Error("Invalid amount");
+          finalBalance = currentBalance + amount;
+          transaction.update(userRef, {
+            balance: finalBalance,
+            updatedAt: new Date().toISOString()
+          });
+
+        } else if (action === 'cashout') {
+          if (amount <= 0 || typeof amount !== 'number') throw new Error("Invalid bet amount");
+          const multVal = Number(multiplier);
+          if (isNaN(multVal) || multVal < 1.0) throw new Error("Invalid cashout multiplier");
+
+          const maxAllowedMult = currentCrashXState.crashPoint;
+          if (multVal > maxAllowedMult + 0.05) throw new Error("cheat_detected");
+
+          const winAmount = Math.floor(amount * multVal);
+          finalBalance = currentBalance + winAmount;
+
+          transaction.update(userRef, {
+            balance: finalBalance,
+            updatedAt: new Date().toISOString()
+          });
+
+          const betRef = db.collection('bets').doc();
+          transaction.set(betRef, {
+            userId: uid,
+            betAmount: amount,
+            winAmount: winAmount,
+            multiplier: multVal,
+            symbols: ['rocket'],
+            status: 'cashed_out',
+            gameType: 'crashx',
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          responseData.winAmount = winAmount;
+          responseData.betId = betRef.id;
+        } else {
+          throw new Error("Unknown action");
+        }
+      });
+
+      res.json({
+        ...responseData,
+        newBalance: finalBalance
+      });
+
+    } catch (error: any) {
+      console.error("[CrashX API Action Error]:", error.message);
+      if (error.message === "insuff_balance") {
+        return res.status(402).json({ error: "insuff_balance", message: "আপনার ব্যালেন্স যথেষ্ট নয়" });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // --- Daily Reward API ---
   app.post("/api/game/rewards/daily", async (req, res) => {
     const { idToken } = req.body;
@@ -3738,7 +3982,8 @@ async function startServer() {
     // Start background loops after server is listening
     initializeGlobalConfig().catch(err => console.error("Config initialization failed:", err.message));
     pollTelegramUpdates().catch(err => console.error("Telegram polling failed to start:", err.message));
-    // startAviatorLoop(db).catch(err => console.error("Aviator background loop failed to start:", err.message));
+    startAviatorLoop(db).catch(err => console.error("Aviator background loop failed to start:", err.message));
+    // startCrashXLoop(db).catch(err => console.error("CrashX background loop failed to start:", err.message));
   });
 
   // Global Error Handlers
