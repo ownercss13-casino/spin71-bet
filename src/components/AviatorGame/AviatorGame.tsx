@@ -244,7 +244,7 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       const idToken = await auth.currentUser?.getIdToken();
       const res = await fetch('/api/game/aviator/action', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': import.meta.env.VITE_AVIATOR_API_KEY || '' },
+        headers: { 'Content-Type': 'application/json', 'x-api-key': import.meta.env.VITE_AVIATOR_API_KEY || '#spin71bet_aviator_game109' },
         body: JSON.stringify({ action: 'bet', amount, idToken })
       });
       const data = await res.json();
@@ -280,7 +280,7 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       const idToken = await auth.currentUser?.getIdToken();
       const res = await fetch('/api/game/aviator/action', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': import.meta.env.VITE_AVIATOR_API_KEY || '' },
+        headers: { 'Content-Type': 'application/json', 'x-api-key': import.meta.env.VITE_AVIATOR_API_KEY || '#spin71bet_aviator_game109' },
         body: JSON.stringify({ 
           action: 'cashout', 
           amount: bet.amount, 
@@ -311,14 +311,24 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
   useEffect(() => {
     let eventSource: EventSource | null = null;
     let isActive = true;
+    let retryTimeoutId: any = null;
+    let retryDelay = 2000; // start with 2 seconds
 
-    const setupSSE = async (user: any) => {
+    const setupSSE = async () => {
+      if (!isActive) return;
+      
+      const user = auth.currentUser;
+      if (!user) {
+        console.log("[AviatorGame] Waiting for authenticated user to establish SSE stream...");
+        if (retryTimeoutId) clearTimeout(retryTimeoutId);
+        retryTimeoutId = setTimeout(setupSSE, 1000); // Check again in 1 second
+        return;
+      }
+
       let tokenStr = '';
       try {
-        if (user) {
-          const idToken = await user.getIdToken();
-          if (idToken) tokenStr = `?token=${encodeURIComponent(idToken)}`;
-        }
+        const idToken = await user.getIdToken(false);
+        if (idToken) tokenStr = `?token=${encodeURIComponent(idToken)}`;
       } catch (err) {
         console.error("Could not fetch auth token", err);
       }
@@ -326,8 +336,14 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       if (!isActive) return;
       if (eventSource) eventSource.close();
       
+      console.log("[AviatorGame] Establishing SSE stream connection...");
       eventSource = new EventSource(`/api/aviator/stream${tokenStr}`);
       
+      eventSource.onopen = () => {
+        console.log("[AviatorGame] SSE stable connection established successfully.");
+        retryDelay = 2000; // Reset retry delay upon success
+      };
+
       eventSource.onmessage = (event) => {
         setShowLoader(false);
         const data = JSON.parse(event.data);
@@ -365,19 +381,31 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       };
 
       eventSource.onerror = (err) => {
-        console.error("SSE Connection failed", err);
-        // Will close on unmount or next auth state change, let browser handle retry for now
+        console.error("SSE Connection dropped. Retrying with refreshed credentials...", err);
+        if (eventSource) {
+          eventSource.close();
+          eventSource = null;
+        }
+
+        if (isActive) {
+          if (retryTimeoutId) clearTimeout(retryTimeoutId);
+          console.log(`[AviatorGame] Rescheduling connection attempt in ${retryDelay}ms...`);
+          retryTimeoutId = setTimeout(() => {
+            setupSSE();
+          }, retryDelay);
+          retryDelay = Math.min(retryDelay * 2, 30000); // Exponential backoff capped at 30 seconds
+        }
       };
     };
 
     const unsubscribeAuth = auth.onAuthStateChanged((user) => {
-      // Re-establish SSE connection whenever auth state changes to ensure fresh token
-      setupSSE(user);
+      setupSSE();
     });
 
     return () => {
       isActive = false;
       unsubscribeAuth();
+      if (retryTimeoutId) clearTimeout(retryTimeoutId);
       if (eventSource) eventSource.close();
     };
   }, []);

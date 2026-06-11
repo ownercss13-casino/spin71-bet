@@ -23,7 +23,8 @@ try {
   console.log("[Firebase] Attempting to initialize Firestore with DB ID:", dbId);
   dbInstance = initializeFirestore(app, {
     cacheSizeBytes: CACHE_SIZE_UNLIMITED,
-    experimentalForceLongPolling: true, // Often helps in sandboxed/proxy environments
+    experimentalForceLongPolling: true,
+    experimentalAutoDetectLongPolling: true, // Auto-detect and fallback gracefully
   }, dbId);
 } catch (err) {
   console.error("[Firebase] Failed to initialize named Firestore instance, falling back to default:", err);
