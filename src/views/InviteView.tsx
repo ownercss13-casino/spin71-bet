@@ -123,7 +123,7 @@ export default function InviteView({
           setReferralsList(list);
           
           // Calculate stats locally for extra accuracy
-          const valid = list.filter((u: any) => (u.deposits || 0) > 0).length;
+          const valid = list.filter((u: any) => (u.totalDeposits || 0) > 0 || (u.deposits || 0) > 0).length;
           setStats({
             registers: list.length,
             validReferrals: valid,

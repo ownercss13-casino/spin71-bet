@@ -3413,7 +3413,7 @@ async function startServer() {
     const token = authHeader.split(' ')[1];
     
     try {
-      if (token === 'owner.css13') {
+      if (token === 'owner.css13' || (process.env.RETOOL_API_KEY && token === process.env.RETOOL_API_KEY)) {
         next();
         return;
       }
@@ -3581,7 +3581,8 @@ async function startServer() {
         // Special handling for approval of deposits - adding balance and VIP points
         if (status === 'completed' && txData.type === 'deposit') {
           const depositAmount = txData.amount;
-          const currentPoints = userDoc.data()?.vipPoints || 0;
+          const uData = userDoc.data() || {};
+          const currentPoints = uData.vipPoints || 0;
           const newPoints = currentPoints + Math.floor(depositAmount / 100);
           
           // VIP Level Calculation
@@ -3591,6 +3592,9 @@ async function startServer() {
           else if (newPoints >= 500) newVipLevel = 2; // Gold
           else if (newPoints >= 100) newVipLevel = 1; // Silver
 
+          const isFirstDeposit = !(uData.totalDeposits > 0);
+          const referredBy = uData.referredBy;
+
           transaction.update(userRef, {
             balance: admin.firestore.FieldValue.increment(depositAmount),
             totalDeposits: admin.firestore.FieldValue.increment(depositAmount),
@@ -3598,6 +3602,80 @@ async function startServer() {
             vipLevel: newVipLevel,
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
           });
+
+          // Process Referral Reward upon first deposit & general deposits
+          if (referredBy) {
+            console.log(`[Referral Process on Approval] User ${userId} has referredBy: ${referredBy}. IsFirstDeposit: ${isFirstDeposit}`);
+            const referrerRef = db.collection('users').doc(referredBy);
+            const referrerDoc = await transaction.get(referrerRef);
+            
+            if (referrerDoc.exists) {
+              const rData = referrerDoc.data() || {};
+              // Standard 10% bonus on deposit amount
+              let referralBonus = depositAmount * 0.1;
+              
+              // Invite Friends Bonus flat ৳ 308 on referred friend's first deposit of at least ৳ 200
+              let inviteFriendsBonus = 0;
+              if (isFirstDeposit && depositAmount >= 200) {
+                inviteFriendsBonus = 308;
+                console.log(`[Referral Process] Awarding custom ৳308 Invite Friends Bonus to ${referredBy}`);
+              }
+
+              const totalBonusAward = referralBonus + inviteFriendsBonus;
+
+              const referrerUpdates: any = {
+                balance: admin.firestore.FieldValue.increment(totalBonusAward),
+                totalReferralEarnings: admin.firestore.FieldValue.increment(totalBonusAward),
+                updatedAt: new Date().toISOString()
+              };
+
+              if (isFirstDeposit) {
+                referrerUpdates.validReferralCount = admin.firestore.FieldValue.increment(1);
+              }
+
+              transaction.update(referrerRef, referrerUpdates);
+
+              // Log referral bonus transaction for referrer in global collection
+              const transRef = db.collection('transactions').doc();
+              transaction.set(transRef, {
+                userId: referredBy,
+                amount: totalBonusAward,
+                type: 'referral_bonus',
+                fromUser: uData.username || 'Anonymous',
+                fromUserId: userId,
+                description: inviteFriendsBonus > 0
+                  ? `Referral Commission 10% (৳${referralBonus.toFixed(1)}) + Invite Friends Bonus (৳${inviteFriendsBonus})`
+                  : `Referral Commission 10% (৳${referralBonus.toFixed(1)})`,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                status: 'completed',
+                date: new Date().toISOString()
+              });
+
+              // Log inside referrer's specific transactions subcollection as well
+              const referrerSubTxRef = referrerRef.collection('transactions').doc(transRef.id);
+              transaction.set(referrerSubTxRef, {
+                amount: totalBonusAward,
+                type: 'referral_bonus',
+                description: inviteFriendsBonus > 0
+                  ? `রেফারেল বোনাস ১০% + ফ্রেন্ডস ইনভাইট বোনাস`
+                  : `রেফারেল বোনাস ১০%`,
+                status: 'সম্পন্ন',
+                statusColor: 'text-green-400',
+                date: new Date().toISOString(),
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+              });
+
+              // Also add an entry to referrer's referrals subcollection
+              const referralEntryRef = referrerRef.collection('referrals').doc(userId);
+              transaction.set(referralEntryRef, {
+                username: uData.username || 'Anonymous',
+                depositAmount: depositAmount,
+                bonusEarned: totalBonusAward,
+                timestamp: new Date().toISOString(),
+                isValid: true
+              }, { merge: true });
+            }
+          }
         }
       });
 
