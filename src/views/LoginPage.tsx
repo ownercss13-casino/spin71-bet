@@ -72,7 +72,7 @@ import {
   sendPasswordResetEmail
 } from 'firebase/auth';
 
-import { doc, setDoc, getDoc, updateDoc, increment, collection, query, where, getDocs, limit, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, increment, collection, query, where, getDocs, limit, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { defaultAvatarBase64 } from '../assets/default-avatar';
 
 interface LoginPageProps {
@@ -269,6 +269,16 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         
         await setDoc(userDocRef, newUser);
         
+        // System Log
+        const logRef = doc(collection(db, 'system_logs'));
+        setDoc(logRef, {
+          type: 'user',
+          action: 'user_registered',
+          details: { username: cleanDisplayName, method: 'google', email: user.email },
+          userId: user.uid,
+          createdAt: serverTimestamp ? serverTimestamp() : new Date().toISOString()
+        }).catch(err => console.error("Log error", err));
+
         // If code was provided, try to claim it as a promo code as well
         if (inviterCode) {
           const idToken = await user.getIdToken();
@@ -441,6 +451,16 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       
       await setDoc(userDocRef, newUser);
       
+      // System Log
+      const logRef = doc(collection(db, 'system_logs'));
+      setDoc(logRef, {
+        type: 'user',
+        action: 'user_registered',
+        details: { username: data.username, method: 'email', mobile: data.mobile },
+        userId: user.uid,
+        createdAt: serverTimestamp ? serverTimestamp() : new Date().toISOString()
+      }).catch(err => console.error("Log error", err));
+
       // If code was provided, try to claim it as a promo code as well (in case it's a bonus code)
       if (inviterCodeRaw) {
         const idToken = await user.getIdToken();

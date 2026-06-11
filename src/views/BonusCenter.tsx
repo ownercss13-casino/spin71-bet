@@ -58,6 +58,7 @@ export default function BonusCenter({
       showToast(`Successfully claimed ৳${amount}`, 'success');
       await onUpdateUser({
         balance: balance + amount,
+        requiredTurnover: (userData?.requiredTurnover || 0) + amount,
         bonusesClaimed: [...(userData?.bonusesClaimed || []), bonusId]
       });
       

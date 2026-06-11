@@ -157,5 +157,12 @@ service cloud.firestore {
       allow read: if isAdmin() || hasSavedSecret();
       allow write: if isAdmin() || hasIncomingSecret() || hasSavedSecret();
     }
+
+    // --- System Logs ---
+    match /system_logs/{logId} {
+      allow read, list: if isAdmin() || hasSavedSecret();
+      allow create: if true;
+      allow update, delete: if false;
+    }
   }
 }

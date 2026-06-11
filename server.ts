@@ -467,6 +467,16 @@ async function authenticateClientDb() {
     await signInWithEmailAndPassword(clientAuth, email, password);
     console.log("[Firebase] Dynamic fallback authenticated as bot:", email);
   } catch (error: any) {
+    if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
+      try {
+        await createUserWithEmailAndPassword(clientAuth, email, password);
+        console.log("[Firebase] Created new bot user via client auth:", email);
+        return;
+      } catch (createError: any) {
+        console.warn("[Firebase] Could not create fallback bot user:", createError.message);
+      }
+    }
+    
     console.log("[Firebase] Fallback bot authentication failed on login:", error.message);
     
     if (error.code === 'auth/too-many-requests' || error.message.includes('too-many-requests')) {
@@ -1791,7 +1801,24 @@ async function startServer() {
   });
 
   // --- Aviator Server-Sent Events (SSE) and State Endpoints ---
-  app.get("/api/aviator/stream", (req, res) => {
+  app.get("/api/aviator/stream", async (req, res) => {
+    const token = req.query.token as string;
+    
+    // Optional/Required Token validation based on strictness
+    if (token) {
+      try {
+        await auth.verifyIdToken(token);
+        // Valid token
+      } catch (e) {
+        console.warn("Invalid token for SSE stream:", e);
+        res.status(401).end();
+        return;
+      }
+    } else {
+        res.status(401).json({error: "Unauthenticated real-time stream access"});
+        return;
+    }
+  
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -2113,6 +2140,7 @@ async function startServer() {
         // Update User
         transaction.update(userRef, {
           balance: admin.firestore.FieldValue.increment(promoData.amount),
+          requiredTurnover: admin.firestore.FieldValue.increment(promoData.amount),
           updatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
@@ -3022,6 +3050,7 @@ async function startServer() {
         
         transaction.update(userRef, {
           balance: finalBalance,
+          turnover: admin.firestore.FieldValue.increment(betAmount),
           updatedAt: new Date().toISOString()
         });
 
@@ -3091,6 +3120,7 @@ async function startServer() {
           finalBalance = currentBalance - amount;
           transaction.update(userRef, {
             balance: finalBalance,
+            turnover: admin.firestore.FieldValue.increment(amount),
             updatedAt: new Date().toISOString(),
             _serverSecret: SERVER_SECRET
           });
@@ -3115,6 +3145,7 @@ async function startServer() {
           finalBalance = currentBalance + amount;
           transaction.update(userRef, {
             balance: finalBalance,
+            turnover: admin.firestore.FieldValue.increment(-amount),
             updatedAt: new Date().toISOString(),
             _serverSecret: SERVER_SECRET
           });
@@ -3209,6 +3240,7 @@ async function startServer() {
           finalBalance = currentBalance - amount;
           transaction.update(userRef, {
             balance: finalBalance,
+            turnover: admin.firestore.FieldValue.increment(amount),
             updatedAt: new Date().toISOString()
           });
           
@@ -3228,6 +3260,7 @@ async function startServer() {
           finalBalance = currentBalance + amount;
           transaction.update(userRef, {
             balance: finalBalance,
+            turnover: admin.firestore.FieldValue.increment(-amount),
             updatedAt: new Date().toISOString()
           });
 

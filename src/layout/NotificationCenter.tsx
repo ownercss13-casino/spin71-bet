@@ -99,11 +99,12 @@ export default function NotificationCenter({
     }
 
     try {
-      const promises = selectedIds.map(id => {
+      const promises = selectedIds.map(async (id) => {
         if (onMarkAsRead) {
-          onMarkAsRead(id);
+          await onMarkAsRead(id);
+        } else {
+          await updateDoc(doc(db, 'users', userData.id, 'notifications', id), { read: true });
         }
-        return updateDoc(doc(db, 'users', userData.id, 'notifications', id), { read: true });
       });
       await Promise.all(promises);
       setSelectedIds([]);
@@ -122,11 +123,12 @@ export default function NotificationCenter({
 
     try {
       if (activeTab === 'inbox') {
-        const promises = selectedIds.map(id => {
+        const promises = selectedIds.map(async (id) => {
           if (onDelete) {
-            onDelete(id);
+            await onDelete(id);
+          } else {
+            await deleteDoc(doc(db, 'users', userData.id, 'notifications', id));
           }
-          return deleteDoc(doc(db, 'users', userData.id, 'notifications', id));
         });
         await Promise.all(promises);
         showToast("চিহ্নিত মেসেজগুলো সম্পূর্ণ মুছে ফেলা হয়েছে।", "success");
@@ -148,9 +150,10 @@ export default function NotificationCenter({
     if (activeTab === 'inbox' && !item.read) {
       try {
         if (onMarkAsRead) {
-          onMarkAsRead(item.id);
+          await onMarkAsRead(item.id);
+        } else {
+          await updateDoc(doc(db, 'users', userData.id, 'notifications', item.id), { read: true });
         }
-        await updateDoc(doc(db, 'users', userData.id, 'notifications', item.id), { read: true });
       } catch (err) {
         console.error(err);
       }
@@ -161,9 +164,10 @@ export default function NotificationCenter({
     try {
       if (activeTab === 'inbox') {
         if (onDelete) {
-          onDelete(id);
+          await onDelete(id);
+        } else {
+          await deleteDoc(doc(db, 'users', userData.id, 'notifications', id));
         }
-        await deleteDoc(doc(db, 'users', userData.id, 'notifications', id));
         showToast("মেসেজটি সম্পূর্ণ মুছে ফেলা হয়েছে।", "success");
       } else {
         setOutboxItems(prev => prev.filter(item => item.id !== id));

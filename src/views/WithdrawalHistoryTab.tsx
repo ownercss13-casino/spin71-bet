@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Clock, ArrowUpRight, History, Filter, ArrowDownUp, FileSearch, Share2 } from 'lucide-react';
 import Receipt from '../components/Receipt';
 import { db } from '../services/firebase';
-import { collection, query, orderBy, getDocs, limit, startAfter, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, limit, startAfter, onSnapshot, where } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface Withdrawal {
@@ -37,9 +37,8 @@ export default function WithdrawalHistoryTab({ userData, onBack }: WithdrawalHis
     setIsLoading(true);
 
     const q = query(
-      collection(db, 'users', userData.id, 'transactions'),
-      orderBy('createdAt', sortBy.startsWith('date') ? (sortBy === 'date_desc' ? 'desc' : 'asc') : 'desc'),
-      limit(PAGE_SIZE * 3)
+      collection(db, 'transactions'),
+      where('userId', '==', userData.id)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -63,10 +62,14 @@ export default function WithdrawalHistoryTab({ userData, onBack }: WithdrawalHis
             }
           }
 
+          let normalizedStatus = d.status || 'pending';
+          if (['approved', 'success'].includes(normalizedStatus)) normalizedStatus = 'completed';
+          if (['rejected'].includes(normalizedStatus)) normalizedStatus = 'failed';
+
           return {
             id: doc.id,
-            amount: d.amount,
-            status: d.status,
+            amount: Math.abs(d.amount),
+            status: normalizedStatus,
             date: dateStr,
             method: d.method,
             trxId: d.trxId,
@@ -77,7 +80,7 @@ export default function WithdrawalHistoryTab({ userData, onBack }: WithdrawalHis
 
       setWithdrawals(data);
       setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
-      setHasMore(snapshot.docs.length === PAGE_SIZE * 3);
+      setHasMore(false); // Global where doesn't easily support cursor pagination without index
       setIsLoading(false);
     }, (error) => {
       console.error("Error with withdrawals listener:", error);
@@ -85,7 +88,7 @@ export default function WithdrawalHistoryTab({ userData, onBack }: WithdrawalHis
     });
 
     return () => unsubscribe();
-  }, [userData?.id, sortBy]);
+  }, [userData?.id]);
 
   const loadMore = () => {
     if (!isLoading && hasMore && lastVisible) {

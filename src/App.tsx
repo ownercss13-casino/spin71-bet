@@ -646,6 +646,20 @@ export default function App() {
         console.warn("Telegram notify skipped or offline:", e);
       }
 
+      // System Log for game launch
+      try {
+        const logRef = doc(collection(getDb(), 'system_logs'));
+        setDoc(logRef, {
+          type: 'game',
+          action: 'game_launched',
+          details: { gameId: game.id, gameName: game.name },
+          userId: userData?.id || 'unknown',
+          createdAt: serverTimestamp()
+        }).catch(err => console.error("Game log error", err));
+      } catch(e) {
+        console.warn("System Log skipped:", e);
+      }
+
       setTimeout(() => {
         if (game.id === 'spribe_aviator') {
           if (userData?.id) {
@@ -1603,6 +1617,7 @@ export default function App() {
           
           transaction.update(userRef, {
             balance: newBalance,
+            requiredTurnover: (data.requiredTurnover || 0) + amount,
             lastClaimedReward: today,
             dailyStreak: newStreak,
             updatedAt: serverTimestamp()

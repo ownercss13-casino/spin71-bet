@@ -34,7 +34,7 @@ import {
   AlertTriangle, KeyRound, Copy, Lock, UserCheck, IdCard, Loader2, ChevronRight,
   Search, TrendingUp, Gamepad2, Key, Download, Bell, Trophy, Star, FileText, Home,
   ClipboardCheck, FileSearch, UserCircle, UserPlus, Coins, AtSign, Zap, ArrowRight, Activity,
-  ChevronDown, Megaphone, Compass, Globe, Share2
+  ChevronDown, Megaphone, Compass, Globe, Share2, Target
 } from 'lucide-react';
 
 import { db, auth } from '../services/firebase';
@@ -69,7 +69,7 @@ export default function ProfileView({
   allButtonName,
   updateAllButtonName,
   initialSubTab = 'dashboard',
-  minWithdraw = 500,
+  minWithdraw = 100,
   onUpdateUser,
   onAddTransaction,
   onInstallApp,
@@ -1197,7 +1197,7 @@ export default function ProfileView({
   );
 }
 
-function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoModalOpen, minWithdraw = 500, onRefresh, isRefreshing, onOpenBankCards, onUpdateUser, onAddTransaction, onSubTabChange }: { onBack: () => void, balance: number, showToast: (msg: string, type?: any) => void, userData: any, setIsTurnoverInfoModalOpen: (show: boolean) => void, minWithdraw?: number, onRefresh: () => void, isRefreshing: boolean, onOpenBankCards: () => void, onUpdateUser?: (updates: any) => Promise<void>, onAddTransaction?: (transaction: any) => Promise<void>, onSubTabChange?: (tab: any) => void }) {
+function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoModalOpen, minWithdraw = 100, onRefresh, isRefreshing, onOpenBankCards, onUpdateUser, onAddTransaction, onSubTabChange }: { onBack: () => void, balance: number, showToast: (msg: string, type?: any) => void, userData: any, setIsTurnoverInfoModalOpen: (show: boolean) => void, minWithdraw?: number, onRefresh: () => void, isRefreshing: boolean, onOpenBankCards: () => void, onUpdateUser?: (updates: any) => Promise<void>, onAddTransaction?: (transaction: any) => Promise<void>, onSubTabChange?: (tab: any) => void }) {
   const [step, setStep] = useState(1);
   const [selectedMethod, setSelectedMethod] = useState('bkash');
   const [amount, setAmount] = useState('');
@@ -1241,6 +1241,14 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
 
     if (withdrawAmount > balance) {
       showToast('আপনার অ্যাকাউন্টে পর্যাপ্ত ব্যালেন্স নেই।', 'error');
+      return;
+    }
+
+    const currentTurnover = userData?.turnover || 0;
+    const requiredTurnover = userData?.requiredTurnover || 0;
+    if (currentTurnover < requiredTurnover) {
+      showToast(`আপনার টানউভার (Turnover) সম্পূর্ণ নয়। আরও ৳${(requiredTurnover - currentTurnover).toFixed(2)} বাজি ধরতে হবে। (Need ৳${(requiredTurnover - currentTurnover).toFixed(2)} more turnover)`, 'error');
+      setIsTurnoverInfoModalOpen(true);
       return;
     }
 
@@ -1339,6 +1347,9 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
         
         const globalTxRef = doc(db, 'transactions', newTrxId);
         transaction.set(globalTxRef, txData);
+        
+        const userTxRef = doc(db, 'users', uid, 'transactions', newTrxId);
+        transaction.set(userTxRef, txData);
       });
 
       // Synchronize frontend balance if possible via the onUpdateUser callback
@@ -1528,6 +1539,51 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
 
           {/* Amount and Password Section */}
           <div className="space-y-4">
+              {(userData?.requiredTurnover || 0) > 0 && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  onClick={() => setIsTurnoverInfoModalOpen(true)}
+                  className="bg-[#1d7470] p-4 rounded-xl border border-[#319b96]/30 flex flex-col gap-2 cursor-pointer relative overflow-hidden"
+                >
+                  <div className="flex justify-between items-center z-10 text-white">
+                    <div className="flex items-center gap-2">
+                      <Target size={18} className="text-teal-300" />
+                      <h3 className="font-bold text-sm">Turnover Progress</h3>
+                    </div>
+                    <span className="text-xs font-black text-teal-200">
+                      ৳{Math.min(userData?.turnover || 0, userData?.requiredTurnover || 0).toFixed(2)} / ৳{(userData?.requiredTurnover || 0).toFixed(2)}
+                    </span>
+                  </div>
+                  
+                  <div className="w-full bg-black/40 h-2.5 rounded-full z-10 overflow-hidden mt-1">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(100, ((userData?.turnover || 0) / (userData?.requiredTurnover || 1)) * 100)}%` }}
+                      transition={{ duration: 1, delay: 0.5, ease: "easeOut" }}
+                      className={`h-full rounded-full ${((userData?.turnover || 0) >= (userData?.requiredTurnover || 1)) ? 'bg-gradient-to-r from-emerald-400 to-green-500' : 'bg-gradient-to-r from-teal-400 to-teal-300'}`}
+                    />
+                  </div>
+                  
+                  {((userData?.requiredTurnover || 0) > (userData?.turnover || 0)) ? (
+                    <p className="text-teal-100/70 text-[10px] uppercase font-bold tracking-wider z-10 mt-1 flex justify-between items-center">
+                      <span>Incomplete</span>
+                      <span className="text-red-400">৳{((userData?.requiredTurnover || 0) - (userData?.turnover || 0)).toFixed(2)} Remaining</span>
+                    </p>
+                  ) : (
+                    <p className="text-emerald-400 text-[10px] uppercase font-bold tracking-wider z-10 mt-1 flex items-center gap-1">
+                      <CheckCircle2 size={12} />
+                      <span>Completed! Ready to withdraw</span>
+                    </p>
+                  )}
+                  
+                  {/* Background decoration */}
+                  <div className="absolute -right-4 -top-4 text-white/5 transform mb-4" style={{ zIndex: 1 }}>
+                    <Target size={100} />
+                  </div>
+                </motion.div>
+              )}
+
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -1995,6 +2051,7 @@ function ProfileTab({
 function DepositHistoryTab({ userData, onBack }: { userData?: any, onBack: () => void }) {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed' | 'failed'>('all');
 
   useEffect(() => {
     if (!userData?.id) {
@@ -2026,9 +2083,15 @@ function DepositHistoryTab({ userData, onBack }: { userData?: any, onBack: () =>
         }
 
         if (data.type === 'deposit') {
+          // Normalize status
+          let normalizedStatus = data.status || 'pending';
+          if (['approved', 'success'].includes(normalizedStatus)) normalizedStatus = 'completed';
+          if (['rejected'].includes(normalizedStatus)) normalizedStatus = 'failed';
+
           trxs.push({ 
             id: doc.id, 
             ...data,
+            status: normalizedStatus,
             date: dateStr,
             _timestamp: timestamp
           });
@@ -2041,6 +2104,17 @@ function DepositHistoryTab({ userData, onBack }: { userData?: any, onBack: () =>
     });
     return () => unsubscribe();
   }, [userData?.id]);
+
+  const filteredTransactions = useMemo(() => {
+    if (statusFilter === 'all') return transactions;
+    return transactions.filter(t => t.status === statusFilter);
+  }, [transactions, statusFilter]);
+
+  const getStatusDisplay = (status: string) => {
+    if (status === 'completed') return 'Approved';
+    if (status === 'failed') return 'Rejected';
+    return 'Pending';
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 p-4 pb-20">
@@ -2063,12 +2137,28 @@ function DepositHistoryTab({ userData, onBack }: { userData?: any, onBack: () =>
         </div>
       </div>
 
+      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+        {(['all', 'pending', 'completed', 'failed'] as const).map(filter => (
+          <button
+            key={filter}
+            onClick={() => setStatusFilter(filter)}
+            className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+              statusFilter === filter 
+                ? 'bg-teal-500 text-white shadow-lg shadow-teal-500/30' 
+                : 'bg-teal-900/40 text-teal-300 hover:bg-teal-800/60 border border-teal-800/30'
+            }`}
+          >
+            {filter === 'all' ? 'All' : getStatusDisplay(filter)}
+          </button>
+        ))}
+      </div>
+
       <div className="space-y-4">
         {isLoading ? (
           <div className="flex justify-center p-8">
             <span className="text-teal-500 font-bold">লোড হচ্ছে...</span>
           </div>
-        ) : transactions.length > 0 ? (
+        ) : filteredTransactions.length > 0 ? (
           <div className="overflow-x-auto rounded-[28px] border border-teal-800/30 bg-teal-900/40 shadow-lg">
             <table className="w-full text-sm text-left">
               <thead className="bg-teal-950 text-teal-400 font-bold uppercase tracking-widest text-[10px]">
@@ -2080,7 +2170,7 @@ function DepositHistoryTab({ userData, onBack }: { userData?: any, onBack: () =>
                 </tr>
               </thead>
               <tbody>
-                {transactions.map(trx => (
+                {filteredTransactions.map(trx => (
                   <tr key={trx.id} className="border-b border-teal-800/30 hover:bg-teal-800/20 transition-colors">
                     <td className="px-4 md:px-6 py-4 font-bold text-white text-xs md:text-sm">{trx.method}</td>
                     <td className="px-4 md:px-6 py-4 text-teal-300 font-medium whitespace-nowrap text-[10px] md:text-xs">{trx.date}</td>
@@ -2088,13 +2178,13 @@ function DepositHistoryTab({ userData, onBack }: { userData?: any, onBack: () =>
                       +{trx.amount}৳
                     </td>
                     <td className="px-4 md:px-6 py-4 text-right">
-                      <div className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest inline-flex items-center gap-1.5 ${
-                        trx.status === 'completed' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 
-                        trx.status === 'pending' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : 
-                        'bg-red-500/10 text-red-400 border border-red-500/20'
+                      <div className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest inline-flex items-center gap-1.5 ${
+                        trx.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 
+                        trx.status === 'pending' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 
+                        'bg-rose-500/20 text-rose-400 border border-rose-500/30'
                       }`}>
-                        <div className={`w-1 h-1 rounded-full ${trx.status === 'completed' ? 'bg-green-500' : trx.status === 'pending' ? 'bg-orange-500' : 'bg-red-500'}`}></div>
-                        {trx.status}
+                        <div className={`w-1.5 h-1.5 rounded-full ${trx.status === 'completed' ? 'bg-emerald-500' : trx.status === 'pending' ? 'bg-amber-500' : 'bg-rose-500'}`}></div>
+                        {getStatusDisplay(trx.status)}
                       </div>
                     </td>
                   </tr>
@@ -2104,8 +2194,8 @@ function DepositHistoryTab({ userData, onBack }: { userData?: any, onBack: () =>
           </div>
         ) : (
           <div className="bg-teal-900/20 p-8 rounded-[32px] border border-teal-800/30 text-center shadow-inner">
-            <ArrowDownLeft size={48} className="text-[#1c324e] mx-auto mb-4" />
-            <p className="text-[#90a4ae] text-sm font-bold">কোনো জমার রেকর্ড নেই</p>
+            <ArrowDownLeft size={48} className="text-teal-800 mx-auto mb-4" />
+            <p className="text-teal-400/60 text-sm font-bold">কোনো জমার রেকর্ড নেই</p>
           </div>
         )}
       </div>

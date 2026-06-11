@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { gsap } from 'gsap';
 import { auth } from '../../services/firebase';
 import GameLoader from '../ui/GameLoader';
 import { 
@@ -35,7 +36,7 @@ interface AviatorGameProps {
 
 type GameState = 'waiting' | 'in_progress' | 'crashed';
 
-export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClose, userData }: AviatorGameProps) {
+export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClose, userData, globalLogos, globalNames }: AviatorGameProps) {
   const [showLoader, setShowLoader] = useState(true);
   const [gameState, setGameState] = useState<GameState>('waiting');
   const [multiplier, setMultiplier] = useState(1.00);
@@ -107,6 +108,124 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
   useEffect(() => { autoCashout2Ref.current = autoCashout2; }, [autoCashout2]);
   useEffect(() => { autoCashoutValue2Ref.current = autoCashoutValue2; }, [autoCashoutValue2]);
   useEffect(() => { multiplierRef.current = multiplier; }, [multiplier]);
+
+  const multiplierDisplayRef = useRef<HTMLDivElement>(null);
+  const lastThresholdRef = useRef<number>(1.00);
+  const lastMultiplierRef = useRef<number>(1.00);
+
+  useEffect(() => {
+    if (gameState !== 'in_progress') {
+      lastThresholdRef.current = 1.00;
+      lastMultiplierRef.current = 1.00;
+      return;
+    }
+
+    const element = multiplierDisplayRef.current;
+    if (!element) return;
+
+    // Entrance animation if this is the start of the round
+    if (lastMultiplierRef.current === 1.00 && multiplier === 1.00) {
+      gsap.killTweensOf(element);
+      gsap.fromTo(element, 
+        { scale: 0.6, opacity: 0, y: 10 },
+        { scale: 1, opacity: 1, y: 0, duration: 0.5, ease: 'back.out(1.7)' }
+      );
+      lastMultiplierRef.current = multiplier;
+      return;
+    }
+
+    // Threshold definitions
+    const thresholds = [2.00, 5.00, 10.00, 20.00, 50.00, 100.00, 500.00];
+    const crossed = thresholds.find(t => multiplier >= t && lastThresholdRef.current < t);
+
+    if (crossed) {
+      lastThresholdRef.current = crossed;
+
+      // Color/Glow configurations for thresholds
+      let pulseColor = '#ffffff';
+      let shadowColor = 'rgba(255, 255, 255, 0.8)';
+      let scaleUp = 1.4;
+
+      if (crossed >= 100.00) {
+        pulseColor = '#df00ff'; // Psychedelic purple-neon
+        shadowColor = 'rgba(223, 0, 255, 0.95)';
+        scaleUp = 1.6;
+      } else if (crossed >= 50.00) {
+        pulseColor = '#a855f7'; // Royal magenta
+        shadowColor = 'rgba(168, 85, 247, 0.9)';
+        scaleUp = 1.5;
+      } else if (crossed >= 10.00) {
+        pulseColor = '#fbbf24'; // Radiant amber/gold
+        shadowColor = 'rgba(251, 191, 36, 0.9)';
+        scaleUp = 1.45;
+      } else if (crossed >= 5.00) {
+        pulseColor = '#e00508'; // Fire engine red
+        shadowColor = 'rgba(224, 5, 8, 0.85)';
+        scaleUp = 1.38;
+      } else if (crossed >= 2.00) {
+        pulseColor = '#06b6d4'; // Electric cyan
+        shadowColor = 'rgba(6, 182, 212, 0.85)';
+        scaleUp = 1.3;
+      }
+
+      // Play win/achievement signal sound
+      playSound('win');
+
+      // Heavy majestic pulse transition
+      gsap.killTweensOf(element);
+      const tl = gsap.timeline();
+      tl.to(element, {
+        scale: scaleUp,
+        color: pulseColor,
+        textShadow: `0 0 35px ${shadowColor}`,
+        rotate: crossed >= 10 ? 4 : 2,
+        duration: 0.18,
+        ease: 'power2.out'
+      })
+      .to(element, {
+        rotate: crossed >= 10 ? -3 : -1,
+        duration: 0.1,
+        ease: 'power1.inOut'
+      })
+      .to(element, {
+        scale: 1.05 + (Math.log10(multiplier) * 0.04), // Grow slightly with size
+        color: '#ffffff',
+        textShadow: `0 0 20px ${shadowColor}`,
+        rotate: 0,
+        duration: 0.45,
+        ease: 'elastic.out(1, 0.3)'
+      });
+
+    } else if (multiplier > lastMultiplierRef.current) {
+      // Normal tick dynamic growth animation
+      const activeGlow = multiplier >= 100 ? 'rgba(223, 0, 255, 0.6)' :
+                         multiplier >= 50 ? 'rgba(168, 85, 247, 0.55)' :
+                         multiplier >= 10 ? 'rgba(251, 191, 36, 0.5)' :
+                         multiplier >= 5 ? 'rgba(224, 5, 8, 0.45)' :
+                         multiplier >= 2 ? 'rgba(6, 182, 212, 0.4)' :
+                                           'rgba(255, 255, 255, 0.2)';
+
+      const currentSettleScale = Math.min(1.2, 1.0 + (multiplier - 1.0) * 0.003);
+      
+      // Perform rapid subtle pop
+      gsap.killTweensOf(element);
+      gsap.to(element, {
+        scale: currentSettleScale * 1.08,
+        textShadow: `0 0 18px ${activeGlow}`,
+        duration: 0.06,
+        ease: 'power1.out',
+        onComplete: () => {
+          gsap.to(element, {
+            scale: currentSettleScale,
+            duration: 0.13,
+            ease: 'power1.inOut'
+          });
+        }
+      });
+    }
+
+    lastMultiplierRef.current = multiplier;
+  }, [multiplier, gameState]);
 
   const placeBet = async (panel: 1 | 2, fromWaiting = false) => {
     const amount = panel === 1 ? betAmount1 : betAmount2;
@@ -190,50 +309,77 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
 
   // SSE Stream logic
   useEffect(() => {
-    const eventSource = new EventSource('/api/aviator/stream');
-    
-    eventSource.onmessage = (event) => {
-      setShowLoader(false);
-      const data = JSON.parse(event.data);
-      setGameState(data.state);
-      setMultiplier(data.multiplier);
-      setNextGameTimer(Math.max(0, Math.ceil(data.timer)));
-      if (data.history) setGameHistory(data.history);
+    let eventSource: EventSource | null = null;
+    let isActive = true;
 
-      // Handle Round transitions
-      if (data.state === 'waiting') {
-        if (isAutoBet1Ref.current && !currentBet1Ref.current && !isWaitingBet1Ref.current) {
-          placeBet(1, true);
+    const setupSSE = async (user: any) => {
+      let tokenStr = '';
+      try {
+        if (user) {
+          const idToken = await user.getIdToken();
+          if (idToken) tokenStr = `?token=${encodeURIComponent(idToken)}`;
         }
-        if (isAutoBet2Ref.current && !currentBet2Ref.current && !isWaitingBet2Ref.current) {
-          placeBet(2, true);
-        }
-
-        if (isWaitingBet1Ref.current && !currentBet1Ref.current) {
-          placeBet(1, true);
-        }
-        if (isWaitingBet2Ref.current && !currentBet2Ref.current) {
-          placeBet(2, true);
-        }
-      } else if (data.state === 'crashed') {
-        setCurrentBet1(null);
-        setCurrentBet2(null);
-      } else if (data.state === 'in_progress') {
-        if (autoCashout1Ref.current && currentBet1Ref.current && !currentBet1Ref.current.cashedOut && data.multiplier >= autoCashoutValue1Ref.current) {
-          if (handleCashoutRef.current) handleCashoutRef.current(1);
-        }
-        if (autoCashout2Ref.current && currentBet2Ref.current && !currentBet2Ref.current.cashedOut && data.multiplier >= autoCashoutValue2Ref.current) {
-          if (handleCashoutRef.current) handleCashoutRef.current(2);
-        }
+      } catch (err) {
+        console.error("Could not fetch auth token", err);
       }
+      
+      if (!isActive) return;
+      if (eventSource) eventSource.close();
+      
+      eventSource = new EventSource(`/api/aviator/stream${tokenStr}`);
+      
+      eventSource.onmessage = (event) => {
+        setShowLoader(false);
+        const data = JSON.parse(event.data);
+        setGameState(data.state);
+        setMultiplier(data.multiplier);
+        setNextGameTimer(Math.max(0, Math.ceil(data.timer)));
+        if (data.history) setGameHistory(data.history);
+
+        // Handle Round transitions
+        if (data.state === 'waiting') {
+          if (isAutoBet1Ref.current && !currentBet1Ref.current && !isWaitingBet1Ref.current) {
+            placeBet(1, true);
+          }
+          if (isAutoBet2Ref.current && !currentBet2Ref.current && !isWaitingBet2Ref.current) {
+            placeBet(2, true);
+          }
+
+          if (isWaitingBet1Ref.current && !currentBet1Ref.current) {
+            placeBet(1, true);
+          }
+          if (isWaitingBet2Ref.current && !currentBet2Ref.current) {
+            placeBet(2, true);
+          }
+        } else if (data.state === 'crashed') {
+          setCurrentBet1(null);
+          setCurrentBet2(null);
+        } else if (data.state === 'in_progress') {
+          if (autoCashout1Ref.current && currentBet1Ref.current && !currentBet1Ref.current.cashedOut && data.multiplier >= autoCashoutValue1Ref.current) {
+            if (handleCashoutRef.current) handleCashoutRef.current(1);
+          }
+          if (autoCashout2Ref.current && currentBet2Ref.current && !currentBet2Ref.current.cashedOut && data.multiplier >= autoCashoutValue2Ref.current) {
+            if (handleCashoutRef.current) handleCashoutRef.current(2);
+          }
+        }
+      };
+
+      eventSource.onerror = (err) => {
+        console.error("SSE Connection failed", err);
+        // Will close on unmount or next auth state change, let browser handle retry for now
+      };
     };
 
-    eventSource.onerror = (err) => {
-      console.error("SSE Connection failed", err);
-      eventSource.close();
-    };
+    const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+      // Re-establish SSE connection whenever auth state changes to ensure fresh token
+      setupSSE(user);
+    });
 
-    return () => eventSource.close();
+    return () => {
+      isActive = false;
+      unsubscribeAuth();
+      if (eventSource) eventSource.close();
+    };
   }, []);
 
   if (showLoader) return <GameLoader />;
@@ -250,7 +396,11 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
             <X size={20} />
           </button>
           <div className="flex items-center gap-1">
-            <span className="text-xl font-black italic text-white tracking-tighter">Aviator</span>
+            {globalLogos?.['spribe_aviator'] ? (
+              <img src={globalLogos['spribe_aviator']} alt="Aviator Logo" className="h-6 object-contain" />
+            ) : (
+              <span className="text-xl font-black italic text-white tracking-tighter">Aviator</span>
+            )}
           </div>
         </div>
         
@@ -346,14 +496,13 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
               </motion.div>
             ) : gameState === 'in_progress' ? (
               <div className="flex flex-col items-center justify-center z-10 w-full h-full relative">
-                <motion.div 
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  key={multiplier}
-                  className="text-7xl md:text-8xl font-black text-white italic drop-shadow-[0_0_20px_rgba(255,255,255,0.2)] z-20"
+                <div 
+                  ref={multiplierDisplayRef}
+                  className="text-7xl md:text-8xl font-black text-white italic z-20 select-none cursor-default"
+                  style={{ textShadow: '0 0 20px rgba(255, 255, 255, 0.2)' }}
                 >
-                  {multiplier.toFixed(2)}<span className="text-[#e00508]">x</span>
-                </motion.div>
+                  {multiplier.toFixed(2)}<span className="text-[#e00508] ml-0.5">x</span>
+                </div>
                 
                 {/* Flying Plane */}
                 <motion.div 

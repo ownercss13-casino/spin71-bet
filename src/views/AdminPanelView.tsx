@@ -67,7 +67,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Power,
-  Zap
+  Zap,
+  TerminalSquare
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -118,7 +119,7 @@ interface AdminPanelViewProps {
 
 export default function AdminPanelView(props: AdminPanelViewProps) {
   const { onBack, showToast, userData } = props;
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'deposits' | 'withdrawals' | 'games' | 'settings' | 'promo' | 'referrals' | 'support' | 'notifications' | 'maintenance'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'deposits' | 'withdrawals' | 'games' | 'settings' | 'promo' | 'referrals' | 'support' | 'notifications' | 'maintenance' | 'logs'>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -283,6 +284,7 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
         const depositAmount = Number(trx.amount);
         batch.update(userRef, {
           balance: increment(depositAmount),
+          requiredTurnover: increment(depositAmount),
           totalDeposits: increment(depositAmount),
           updatedAt: serverTimestamp()
         });
@@ -296,6 +298,7 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
             
             batch.update(referrerRef, {
               balance: increment(bonusAmount),
+              requiredTurnover: increment(bonusAmount),
               totalReferralEarnings: increment(bonusAmount)
             });
 
@@ -339,6 +342,16 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
           : `আপনার ৳${Math.abs(trx.amount)} উত্তোলন সফলভাবে সম্পন্ন হয়েছে।`,
         type: 'account',
         read: false,
+        createdAt: serverTimestamp()
+      });
+
+      // System Log
+      const logRef = doc(collection(db, 'system_logs'));
+      batch.set(logRef, {
+        type: 'transaction',
+        action: `approved_${trx.type}`,
+        details: { amount: trx.amount, userId: trx.userId, trxId: trx.trxId || trx.id },
+        adminId: props.userData?.id || 'unknown',
         createdAt: serverTimestamp()
       });
 
@@ -388,6 +401,16 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
       // Update in subcollection
       batch.set(userTrxRef, updates, { merge: true });
       
+      // System Log
+      const logRef = doc(collection(db, 'system_logs'));
+      batch.set(logRef, {
+        type: 'transaction',
+        action: `rejected_${trx.type}`,
+        details: { amount: trx.amount, userId: trx.userId, trxId: trx.trxId || trx.id },
+        adminId: props.userData?.id || 'unknown',
+        createdAt: serverTimestamp()
+      });
+
       await batch.commit();
       showToast('Transaction Rejected', 'warning');
     } catch (err) {
@@ -503,6 +526,7 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
 
       batch.update(userRef, {
         balance: increment(amount),
+        requiredTurnover: increment(amount),
         updatedAt: serverTimestamp()
       });
 
@@ -552,7 +576,8 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
     { id: 'support', label: 'Support', icon: MessageSquare, group: 'Communication' },
     { id: 'games', label: 'Games', icon: Gamepad2, group: 'Settings' },
     { id: 'settings', label: 'System', icon: Settings, group: 'Settings' },
-    { id: 'maintenance', label: 'Maintenance', icon: Trash, group: 'Settings' }
+    { id: 'maintenance', label: 'Maintenance', icon: Trash, group: 'Settings' },
+    { id: 'logs', label: 'System Logs', icon: TerminalSquare, group: 'Settings' }
   ];
 
   const groups = ['Main', 'Management', 'Financial', 'Communication', 'Settings'];
@@ -772,6 +797,7 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
               {activeTab === 'notifications' && <NotificationManagement showToast={showToast} users={users} />}
               {activeTab === 'support' && <SupportInbox showToast={showToast} userData={props.userData} />}
               {activeTab === 'maintenance' && <MaintenanceTab showToast={showToast} />}
+              {activeTab === 'logs' && <SystemLogsTab showToast={showToast} />}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -3193,6 +3219,101 @@ function SupportInbox({ showToast, userData }: { showToast: any, userData: any }
              </div>
            )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SystemLogsTab({ showToast }: { showToast: any }) {
+  const [logs, setLogs] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'system_logs'),
+      orderBy('createdAt', 'desc'),
+      limit(100)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const parsedLogs: any[] = [];
+      snapshot.forEach(doc => {
+        parsedLogs.push({ id: doc.id, ...doc.data() });
+      });
+      setLogs(parsedLogs);
+      setIsLoading(false);
+    }, (err) => {
+      console.error(err);
+      setIsLoading(false);
+      showToast("Failed to fetch logs", "error");
+    });
+
+    return () => unsubscribe();
+  }, [showToast]);
+
+  const getLogIcon = (type: string) => {
+    switch(type) {
+      case 'transaction': return <DollarSign size={16} className="text-amber-400" />;
+      case 'user': return <UserPlus size={16} className="text-blue-400" />;
+      case 'game': return <Gamepad2 size={16} className="text-purple-400" />;
+      case 'system': return <Settings size={16} className="text-emerald-400" />;
+      default: return <Activity size={16} className="text-gray-400" />;
+    }
+  };
+
+  const getLogColor = (type: string) => {
+    switch(type) {
+      case 'transaction': return 'bg-amber-500/10 border-amber-500/20';
+      case 'user': return 'bg-blue-500/10 border-blue-500/20';
+      case 'game': return 'bg-purple-500/10 border-purple-500/20';
+      case 'system': return 'bg-emerald-500/10 border-emerald-500/20';
+      default: return 'bg-gray-500/10 border-gray-500/20';
+    }
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-5 duration-500">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-black text-white uppercase tracking-tight">System Logs</h2>
+          <p className="text-sm font-bold text-teal-400 mt-2">Real-time critical event tracking</p>
+        </div>
+      </div>
+
+      <div className="bg-black/20 backdrop-blur-xl border border-white/5 rounded-[40px] p-6 shadow-2xl relative overflow-hidden">
+        {isLoading ? (
+          <div className="flex justify-center p-12">
+            <Loader2 size={32} className="animate-spin text-teal-500" />
+          </div>
+        ) : logs.length > 0 ? (
+          <div className="space-y-3">
+            {logs.map((log) => (
+              <div key={log.id} className={`flex items-center gap-4 p-4 rounded-2xl border ${getLogColor(log.type)}`}>
+                <div className="w-10 h-10 rounded-xl bg-black/40 flex items-center justify-center shrink-0">
+                  {getLogIcon(log.type)}
+                </div>
+                <div className="flex-1 min-w-0">
+                   <div className="flex items-center justify-between gap-4 mb-1">
+                      <p className="text-sm font-bold text-white truncate">{log.action}</p>
+                      {log.createdAt && (
+                        <p className="text-[10px] font-black text-teal-500/50 uppercase tracking-widest shrink-0">
+                          {log.createdAt.toDate ? log.createdAt.toDate().toLocaleString() : new Date(log.createdAt).toLocaleString()}
+                        </p>
+                      )}
+                   </div>
+                   <p className="text-xs font-medium text-teal-400/70 truncate">
+                      {log.details ? (typeof log.details === 'object' ? JSON.stringify(log.details) : String(log.details)) : 'No details provided.'}
+                   </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center p-12">
+            <TerminalSquare size={48} className="mx-auto text-white/10 mb-4" />
+            <p className="text-sm font-bold text-white/50">No logs found</p>
+          </div>
+        )}
       </div>
     </div>
   );
