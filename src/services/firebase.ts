@@ -24,11 +24,19 @@ try {
   dbInstance = initializeFirestore(app, {
     cacheSizeBytes: CACHE_SIZE_UNLIMITED,
     experimentalForceLongPolling: true,
-    experimentalAutoDetectLongPolling: true, // Auto-detect and fallback gracefully
   }, dbId);
 } catch (err) {
-  console.error("[Firebase] Failed to initialize named Firestore instance, falling back to default:", err);
-  dbInstance = getFirestore(app);
+  console.error("[Firebase] Failed to initialize Firestore with custom settings, falling back:", err);
+  try {
+    if (dbId) {
+      dbInstance = getFirestore(app, dbId);
+    } else {
+      dbInstance = getFirestore(app);
+    }
+  } catch (fallbackErr) {
+    console.error("[Firebase] Fatal fallback initialization failed:", fallbackErr);
+    dbInstance = getFirestore(app);
+  }
 }
 
 console.log("[Firebase] Firestore initialized successfully");
