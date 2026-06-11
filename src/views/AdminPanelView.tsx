@@ -21,9 +21,10 @@ import {
   startAfter
 } from 'firebase/firestore';
 import { formatDisplayUID } from '../utils/idUtils';
+import RetoolAdminSection from '../components/RetoolAdminSection';
 import { 
   Users, 
-
+  Database,
   Wallet, 
   ArrowUpRight, 
   ArrowDownLeft, 
@@ -119,7 +120,7 @@ interface AdminPanelViewProps {
 
 export default function AdminPanelView(props: AdminPanelViewProps) {
   const { onBack, showToast, userData } = props;
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'deposits' | 'withdrawals' | 'games' | 'settings' | 'promo' | 'referrals' | 'support' | 'notifications' | 'maintenance' | 'logs'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'deposits' | 'withdrawals' | 'games' | 'settings' | 'promo' | 'referrals' | 'support' | 'notifications' | 'maintenance' | 'logs' | 'retool'>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -567,6 +568,7 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Main' },
+    { id: 'retool', label: 'Admin Data', icon: Database, group: 'Main' },
     { id: 'users', label: 'Users', icon: Users, group: 'Management' },
     { id: 'deposits', label: 'Deposits', icon: Wallet, badge: pendingDeposits.length, group: 'Financial' },
     { id: 'withdrawals', label: 'Withdrawals', icon: DollarSign, badge: pendingWithdrawals.length, group: 'Financial' },
@@ -749,6 +751,7 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
               transition={{ duration: 0.2 }}
             >
               {activeTab === 'dashboard' && <DashboardOverview stats={trafficStats} serverInfo={serverInfo} users={users} transactions={transactions} />}
+              {activeTab === 'retool' && <RetoolAdminSection showToast={showToast} />}
               {activeTab === 'users' && (
                 <UserManagement 
                   users={filteredUsers} 

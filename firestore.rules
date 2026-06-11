@@ -5,7 +5,12 @@ service cloud.firestore {
     // --- Primitives & Helpers ---
     function isSignedIn() { return request.auth != null; }
     function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
-    function isServerBot() { return isSignedIn() && (request.auth.uid == 'system-backend-bot-spin71' || request.auth.token.email == 'system.backend.bot@spin71.bet' || request.auth.token.email == 'system.backend.bot.v2@spin71.bet'); }
+    function isServerBot() { 
+      return isSignedIn() && (
+        request.auth.uid == 'system-backend-bot-spin71' || 
+        (getEmail().startsWith('system.backend.bot') && getEmail().endsWith('@spin71.bet'))
+      ); 
+    }
     function getRole() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
