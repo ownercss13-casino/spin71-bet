@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User } from 'lucide-react';
 
 interface PlayerBet {
@@ -10,24 +10,40 @@ interface PlayerBet {
 export default function DummyPlayersList({ gameState, currentMultiplier }: { gameState: string, currentMultiplier: number }) {
   const [players, setPlayers] = useState<PlayerBet[]>([]);
 
+  // Track the current multiplier in a useRef to avoid running re-renders of the list at 60fps!
+  const multiplierRef = useRef<number>(currentMultiplier);
+  useEffect(() => {
+    multiplierRef.current = currentMultiplier;
+  }, [currentMultiplier]);
+
   useEffect(() => {
     if (gameState === 'waiting') {
-      // generate new random players
+      // Generate new random players
       const newPlayers: PlayerBet[] = Array.from({ length: 15 }, () => ({
         name: `***${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
         amount: Math.floor(Math.random() * 500) + 10,
       }));
       setPlayers(newPlayers);
     } else if (gameState === 'in_progress') {
-       // randomly cashout players based on multiplier
-       setPlayers(prev => prev.map(p => {
-         if (!p.multiplier && Math.random() < 0.05 * currentMultiplier) {
-           return { ...p, multiplier: currentMultiplier };
-         }
-         return p;
-       }));
+       // Setup a highly hardware-friendly throttled interval to randomly cashout some players periodically
+       // (e.g. every 700ms) instead of re-rendering/re-sorting/re-mapping on ALL 60fps high-speed ticks!
+       const interval = setInterval(() => {
+         setPlayers(prev => {
+           let updated = false;
+           const mapped = prev.map(p => {
+             if (!p.multiplier && Math.random() < 0.15) {
+               updated = true;
+               return { ...p, multiplier: multiplierRef.current };
+             }
+             return p;
+           });
+           return updated ? mapped : prev;
+         });
+       }, 700);
+
+       return () => clearInterval(interval);
     }
-  }, [gameState, currentMultiplier]);
+  }, [gameState]);
 
   return (
     <div className="w-80 hidden lg:flex flex-col bg-[#141414] border-r border-white/5 h-full">
@@ -41,7 +57,7 @@ export default function DummyPlayersList({ gameState, currentMultiplier }: { gam
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 rounded-full bg-black/50 flex items-center justify-center">
                 <User size={12} className="text-gray-400" />
-              </div>
+               </div>
               <span className="text-xs text-gray-300">{p.name}</span>
             </div>
             <div className="flex items-center gap-2">

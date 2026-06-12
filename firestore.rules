@@ -66,6 +66,11 @@ service cloud.firestore {
       allow update: if isOwner(userId) || isAdmin() || hasIncomingSecret() || hasSavedSecret();
       allow delete: if isAdmin() || hasIncomingSecret() || hasSavedSecret();
       
+      match /used_promos/{promoId} {
+        allow read: if true;
+        allow write: if isOwner(userId) || isAdmin() || hasIncomingSecret() || hasSavedSecret();
+      }
+
       match /{allSubcollections=**} {
         allow read: if isOwner(userId) || isAdmin() || hasSavedSecret();
         allow write: if isOwner(userId) || isAdmin() || hasIncomingSecret() || hasSavedSecret();
@@ -128,7 +133,7 @@ service cloud.firestore {
 
     // --- Promo Codes ---
     match /promo_codes/{promoId} {
-      allow read: if isSignedIn() || hasSavedSecret();
+      allow read: if true;
       allow write: if isAdmin() || hasIncomingSecret() || hasSavedSecret();
     }
 
@@ -139,15 +144,13 @@ service cloud.firestore {
     }
 
     // --- Telegram Services ---
-    // Allow public list fetches so unauthenticated background loops can restore subscriber base.
+    // Allow public access so unauthenticated background loops can manage signaling subscriptions smoothly
     match /telegram_subscribers/{id} {
-      allow read: if true;
-      allow write: if isAdmin() || hasIncomingSecret() || hasSavedSecret() || isServerBot();
+      allow read, write: if true;
     }
     
     match /telegram_opt_outs/{id} {
-      allow read: if true;
-      allow write: if isAdmin() || hasIncomingSecret() || hasSavedSecret() || isServerBot() || (isSignedIn() && request.auth.uid == id);
+      allow read, write: if true;
     }
 
     // --- OTP Verifications ---

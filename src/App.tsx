@@ -623,10 +623,17 @@ export default function App() {
       // Start loading sequence
       setIsTabLoading(true);
 
-      // Attempt App Fullscreen immediately
-      const elem = document.documentElement;
-      if (elem.requestFullscreen) {
-        elem.requestFullscreen().catch(e => console.log("Fullscreen request failed:", e));
+      // Attempt App Fullscreen safely with full synchronous and asynchronous protection
+      try {
+        const elem = document.documentElement;
+        if (elem.requestFullscreen) {
+          const promise = elem.requestFullscreen();
+          if (promise && typeof promise.catch === 'function') {
+            promise.catch(e => console.log("Fullscreen request rejected:", e));
+          }
+        }
+      } catch (e) {
+        console.warn("Fullscreen request crashed synchronously:", e);
       }
 
       // Notify Telegram
@@ -767,7 +774,8 @@ export default function App() {
                 const newUser = {
                   id: user.uid,
                   username: baseName,
-                  balance: 500,
+                  balance: 0,
+                  requiredTurnover: 0,
                   vipLevel: 0,
                   createdAt: serverTimestamp(),
                   lastLogin: serverTimestamp(),
@@ -780,10 +788,10 @@ export default function App() {
                 };
                 setDoc(userRef, newUser).catch(e => console.error("Initial doc creation failed:", e));
                 setUserData(newUser);
-                setBalance(500);
+                setBalance(0);
                 try {
                   localStorage.setItem('cached_user_profile', JSON.stringify(newUser));
-                  localStorage.setItem('offline_balance_cache', '500');
+                  localStorage.setItem('offline_balance_cache', '0');
                 } catch(e) {}
               }
               setIsDataLoading(false);
@@ -1678,7 +1686,7 @@ export default function App() {
         message="অ্যাকাউন্ট লোড হচ্ছে" 
         subMessage="আপনার প্রোফাইল প্রস্তুত করা হচ্ছে" 
         type="data" 
-        appLogo={globalImages['app_logo'] || 'https://www.image2url.com/r2/default/images/1781024598371-46bd7cc9-4b5f-49cd-b4b3-60d4d200534a.png'}
+        appLogo={globalImages['app_logo'] || "/images/app_logo.png"}
         onRetry={() => {
           setIsDataLoading(true);
           setDbStatus('testing');

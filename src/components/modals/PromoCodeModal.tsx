@@ -206,7 +206,7 @@ export default function PromoCodeModal({ isOpen, onClose, showToast, isAdmin, us
                   <div className="space-y-3">
                     <div className="flex justify-between items-center px-1">
                       <label className="text-teal-400 text-[10px] font-black uppercase tracking-widest leading-none">Your Promo Code</label>
-                      <span className="text-[10px] text-teal-600 font-bold uppercase tracking-widest italic animate-pulse">Hint: WELCOME500</span>
+                      <span className="text-[10px] text-teal-600 font-bold uppercase tracking-widest italic animate-pulse">Hint: newuser71</span>
                     </div>
                     <div className="relative group">
                       <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-teal-500 group-focus-within:text-teal-400 transition-colors">

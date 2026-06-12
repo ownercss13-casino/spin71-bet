@@ -93,7 +93,7 @@ export default function GlobalLoader({
             
             {/* The static centered image */}
             <img 
-              src={appLogo || "https://www.image2url.com/r2/default/images/1781036888076-ad11252a-71cf-419a-9052-da9ff7a1a3fd.png"}
+              src={appLogo || "/images/app_logo.png"}
               alt="Loading" 
               className="w-24 h-24 object-cover rounded-full shadow-[0_0_20px_rgba(253,216,53,0.5)]"
             />

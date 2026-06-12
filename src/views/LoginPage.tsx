@@ -252,7 +252,8 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         const newUser = {
           username: cleanDisplayName,
           email: user.email || "",
-          balance: 500, // Default signup balance
+          balance: 0, // Default signup balance removed
+          requiredTurnover: 0, // No registration turnover restriction
           role: isAdmin ? 'admin' : 'user',
           isAdmin: isAdmin,
           totalDeposits: 0,
@@ -319,7 +320,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       }
       
       showToast("গুগল লগইন সফল হয়েছে", "success");
-      onLoginSuccess({ id: user.uid, username: user.displayName, ...(userDoc.exists() ? userDoc.data() : { balance: 500 }) });
+      onLoginSuccess({ id: user.uid, username: user.displayName, ...(userDoc.exists() ? userDoc.data() : { balance: 0, requiredTurnover: 0 }) });
     } catch (err: any) {
       handleAuthError(err);
     } finally {
@@ -426,8 +427,8 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       const batch = writeBatch(db);
       const userDocRef = doc(db, 'users', user.uid);
 
-      // Standardizing default signup balance to 500 to match App.tsx and Google login
-      const initialBalance = 500;
+      // Standardizing default signup balance to 0 to match database requirements
+      const initialBalance = 0;
 
       // 3. Create user document in Firestore
       const newUser = {
@@ -439,6 +440,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         totalDeposits: 0,
         totalWithdrawals: 0,
         totalBets: 0,
+        requiredTurnover: 0, // No registration turnover restriction
         bonusesClaimed: [],
         createdAt: new Date().toISOString(),
         profilePictureUrl: "https://www.image2url.com/r2/default/images/1779828873931-409cfe92-d243-4926-91bd-67da3a1e0adc.png",

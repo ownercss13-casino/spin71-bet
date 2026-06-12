@@ -47,18 +47,15 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
   const gameContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Attempt to enter fullscreen on mount
-    const elem = document.documentElement;
-    if (elem.requestFullscreen) {
-      elem.requestFullscreen().catch((err) => {
-        console.log(`Error attempting to enable fullscreen: ${err.message}`);
-      });
-    }
-
+    // We avoid auto-requesting fullscreen on mount as browsers strictly reject non-gestured fullscreen requests in iframe contexts.
     return () => {
-      // Exit fullscreen on unmount if we are in fullscreen
-      if (document.fullscreenElement && document.exitFullscreen) {
-        document.exitFullscreen().catch((err) => console.log(err));
+      // Exit fullscreen safely on unmount
+      try {
+        if (document.fullscreenElement && document.exitFullscreen) {
+          document.exitFullscreen().catch((err) => console.log("[AviatorGame] Fullscreen exit rejected:", err.message));
+        }
+      } catch (err) {
+        console.warn("[AviatorGame] Fullscreen exit error:", err);
       }
     };
   }, []);
@@ -207,21 +204,9 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
 
       const currentSettleScale = Math.min(1.2, 1.0 + (multiplier - 1.0) * 0.003);
       
-      // Perform rapid subtle pop
-      gsap.killTweensOf(element);
-      gsap.to(element, {
-        scale: currentSettleScale * 1.08,
-        textShadow: `0 0 18px ${activeGlow}`,
-        duration: 0.06,
-        ease: 'power1.out',
-        onComplete: () => {
-          gsap.to(element, {
-            scale: currentSettleScale,
-            duration: 0.13,
-            ease: 'power1.inOut'
-          });
-        }
-      });
+      // Perform direct styling updates bypassing the scheduling overhead of GSAP tweens 60 times/sec
+      element.style.transform = `scale(${currentSettleScale})`;
+      element.style.textShadow = `0 0 18px ${activeGlow}`;
     }
 
     lastMultiplierRef.current = multiplier;
@@ -480,9 +465,9 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
         {/* Game Stage */}
         <div className="flex-1 relative overflow-hidden bg-black">
           {/* Animated Background Atmosphere */}
-          <div className="absolute inset-0 opacity-20">
-            <div className="absolute top-1/4 left-1/4 w-32 h-32 bg-[#ff5722] blur-[100px] rounded-full animate-pulse" />
-            <div className="absolute bottom-1/4 right-1/4 w-40 h-40 bg-orange-600 blur-[100px] rounded-full animate-pulse delay-700" />
+          <div className="absolute inset-0 opacity-25">
+            <div className="absolute top-1/4 left-1/4 w-32 h-32 bg-[#ff5722] blur-[100px] rounded-full" />
+            <div className="absolute bottom-1/4 right-1/4 w-40 h-40 bg-orange-600 blur-[100px] rounded-full" />
           </div>
 
           {/* Grid/Chart Background */}
@@ -506,21 +491,14 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
                     className="h-full bg-[#e00508]"
                   />
                 </div>
-                {/* Character standing - based on image */}
-                <motion.div 
-                  animate={{ y: [0, -10, 0] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                  className="mt-8"
-                >
-                  <div className="w-20 h-48 relative">
-                    {/* Head */}
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-10 bg-[#e00508] rounded-full border-4 border-black" />
-                    {/* Body */}
-                    <div className="absolute top-10 left-1/2 -translate-x-1/2 w-12 h-20 bg-[#e00508] rounded-t-xl" />
-                    {/* Character details... I'll use a Plane icon for simplicity but keeping the red vibe */}
-                    <Plane size={48} fill="currentColor" className="absolute inset-0 m-auto text-[#e00508]" />
+                {/* Glowing Countdown Timer */}
+                <div className="mt-8 relative flex items-center justify-center">
+                  <div className="w-32 h-32 rounded-full border-[6px] border-[#e00508]/20 border-t-[#e00508] animate-spin absolute" />
+                  <div className="w-24 h-24 bg-[#141414] rounded-full flex flex-col items-center justify-center shadow-[0_0_40px_rgba(224,5,8,0.3)] border border-white/5">
+                    <span className="text-4xl font-extrabold text-white tracking-widest tabular-nums">{nextGameTimer}s</span>
+                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1">Starting</span>
                   </div>
-                </motion.div>
+                </div>
               </motion.div>
             ) : gameState === 'in_progress' ? (
               <div className="flex flex-col items-center justify-center z-10 w-full h-full relative">
@@ -533,21 +511,18 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
                 </div>
                 
                 {/* Flying Plane */}
-                <motion.div 
-                  className="absolute z-10"
-                  animate={{ 
-                    x: multiplier > 1.5 ? 100 : multiplier * 50, 
-                    y: multiplier > 1.5 ? -50 : -multiplier * 20,
-                    rotate: [0, -2, 2, 0]
+                <div 
+                  className="absolute z-10 transition-transform duration-75 ease-out"
+                  style={{
+                    transform: `translate3d(${multiplier > 1.5 ? 100 : multiplier * 50}px, ${multiplier > 1.5 ? -50 : -multiplier * 20}px, 0) rotate(-12deg)`
                   }}
-                  transition={{ duration: 0.5 }}
                 >
-                   <Plane size={84} fill="currentColor" className="text-[#e00508] drop-shadow-[0_0_15px_rgba(224,5,8,0.5)] -rotate-12" />
-                </motion.div>
+                   <Plane size={84} fill="currentColor" className="text-[#e00508] drop-shadow-[0_0_15px_rgba(224,5,8,0.5)]" />
+                </div>
 
                 {/* Flying Curve like image */}
                 <svg className="absolute bottom-0 left-0 w-full h-full pointer-events-none overflow-visible z-0">
-                   <motion.path 
+                   <path 
                      d={`M -20 ${600} Q ${multiplier * 20} ${600 - multiplier * 15} ${multiplier > 1.5 ? 400 + multiplier * 10 : 200 + multiplier * 40} ${multiplier > 1.5 ? 200 : 300 - multiplier * 30}`}
                      fill="none"
                      stroke="#e00508"
