@@ -842,14 +842,14 @@ export default function RetoolAdminSection({ showToast }: RetoolAdminSectionProp
             </div>
           </div>
 
-          <div className="flex justify-end pt-2">
+          <div className="flex justify-end pt-2 gap-4">
             <a 
-              href="https://spin71bet.retool.com" 
+              href="https://login.retool.com" 
               target="_blank" 
               referrerPolicy="no-referrer"
               className="text-[10px] font-black uppercase tracking-wider text-emerald-400 hover:text-white flex items-center gap-1 transition-colors"
             >
-              Open Retool Admin Console
+              Open Retool Login page (রিটুল লগইন পেজ)
               <ChevronRight size={12} />
             </a>
           </div>

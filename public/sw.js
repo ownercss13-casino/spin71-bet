@@ -16,7 +16,10 @@ self.addEventListener('install', (event) => {
 self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request)
-      .then((response) => response || fetch(event.request))
+      .then((response) => response || fetch(event.request).catch((err) => {
+        console.warn('[SW Fetch Fail]', err);
+        return new Response('Offline or Network Error', { status: 480, statusText: 'Offline' });
+      }))
   );
 });
 

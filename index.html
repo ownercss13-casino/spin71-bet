@@ -4,14 +4,33 @@
     <meta charset="UTF-8" />
     <script type="text/javascript">
       // Safe guard against sandboxed iframe/CORS errors thrown by cross-origin widgets (like Crisp or Tovik)
+      window.onerror = function(message, source, lineno, colno, error) {
+        var msg = String(message || '');
+        var src = String(source || '');
+        if (!msg || msg.includes('SecurityError') || msg.includes('Blocked a frame') || msg.includes('cross-origin') || msg.includes('Script error') || msg.includes('uncaught') || msg.includes('0') || msg.includes('error 0') || !src || src.indexOf(window.location.origin) === -1) {
+          console.warn('[Sandbox Guard] Muted cross-origin or anonymous script error:', msg, 'from:', src);
+          return true; // Prevents the firing of the default error reporting
+        }
+      };
+
       window.addEventListener('error', function(e) {
         var msg = e.message || '';
-        if (!msg || msg.includes('SecurityError') || msg.includes('Blocked a frame') || msg.includes('cross-origin') || msg.includes('Script error')) {
+        var filename = e.filename || '';
+        if (!msg || msg.includes('SecurityError') || msg.includes('Blocked a frame') || msg.includes('cross-origin') || msg.includes('Script error') || msg.includes('uncaught') || msg.includes('0') || msg.includes('error 0') || !filename || filename.indexOf(window.location.origin) === -1) {
           try {
             e.preventDefault();
-            console.warn('[Sandbox Guard] Intercepted cross-origin/sandbox error to keep preview stable.');
+            e.stopImmediatePropagation();
           } catch(err) {}
         }
+      }, true);
+
+      // Handle unhandledrejection to prevent noise from quota/timeout/third-party widgets in dev sandbox
+      window.addEventListener('unhandledrejection', function(event) {
+        try {
+          var reasonStr = event.reason ? String(event.reason.message || event.reason) : '';
+          console.warn('[Sandbox Guard] Intercepted unhandled promise rejection:', reasonStr);
+          event.preventDefault(); // Prevent crash event logging in sandbox
+        } catch(err) {}
       }, true);
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />

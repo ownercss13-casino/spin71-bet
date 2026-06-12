@@ -4,7 +4,7 @@
 
 export const APP_CONFIG = {
   DOMAIN: window.location.origin,
-  OFFICIAL_DOMAIN: 'https://spin71bet.onrender.com', // User's preferred domain
+  OFFICIAL_DOMAIN: 'https://spin71bet.firebaseapp.com', // User's preferred domain
   SUPPORT_TELEGRAM: 'https://t.me/spin71bet_official',
   MIN_DEPOSIT: 200,
   MIN_WITHDRAW: 500,
