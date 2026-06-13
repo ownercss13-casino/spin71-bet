@@ -24,7 +24,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import Skeleton from '../components/ui/Skeleton';
 import DepositHistorySection from '../components/DepositHistorySection';
 import { db } from '../services/firebase';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
 
 interface Transaction {
   id: string;
@@ -53,64 +53,70 @@ export default function WalletView({ balance, userData, onTabChange, onSubTabCha
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
-    const fetchTransactions = async () => {
-      setIsLoading(true);
-      if (!userData?.id) return;
-      
-      try {
-        const transRef = collection(db, 'users', userData.id, 'transactions');
-        let q;
-        
-        if (filter !== 'all') {
-          q = query(
-            transRef, 
-            where('type', '==', filter), 
-            limit(100)
-          );
-        } else {
-          q = query(
-            transRef, 
-            orderBy('createdAt', 'desc'), 
-            limit(50)
-          );
-        }
-        
-        const querySnapshot = await getDocs(q);
-        let data = querySnapshot.docs.map(doc => {
-          const d = doc.data() as any;
-          let dateStr = 'Just now';
-          if (d.createdAt) {
-            if (typeof d.createdAt.toDate === 'function') {
-              dateStr = d.createdAt.toDate().toLocaleString();
-            } else {
-              dateStr = new Date(d.createdAt).toLocaleString();
-            }
+    if (!userData?.id) return;
+    
+    setIsLoading(true);
+    const transRef = collection(db, 'users', userData.id, 'transactions');
+    let q;
+    
+    if (filter !== 'all') {
+      q = query(
+        transRef, 
+        where('type', '==', filter), 
+        orderBy('createdAt', 'desc'),
+        limit(50)
+      );
+    } else {
+      q = query(
+        transRef, 
+        orderBy('createdAt', 'desc'), 
+        limit(50)
+      );
+    }
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      // Handle real-time notifications for status changes
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'modified') {
+          const newData = change.doc.data() as Transaction;
+          
+          if (newData.status === 'approved' || newData.status === 'completed') {
+            const typeLabel = newData.type === 'deposit' ? 'ডিপোজিট' : newData.type === 'withdrawal' ? 'উত্তোলন' : 'লেনদেন';
+            showToast(`আপনার ${typeLabel} সফলভাবে সম্পন্ন হয়েছে! ৳${newData.amount.toLocaleString()}`, "success");
+          } else if (newData.status === 'rejected' || newData.status === 'failed') {
+            const typeLabel = newData.type === 'deposit' ? 'ডিপোজিট' : newData.type === 'withdrawal' ? 'উত্তোলন' : 'লেনদেন';
+            showToast(`আপনার ${typeLabel} বাতিল বা ব্যর্থ হয়েছে।`, "error");
           }
-          return {
-            id: doc.id,
-            ...d,
-            date: dateStr
-          };
-        }) as Transaction[];
-
-        // Sort client-side if we used where filter
-        if (filter !== 'all') {
-           data.sort((a: any, b: any) => {
-             const timeA = a.createdAt?.seconds || (a.createdAt ? new Date(a.createdAt).getTime() / 1000 : 0);
-             const timeB = b.createdAt?.seconds || (b.createdAt ? new Date(b.createdAt).getTime() / 1000 : 0);
-             return timeB - timeA;
-           });
-           data = data.slice(0, 50);
         }
-        
-        setTransactions(data);
-      } catch (err) {
-        console.error("Error fetching transactions from Firestore:", err);
-      }
-      setIsLoading(false);
-    };
+      });
 
-    fetchTransactions();
+      const data = snapshot.docs.map(doc => {
+        const d = doc.data() as any;
+        let dateStr = 'Just now';
+        
+        if (d.createdAt) {
+          if (typeof d.createdAt.toDate === 'function') {
+            dateStr = d.createdAt.toDate().toLocaleString();
+          } else {
+            dateStr = new Date(d.createdAt).toLocaleString();
+          }
+        }
+
+        return {
+          id: doc.id,
+          ...d,
+          date: dateStr
+        };
+      }) as Transaction[];
+
+      setTransactions(data);
+      setIsLoading(false);
+    }, (err) => {
+      console.error("Error with transactions snapshot:", err);
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
   }, [filter, userData?.id]);
 
 

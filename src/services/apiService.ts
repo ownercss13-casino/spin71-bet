@@ -11,7 +11,12 @@ export interface ApiResponse<T> {
 
 class ApiService {
   private static instance: ApiService;
-  private baseUrl = '/api';
+  private baseUrl = (
+    window.location.host.includes('localhost') || 
+    window.location.host.includes('run.app') ||
+    window.location.host.includes('stackblitz') ||
+    window.location.host.includes('gemini.google.com')
+  ) ? '/api' : 'https://ais-pre-wxllhxlbpwpt7cv6zg665n-782256449109.asia-southeast1.run.app/api';
 
   private constructor() {}
 

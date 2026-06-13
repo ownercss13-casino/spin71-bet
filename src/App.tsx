@@ -108,7 +108,7 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showExitPopup, setShowExitPopup] = useState(false);
   const [activeTab, setActiveTab] = useState<'home' | 'slot' | 'aviator' | 'profile' | 'invite' | 'deposit' | 'bonus' | 'wallet' | 'faq' | 'leaderboard' | 'terms' | 'analytics' | 'admin' | 'settings' | 'history' | 'register' | 'login'>(() => {
-    const rawPath = window.location.pathname.replace(/^\/+|$/g, '').split('/')[0];
+    const rawPath = window.location.pathname.replace(/^\/+|\/$/g, '').split('/')[0];
     const validTabs: any[] = ['home', 'slot', 'aviator', 'profile', 'invite', 'deposit', 'bonus', 'wallet', 'faq', 'leaderboard', 'terms', 'analytics', 'admin', 'settings', 'history', 'register', 'login'];
     if (validTabs.includes(rawPath)) {
       if (rawPath === 'register' || rawPath === 'login') return 'home';
@@ -220,7 +220,7 @@ export default function App() {
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
   useEffect(() => {
-    const rawPath = window.location.pathname.replace(/^\/+|$/g, '').split('/')[0];
+    const rawPath = window.location.pathname.replace(/^\/+|\/$/g, '').split('/')[0];
     const validTabs: any[] = ['home', 'slot', 'aviator', 'profile', 'invite', 'deposit', 'bonus', 'wallet', 'faq', 'leaderboard', 'terms', 'analytics', 'admin', 'settings', 'history', 'register', 'login'];
     const tabToUse = validTabs.includes(rawPath) ? (rawPath === 'register' || rawPath === 'login' ? 'home' : rawPath) : 'home';
 

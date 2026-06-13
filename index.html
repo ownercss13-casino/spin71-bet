@@ -7,6 +7,12 @@
       window.onerror = function(message, source, lineno, colno, error) {
         var msg = String(message || '');
         var src = String(source || '');
+        // Detailed logging for legitimate app errors to help debug
+        if (src && src.indexOf(window.location.origin) !== -1) {
+          console.error('[App Error Uncaught]', msg, 'at', src, ':', lineno, ':', colno);
+          if (error && error.stack) console.error(error.stack);
+        }
+        
         if (!msg || msg.includes('SecurityError') || msg.includes('Blocked a frame') || msg.includes('cross-origin') || msg.includes('Script error') || msg.includes('uncaught') || msg.includes('0') || msg.includes('error 0') || !src || src.indexOf(window.location.origin) === -1) {
           console.warn('[Sandbox Guard] Muted cross-origin or anonymous script error:', msg, 'from:', src);
           return true; // Prevents the firing of the default error reporting
@@ -29,6 +35,7 @@
         try {
           var reasonStr = event.reason ? String(event.reason.message || event.reason) : '';
           console.warn('[Sandbox Guard] Intercepted unhandled promise rejection:', reasonStr);
+          if (event.reason && event.reason.stack) console.error(event.reason.stack);
           event.preventDefault(); // Prevent crash event logging in sandbox
         } catch(err) {}
       }, true);
@@ -40,15 +47,15 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     
     <!-- SEO Meta Tags -->
-    <title>SPIN71 BET | Spin71.bet - Online Games & Sports Betting in Bangladesh</title>
-    <meta name="description" content="Spin71.bet is the premium online gaming and sports betting platform in Bangladesh. Play Aviator, crash games, slots, live casino, and sports predictions with fast deposits and withdrawals." />
-    <meta name="keywords" content="Spin71, Spin71.bet, Spin71 Bet, Spin71 Casino, Spin71 Aviator, Spin71 Bangladesh, Spin71 অনলাইন গেম, এভিয়েটর গেম, স্পিন৭১, স্পিন৭১ বেট" />
-    <meta name="author" content="Spin71.bet" />
+    <title>SPIN71 BET | Premium Online Games & Sports Betting in Bangladesh</title>
+    <meta name="description" content="SPIN71.BET is the premium online gaming and sports betting platform in Bangladesh. Play Aviator, crash games, slots, live casino, and sports predictions with fast deposits and withdrawals." />
+    <meta name="keywords" content="Spin71, Spin71 Bet, Spin71 Casino, Spin71 Aviator, Spin71 Bangladesh, Spin71 অনলাইন গেম, এভিয়েটর গেম, স্পিন৭১, স্পিন৭১ বেট" />
+    <meta name="author" content="SPIN71.BET" />
     <meta name="robots" content="index, follow" />
     
     <!-- Open Graph / Facebook / IMO / Messenger -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://spin71.bet/" />
+    <meta property="og:url" content="https://spin71bet1.vercel.app/" />
     <meta property="og:title" content="SPIN71 BET - Gaming & Slots Platform" />
     <meta property="og:description" content="Play high-multiplier crash games, Aviator, sports, and classic cards. Enjoy immediate deposits and fast payouts on SPIN71!" />
     <meta property="og:image" content="/apple-touch-icon.png" />
@@ -68,6 +75,5 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script type="module" src="https://tovik.app/tovik.js"></script>
   </body>
 </html>

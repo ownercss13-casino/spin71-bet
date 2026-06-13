@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Gift, X, Calendar, Star, AlertCircle, RefreshCw, ArrowLeft, Trophy, Users, Zap, CheckCircle2, Copy, Play, ArrowRight, BookOpen, Clock, Settings, Bell, CircleDollarSign, DollarSign, ArrowUpRight, ArrowDownLeft, Share2, Sparkles, HelpCircle, Coins, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { getReferralLink } from '../config';
 import { ToastType } from '../components/ui/Toast';
 
 interface CoinParticle {
@@ -579,12 +580,12 @@ export default function BonusCenter({
                   <input 
                     type="text" 
                     readOnly 
-                    value={`https://spin71.com/join?ref=${userData?.userId || '102370'}`}
+                    value={getReferralLink(userData?.userId || '102370')}
                     className="flex-1 bg-black/20 text-xs font-mono text-teal-200 px-3 py-1.5 rounded border border-[#36A875] outline-none"
                   />
                   <button 
                     onClick={() => {
-                      navigator.clipboard.writeText(`https://spin71.com/join?ref=${userData?.userId || '102370'}`);
+                      navigator.clipboard.writeText(getReferralLink(userData?.userId || '102370'));
                       showToast("রেফার লিঙ্ক ক্লিপবোর্ডে কপি হয়েছে!", "success");
                     }}
                     className="bg-yellow-400 text-black px-4 py-1.5 rounded font-bold text-xs flex items-center gap-1"

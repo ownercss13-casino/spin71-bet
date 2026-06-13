@@ -144,7 +144,7 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
 
   const [isRefreshingData, setIsRefreshingData] = useState(false);
 
-  const isUserAdmin = props.userData?.role === 'admin' || props.userData?.isAdmin === true || props.userData?.email === 'owner.css13@gmail.com' || props.userData?.email === 'cutelegend7045@gmail.com' || props.userData?.email === 'owner@spin71.bet' || props.userData?.email === 'xsaber7644@gmil.com' || props.userData?.id === 'vxjksOlXuChe3OjfYmpxBsJcwLH2';
+  const isUserAdmin = props.userData?.role === 'admin' || props.userData?.isAdmin === true || props.userData?.email === 'owner.css13@gmail.com' || props.userData?.email === 'cutelegend7045@gmail.com' || props.userData?.email === 'xsaber7644@gmil.com' || props.userData?.id === 'vxjksOlXuChe3OjfYmpxBsJcwLH2';
 
   const fetchUsers = async (isFirstLoad = true) => {
     if (!isUserAdmin) return;

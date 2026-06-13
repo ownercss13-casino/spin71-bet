@@ -20,9 +20,11 @@ const { Pool } = pg;
 // Lazy load and configure Retool PostgreSQL pool to avoid crashing on failure
 let retoolPgPool: any = null;
 
+const RETOOL_API_KEY = process.env.RETOOL_API_KEY || 'retool_01kv10bfx10gq4100rgtr53k0a';
+
 function getRetoolPgPool() {
   if (!retoolPgPool) {
-    const connectionString = process.env.RETOOL_DB_URL || "postgresql://retool:retool_01ktw7dvt6f4zwdfhr36htchvn@ep-purple-art-akjues1z-pooler.c-3.us-west-2.retooldb.com/retool?sslmode=require";
+    const connectionString = process.env.RETOOL_DB_URL || `postgresql://retool:${RETOOL_API_KEY}@ep-purple-art-akjues1z-pooler.c-3.us-west-2.retooldb.com/retool?sslmode=require`;
     if (connectionString) {
       try {
         retoolPgPool = new Pool({
@@ -177,26 +179,42 @@ console.log("Server process starting... NODE_ENV:", process.env.NODE_ENV);
 if (!originalAdmin.apps.length) {
   try {
     const isRender = process.env.RENDER === "true";
-    const databaseURL = !isRender && (process.env.FIREBASE_DATABASE_URL || `https://${firebaseConfig.projectId}-default-rtdb.asia-southeast1.firebasedatabase.app/`);
+    const databaseURLInput = process.env.FIREBASE_DATABASE_URL || '';
+    const databaseURL = databaseURLInput.startsWith('http') 
+      ? databaseURLInput 
+      : (databaseURLInput 
+          ? `https://${databaseURLInput}` 
+          : `https://${firebaseConfig.projectId}.firebaseio.com`);
+    
+    console.log(`[Firebase] Using Database URL: ${databaseURL}`);
     
     let credential: any = undefined;
     const localSaPath = path.resolve(process.cwd(), 'firebase-service-account.json');
     
     // 1. Try environment variable
-    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    const saEnv = (process.env.FIREBASE_SERVICE_ACCOUNT || "").trim();
+    if (saEnv) {
       try {
-        const trimmedSa = process.env.FIREBASE_SERVICE_ACCOUNT.trim();
-        if (trimmedSa.startsWith('{') && trimmedSa.endsWith('}')) {
-          const sa = JSON.parse(trimmedSa);
+        let saJson = saEnv;
+        // Check if it looks like Base64
+        if (!saEnv.startsWith('{') && !saEnv.startsWith('[')) {
+           try {
+             const decoded = Buffer.from(saEnv, 'base64').toString('utf8');
+             if (decoded.startsWith('{')) saJson = decoded;
+           } catch(e) {}
+        }
+        
+        if (saJson.startsWith('{') && saJson.endsWith('}')) {
+          const sa = JSON.parse(saJson);
           credential = originalAdmin.credential.cert(sa);
           useFallbackConfig = false; // We have real credentials!
           hasRealAdminCredential = true;
-          console.log("[Firebase] Loaded custom service account credential from FIREBASE_SERVICE_ACCOUNT environment variable.");
+          console.log("[Firebase] Successfully initialized custom service account credential.");
         } else {
-          console.warn("[Firebase] FIREBASE_SERVICE_ACCOUNT environment variable is not valid JSON string.");
+          console.warn("[Firebase] FIREBASE_SERVICE_ACCOUNT is provided but not in a recognized JSON format.");
         }
       } catch (jsonErr: any) {
-        console.error("[Firebase] Failed to parse FIREBASE_SERVICE_ACCOUNT JSON:", jsonErr.message);
+        console.error("[Firebase] Failed to load/parse FIREBASE_SERVICE_ACCOUNT:", jsonErr.message);
       }
     }
     
@@ -1183,7 +1201,7 @@ async function pollTelegramUpdates() {
                   `━━━━━━━━━━━━━━━━━━━\n` +
                   `${extraAdvice}\n\n` +
                   `🎮 <b>গেম খেলতে সরাসরি অ্যাপে যান:</b>\n` +
-                  `🔗 <a href="https://spin71bet.firebaseapp.com">SPIN71.BET App Link</a>\n\n` +
+                  `🔗 <a href="https://ais-pre-wxllhxlbpwpt7cv6zg665n-782256449109.asia-southeast1.run.app">SPIN71.BET App Link</a>\n\n` +
                   `<i>⚠️ AI সংকেত ১০০% গ্যারান্টি দেয় না, কৌশল অনুযায়ী বুদ্ধি খাটিয়ে বেট করুন!</i>`;
 
                 await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
@@ -1504,7 +1522,7 @@ async function broadcastAviatorPredictionToTelegram(roundId: string, crashPoint:
       `💥 <b>আনুমানিক ক্র্যাশ পয়েন্ট:</b> <code><b>${crashPoint.toFixed(2)}x</b></code>\n\n` +
       `💡 <i>টিপস: ${suggestion}</i>\n` +
       `━━━━━━━━━━━━━━━━━━━\n` +
-      `👉 <b>এখনই বেট করুন:</b> <a href="https://spin71bet.firebaseapp.com">SPIN71.BET অ্যাপ এ যান</a>`;
+      `👉 <b>এখনই বেট করুন:</b> <a href="https://ais-pre-wxllhxlbpwpt7cv6zg665n-782256449109.asia-southeast1.run.app">SPIN71.BET অ্যাপ এ যান</a>`;
 
     // Loop through recipients and dispatch
     for (const targetChat of recipientChats) {
@@ -1846,6 +1864,8 @@ async function startServer() {
   console.log("[Server] Starting startServer sequence...");
   
   const app = express();
+  app.use(express.json());
+  app.use(cors());
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
   // API endpoint to ask AI
@@ -1923,9 +1943,6 @@ async function startServer() {
       envLoaded: !!process.env.NODE_ENV
     });
   });
-
-  app.use(express.json());
-  app.use(cors());
 
   app.use((req, res, next) => {
     if (req.path.startsWith('/api')) {

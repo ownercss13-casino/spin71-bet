@@ -28,7 +28,6 @@ service cloud.firestore {
       return isSignedIn() && (
         (getEmail() == 'owner.css13@gmail.com') || 
         (getEmail() == 'cutelegend7045@gmail.com') || 
-        (getEmail() == 'owner@spin71.bet') || 
         (getEmail() == 'xsaber7644@gmil.com') || 
         (request.auth.uid == 'vxjksOlXuChe3OjfYmpxBsJcwLH2') || 
         isServerBot() ||
