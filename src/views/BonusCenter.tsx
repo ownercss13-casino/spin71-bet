@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Gift, X, Calendar, Star, AlertCircle, RefreshCw, ArrowLeft, Trophy, Users, Zap, CheckCircle2, Copy, Play, ArrowRight, BookOpen, Clock, Settings, Bell, CircleDollarSign, DollarSign, ArrowUpRight, ArrowDownLeft, Share2, Sparkles, HelpCircle, Coins, ShieldCheck, Ticket, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getReferralLink } from '../config';
+import { getReferralLink, APP_CONFIG } from '../config';
 import { ToastType } from '../components/ui/Toast';
 
 interface CoinParticle {
@@ -806,7 +806,7 @@ export default function BonusCenter({
                     <div className="px-5 pb-5 pt-1">
                        <motion.button 
                          whileTap={canClaim ? { scale: 0.98 } : {}}
-                         onClick={() => handleClaimVipReward(lvl.reward, bonusId, levelNum)}
+                         onClick={() => handleClaimVipReward(levelNum, lvl.reward)}
                          disabled={isClaimed || claimingVip !== null || isLocked}
                          className={`w-full py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all border ${
                             isClaimed ? 'bg-white/5 text-gray-500 border-white/5' : 
