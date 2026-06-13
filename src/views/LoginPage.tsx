@@ -88,7 +88,7 @@ interface LoginPageProps {
   appLogo?: string;
 }
 
-export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSuccess, showToast, showNotification, casinoName = "SPIN71.bet", isLoggedIn = false, welcomeBonus = 507, initialMode = 'login', appLogo }: LoginPageProps) {
+export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSuccess, showToast, showNotification, casinoName = "SPIN71.BET", isLoggedIn = false, welcomeBonus = 507, initialMode = 'login', appLogo }: LoginPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'forgot-password' | 'register'>(initialMode);
@@ -340,7 +340,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       } 
       // 2. Otherwise assume it's a username and use the dummy domain pattern
       else {
-        loginEmail = `${data.username.toLowerCase()}@spin71.bet`;
+        loginEmail = `${data.username.toLowerCase()}@spin71bet1.vercel.app`;
       }
 
       const result = await signInWithEmailAndPassword(auth, loginEmail, data.password);
@@ -389,7 +389,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     setError(null);
     try {
       // 1. Create email from username
-      const registerEmail = `${data.username.toLowerCase()}@spin71.bet`;
+      const registerEmail = `${data.username.toLowerCase()}@spin71bet1.vercel.app`;
       
       const result = await createUserWithEmailAndPassword(auth, registerEmail, data.password);
       const user = result.user;
@@ -556,7 +556,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
           onError={(e) => {
             e.currentTarget.src = 'https://www.image2url.com/r2/default/images/1780868316316-d0893d59-2e15-4b63-b4f7-8e3dd47601b0.jpg';
           }}
-          alt="Spin71.Bet Logo" 
+          alt="SPIN71.BET Logo" 
           className="h-44 md:h-56 lg:h-64 object-contain drop-shadow-[0_0_35px_rgba(253,216,53,0.5)] transition-all duration-300"
           referrerPolicy="no-referrer"
         />

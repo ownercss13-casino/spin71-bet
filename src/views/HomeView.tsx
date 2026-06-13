@@ -127,7 +127,7 @@ export default function HomeView({
   updateGlobalImage,
   allButtonName,
   updateAllButtonName,
-  casinoName = "SPIN71.bet",
+  casinoName = "SPIN71.BET",
   updateCasinoName,
   noticeText = "আমাদের গেম উপভোগ করুন এবং বড় জয় নিশ্চিত করুন!",
   telegramLink,

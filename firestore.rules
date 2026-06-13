@@ -8,7 +8,7 @@ service cloud.firestore {
     function isServerBot() { 
       return isSignedIn() && (
         request.auth.uid == 'system-backend-bot-spin71' || 
-        (getEmail().startsWith('system.backend.bot') && getEmail().endsWith('@spin71.bet'))
+        (getEmail().startsWith('system.backend.bot') && getEmail().endsWith('@spin71bet1.vercel.app'))
       ); 
     }
     function getRole() {

@@ -92,7 +92,7 @@ export default function App() {
   const [dbStatus, setDbStatus] = useState<'testing' | 'success' | 'error'>('testing');
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [showRegistrationSuccess, setShowRegistrationSuccess] = useState(false);
-  const [supportEmail, setSupportEmail] = useState<string>("support@spin71.bet");
+  const [supportEmail, setSupportEmail] = useState<string>("support@spin71bet1.vercel.app");
   const [isGameLoading, setIsGameLoading] = useState(false);
   const [notification, setNotification] = useState<{isOpen: boolean; message: string; type: 'success' | 'info' | 'error'}>({ isOpen: false, message: '', type: 'info' });
   const [globalLogos, setGlobalLogos] = useState<Record<string, string>>({});

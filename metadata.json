@@ -1,6 +1,6 @@
 {
-  "name": "SPIN71.BET",
-  "description": "Premium Betting and Casino Platform - SPIN71.BET",
+  "name": "SPIN71BET1",
+  "description": "Premium Betting and Casino Platform - spin71bet1.vercel.app",
   "requestFramePermissions": ["camera", "microphone", "geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

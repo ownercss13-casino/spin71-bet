@@ -11,12 +11,7 @@ export interface ApiResponse<T> {
 
 class ApiService {
   private static instance: ApiService;
-  private baseUrl = (
-    window.location.host.includes('localhost') || 
-    window.location.host.includes('run.app') ||
-    window.location.host.includes('stackblitz') ||
-    window.location.host.includes('gemini.google.com')
-  ) ? '/api' : 'https://ais-pre-wxllhxlbpwpt7cv6zg665n-782256449109.asia-southeast1.run.app/api';
+  private baseUrl = '/api';
 
   private constructor() {}
 
@@ -34,12 +29,10 @@ class ApiService {
     // Ensure endpoint has leading slash
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
     
-    // Use relative URL for API requests to avoid origin issues in iframes
+    // Use relative URL for API requests
     let fullUrl = cleanEndpoint;
-    if (!cleanEndpoint.startsWith('http')) {
-        if (!cleanEndpoint.startsWith(this.baseUrl)) {
-            fullUrl = `${this.baseUrl}${cleanEndpoint}`;
-        }
+    if (!cleanEndpoint.startsWith('http') && !cleanEndpoint.startsWith(this.baseUrl)) {
+      fullUrl = `${this.baseUrl}${cleanEndpoint}`;
     }
     
     console.log(`[ApiService] Full URL: ${fullUrl}`);

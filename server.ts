@@ -493,7 +493,7 @@ async function authenticateClientDb() {
   }
   botLastAuthAttempt = now;
 
-  const email = "system.backend.bot.be4c6d81@spin71.bet";
+  const email = "system.backend.bot.be4c6d81@spin71bet1.vercel.app";
   const password = "SuperSecurePassword123!!_be4c6d81";
   const botUid = "system-backend-bot-spin71";
   
@@ -501,7 +501,7 @@ async function authenticateClientDb() {
   await new Promise<void>((resolve) => {
     let resolved = false;
     const unsubscribe = clientAuth.onAuthStateChanged((user: any) => {
-      if (user && user.email && user.email.startsWith("system.backend.bot") && user.email.endsWith("@spin71.bet")) {
+      if (user && user.email && user.email.startsWith("system.backend.bot") && user.email.endsWith("@spin71bet1.vercel.app")) {
         console.log("[Firebase] Auth state restored on start for:", user.email);
         resolved = true;
         unsubscribe();
@@ -516,7 +516,7 @@ async function authenticateClientDb() {
     }, 1500);
   });
 
-  if (clientAuth.currentUser && clientAuth.currentUser.email && clientAuth.currentUser.email.startsWith("system.backend.bot") && clientAuth.currentUser.email.endsWith("@spin71.bet")) {
+  if (clientAuth.currentUser && clientAuth.currentUser.email && clientAuth.currentUser.email.startsWith("system.backend.bot") && clientAuth.currentUser.email.endsWith("@spin71bet1.vercel.app")) {
     console.log("[Firebase] Dynamic fallback skip login - already signed in as:", clientAuth.currentUser.email);
     return;
   }
@@ -593,7 +593,7 @@ async function authenticateClientDb() {
         if (createError.code === 'auth/email-already-in-use') {
           console.log("[Firebase] Recovering from email clash: registering a unique fallback bot email...");
           const randomSuffix = `${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-          const fallbackEmail = `system.backend.bot.fallback.${randomSuffix}@spin71.bet`;
+          const fallbackEmail = `system.backend.bot.fallback.${randomSuffix}@spin71bet1.vercel.app`;
           try {
             await createUserWithEmailAndPassword(clientAuth, fallbackEmail, password);
             console.log("[Firebase] Successfully recovered: registered and logged in as unique fallback bot:", fallbackEmail);
@@ -1191,7 +1191,7 @@ async function pollTelegramUpdates() {
                 }
 
                 const responseText = 
-                  `🚀 <b>SPIN71.BET - AI AVIATOR PREDICTOR</b> 🚀\n` +
+                  `🚀 <b>SPIN71BET1 - AI AVIATOR PREDICTOR</b> 🚀\n` +
                   `━━━━━━━━━━━━━━━━━━━\n` +
                   `🆔 <b>Round ID:</b> <code>${currentAviatorState.roundId}</code>\n` +
                   `📊 <b>State:</b> <code>${currentAviatorState.state === 'waiting' ? 'Placing Bets (Waiting)' : 'In Flight / Real-time'}</code>\n\n` +
@@ -1201,7 +1201,7 @@ async function pollTelegramUpdates() {
                   `━━━━━━━━━━━━━━━━━━━\n` +
                   `${extraAdvice}\n\n` +
                   `🎮 <b>গেম খেলতে সরাসরি অ্যাপে যান:</b>\n` +
-                  `🔗 <a href="https://ais-pre-wxllhxlbpwpt7cv6zg665n-782256449109.asia-southeast1.run.app">SPIN71.BET App Link</a>\n\n` +
+                  `🔗 <a href="https://spin71bet1.vercel.app">SPIN71 App Link</a>\n\n` +
                   `<i>⚠️ AI সংকেত ১০০% গ্যারান্টি দেয় না, কৌশল অনুযায়ী বুদ্ধি খাটিয়ে বেট করুন!</i>`;
 
                 await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
@@ -1234,7 +1234,7 @@ async function pollTelegramUpdates() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                       chat_id: chatId,
-                      text: `⚠️ <b>SPIN71.BET AI Help:</b> অনুগ্রহ করে কম্যান্ডের পরে আপনার প্রশ্নটি লিখুন।\n\nব্যবহার: <code>/ai [আপনার প্রশ্ন]</code>\nউদাহরণ: <code>/ai Nagad দিয়ে কিভাবে ডিপোজিট করবো?</code>`,
+                      text: `⚠️ <b>SPIN71BET1 AI Help:</b> অনুগ্রহ করে কম্যান্ডের পরে আপনার প্রশ্নটি লিখুন।\n\nব্যবহার: <code>/ai [আপনার প্রশ্ন]</code>\nউদাহরণ: <code>/ai Nagad দিয়ে কিভাবে ডিপোজিট করবো?</code>`,
                       parse_mode: 'HTML'
                     })
                   });
@@ -1348,7 +1348,7 @@ async function pollTelegramUpdates() {
               });
             } else if (text.startsWith('/start')) {
               try {
-                const welcomeText = `👋 <b>WELCOME TO SPIN71.BET SUPPORT & PREDICTOR!</b>\n\n` +
+                const welcomeText = `👋 <b>WELCOME TO SPIN71BET1 SUPPORT & PREDICTOR!</b>\n\n` +
                   `🤖 <b>আমাদের AI সাপোর্ট এবং এভিয়েটর প্রেডিক্টর সচল আছে!</b>\n` +
                   `যেকোনো প্রশ্ন জানতে সরাসরি এখানে টাইপ করুন অথবা নিচের বিশেষ কম্যান্ডগুলো ব্যবহার করুন:\n\n` +
                   `🤖 <b>Aviator AI Predictor is Active!</b>\n` +
@@ -1515,14 +1515,14 @@ async function broadcastAviatorPredictionToTelegram(roundId: string, crashPoint:
     }
 
     const broadcastText = 
-      `📢 <b>SPIN71.BET এভিয়েটর সিগন্যাল (AI Predictor)</b>\n` +
+      `📢 <b>SPIN71BET1 এভিয়েটর সিগন্যাল (AI Predictor)</b>\n` +
       `━━━━━━━━━━━━━━━━━━━\n` +
       `${badge} <b>পরবর্তী রাউন্ড শুরু হচ্ছে!</b>\n\n` +
       `🆔 <b>রাউন্ড আইডি:</b> <code>${roundId}</code>\n` +
       `💥 <b>আনুমানিক ক্র্যাশ পয়েন্ট:</b> <code><b>${crashPoint.toFixed(2)}x</b></code>\n\n` +
       `💡 <i>টিপস: ${suggestion}</i>\n` +
       `━━━━━━━━━━━━━━━━━━━\n` +
-      `👉 <b>এখনই বেট করুন:</b> <a href="https://ais-pre-wxllhxlbpwpt7cv6zg665n-782256449109.asia-southeast1.run.app">SPIN71.BET অ্যাপ এ যান</a>`;
+      `👉 <b>এখনই বেট করুন:</b> <a href="https://spin71bet1.vercel.app">SPIN71 App এ যান</a>`;
 
     // Loop through recipients and dispatch
     for (const targetChat of recipientChats) {

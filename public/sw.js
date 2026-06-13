@@ -1,4 +1,4 @@
-// Service Worker for SPIN71.bet
+// Service Worker for spin71bet1.vercel.app
 const CACHE_NAME = 'spin71-cache-v1';
 const urlsToCache = [
   '/',
@@ -25,12 +25,12 @@ self.addEventListener('fetch', (event) => {
 
 // Support for standard Web Push Notifications (FCM / Web Push API)
 self.addEventListener('push', (event) => {
-  let data = { title: 'Spin71.Bet Alert', body: 'New update from Spin71.Bet!' };
+  let data = { title: 'SPIN71.BET Alert', body: 'New update from SPIN71.BET!' };
   if (event.data) {
     try {
       data = event.data.json();
     } catch (e) {
-      data = { title: 'Spin71.Bet Alert', body: event.data.text() };
+      data = { title: 'SPIN71.BET Alert', body: event.data.text() };
     }
   }
 
