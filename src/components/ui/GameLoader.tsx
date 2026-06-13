@@ -59,7 +59,7 @@ export default function GameLoader({ gameName, provider, logo, hasError = false,
            className="relative mb-6 text-center"
         >
           <span className="text-4xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 drop-shadow-[0_0_12px_rgba(253,216,53,0.5)]">
-            SPIN71.BET
+            SPIN71BET1
           </span>
           {gameName && (
             <p className="text-sm font-black text-yellow-500/80 mt-4 uppercase tracking-widest italic">{gameName}</p>

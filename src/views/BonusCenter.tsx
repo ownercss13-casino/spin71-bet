@@ -141,29 +141,32 @@ export default function BonusCenter({
         return;
     }
 
-    // 1. Registration Bonus (৳১৭): No conditions
-    if (bonusId === 'registration_bonus') {
-      // Allowed to claim directly!
-    } 
-    // 2. First Deposit Bonus (৳৪৭)
-    else if (bonusId === 'first_deposit_bonus') {
+    // Validation logic for specific bonuses
+    if (bonusId === 'first_deposit_bonus') {
       if (!userData?.totalDeposits || userData.totalDeposits <= 0) {
         showToast("এই বোনাসটি নেওয়ার আগে প্রথম ডিপোজিট করা আবশ্যক", "warning");
         onTabChange('deposit');
         return;
       }
-    } 
-    // 3. Account Verification Bonus (৳১২)
-    else if (bonusId === 'account_verification_bonus') {
+    } else if (bonusId === 'account_verification_bonus') {
       const hasDeposit = userData?.totalDeposits && userData.totalDeposits > 0;
       const hasBankCard = userData?.bankCards && userData.bankCards.length > 0;
       if (!hasDeposit && !hasBankCard) {
         showToast("শর্ত অপূর্ণ: প্রথম ডিপোজিট অথবা উইথড্র ব্যাংক কার্ড যুক্ত থাকতে হবে", "warning");
         return;
       }
-    } 
-    // Default fallback check for any other/original bonuses
-    else {
+    } else if (bonusId.startsWith('mission_chest_')) {
+      // Logic for mission chests based on dailyStreak
+      const chestId = parseInt(bonusId.split('_').pop() || '0');
+      const requiredStreaks = [1, 3, 5, 7];
+      const required = requiredStreaks[chestId - 1];
+      
+      if (dailyStreak < required) {
+        showToast(`এই বক্সটি খুলতে আপনার অন্তত ${required} দিনের স্ট্রিক প্রয়োজন`, "warning");
+        return;
+      }
+    } else if (bonusId !== 'registration_bonus') {
+      // Default deposit check for others
       if (!userData?.totalDeposits || userData.totalDeposits <= 0) {
         showToast("বোনাস নিতে হলে আগে ডিপোজিট করতে হবে", "warning");
         onTabChange('deposit');
@@ -296,28 +299,45 @@ export default function BonusCenter({
   };
 
   return (
-    <div className="min-h-screen bg-[#2BAA74] pb-24 relative overflow-hidden flex flex-col font-sans">
+    <div className="min-h-screen bg-[#070d14] pb-24 relative overflow-hidden flex flex-col font-sans select-none">
       
+      {/* Dynamic Background Glows */}
+      <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden">
+        <div className="absolute -top-24 -left-24 w-96 h-96 bg-teal-500/10 blur-[120px] rounded-full" />
+        <div className="absolute top-1/2 -right-24 w-80 h-80 bg-blue-600/5 blur-[100px] rounded-full" />
+        <div className="absolute -bottom-24 left-1/2 -translate-x-1/2 w-full h-64 bg-teal-400/5 blur-[100px] rounded-full" />
+      </div>
+
       {/* Top Navigation */}
-      <div className="flex items-center gap-2 px-4 py-3 text-white">
-        <button onClick={() => onTabChange('home')} className="p-1">
-          <ArrowLeft size={24} />
-        </button>
-        <div className="flex-1 overflow-x-auto no-scrollbar">
-          <div className="flex gap-6 min-w-max items-center pb-2">
+      <div className="flex items-center gap-2 px-4 py-4 text-white bg-[#0a141f]/80 backdrop-blur-md sticky top-0 z-[110] border-b border-white/5 shadow-xl">
+        <motion.button 
+          whileTap={{ scale: 0.9 }}
+          onClick={() => onTabChange('home')} 
+          className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10 active:bg-white/10"
+        >
+          <ArrowLeft size={20} />
+        </motion.button>
+        <div className="flex-1 overflow-x-auto no-scrollbar ml-1">
+          <div className="flex gap-7 min-w-max items-center">
             {tabs.map(tab => (
               <button 
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`relative whitespace-nowrap text-base font-bold pb-1 transition-all ${
+                className={`relative whitespace-nowrap text-[13px] font-black uppercase tracking-wider pb-1 transition-all ${
                   activeTab === tab.id 
-                    ? 'text-white border-b-2 border-white' 
-                    : 'text-white/80 border-b-2 border-transparent'
+                    ? 'text-yellow-400' 
+                    : 'text-gray-400 hover:text-white'
                 }`}
               >
                 {tab.label}
+                {activeTab === tab.id && (
+                  <motion.div 
+                    layoutId="activeTabUnderline"
+                    className="absolute -bottom-1 left-0 right-0 h-0.5 bg-yellow-400 rounded-full"
+                  />
+                )}
                 {tab.badge && (
-                  <span className="absolute -top-1 -right-4 bg-red-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">
+                  <span className="absolute -top-2 -right-3.5 bg-red-500 text-white text-[8px] w-3.5 h-3.5 flex items-center justify-center rounded-full font-black">
                     {tab.badge}
                   </span>
                 )}
@@ -327,143 +347,209 @@ export default function BonusCenter({
         </div>
       </div>
 
-      <div className="px-4 flex-1 overflow-y-auto pb-6 space-y-4">
+      <div className="px-4 flex-1 overflow-y-auto pt-4 pb-6 space-y-5 relative z-10">
         
         {/* ======================================================== */}
         {/* MISSION TAB VIEW */}
         {/* ======================================================== */}
         {activeTab === 'mission' && (
           <>
-            {/* Chest Progress Section */}
-            <div className="bg-[#249965] rounded-xl p-4 shadow-sm border border-[#3bc68a]">
-              <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-1 font-bold text-green-300">
-                  <Zap size={16} className="fill-green-300" />
-                  <span>{dailyStreak * 10}</span>
+            {/* Chest Progress Section - Refined for Dark Theme */}
+            <div className="bg-[#0f1926] rounded-2xl p-5 shadow-2xl border border-teal-500/10 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-2 opacity-5 pointer-events-none">
+                 <Zap size={100} className="fill-teal-500" />
+              </div>
+              <div className="flex justify-between items-center mb-7 relative z-10">
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-teal-500 font-black uppercase tracking-widest leading-none mb-1">Energy Streak</span>
+                  <div className="flex items-center gap-1.5 font-black text-2xl text-white italic">
+                    <Zap size={20} className="fill-yellow-400 text-yellow-400" />
+                    <span>{dailyStreak * 10}</span>
+                  </div>
                 </div>
-                <button className="text-white text-sm">বিশদ</button>
+                <button className="bg-white/5 px-3 py-1.5 rounded-lg text-[10px] font-black text-teal-400 uppercase tracking-widest border border-white/5 active:bg-white/10">Rules</button>
               </div>
 
-              <div className="relative flex items-center justify-between px-2">
-                <div className="absolute left-[10%] right-[10%] top-6 h-0.5 bg-[#45B888] -z-0"></div>
+              <div className="relative flex items-center justify-between px-2 pb-4">
+                <div className="absolute left-[10%] right-[10%] top-6 h-0.5 bg-white/5 rounded-full -z-0">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min((dailyStreak / 7) * 100, 100)}%` }}
+                    className="h-full bg-gradient-to-r from-teal-500 to-yellow-400 rounded-full shadow-[0_0_10px_rgba(45,212,191,0.3)]"
+                  />
+                </div>
                 
                 {[
-                  { id: 1, energy: 10, active: dailyStreak >= 1 },
-                  { id: 2, energy: 30, active: dailyStreak >= 3 },
-                  { id: 3, energy: 50, active: dailyStreak >= 5 },
-                  { id: 4, energy: 70, active: dailyStreak >= 7 },
-                ].map((chest) => (
-                  <div key={chest.id} className="flex flex-col items-center gap-2 z-10">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all ${chest.active ? 'bg-amber-400 border-yellow-200 shadow-md scale-105' : 'bg-white/20 border-[#52C594]'}`}>
-                      <Gift size={20} className={chest.active ? 'text-amber-950 animate-bounce' : 'text-green-200'} />
+                  { id: 1, energy: 10, required: 1, amount: 5, active: dailyStreak >= 1 },
+                  { id: 2, energy: 30, required: 3, amount: 15, active: dailyStreak >= 3 },
+                  { id: 3, energy: 50, required: 5, amount: 30, active: dailyStreak >= 5 },
+                  { id: 4, energy: 70, required: 7, amount: 50, active: dailyStreak >= 7 },
+                ].map((chest) => {
+                  const chestBonusId = `mission_chest_${chest.id}`;
+                  const isClaimed = userData?.bonusesClaimed?.includes(chestBonusId);
+                  
+                  return (
+                    <div key={chest.id} className="flex flex-col items-center gap-3 z-10">
+                      <motion.button 
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => handleClaimReward(chest.amount, chestBonusId)}
+                        className={`w-14 h-14 rounded-2xl flex items-center justify-center border transition-all relative ${
+                          isClaimed ? 'bg-[#070d14] border-white/5 opacity-40' :
+                          chest.active ? 'bg-gradient-to-b from-yellow-300 to-orange-500 border-yellow-200 shadow-[0_0_20px_rgba(251,191,36,0.3)] scale-110 cursor-pointer' : 
+                          'bg-[#1a2533] border-white/10 opacity-70 cursor-not-allowed'
+                        }`}
+                      >
+                        {isClaimed ? (
+                          <CheckCircle2 size={20} className="text-teal-400" />
+                        ) : (
+                          <Gift size={24} className={chest.active ? 'text-white drop-shadow-md animate-bounce' : 'text-gray-500'} />
+                        )}
+                        {chest.active && !isClaimed && (
+                          <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-4 w-4 bg-yellow-500"></span>
+                          </span>
+                        )}
+                      </motion.button>
+                      <div className="flex flex-col items-center">
+                        <div className={`flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-full border ${chest.active ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30' : 'bg-white/5 text-gray-500 border-white/5'}`}>
+                          <Zap size={10} className={chest.active ? 'fill-yellow-400' : ''} />
+                          <span>{chest.energy}</span>
+                        </div>
+                        {!isClaimed && (
+                           <span className="text-[10px] text-white/50 font-black mt-1">৳{chest.amount}</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1 text-[10px] text-green-200 bg-[#1D8254] px-2 py-0.5 rounded-full border border-[#42B485]">
-                      <Zap size={10} className="fill-green-200" />
-                      <span>{chest.energy}</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
-            {/* Sub Tabs */}
-            <div className="flex items-center justify-between">
-              <div className="flex gap-2">
+            {/* Sub Tabs - Consistent Dark Style */}
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex bg-[#0f1926] p-1 rounded-xl border border-white/5 shadow-inner flex-1">
                 <button 
                   onClick={() => setSubTab('new_player')}
-                  className={`relative px-4 py-1.5 rounded-full text-sm font-bold transition-colors ${
+                  className={`flex-1 relative py-2.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all ${
                     subTab === 'new_player' 
-                      ? 'bg-white text-[#2BAA74]' 
-                      : 'border border-[#52C594] text-white hover:bg-white/10'
+                      ? 'bg-teal-600 text-white shadow-lg' 
+                      : 'text-gray-400 hover:text-white'
                   }`}
                 >
-                  নিউপ্লেয়ার বোনাস
-                  <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">3</span>
+                  New Player
+                  {subTab !== 'new_player' && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] w-3.5 h-3.5 flex items-center justify-center rounded-full font-black">3</span>
+                  )}
                 </button>
                 <button 
                   onClick={() => setSubTab('daily')}
-                  className={`relative px-4 py-1.5 rounded-full text-sm font-bold transition-colors ${
+                  className={`flex-1 relative py-2.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all ${
                     subTab === 'daily' 
-                      ? 'bg-white text-[#2BAA74]' 
-                      : 'border border-[#52C594] text-white hover:bg-white/10'
+                      ? 'bg-teal-600 text-white shadow-lg' 
+                      : 'text-gray-400 hover:text-white'
                   }`}
                 >
-                  দৈনিক মিশন
+                  Daily Mission
                 </button>
               </div>
-              <button 
+              <motion.button 
+                whileTap={{ scale: 0.95 }}
                 onClick={onOpenPromoModal}
-                className="flex items-center gap-2 bg-yellow-400 text-black px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-tighter shadow-lg active:scale-95 transition-all"
+                className="flex items-center gap-2 bg-gradient-to-r from-yellow-300 to-yellow-500 text-black px-5 py-3 rounded-xl text-[11px] font-black uppercase tracking-tight shadow-xl shadow-yellow-500/20 active:scale-95 transition-all"
               >
                 <Star size={14} className="fill-black" />
-                Promo Code
-              </button>
+                Promo
+              </motion.button>
             </div>
 
             {/* NEW PLAYER ITEMS */}
             {subTab === 'new_player' && (
               <div className="space-y-4">
                 {/* 1. Registration Bonus */}
-                <div className="bg-[#1D8254]/45 border border-[#3bc68a]/50 rounded-lg overflow-hidden">
-                  <div className="bg-[#1D8254]/65 px-3 py-2 flex items-center gap-2 border-b border-[#3bc68a]/30">
-                    <Gift size={15} className="text-pink-400 fill-pink-100" />
-                    <span className="text-white text-sm font-bold">১. নিবন্ধন বোনাস</span>
-                    <span className="ml-auto text-[10px] bg-yellow-400 text-black px-2 py-0.5 rounded-full font-black uppercase tracking-wider">ডিপোজিট ছাড়া</span>
-                  </div>
-                  <div className="p-3 flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] text-green-200 font-bold block">বোনাস পরিমাণ</span>
-                      <span className="font-black text-yellow-300 text-lg">৳১৭.০০</span>
+                <div className="bg-[#0f1926] border border-white/5 rounded-2xl overflow-hidden shadow-xl group">
+                  <div className="bg-[#1a2533] px-4 py-3 flex items-center justify-between border-b border-white/5">
+                    <div className="flex items-center gap-2">
+                       <div className="w-8 h-8 rounded-lg bg-pink-500/10 flex items-center justify-center text-pink-400">
+                          <Gift size={18} />
+                       </div>
+                       <span className="text-white text-xs font-black uppercase tracking-wider">নিবন্ধন বোনাস (৳১৭)</span>
                     </div>
-                    <button 
+                    <span className="text-[9px] bg-yellow-400/10 text-yellow-500 px-2.5 py-1 rounded-full font-black uppercase tracking-widest border border-yellow-500/20">NO DEPOSIT</span>
+                  </div>
+                  <div className="p-5 flex items-center justify-between">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block">Bonus Reward</span>
+                      <span className="font-black text-teal-400 text-2xl italic tracking-tighter">৳১৭.০০</span>
+                    </div>
+                    <motion.button 
+                      whileTap={{ scale: 0.95 }}
                       onClick={() => handleClaimReward(17, 'registration_bonus')}
                       disabled={userData?.bonusesClaimed?.includes('registration_bonus')}
-                      className={`${userData?.bonusesClaimed?.includes('registration_bonus') ? 'bg-gray-400 cursor-not-allowed text-gray-700' : 'bg-[#2CE830] hover:bg-[#25cc28] text-black'} font-bold px-6 py-1.5 rounded shadow`}
+                      className={`h-12 px-8 rounded-xl font-black text-xs uppercase tracking-[0.1em] transition-all shadow-lg ${
+                        userData?.bonusesClaimed?.includes('registration_bonus') 
+                          ? 'bg-white/5 text-gray-500 border border-white/5 cursor-not-allowed' 
+                          : 'bg-teal-500 hover:bg-teal-400 text-black shadow-teal-500/20'
+                      }`}
                     >
-                      {userData?.bonusesClaimed?.includes('registration_bonus') ? 'নিয়েছেন' : 'দাবি (Claim)'}
-                    </button>
+                      {userData?.bonusesClaimed?.includes('registration_bonus') ? 'CLAIMED' : 'CLAIM'}
+                    </motion.button>
                   </div>
                 </div>
 
                 {/* 2. first deposit */}
-                <div className="bg-[#1D8254]/45 border border-[#3bc68a]/50 rounded-lg overflow-hidden">
-                  <div className="bg-[#1D8254]/65 px-3 py-2 flex items-center gap-2 border-b border-[#3bc68a]/30">
-                    <DollarSign size={15} className="text-yellow-400" />
-                    <span className="text-white text-sm font-bold">২. প্রথম ডিপোজিট বোনাস</span>
+                <div className="bg-[#0f1926] border border-white/5 rounded-2xl overflow-hidden shadow-xl">
+                  <div className="bg-[#1a2533] px-4 py-3 flex items-center gap-2 border-b border-white/5">
+                     <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-400">
+                        <DollarSign size={18} />
+                     </div>
+                     <span className="text-white text-xs font-black uppercase tracking-wider">প্রথম ডিপোজিট বোনাস (৳৪৭)</span>
                   </div>
-                  <div className="p-3 flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] text-green-200 font-bold block">বোনাস পরিমাণ</span>
-                      <span className="font-black text-yellow-300 text-lg">৳৪৭.০০</span>
+                  <div className="p-5 flex items-center justify-between">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block">First Time Recharge</span>
+                      <span className="font-black text-teal-400 text-2xl italic tracking-tighter">৳৪৭.০০</span>
                     </div>
-                    <button 
+                    <motion.button 
+                      whileTap={{ scale: 0.95 }}
                       onClick={() => handleClaimReward(47, 'first_deposit_bonus')}
                       disabled={userData?.bonusesClaimed?.includes('first_deposit_bonus')}
-                      className={`${userData?.bonusesClaimed?.includes('first_deposit_bonus') ? 'bg-gray-400 cursor-not-allowed text-gray-700' : 'bg-[#2CE830] hover:bg-[#25cc28] text-black'} font-bold px-6 py-1.5 rounded shadow`}
+                      className={`h-12 px-8 rounded-xl font-black text-xs uppercase tracking-[0.1em] transition-all shadow-lg ${
+                        userData?.bonusesClaimed?.includes('first_deposit_bonus') 
+                          ? 'bg-white/5 text-gray-500 border border-white/5 cursor-not-allowed' 
+                          : 'bg-teal-500 hover:bg-teal-400 text-black shadow-teal-500/20'
+                      }`}
                     >
-                      {userData?.bonusesClaimed?.includes('first_deposit_bonus') ? 'নিয়েছেন' : 'দাবি (Claim)'}
-                    </button>
+                      {userData?.bonusesClaimed?.includes('first_deposit_bonus') ? 'CLAIMED' : 'CLAIM'}
+                    </motion.button>
                   </div>
                 </div>
 
                 {/* 3. verification reward */}
-                <div className="bg-[#1D8254]/45 border border-[#3bc68a]/50 rounded-lg overflow-hidden">
-                  <div className="bg-[#1D8254]/65 px-3 py-2 flex items-center gap-2 border-b border-[#3bc68a]/30">
-                    <Settings size={15} className="text-blue-300" />
-                    <span className="text-white text-sm font-bold">৩. অ্যাকাউন্ট ভেরিফিকেশন বোনাস</span>
+                <div className="bg-[#0f1926] border border-white/5 rounded-2xl overflow-hidden shadow-xl">
+                  <div className="bg-[#1a2533] px-4 py-3 flex items-center gap-2 border-b border-white/5">
+                     <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400">
+                        <Settings size={18} />
+                     </div>
+                     <span className="text-white text-xs font-black uppercase tracking-wider">নিরাপত্তা ভেরিফিকেশন (৳১২)</span>
                   </div>
-                  <div className="p-3 flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] text-green-200 font-bold block">বোনাস পরিমাণ</span>
-                      <span className="font-black text-yellow-300 text-lg">৳১২.০০</span>
+                  <div className="p-5 flex items-center justify-between">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block">Account Security</span>
+                      <span className="font-black text-teal-400 text-2xl italic tracking-tighter">৳১২.০০</span>
                     </div>
-                    <button 
+                    <motion.button 
+                      whileTap={{ scale: 0.95 }}
                       onClick={() => handleClaimReward(12, 'account_verification_bonus')}
                       disabled={userData?.bonusesClaimed?.includes('account_verification_bonus')}
-                      className={`${userData?.bonusesClaimed?.includes('account_verification_bonus') ? 'bg-gray-400 cursor-not-allowed text-gray-700' : 'bg-[#2CE830] hover:bg-[#25cc28] text-black'} font-bold px-6 py-1.5 rounded shadow`}
+                      className={`h-12 px-8 rounded-xl font-black text-xs uppercase tracking-[0.1em] transition-all shadow-lg ${
+                        userData?.bonusesClaimed?.includes('account_verification_bonus') 
+                          ? 'bg-white/5 text-gray-500 border border-white/5 cursor-not-allowed' 
+                          : 'bg-teal-500 hover:bg-teal-400 text-black shadow-teal-500/20'
+                      }`}
                     >
-                      {userData?.bonusesClaimed?.includes('account_verification_bonus') ? 'নিয়েছেন' : 'দাবি (Claim)'}
-                    </button>
+                      {userData?.bonusesClaimed?.includes('account_verification_bonus') ? 'CLAIMED' : 'CLAIM'}
+                    </motion.button>
                   </div>
                 </div>
               </div>
@@ -471,151 +557,167 @@ export default function BonusCenter({
 
             {/* DAILY MISSIONS TAB WITH FULLY ACTIVE 7-DAY BOARD & PULSE BUTTON */}
             {subTab === 'daily' && (
-              <div className="bg-[#1D8254]/42 border border-[#3bc68a]/40 rounded-xl p-5 space-y-6">
-                <div className="flex items-center gap-2">
-                  <Calendar className="text-yellow-300" size={18} />
-                  <span className="text-white text-base font-bold">দৈনিক উপহার চেক-ইন ক্যালেন্ডার</span>
+              <div className="bg-[#0f1926] border border-white/5 rounded-[24px] p-6 space-y-7 shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                   <Calendar size={120} />
+                </div>
+                
+                <div className="flex items-center gap-2 relative z-10">
+                  <div className="w-8 h-8 rounded-lg bg-yellow-400/10 flex items-center justify-center text-yellow-400">
+                     <Calendar size={18} />
+                  </div>
+                  <span className="text-white text-base font-black uppercase tracking-tight italic">Daily Login Rewards</span>
                 </div>
 
                 {/* 7 Day Matrix */}
-                <div className="grid grid-cols-4 sm:grid-cols-7 gap-2.5">
+                <div className="grid grid-cols-4 sm:grid-cols-7 gap-3 relative z-10">
                   {rewards.map((dayReward, index) => {
                     const isClaimed = index < dailyStreak;
                     const isToday = index === dailyStreak;
-                    const isFuture = index > dailyStreak;
 
                     return (
                       <div 
                         key={index}
-                        className={`p-2.5 rounded-xl flex flex-col items-center justify-center border text-center transition-all ${
-                          isClaimed ? 'bg-[#156e3c] border-green-400/40 text-green-200 opacity-80' : 
-                          isToday ? 'bg-yellow-400/10 border-yellow-400 text-yellow-300 shadow-[0_0_12px_rgba(234,179,8,0.25)] ring-2 ring-yellow-400/20' : 
-                          'bg-black/10 border-transparent text-gray-400'
+                        className={`p-3 rounded-2xl flex flex-col items-center justify-center border text-center transition-all ${
+                          isClaimed ? 'bg-teal-500/5 border-teal-500/10 text-teal-500 opacity-50' : 
+                          isToday ? 'bg-yellow-400 border-yellow-300 text-black shadow-[0_0_20px_rgba(251,191,36,0.25)] scale-105' : 
+                          'bg-white/5 border-white/5 text-gray-500'
                         }`}
                       >
-                        <span className="text-[10px] font-black uppercase block tracking-wider mb-1">D{dayReward.day}</span>
+                        <span className="text-[9px] font-black uppercase block tracking-wider mb-1.5">{isToday ? 'TODAY' : `DAY ${dayReward.day}`}</span>
                         {isClaimed ? (
-                          <CheckCircle2 size={16} className="text-green-400 mb-1" />
+                          <CheckCircle2 size={18} className="mb-1.5" />
                         ) : (
-                          <Coins size={16} className={`mb-1 ${isToday ? 'text-yellow-400 animate-bounce' : 'text-gray-500'}`} />
+                          <Coins size={18} className={`mb-1.5 ${isToday ? 'text-black' : 'text-gray-600'}`} />
                         )}
-                        <span className="text-xs font-black block">৳{dayReward.amount}</span>
+                        <span className={`text-[11px] font-black block tabular-nums ${isToday ? 'text-black' : 'text-white'}`}>৳{dayReward.amount}</span>
                       </div>
                     );
                   })}
                 </div>
 
                 {/* Claim button with exact pulse animation and coins effect */}
-                <div className="relative pt-2">
+                <div className="relative pt-2 z-10">
                   <motion.button
                     onClick={handleClaimDailyCheckIn}
                     disabled={isDailyClaimedToday || dailyClaiming}
-                    animate={isDailyClaimedToday || dailyClaiming ? { 
-                      scale: 1,
-                      boxShadow: "0 0 0px rgba(0,0,0,0)"
-                    } : { 
-                      scale: [1, 1.03, 1],
+                    whileTap={{ scale: 0.98 }}
+                    animate={isDailyClaimedToday || dailyClaiming ? {} : { 
                       boxShadow: [
-                        "0 0 10px rgba(251,191,36,0.25)",
-                        "0 0 25px rgba(251,191,36,0.65)",
-                        "0 0 10px rgba(251,191,36,0.25)"
+                        "0 0 10px rgba(45,212,191,0.1)",
+                        "0 0 25px rgba(45,212,191,0.4)",
+                        "0 0 10px rgba(45,212,191,0.1)"
                       ]
                     }}
-                    transition={{ 
-                      duration: 2, 
-                      repeat: Infinity, 
-                      ease: "easeInOut" 
-                    }}
+                    transition={{ duration: 2, repeat: Infinity }}
                     className={`
-                      w-full py-4 rounded-xl font-bold text-base uppercase tracking-wider text-center relative z-10 transition-all select-none
-                      ${isDailyClaimedToday ? 'bg-gray-500/50 text-gray-300 cursor-default border border-gray-400/20' : 
-                        dailyClaiming ? 'bg-yellow-600 text-black cursor-wait' :
-                        'bg-gradient-to-b from-yellow-300 via-yellow-400 to-yellow-600 text-black shadow-lg font-black active:scale-95 cursor-pointer'}
+                      w-full py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] text-center relative transition-all shadow-xl
+                      ${isDailyClaimedToday ? 'bg-white/5 text-gray-500 border border-white/5 cursor-default' : 
+                        dailyClaiming ? 'bg-teal-700 text-black cursor-wait' :
+                        'bg-gradient-to-r from-teal-500 to-teal-600 text-black hover:from-teal-400 hover:to-teal-500 active:scale-95'}
                     `}
                   >
-                    {isDailyClaimedToday ? 'আজকের ডেইলি উপহার সম্পন্ন!' : dailyClaiming ? 'দাবি হচ্ছে...' : `৳${rewards[Math.min(dailyStreak, 6)].amount} দাবি করুন (Claim Day ${Math.min(dailyStreak + 1, 7)})`}
+                    {isDailyClaimedToday ? 'ALREADY CLAIMED TODAY' : dailyClaiming ? 'CLAIMING...' : `Claim Day ${Math.min(dailyStreak + 1, 7)} Reward`}
                   </motion.button>
                 </div>
 
-                <div className="bg-black/10 rounded-lg p-3 text-white/80 text-[11px] leading-relaxed">
-                  <p className="flex items-center gap-1 font-bold text-yellow-300 mb-1">
-                    <Sparkles size={11} /> দৈনিক চেক-ইন নির্দেশক:
+                <div className="bg-white/5 rounded-2xl p-4 text-gray-400 text-[11px] leading-relaxed border border-white/5 relative z-10">
+                  <p className="flex items-center gap-1.5 font-black text-teal-400 mb-1 uppercase tracking-widest text-[9px]">
+                    <Sparkles size={11} /> Activity rules:
                   </p>
-                  প্রতিদিন লগইন করে ধারাবাহিক ভাবে উপহার দাবি করুন। উপহার দাবি করার সাথে সাথে আপনার ব্যালেন্সে তাৎক্ষণিক বোনাস টাকা যুক্ত হয়ে যাবে।
+                  প্রতিদিন লগইন করুন এবং টাকা জিতে নিন। যদি কোনো দিন মিস করেন তবে আপনার স্ট্রিক পুনরায় ১ দিন থেকে শুরু হতে পারে। উপহার দাবি করার সাথে সাথে ব্যালেন্সে টাকা যুক্ত হবে।
                 </div>
               </div>
             )}
-
-            {/* Info Rules Box */}
-            <div className="bg-[#248B5F] rounded-lg p-4 text-white/90 text-sm leading-relaxed mt-2 border border-[#3bc68a]/30 shadow-inner">
-               <p className="mb-2 font-black text-white hover:text-yellow-300 transition-colors uppercase tracking-wider text-xs">শর্তাবলী ও নিয়মাবলী:</p>
-               <ul className="list-disc list-inside space-y-1.5 text-xs">
-                 <li><b>১. নিবন্ধন বোনাস:</b> নতুন আইডি তৈরি করার পর যে কেউ সরাসরি ১৭ টাকা দাবি করতে পারবেন, কোনো আমানত ছাড়াই।</li>
-                 <li><b>২. প্রথম ডিপোজিট বোনাস:</b> আপনার অ্যাকাউন্টে প্রথম ডিপোজিট সফলভাবে সম্পূর্ণ করার পর ৪৭ টাকা দাবি করতে পারবেন।</li>
-                 <li><b>৩. অ্যাকাউন্ট ভেরিফিকেশন বোনাস:</b> অ্যাকাউন্ট ভেরিফাই এবং সুরক্ষিত করার জন্য ১২ টাকা বোনাস দাবি করতে পারবেন যদি প্রথম ডিপোজিট করা থাকে অথবা উত্তোলন ব্যাংক কার্ড যুক্ত করা থাকে।</li>
-               </ul>
-            </div>
           </>
         )}
+
+        {/* INFO RULES BOX - UPDATED */}
+        <div className="bg-[#0f1926] rounded-2xl p-5 text-gray-400 text-[11px] leading-relaxed mt-2 border border-white/5 shadow-2xl relative overflow-hidden">
+           <div className="flex items-center gap-2 mb-3">
+              <div className="w-6 h-6 rounded bg-teal-500/10 flex items-center justify-center text-teal-400">
+                 <BookOpen size={14} />
+              </div>
+              <p className="font-black text-white uppercase tracking-wider text-[10px]">শর্তাবলী ও নিয়মাবলী:</p>
+           </div>
+           <ul className="space-y-2 text-white/60">
+             <li className="flex gap-2">
+                <span className="text-teal-500 font-black">•</span>
+                <span><b>নিবন্ধন বোনাস:</b> নতুন আইডি তৈরি করার পর যে কেউ সরাসরি ১৭ টাকা দাবি করতে পারবেন, কোনো আমানত ছাড়াই।</span>
+             </li>
+             <li className="flex gap-2">
+                <span className="text-teal-500 font-black">•</span>
+                <span><b>প্রথম ডিপোজিট বোনাস:</b> আপনার অ্যাকাউন্টে প্রথম ডিপোজিট সফলভাবে সম্পূর্ণ করার পর ৪৭ টাকা দাবি করতে পারবেন।</span>
+             </li>
+             <li className="flex gap-2">
+                <span className="text-teal-500 font-black">•</span>
+                <span><b>ভেরিফিকেশন বোনাস:</b> অ্যাকাউন্ট ভেরিফাই এবং সুরক্ষিত করার জন্য ১২ টাকা বোনাস দাবি করতে পারবেন যদি প্রথম ডিপোজিট করা থাকে।</span>
+             </li>
+           </ul>
+        </div>
+      
 
         {/* ======================================================== */}
         {/* EVENT TAB VIEW */}
         {/* ======================================================== */}
         {activeTab === 'event' && (
           <div className="space-y-4">
-            {/* Event 1 */}
-            <div className="bg-gradient-to-b from-[#1E8A57] to-[#156E44] rounded-xl overflow-hidden border border-[#3CC68A]/40 shadow-lg">
-              <div className="h-28 bg-[#207c52] relative flex items-center justify-between p-4">
-                <div>
-                  <h3 className="text-white text-lg font-black">সীমাহীন রেফার করুন এবং কামান!</h3>
-                  <p className="text-yellow-300 text-xs font-bold">প্রতি রেফারে তাৎক্ষণিক ৳৫০০ বোনাস!</p>
+            <div className="bg-[#0f1926] rounded-3xl overflow-hidden shadow-2xl border border-white/5 relative">
+              <div className="h-40 overflow-hidden relative group">
+                <img 
+                  src="https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&q=80&w=800" 
+                  alt="Referral" 
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0f1926] via-transparent to-transparent" />
+                <div className="absolute bottom-4 left-6">
+                   <h4 className="text-white font-black text-2xl uppercase italic tracking-tighter drop-shadow-lg">সীমাহীন রেফার করুন</h4>
+                   <p className="text-teal-400 text-[10px] font-black uppercase tracking-[0.2em]">Refer & Earn ৳১০০+ Recharge</p>
                 </div>
-                <Users size={48} className="text-yellow-400 opacity-60 fill-yellow-200" />
               </div>
-              <div className="p-4 space-y-3 bg-[#135d38]">
-                <p className="text-xs text-white/80">
-                  আপনার রেফারেল লিঙ্ক ব্যবহার করে বন্ধুদেরকে SPIN71 এ যোগ দিতে আমন্ত্রণ জানান। তারা প্রথম ডিপোজিট করলেই আপনি পাবেন ৳৫০০ এবং তারাও পাবে একটি আকর্ষণীয় স্বাগত বোনাস।
-                </p>
-                <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    readOnly 
-                    value={getReferralLink(userData?.userId || '102370')}
-                    className="flex-1 bg-black/20 text-xs font-mono text-teal-200 px-3 py-1.5 rounded border border-[#36A875] outline-none"
-                  />
-                  <button 
+              <div className="p-6 space-y-5">
+                <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-gray-500 bg-white/5 px-4 py-2 rounded-xl">
+                   <span>Your Referral Code</span>
+                   <span className="text-teal-400 font-mono text-xs">{userData?.referralCode || '----'}</span>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <p className="text-gray-400 text-xs leading-relaxed font-bold">আপনার আমন্ত্রিত বন্ধু প্রথমবার ২০০ টাকা বা তার বেশি ডিপোজিট করলে আপনি ১০০ টাকা বোনাস পাবেন।</p>
+                  <motion.button 
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => {
-                      navigator.clipboard.writeText(getReferralLink(userData?.userId || '102370'));
-                      showToast("রেফার লিঙ্ক ক্লিপবোর্ডে কপি হয়েছে!", "success");
+                        const link = getReferralLink(userData?.referralCode || '');
+                        navigator.clipboard.writeText(link);
+                        showToast("রেফারেল লিঙ্ক কপি করা হয়েছে!", "success");
                     }}
-                    className="bg-yellow-400 text-black px-4 py-1.5 rounded font-bold text-xs flex items-center gap-1"
+                    className="w-full py-4 bg-teal-600 hover:bg-teal-500 text-white font-black rounded-2xl transition-all shadow-xl shadow-teal-600/20 active:scale-95 flex items-center justify-center gap-3 uppercase text-xs tracking-[0.2em]"
                   >
-                    <Copy size={12} /> কপি
-                  </button>
+                    <Share2 size={16} />
+                    Copy Invite Link
+                  </motion.button>
                 </div>
               </div>
             </div>
 
-            {/* Event 2 */}
-            <div className="bg-gradient-to-b from-[#1E8A57] to-[#156E44] rounded-xl overflow-hidden border border-[#3CC68A]/40 shadow-lg">
-              <div className="h-28 bg-[#207c52] relative flex items-center justify-between p-4">
-                <div>
-                  <h3 className="text-white text-lg font-black">এভিয়েটর উইকলি জ্যাকপট</h3>
-                  <p className="text-green-300 text-xs font-bold">৳১,০০,০০০ সাপ্তাহিক পুল পুরস্কার!</p>
-                </div>
-                <Trophy size={48} className="text-amber-300 opacity-60" />
-              </div>
-              <div className="p-4 space-y-3 bg-[#135d38]/90">
-                <p className="text-xs text-white/80">
-                  সপ্তাহের সবচেয়ে বড় এভিয়েটর মাল্টিপ্লায়ার উড্ডয়নকারী হয়ে উঁচুতে উড়ুন। প্রথম ২০ জন লিডারবোর্ডের খেলোয়াড়দের মাঝে ১ লক্ষ টাকা ভাগ করে দেওয়া হবে প্রতি রবিবার রাতে।
-                </p>
-                <button 
-                  onClick={() => onTabChange('aviator')}
-                  className="w-full bg-[#2CE830] hover:bg-[#25cc28] text-black font-black text-xs py-2 rounded-xl flex items-center justify-center gap-1.5 shadow"
-                >
-                  <Play size={10} className="fill-black" /> এভিয়েটর খেলুন
-                </button>
-              </div>
+            <div className="bg-[#0f1926] rounded-3xl p-6 border border-white/5 shadow-2xl space-y-4">
+               <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400">
+                     <Users size={20} />
+                  </div>
+                  <div>
+                     <span className="text-white font-black uppercase tracking-tight block">Referral Stats</span>
+                     <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-none">Your network overview</span>
+                  </div>
+               </div>
+               <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                     <span className="text-[10px] text-gray-500 font-black uppercase block tracking-wider mb-1">Total Invites</span>
+                     <span className="text-2xl font-black text-white italic">০ জন</span>
+                  </div>
+                  <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                     <span className="text-[10px] text-gray-500 font-black uppercase block tracking-wider mb-1">Total Earned</span>
+                     <span className="text-2xl font-black text-yellow-500 italic">৳০.০০</span>
+                  </div>
+               </div>
             </div>
           </div>
         )}
@@ -624,65 +726,98 @@ export default function BonusCenter({
         {/* VIP TAB VIEW */}
         {/* ======================================================== */}
         {activeTab === 'vip' && (
-          <div className="space-y-4">
-            {/* User current club status */}
-            <div className="bg-gradient-to-br from-[#1b1c1e] to-[#2c3035] rounded-xl p-5 border border-yellow-500/20 text-white relative shadow-2xl">
-              <div className="absolute top-4 right-4 bg-yellow-400 text-black text-[9px] font-black px-2 py-0.5 rounded-full tracking-wider uppercase">
-                ACTIVE STATUS
-              </div>
-              <p className="text-xs text-yellow-500 font-bold uppercase tracking-widest flex items-center gap-1">
-                <Trophy size={14} className="fill-yellow-500 text-yellow-500" /> SPIN71 VIP Club
-              </p>
-              <h3 className="text-2xl font-black italic uppercase tracking-tighter mt-1">
-                Level {currentVip.level}: <span className="text-yellow-400">{currentVip.name}</span>
-              </h3>
-              
-              <div className="mt-4 space-y-1">
-                <div className="flex justify-between text-xs text-gray-400">
-                  <span>মোট আমানত: ৳{totalDeposited}</span>
-                  {nextVip && (
-                    <span>পরবর্তী লেভেল: ৳{nextVip.target} ({nextVip.name})</span>
-                  )}
-                </div>
-                {nextVip && (
-                  <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-gradient-to-r from-yellow-500 to-yellow-300 rounded-full"
-                      style={{ width: `${vipProgressPercent}%` }}
-                    ></div>
+          <div className="space-y-5">
+            {/* Current Status */}
+            <div className="bg-[#0f1926] rounded-[32px] p-6 border border-white/5 shadow-2xl relative overflow-hidden group">
+               <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
+                  <Trophy size={140} />
+               </div>
+               
+               <div className="flex items-center justify-between mb-6 relative z-10">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-yellow-300 to-yellow-600 flex items-center justify-center text-black shadow-lg">
+                       <Trophy size={24} strokeWidth={2.5} />
+                    </div>
+                    <div>
+                       <span className="text-white font-black text-lg uppercase leading-none block">VIP {currentVip.name}</span>
+                       <span className="text-[10px] text-yellow-500 font-black uppercase tracking-[0.2em]">Member Since {new Date(userData?.createdAt || Date.now()).getFullYear()}</span>
+                    </div>
                   </div>
-                )}
-              </div>
+                  {nextVip && <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">LVL {userData?.vipLevel || 1} / {vipLevels.length}</span>}
+               </div>
+
+               {nextVip ? (
+                 <div className="space-y-3 relative z-10">
+                    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest mb-1.5">
+                       <span className="text-gray-400">Upgrade Progress</span>
+                       <span className="text-teal-400">{vipProgressPercent.toFixed(1)}%</span>
+                    </div>
+                    <div className="h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/5">
+                       <motion.div 
+                         initial={{ width: 0 }}
+                         animate={{ width: `${vipProgressPercent}%` }}
+                         className="h-full bg-gradient-to-r from-teal-500 to-teal-400 rounded-full shadow-[0_0_10px_rgba(20,184,166,0.3)]"
+                       />
+                    </div>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest text-center mt-2">
+                       Deposit ৳{(nextVip.target - totalDeposited).toLocaleString()} more to reach <b>{nextVip.name}</b>
+                    </p>
+                 </div>
+               ) : (
+                 <div className="py-2 flex items-center justify-center gap-2 text-teal-400 bg-teal-500/10 rounded-2xl border border-teal-500/20">
+                    <Star size={16} className="fill-teal-400" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">You have reached Maximum VIP Level!</span>
+                 </div>
+               )}
             </div>
 
-            {/* VIP tiers list */}
-            <div className="space-y-3">
-              <h4 className="text-white text-sm font-black uppercase tracking-wider px-1">ভিআইপি লেভেল-আপ পুরস্কারসমূহ</h4>
-              {vipLevels.slice(1).map((v) => {
-                const bonusId = `vip_level_${v.level}_reward`;
+            {/* VIP Levels List */}
+            <div className="space-y-4">
+              {vipLevels.map((lvl, idx) => {
+                const levelNum = idx + 1;
+                const isCurrent = (userData?.vipLevel || 1) === levelNum;
+                const isLocked = (userData?.vipLevel || 1) < levelNum;
+                const bonusId = `vip_level_${levelNum}_bonus`;
                 const isClaimed = userData?.bonusesClaimed?.includes(bonusId);
-                const isEligible = totalDeposited >= v.target;
+                const canClaim = !isLocked && !isClaimed;
 
                 return (
-                  <div key={v.level} className="bg-black/25 border border-white/10 p-4 rounded-xl flex justify-between items-center text-white/90">
-                    <div>
-                      <h5 className="font-extrabold text-sm text-yellow-400">{v.name}</h5>
-                      <p className="text-[11px] text-gray-300">আমানত লক্ষ্য: ৳{v.target}</p>
-                      <p className="text-[11px] text-green-300 font-bold">পুরস্কার: ৳{v.reward}</p>
+                  <div key={lvl.name} className={`bg-[#0f1926] rounded-3xl border transition-all ${isCurrent ? 'border-teal-500/30' : isLocked ? 'border-white/5 opacity-80' : 'border-white/10'}`}>
+                    <div className="p-5 flex items-center justify-between">
+                       <div className="flex items-center gap-4">
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${
+                            isCurrent ? 'bg-teal-500/20 border-teal-500/50 text-teal-400' : 
+                            isLocked ? 'bg-white/5 border-white/5 text-gray-700' : 
+                            'bg-yellow-400/20 border-yellow-400/50 text-yellow-500'
+                          }`}>
+                             {isLocked ? <Lock size={20} /> : <Trophy size={20} />}
+                          </div>
+                          <div>
+                             <h5 className={`font-black uppercase tracking-tight text-base ${isLocked ? 'text-gray-500' : 'text-white'}`}>{lvl.name}</h5>
+                             <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-none">Target: ৳{lvl.target.toLocaleString()}</span>
+                          </div>
+                       </div>
+                       <div className="text-right">
+                          <span className="text-[9px] text-gray-500 font-black uppercase block tracking-widest mb-1">Bonus Reward</span>
+                          <span className={`${isLocked ? 'text-gray-700' : 'text-teal-400'} font-black text-xl italic tabular-nums leading-none`}>৳{lvl.reward.toLocaleString()}</span>
+                       </div>
                     </div>
-                    <button
-                      onClick={() => handleClaimVipReward(v.level, v.reward)}
-                      disabled={isClaimed || claimingVip !== null}
-                      className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${
-                        isClaimed 
-                          ? 'bg-gray-500/40 text-gray-400 cursor-not-allowed' 
-                          : isEligible 
-                            ? 'bg-yellow-400 text-black hover:scale-105 active:scale-95' 
-                            : 'bg-white/10 text-white/50 cursor-pointer'
-                      }`}
-                    >
-                      {isClaimed ? 'সংগৃহীত' : isEligible ? 'দাবি (Claim)' : 'তালাবদ্ধ'}
-                    </button>
+
+                    <div className="px-5 pb-5 pt-1">
+                       <motion.button 
+                         whileTap={canClaim ? { scale: 0.98 } : {}}
+                         onClick={() => handleClaimVipReward(lvl.reward, bonusId, levelNum)}
+                         disabled={isClaimed || claimingVip !== null || isLocked}
+                         className={`w-full py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all border ${
+                            isClaimed ? 'bg-white/5 text-gray-500 border-white/5' : 
+                            isLocked ? 'bg-white/5 text-gray-600 border-white/5' :
+                            claimingVip === bonusId ? 'bg-teal-700 text-black border-teal-600' :
+                            'bg-gradient-to-r from-teal-500 to-teal-600 text-black border-teal-400 shadow-lg shadow-teal-500/10'
+                         }`}
+                       >
+                         {isClaimed ? 'LEVEL REWARD TAKEN' : isLocked ? 'DEPOSIT MORE TO UNLOCK' : claimingVip === bonusId ? 'PROCESS...' : 'CLAIM LEVEL BONUS'}
+                       </motion.button>
+                    </div>
                   </div>
                 );
               })}
@@ -694,100 +829,109 @@ export default function BonusCenter({
         {/* SVIP TAB VIEW */}
         {/* ======================================================== */}
         {activeTab === 'svip' && (
-          <div className="bg-[#249965] border border-emerald-400/50 rounded-xl p-6 text-center text-white space-y-6">
-            <div className="w-20 h-20 bg-yellow-400 rounded-full mx-auto flex items-center justify-center shadow-lg">
-              <ShieldCheck size={44} className="text-emerald-950" />
-            </div>
-            <div>
-              <h3 className="text-xl font-black uppercase text-yellow-300">SPIN71 SVIP লাউঞ্জ</h3>
-              <p className="text-xs text-white/80 mt-1">এক্সক্লুসিভ এজেন্ট প্রাধিকার, সাপ্তাহিক কাস্টম রিবেট ও ভিআইপি লিমো ঋণ সুবিধা।</p>
-            </div>
-            
-            <div className="border border-white/10 rounded-xl p-4 bg-black/10 text-left space-y-2 text-xs">
-              <p className="font-bold text-yellow-300">প্রাধিকারসমূহ:</p>
-              <ul className="list-disc list-inside space-y-1 text-white/70">
-                <li>ব্যক্তিগত ২৪/৭ রিয়েল-টাইম কাস্টমার ম্যানেজার</li>
-                <li>১ ঘণ্টায় সর্বোচ্চ ১ কোটি টাকা প্রত্যাহার নিশ্চয়তা</li>
-                <li>বার্ষিক বিলাসবহুল উপহার এবং ফ্রি ক্রেডিট পুরস্কার</li>
-              </ul>
-            </div>
-
-            <button 
-              onClick={() => {
-                showToast("ভিআইপি ম্যানেজার হেল্পডেস্কে রিডাইরেক্ট করা হচ্ছে...", "info");
-                window.open("https://t.me/spin71_support", "_blank");
-              }}
-              className="w-full bg-yellow-400 text-black py-2.5 rounded-xl font-black text-sm uppercase tracking-wider block"
-            >
-              SVIP ম্যানেজার যোগাযোগ করুন
-            </button>
+          <div className="space-y-4">
+             <div className="bg-[#0f1926] rounded-[32px] overflow-hidden border border-white/5 shadow-2xl relative group">
+                <div className="p-8 space-y-6 relative z-10">
+                   <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white shadow-2xl shadow-indigo-500/20 mb-6 mx-auto scale-110">
+                      <Star size={40} className="fill-white" />
+                   </div>
+                   <div className="text-center space-y-2">
+                       <h3 className="text-white font-black text-3xl italic uppercase tracking-tighter">Become SVIP</h3>
+                       <p className="text-gray-400 text-xs font-bold leading-relaxed max-w-[240px] mx-auto">সুপার ভিআইপি মেম্বার হিসেবে যুক্ত হয়ে পান প্রতিদিন আনলিমিটেড বোনাস এবং ভিআইপি সাপোর্ট।</p>
+                   </div>
+                   <div className="space-y-3 py-4">
+                      {[
+                        'Daily Birthday Bonus ৳৫০০+',
+                        'Weekly Loss Recovery ৳১০০০+',
+                        'Direct Admin Support Line',
+                        'Instant Withdraw Priority'
+                      ].map(feature => (
+                        <div key={feature} className="flex items-center gap-3 bg-white/5 p-3.5 rounded-2xl border border-white/5">
+                           <div className="w-5 h-5 rounded bg-teal-500/10 flex items-center justify-center text-teal-400">
+                              <CheckCircle2 size={12} />
+                           </div>
+                           <span className="text-[11px] font-black uppercase text-gray-300 tracking-wide">{feature}</span>
+                        </div>
+                      ))}
+                   </div>
+                   <motion.button 
+                     whileTap={{ scale: 0.95 }}
+                     onClick={() => window.open(APP_CONFIG.SUPPORT_TELEGRAM, '_blank')}
+                     className="w-full py-5 bg-gradient-to-r from-teal-500 to-blue-600 text-white font-black rounded-3xl shadow-2xl shadow-teal-500/20 active:scale-95 transition-all text-xs tracking-[0.2em] uppercase flex items-center justify-center gap-3"
+                   >
+                     <Share2 size={18} />
+                     Contact Support for SVIP
+                   </motion.button>
+                </div>
+                <div className="absolute inset-0 bg-blue-600/5 blur-[100px] pointer-events-none" />
+             </div>
           </div>
         )}
 
         {/* ======================================================== */}
-        {/* CLAIM VIEW (PROMO / SYSTEM) */}
+        {/* CLAIM TAB VIEW (PROMO CODE) */}
         {/* ======================================================== */}
         {activeTab === 'claim' && (
-          <div className="space-y-4">
-            <div className="bg-[#249965] rounded-xl p-5 text-white space-y-3">
-              <h3 className="text-lg font-black">যেকোনো ভাউচার বা প্রোমো কোড দাবি করুন</h3>
-              <p className="text-xs text-white/80">আপনার কাছে থাকা সঠিক কোডটি এখানে নিশ্চিত করে আপনার ওয়ালেট ব্যালেন্স নিমেষেই বাড়াতে পারেন।</p>
-              
-              <button 
-                onClick={onOpenPromoModal}
-                className="w-full bg-yellow-400 text-black py-2.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1 shadow-lg"
-              >
-                <DollarSign size={14} /> প্রোমো কোড এন্টার করুন (Redeem Code)
-              </button>
-            </div>
-
-            <div className="bg-black/15 rounded-xl p-4 text-white">
-              <h4 className="text-xs font-black uppercase tracking-wider text-green-300 mb-2">আপনার দাবি করা বোনাসসমূহ</h4>
-              {userData?.bonusesClaimed && userData.bonusesClaimed.length > 0 ? (
-                <div className="space-y-1 text-xs text-white/80">
-                  {userData.bonusesClaimed.map((bId: string, idx: number) => (
-                    <div key={idx} className="flex justify-between py-1 border-b border-white/5">
-                      <span>{bId}</span>
-                      <span className="text-yellow-400 font-bold flex items-center gap-1">
-                        <CheckCircle2 size={10} /> দাবি সম্পূর্ণ
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-white/50 italic">এখনও কোনো বোনাস দাবি সম্পূর্ণ করা হয়নি।</p>
-              )}
-            </div>
-          </div>
+           <div className="space-y-4">
+              <div className="bg-[#0f1926] rounded-[32px] p-8 border border-white/5 shadow-2xl text-center space-y-6 relative overflow-hidden">
+                 <div className="w-20 h-20 rounded-[28px] bg-teal-500/10 flex items-center justify-center text-teal-400 mx-auto border border-teal-500/20">
+                    <Ticket size={40} />
+                 </div>
+                 <div className="space-y-2">
+                    <h3 className="text-white font-black text-2xl uppercase italic tracking-tight">Reward Unlock</h3>
+                    <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.2em]">Have a secret promo code?</p>
+                 </div>
+                 <motion.button 
+                   whileTap={{ scale: 0.95 }}
+                   onClick={onOpenPromoModal}
+                   className="w-full py-5 bg-yellow-400 hover:bg-yellow-300 text-black font-black rounded-2xl shadow-xl shadow-yellow-500/20 transition-all uppercase text-xs tracking-[0.2em]"
+                 >
+                   Enter Coupon Code
+                 </motion.button>
+                 <p className="text-[9px] text-gray-600 font-bold uppercase leading-relaxed tracking-wider">আমাদের টেলিগ্রাম চ্যানেলে জয়েন করুন নতুন নতুন প্রোমো কোড পেতে।</p>
+              </div>
+           </div>
         )}
 
         {/* ======================================================== */}
         {/* CASHBACK TAB VIEW */}
         {/* ======================================================== */}
         {activeTab === 'cashback' && (
-          <div className="bg-gradient-to-b from-[#18754b] to-[#0f5434] rounded-xl p-6 border border-[#3bc68a]/50 text-white space-y-4 shadow-xl">
-            <p className="text-xs font-bold text-teal-300 uppercase tracking-widest flex items-center gap-1">
-              <RefreshCw size={12} className="animate-spin-slow" /> Real-time Rebate System
-            </p>
-            <div>
-              <span className="text-xs text-white/60">রানিং ক্যাশব্যাক ব্যালেন্স</span>
-              <h3 className="text-4xl font-black text-yellow-300 font-mono tracking-tight">৳{simulatedCashback}.০০</h3>
-              <p className="text-[10px] text-teal-100 mt-1">১.৫% স্পোর্টস, স্লট ও এভিয়েটর টার্নওভারের সমন্বয়ে তৈরি</p>
-            </div>
+          <div className="space-y-4">
+             <div className="bg-[#0f1926] rounded-[32px] p-8 border border-white/5 shadow-2xl relative overflow-hidden group">
+                <div className="absolute -top-12 -right-12 p-4 opacity-5 pointer-events-none group-hover:opacity-10 transition-opacity">
+                   <Clock size={180} />
+                </div>
+                <div className="flex flex-col items-center text-center space-y-4 relative z-10">
+                   <div className="w-20 h-20 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-400 border border-orange-500/20 mb-2">
+                      <Zap size={40} className="fill-orange-400" />
+                   </div>
+                   <div className="space-y-1">
+                      <h3 className="text-white font-black text-3xl uppercase italic tracking-tighter">Daily Cashback</h3>
+                      <p className="text-teal-400 text-[10px] font-black uppercase tracking-[0.3em]">Ready to claim: 1.5% Rate</p>
+                   </div>
+                   
+                   <div className="w-full bg-white/5 rounded-3xl p-6 border border-white/5 backdrop-blur-sm my-4">
+                      <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1.5">Unclaimed Reward</p>
+                      <span className="text-white text-5xl font-black italic tabular-nums">৳{simulatedCashback.toLocaleString()}</span>
+                   </div>
 
-            <button 
-              onClick={handleClaimCashback}
-              disabled={claimingCashback}
-              className="w-full bg-[#2CE830] hover:bg-[#25cc28] text-black py-3 rounded-xl font-black text-sm uppercase tracking-wider shadow-md transition-all active:scale-95"
-            >
-              {claimingCashback ? 'সংযুক্ত হচ্ছে...' : 'তাত্ক্ষণিক ওয়ালেটে দাবি করুন'}
-            </button>
-
-            <div className="border border-white/5 bg-black/10 p-3 rounded-lg text-[10px] text-white/70 leading-relaxed space-y-1">
-              <p className="font-bold text-yellow-400">ক্যাশব্যাক নীতি:</p>
-              <p>১. গেম খেলার পর ক্যাশব্যাক তাৎক্ষণিকভাবে জমা হয় এবং ২৪ ঘণ্টার মধ্যে যেকোনো সময় রিডিম করা যায়।</p>
-              <p>২. দাবি করা টাকা সরাসরি মূল খেলায় ব্যালেন্স হিসেবে ব্যবহার করা সম্ভব।</p>
-            </div>
+                   <motion.button 
+                     whileTap={{ scale: 0.95 }}
+                     onClick={() => handleClaimReward(simulatedCashback, `cashback_${new Date().toISOString().split('T')[0]}`)}
+                     disabled={userData?.bonusesClaimed?.includes(`cashback_${new Date().toISOString().split('T')[0]}`)}
+                     className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all shadow-2xl ${
+                        userData?.bonusesClaimed?.includes(`cashback_${new Date().toISOString().split('T')[0]}`)
+                        ? 'bg-white/5 text-gray-500 border border-white/5'
+                        : 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-orange-500/20'
+                     }`}
+                   >
+                     {userData?.bonusesClaimed?.includes(`cashback_${new Date().toISOString().split('T')[0]}`) ? 'CLAIMED TODAY' : 'CLAIM CASHBACK NOW'}
+                   </motion.button>
+                   
+                   <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest leading-relaxed">আপনার মোট টার্নওভারের ১.৫% প্রতিদিন রাত ১২টায় ক্যাশব্যাক হিসেবে জমা হয়।</p>
+                </div>
+             </div>
           </div>
         )}
 

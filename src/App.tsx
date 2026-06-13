@@ -102,7 +102,7 @@ export default function App() {
   const [globalImages, setGlobalImages] = useState<Record<string, string>>({});
   const [balance, setBalance] = useState(0);
   const [allButtonName, setAllButtonName] = useState<string>("ALL");
-  const [casinoName, setCasinoName] = useState<string>("SPIN71.BET");
+  const [casinoName, setCasinoName] = useState<string>("SPIN71BET1");
   const [noticeText, setNoticeText] = useState<string>("আমাদের নতুন স্লট মেশিনে বড় জয় নিশ্চিত করুন!");
   const [toasts, setToasts] = useState<{ id: string; message: string; type: ToastType }[]>([]);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -943,7 +943,7 @@ export default function App() {
                       
                       // Explicitly trigger a real browser native push notification
                       triggerPushNotification(
-                        data.title || "Spin71.bet Alert",
+                        data.title || "SPIN71BET1 Alert",
                         data.message || "New activity notification",
                         data.url || "/"
                       );
@@ -1762,7 +1762,7 @@ export default function App() {
                   className="mb-8"
                 >
                   <span className="text-4xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 drop-shadow-[0_0_15px_rgba(253,216,53,0.6)]">
-                    SPIN71.BET
+                    SPIN71BET1
                   </span>
                 </motion.div>
                 

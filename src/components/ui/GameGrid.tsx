@@ -61,7 +61,7 @@ const GameCard: React.FC<GameCardProps> = ({
   const displayOption = globalOption || game.provider;
   const displayUrl = globalUrl || '#';
 
-  // Specific gradients for SPIN71.BET layout
+  // Specific gradients for SPIN71 layout
   const getGradient = () => {
     if (game.id.includes('jili_1')) return 'from-[#d81b60] to-[#ad1457]'; // Super Ace
     if (game.id.includes('spribe_12') || game.name === 'Aviator') return 'from-[#43a047] to-[#2e7d32]';

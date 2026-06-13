@@ -96,7 +96,7 @@ const SlotMachine: React.FC<SlotMachineProps> = ({ onBack, balance, onBalanceUpd
       {/* Top Banner / Logo */}
       <div className="absolute top-0 left-0 right-0 h-20 flex items-center justify-center z-20 pointer-events-none pt-4">
         <span className="text-3xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 drop-shadow-[0_0_12px_rgba(253,216,53,0.5)]">
-          SPIN71.BET
+          SPIN71BET1
         </span>
       </div>
 

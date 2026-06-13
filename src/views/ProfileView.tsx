@@ -994,9 +994,9 @@ export default function ProfileView({
         isOpen={isShareModalOpen} 
         onClose={() => setIsShareModalOpen(false)} 
         showToast={showToast}
-        title={`${casinoName || 'SPIN71.BET'} - Play with me!`}
-        text={`Hey guys, check out my progress on ${casinoName || 'SPIN71.BET'}! I have ৳ ${balance.toLocaleString()} in my wallet. Join me and play!`}
-        url={getReferralLink(userData?.referralCode || userData?.id?.substring(0, 6).toUpperCase() || 'SPIN71')}
+        title={`${casinoName || 'SPIN71BET1'} - Play with me!`}
+        text={`Hey guys, check out my progress on ${casinoName || 'SPIN71BET1'}! I have ৳ ${balance.toLocaleString()} in my wallet. Join me and play!`}
+        url={getReferralLink(userData?.referralCode || '')}
       />
 
       {/* Casino Name Edit Modal */}
@@ -3201,7 +3201,7 @@ function LinksTab({ onTabChange, onSubTabChange, showToast }: { onTabChange: (ta
       </div>
       
       <div className="mt-8 pt-4 border-t border-white/5 text-center">
-        <p className="text-[10px] text-white/20 font-black uppercase tracking-[0.3em]">SPIN71.BET Secure Navigation</p>
+        <p className="text-[10px] text-white/20 font-black uppercase tracking-[0.3em]">SPIN71BET1 Secure Navigation</p>
       </div>
     </div>
   );

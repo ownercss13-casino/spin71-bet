@@ -2432,7 +2432,7 @@ async function startServer() {
     if (!username || !password) return res.status(400).json({ error: "Username and password required" });
 
     try {
-      const email = `${username.toLowerCase()}@spin71.bet`;
+      const email = `${username.toLowerCase()}@spin71bet1.vercel.app`;
       
       // 1. Create User in Firebase Auth
       const userRecord = await auth.createUser({

@@ -67,7 +67,7 @@ export default function AppInstallModal({ isOpen, onClose, deferredPrompt, onIns
                     মোবাইল অ্যাপ ডাউনলোড
                   </h2>
                   <p className="text-xs text-teal-300 font-bold uppercase tracking-widest mt-0.5">
-                    SPIN71 Web App Installation
+                    SPIN71BET1 Web App Installation
                   </p>
                 </div>
               </div>
@@ -110,7 +110,7 @@ export default function AppInstallModal({ isOpen, onClose, deferredPrompt, onIns
                     <Sparkles size={10} />
                     PWA App System Active
                   </div>
-                  <h3 className="text-white font-black text-sm">SPIN71.BET মোবাইল ব্রাউজার অ্যাপ</h3>
+                  <h3 className="text-white font-black text-sm">SPIN71BET1 মোবাইল ব্রাউজার অ্যাপ</h3>
                   <p className="text-gray-400 text-[10px] leading-relaxed px-4">
                     প্লেস্টোর ছাড়াও সরাসরি ব্রাউজারের মাধ্যমে আসল অ্যাপ বানাতে নিচের গাইডটি অনুসরণ করুন। এটি সাধারণ অ্যাপের মতোই কাজ করবে।
                   </p>

@@ -127,7 +127,7 @@ export default function HomeView({
   updateGlobalImage,
   allButtonName,
   updateAllButtonName,
-  casinoName = "SPIN71.BET",
+  casinoName = "SPIN71BET1",
   updateCasinoName,
   noticeText = "আমাদের গেম উপভোগ করুন এবং বড় জয় নিশ্চিত করুন!",
   telegramLink,
@@ -144,7 +144,7 @@ export default function HomeView({
 }: HomeViewProps) {
   const { strings } = useLanguage();
   const [editingCasinoName, setEditingCasinoName] = React.useState(false);
-  const [tempCasinoName, setTempCasinoName] = React.useState(casinoName || "SPIN71.bet");
+  const [tempCasinoName, setTempCasinoName] = React.useState(casinoName || "SPIN71BET1");
 
   const categories = [
     { id: 'সব', icon: Gamepad2, label: strings.catAll },
@@ -179,7 +179,7 @@ export default function HomeView({
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-x-hidden pb-20">
-      {/* Main Header - SPIN71.BET Style */}
+      {/* Main Header - SPIN71BET1 Style */}
       <header className="flex items-center justify-between px-4 py-3 bg-[#0d1a29] sticky top-0 z-[110] border-b border-[#1e3a5f] shadow-lg backdrop-blur-md">
         <div className="flex items-center gap-3">
           <button 

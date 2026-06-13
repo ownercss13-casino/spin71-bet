@@ -25,12 +25,12 @@ self.addEventListener('fetch', (event) => {
 
 // Support for standard Web Push Notifications (FCM / Web Push API)
 self.addEventListener('push', (event) => {
-  let data = { title: 'SPIN71.BET Alert', body: 'New update from SPIN71.BET!' };
+  let data = { title: 'SPIN71BET1 Alert', body: 'New update from SPIN71BET1!' };
   if (event.data) {
     try {
       data = event.data.json();
     } catch (e) {
-      data = { title: 'SPIN71.BET Alert', body: event.data.text() };
+      data = { title: 'SPIN71BET1 Alert', body: event.data.text() };
     }
   }
 

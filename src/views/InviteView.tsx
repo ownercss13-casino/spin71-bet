@@ -148,7 +148,7 @@ export default function InviteView({
   
   const referralCode = userData?.referralCode || 'BETAIG';
   const referralLink = getReferralLink(referralCode);
-  const displayCasinoName = casinoName || "SPIN71.BET";
+  const displayCasinoName = casinoName || "SPIN71BET1";
 
   const [isClaiming, setIsClaiming] = useState<number | null>(null);
 

@@ -88,7 +88,7 @@ interface LoginPageProps {
   appLogo?: string;
 }
 
-export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSuccess, showToast, showNotification, casinoName = "SPIN71.BET", isLoggedIn = false, welcomeBonus = 507, initialMode = 'login', appLogo }: LoginPageProps) {
+export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSuccess, showToast, showNotification, casinoName = "SPIN71BET1", isLoggedIn = false, welcomeBonus = 507, initialMode = 'login', appLogo }: LoginPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'forgot-password' | 'register'>(initialMode);
@@ -556,7 +556,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
           onError={(e) => {
             e.currentTarget.src = 'https://www.image2url.com/r2/default/images/1780868316316-d0893d59-2e15-4b63-b4f7-8e3dd47601b0.jpg';
           }}
-          alt="SPIN71.BET Logo" 
+          alt="SPIN71BET1 Logo" 
           className="h-44 md:h-56 lg:h-64 object-contain drop-shadow-[0_0_35px_rgba(253,216,53,0.5)] transition-all duration-300"
           referrerPolicy="no-referrer"
         />
