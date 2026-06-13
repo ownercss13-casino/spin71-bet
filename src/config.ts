@@ -23,3 +23,13 @@ export const getReferralLink = (referralCode: string) => {
   
   return `${base}/?ref=${referralCode}`;
 };
+
+export const getBackendUrl = () => {
+  const currentOrigin = window.location.origin;
+  if (currentOrigin.includes('run.app')) {
+    return currentOrigin;
+  }
+  // Otherwise default to the live Cloud Run development container URL to bypass any Vercel proxy SSE buffering limits
+  return 'https://ais-dev-wxllhxlbpwpt7cv6zg665n-782256449109.asia-southeast1.run.app';
+};
+

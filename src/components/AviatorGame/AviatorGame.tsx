@@ -21,6 +21,7 @@ import {
   X
 } from 'lucide-react';
 import { useSound } from '../../context/SoundContext';
+import { getBackendUrl } from '../../config';
 
 import DummyPlayersList from './DummyPlayersList';
 
@@ -227,7 +228,8 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
 
     try {
       const idToken = await auth.currentUser?.getIdToken();
-      const res = await fetch('/api/game/aviator/action', {
+      const backendUrl = getBackendUrl();
+      const res = await fetch(`${backendUrl}/api/game/aviator/action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': import.meta.env.VITE_AVIATOR_API_KEY || '#spin71bet_aviator_game109' },
         body: JSON.stringify({ action: 'bet', amount, idToken })
@@ -263,7 +265,8 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
 
     try {
       const idToken = await auth.currentUser?.getIdToken();
-      const res = await fetch('/api/game/aviator/action', {
+      const backendUrl = getBackendUrl();
+      const res = await fetch(`${backendUrl}/api/game/aviator/action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': import.meta.env.VITE_AVIATOR_API_KEY || '#spin71bet_aviator_game109' },
         body: JSON.stringify({ 
@@ -322,7 +325,8 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       if (eventSource) eventSource.close();
       
       console.log("[AviatorGame] Establishing SSE stream connection...");
-      eventSource = new EventSource(`/api/aviator/stream${tokenStr}`);
+      const backendUrl = getBackendUrl();
+      eventSource = new EventSource(`${backendUrl}/api/aviator/stream${tokenStr}`);
       
       eventSource.onopen = () => {
         console.log("[AviatorGame] SSE stable connection established successfully.");
