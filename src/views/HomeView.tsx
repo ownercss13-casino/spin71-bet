@@ -257,7 +257,18 @@ export default function HomeView({
 
       {/* Premium Hero Slider */}
       <div className="px-3 pt-3">
-        <div className="relative w-full h-44 md:h-64 rounded-2xl overflow-hidden shadow-2xl border border-white/5 bg-[#14253a]">
+        <div 
+          onClick={() => {
+            if (activeCategory === 'ক্র্যাশ') {
+              onNavigate?.('aviator');
+            } else if (activeCategory === 'সেরা') {
+              onNavigate?.('invite');
+            } else {
+              onNavigate?.('deposit');
+            }
+          }}
+          className="relative w-full aspect-[2.65/1] md:aspect-auto md:h-64 rounded-2xl overflow-hidden shadow-2xl border border-white/5 bg-[#14253a] cursor-pointer"
+        >
           <AnimatePresence mode="wait">
             <motion.div
               key={activeCategory === 'সেরা' ? 'banner1' : activeCategory === 'ক্র্যাশ' ? 'banner2' : 'banner3'}
@@ -276,34 +287,42 @@ export default function HomeView({
                       : "https://www.image2url.com/r2/default/images/1780756072411-5bf24ebb-fb2f-467a-a559-8875dfb29a60.png"
                 } 
                 alt="Casino Banner" 
-                className="w-full h-full object-cover"
+                className="w-full h-full object-fill md:object-cover"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#0d1a29] via-transparent to-transparent opacity-60"></div>
               
-              <div className="absolute bottom-4 left-4 z-10 w-3/4">
-                <motion.div 
-                  initial={{ x: -20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  <h2 className="text-xl md:text-3xl font-black text-white italic leading-tight drop-shadow-lg scale-y-110 tracking-tight">
-                    {activeCategory === 'ক্র্যাশ' ? strings.heroAviatorTitle : activeCategory === 'স্লট' ? strings.heroJackpotTitle : strings.heroCasinoTitle}
-                  </h2>
-                  <p className="text-[10px] md:text-sm text-yellow-400 font-bold uppercase tracking-widest mt-1">
-                    {activeCategory === 'ক্র্যাশ' ? strings.heroAviatorDesc : activeCategory === 'স্লট' ? strings.heroJackpotDesc : strings.heroCasinoDesc}
-                  </p>
-                </motion.div>
-                
-                <motion.button 
-                  initial={{ y: 10, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.5 }}
-                  onClick={() => onNavigate?.('deposit')}
-                  className="mt-3 bg-gradient-to-r from-yellow-400 to-yellow-600 text-black px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-yellow-600/30 active:scale-95 transition-all"
-                >
-                  {strings.btnDepositNow}
-                </motion.button>
-              </div>
+              {/* Only show text overlay if NOT the default 'সেরা' category banner, as the default banner already has the beautifully formatted Bengali text and CTA buttons baked directly into it */}
+              {activeCategory !== 'সেরা' ? (
+                <>
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0d1a29] via-transparent to-transparent opacity-60"></div>
+                  
+                  <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 z-10 w-3/4">
+                    <motion.div 
+                      initial={{ x: -20, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      transition={{ delay: 0.3 }}
+                    >
+                      <h2 className="text-sm sm:text-lg md:text-2xl lg:text-3xl font-black text-white italic leading-tight drop-shadow-lg scale-y-110 tracking-tight">
+                        {activeCategory === 'ক্র্যাশ' ? strings.heroAviatorTitle : activeCategory === 'স্লট' ? strings.heroJackpotTitle : strings.heroCasinoTitle}
+                      </h2>
+                      <p className="text-[8px] sm:text-[10px] md:text-sm text-yellow-400 font-bold uppercase tracking-widest mt-0.5 sm:mt-1">
+                        {activeCategory === 'ক্র্যাশ' ? strings.heroAviatorDesc : activeCategory === 'স্লট' ? strings.heroJackpotDesc : strings.heroCasinoDesc}
+                      </p>
+                    </motion.div>
+                    
+                    <motion.button 
+                      initial={{ y: 10, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ delay: 0.5 }}
+                      className="mt-1.5 sm:mt-3 bg-gradient-to-r from-yellow-400 to-yellow-600 text-black px-4 py-1.5 sm:px-6 sm:py-2 rounded-lg sm:rounded-xl text-[8px] sm:text-[10px] font-black uppercase tracking-widest shadow-lg shadow-yellow-600/30 active:scale-95 transition-all"
+                    >
+                      {strings.btnDepositNow}
+                    </motion.button>
+                  </div>
+                </>
+              ) : (
+                // For 'সেরা', we still show a very subtle drop shadow overlay around the bottom to blend nicely, keeping the baked-in brand designs fully crisp and clean
+                <div className="absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-t from-[#0d1a29]/40 to-transparent pointer-events-none"></div>
+              )}
             </motion.div>
           </AnimatePresence>
           

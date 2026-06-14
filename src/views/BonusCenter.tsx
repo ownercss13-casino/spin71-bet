@@ -44,6 +44,7 @@ export default function BonusCenter({
   const [claimingVip, setClaimingVip] = useState<string | null>(null);
   const [claimingCashback, setClaimingCashback] = useState(false);
   const [dailyClaiming, setDailyClaiming] = useState(false);
+  const [genericClaiming, setGenericClaiming] = useState<string[]>([]);
   const [particles, setParticles] = useState<CoinParticle[]>([]);
 
   const tabs = [
@@ -136,7 +137,7 @@ export default function BonusCenter({
   };
 
   const handleClaimReward = async (amount: number, bonusId: string) => {
-    if (userData?.bonusesClaimed?.includes(bonusId)) {
+    if (userData?.bonusesClaimed?.includes(bonusId) || genericClaiming.includes(bonusId)) {
         showToast("আপনি এই বোনাসটি ইতিমধ্যে নিয়েছেন", "info");
         return;
     }
@@ -174,6 +175,7 @@ export default function BonusCenter({
       }
     }
 
+    setGenericClaiming(prev => [...prev, bonusId]);
     try {
       triggerCoinsExplosion(30);
       showToast(`সফলভাবে ৳${amount} বোনাস যুক্ত হয়েছে!`, 'success');
@@ -196,6 +198,8 @@ export default function BonusCenter({
     } catch (err) {
       console.error("Claim error:", err);
       showToast("বোনাস নিতে সমস্যা হয়েছে", "error");
+    } finally {
+      setGenericClaiming(prev => prev.filter(id => id !== bonusId));
     }
   };
 
@@ -226,7 +230,7 @@ export default function BonusCenter({
 
   const handleClaimVipReward = async (levelNum: number, rewardAmount: number) => {
     const bonusId = `vip_level_${levelNum}_reward`;
-    if (userData?.bonusesClaimed?.includes(bonusId)) {
+    if (userData?.bonusesClaimed?.includes(bonusId) || claimingVip) {
       showToast("এই লেভেল বোনাসটি আপনি ইতিমধ্যে দাবি করেছেন", "info");
       return;
     }

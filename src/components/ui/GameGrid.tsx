@@ -247,9 +247,9 @@ export const GameGrid: React.FC<GameGridProps> = ({
         })}
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
         {isLoading ? (
-          [...Array(9)].map((_, i) => (
+          [...Array(24)].map((_, i) => (
             <div key={i} className="aspect-square rounded-xl bg-[#0d1525] border border-teal-900/20 overflow-hidden relative shadow-sm animate-pulse">
               {/* Image Area Skeleton */}
               <div className="absolute inset-0 bg-teal-900/10">
@@ -290,7 +290,7 @@ export const GameGrid: React.FC<GameGridProps> = ({
             />
           ))
         ) : (
-          <div className="col-span-3 py-10 text-center text-teal-300">
+          <div className="col-span-3 sm:col-span-4 md:col-span-5 lg:col-span-6 xl:col-span-8 py-10 text-center text-teal-300">
             {category === 'পছন্দ' ? 'আপনার কোনো পছন্দের গেম নেই' : 'কোনো গেম পাওয়া যায়নি'}
           </div>
         )}

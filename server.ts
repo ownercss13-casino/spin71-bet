@@ -2199,15 +2199,15 @@ async function startServer() {
 
     try {
       const inviterRef = db.collection('users').doc(inviterUid);
-      const bonusAmount = 50;
+      const bonusAmount = 400;
 
-      // Update inviter using the db wrapper which handles _serverSecret
+      // Update inviter using the db wrapper
       await inviterRef.update({
-        referralCount: AdminFieldValue.increment(1),
-        validReferralCount: AdminFieldValue.increment(1),
-        balance: AdminFieldValue.increment(bonusAmount),
-        totalReferralEarnings: AdminFieldValue.increment(bonusAmount),
-        updatedAt: AdminFieldValue.serverTimestamp()
+        referralCount: admin.firestore.FieldValue.increment(1),
+        validReferralCount: admin.firestore.FieldValue.increment(1),
+        balance: admin.firestore.FieldValue.increment(bonusAmount),
+        totalReferralEarnings: admin.firestore.FieldValue.increment(bonusAmount),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
       // Log transaction for inviter in global collection
@@ -2217,7 +2217,7 @@ async function startServer() {
         status: 'approved',
         amount: bonusAmount,
         description: `Referral Bonus (New User: ${referralType || 'User'})`,
-        createdAt: AdminFieldValue.serverTimestamp(),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
         date: new Date().toISOString()
       };
 
@@ -2233,13 +2233,13 @@ async function startServer() {
         status: 'approved',
         amount: bonusAmount,
         description: 'Referral Signup Bonus',
-        createdAt: AdminFieldValue.serverTimestamp(),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
         date: new Date().toISOString()
       };
       const newUserTrxRef = await db.collection('transactions').add(newUserTrxData);
       await db.collection('users').doc(userId).collection('transactions').doc(newUserTrxRef.id).set(newUserTrxData);
       await db.collection('users').doc(userId).update({
-        balance: AdminFieldValue.increment(bonusAmount)
+        balance: admin.firestore.FieldValue.increment(bonusAmount)
       });
 
       console.log(`[Referral] Successfully processed bonus for inviter ${inviterUid} and user ${userId}`);
@@ -3882,11 +3882,11 @@ async function startServer() {
               // Standard 10% bonus on deposit amount
               let referralBonus = depositAmount * 0.1;
               
-              // Invite Friends Bonus flat ৳ 308 on referred friend's first deposit of at least ৳ 200
+              // Invite Friends Bonus flat ৳ 400 on referred friend's first deposit of at least ৳ 200
               let inviteFriendsBonus = 0;
               if (isFirstDeposit && depositAmount >= 200) {
-                inviteFriendsBonus = 308;
-                console.log(`[Referral Process] Awarding custom ৳308 Invite Friends Bonus to ${referredBy}`);
+                inviteFriendsBonus = 400;
+                console.log(`[Referral Process] Awarding custom ৳400 Invite Friends Bonus to ${referredBy}`);
               }
 
               const totalBonusAward = referralBonus + inviteFriendsBonus;
@@ -4155,7 +4155,7 @@ async function startServer() {
         const adjustment = type === 'deposit' ? amt : -amt;
         
         await userRef.update({
-          balance: AdminFieldValue.increment(adjustment),
+          balance: admin.firestore.FieldValue.increment(adjustment),
           updatedAt: now
         });
 

@@ -776,6 +776,23 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
                   {registerErrors.mobile && <p className="text-red-500 text-xs mt-1 ml-4">{registerErrors.mobile.message}</p>}
                 </div>
 
+                {/* Promo/Referral Code Input */}
+                <div>
+                  <div className="flex bg-[#2a2b2d] rounded-lg overflow-hidden h-14">
+                    <div className="w-1.5 bg-green-500 shrink-0"></div>
+                    <div className="pl-4 pr-3 flex items-center justify-center">
+                      <Gift className="w-5 h-5 text-gray-400" />
+                    </div>
+                    <input 
+                      {...registerRegister('promoCode')}
+                      type="text" 
+                      placeholder="আমন্ত্রণ কোড অথবা প্রোমো কোড (ঐচ্ছিক)"
+                      className="w-full bg-transparent text-white text-base focus:outline-none py-3 pr-4 placeholder:text-gray-200 uppercase"
+                    />
+                  </div>
+                  {registerErrors.promoCode && <p className="text-red-500 text-xs mt-1 ml-4">{registerErrors.promoCode.message}</p>}
+                </div>
+
                 <div className="flex gap-4 mt-8">
                   <button 
                     type="submit"

@@ -410,7 +410,7 @@ export default function InviteView({
                       <div className="w-10 h-10 rounded-full bg-yellow-500/10 text-yellow-500 flex items-center justify-center font-black text-sm border border-yellow-500/20">01</div>
                       <p className="text-xs font-bold text-gray-300">Invite Friends Bonus</p>
                     </div>
-                    <span className="text-base font-black text-yellow-500 italic">৳ ৩০৮</span>
+                    <span className="text-base font-black text-yellow-500 italic">৳ ৪০০</span>
                  </div>
                  <div className="bg-white/5 rounded-2xl p-5 border border-white/5 flex items-center justify-between group hover:bg-yellow-500/5 transition-colors">
                     <div className="flex items-center gap-4">
