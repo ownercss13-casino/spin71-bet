@@ -2913,8 +2913,7 @@ function OverviewTab(props: OverviewTabProps) {
     { title: 'ভাষা (Language)', subtitle: 'বাংলা', icon: Globe, action: () => {}, color: 'text-yellow-500' },
     { title: 'FAQ', icon: HelpCircle, action: () => onTabChange('faq'), color: 'text-yellow-500' },
     { title: 'মতামত (Feedback)', icon: MessageSquare, action: () => onSubTabChange('feedback'), color: 'text-yellow-500' },
-    { title: 'ডিভাইস হিস্টরি', icon: Smartphone, action: () => {}, color: 'text-yellow-500' },
-    { title: 'প্রস্থান (Logout)', icon: LogOut, action: onLogout, color: 'text-yellow-500' },
+    { title: 'ডিভাইস হিস্টরি', icon: Smartphone, action: () => {}, color: 'text-yellow-500' }
   );
 
   return (
@@ -3144,12 +3143,7 @@ function OverviewTab(props: OverviewTabProps) {
               ))}
            </div>
            
-           <div className="mt-8 mb-6">
-              <OneClickSupport 
-                telegramLink={telegramLink || "https://t.me/spin71bet_official"} 
-                whatsappLink={whatsappLink || "https://wa.me/..."} 
-              />
-           </div>
+
         </div>
       </motion.div>
     </div>

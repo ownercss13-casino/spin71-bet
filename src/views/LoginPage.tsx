@@ -338,12 +338,27 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       if (data.username.includes('@')) {
         loginEmail = data.username;
       } 
-      // 2. Otherwise assume it's a username and use the dummy domain pattern
+      // 2. Otherwise assume it's a username and use the dummy domain pattern (now using netlify.app)
       else {
-        loginEmail = `${data.username.toLowerCase()}@spin71bet1.vercel.app`;
+        loginEmail = `${data.username.toLowerCase()}@spin71bet1.netlify.app`;
       }
 
-      const result = await signInWithEmailAndPassword(auth, loginEmail, data.password);
+      let result;
+      try {
+        result = await signInWithEmailAndPassword(auth, loginEmail, data.password);
+      } catch (signInErr: any) {
+        // Fallback for legacy users registered under .vercel.app domain format
+        if (!data.username.includes('@') && (signInErr.code === 'auth/user-not-found' || signInErr.code === 'auth/wrong-password' || signInErr.code === 'auth/invalid-credential')) {
+          try {
+            const fallbackEmail = `${data.username.toLowerCase()}@spin71bet1.vercel.app`;
+            result = await signInWithEmailAndPassword(auth, fallbackEmail, data.password);
+          } catch (fallbackErr) {
+            throw signInErr; // throw original if fallback fails too
+          }
+        } else {
+          throw signInErr;
+        }
+      }
       const user = result.user;
 
 
@@ -388,8 +403,8 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     setIsLoading(true);
     setError(null);
     try {
-      // 1. Create email from username
-      const registerEmail = `${data.username.toLowerCase()}@spin71bet1.vercel.app`;
+      // 1. Create email from username (using new .netlify.app domain)
+      const registerEmail = `${data.username.toLowerCase()}@spin71bet1.netlify.app`;
       
       const result = await createUserWithEmailAndPassword(auth, registerEmail, data.password);
       const user = result.user;

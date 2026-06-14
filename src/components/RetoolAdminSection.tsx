@@ -169,7 +169,7 @@ export default function RetoolAdminSection({ showToast }: RetoolAdminSectionProp
     const finalAmount = customAmt || testAmount;
     const finalType = customType || testType;
     const finalGateway = customGateway || testGateway;
-    const finalUser = selectedUser || auth.currentUser?.email || 'test_retool_sim@spin71bet1.vercel.app';
+    const finalUser = selectedUser || auth.currentUser?.email || 'test_retool_sim@spin71bet1.netlify.app';
 
     addLog(`PENDING: Broadcasting simulated ${finalType} webhook packet (৳${finalAmount} BDT)...`);
 
