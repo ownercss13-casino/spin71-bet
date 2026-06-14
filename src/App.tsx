@@ -55,6 +55,7 @@ import {
   Loader2,
   Gamepad2,
   Info,
+  Wrench,
 } from "lucide-react";
 import RecentlyViewed from "./components/RecentlyViewed";
 
@@ -159,14 +160,16 @@ export default function App() {
   const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(false);
   const [isGlobalChatOpen, setIsGlobalChatOpen] = useState(false);
   const [showGallery, setShowGallery] = useState(false);
-  const [telegramLink, setTelegramLink] = useState<string>("https://t.me/spin71_predictor_bot");
-  const [whatsappLink, setWhatsappLink] = useState<string>("https://wa.me/...");
-  const [facebookLink, setFacebookLink] = useState<string>("https://facebook.com/...");
+  const [telegramLink, setTelegramLink] = useState<string>("");
+  const [telegramBotAppLink, setTelegramBotAppLink] = useState<string>("");
+  const [whatsappLink, setWhatsappLink] = useState<string>("");
+  const [facebookLink, setFacebookLink] = useState<string>("");
   const [minDeposit, setMinDeposit] = useState<number>(100);
   const [minWithdraw, setMinWithdraw] = useState<number>(100);
   const [welcomeBonus, setWelcomeBonus] = useState<number>(507);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [showDepositRequired, setShowDepositRequired] = useState(false);
+  const [showGameMaintenance, setShowGameMaintenance] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginModalMode, setLoginModalMode] = useState<'login' | 'register'>('login');
   const [userData, setUserData] = useState<any>(null); // State to store user info from DB
@@ -295,14 +298,9 @@ export default function App() {
       return;
     }
 
-    // Lock games behind a deposit requirement
+    // Lock games behind a deposit requirement - REMOVED so users can enter games without deposit
     if (tab === 'slot' || tab === 'aviator') {
-      // Require at least one approved deposit to play games
-      const isAdmin = userData?.role === 'admin' || userData?.isAdmin === true;
-      if (!isAdmin && (!userData?.totalDeposits || userData.totalDeposits <= 0)) {
-        setShowDepositRequired(true);
-        return;
-      }
+      // Allow entrance without deposit as requested
     }
 
     if (tab === activeTab) return;
@@ -607,13 +605,8 @@ export default function App() {
         return;
       }
 
-      // GLOBAL DEPOSIT CHECK - Requirement: At least one deposit to play any game
+      // GLOBAL DEPOSIT CHECK - REMOVED so users can play games without a deposit as long as they have balance
       const isAdmin = userData?.role === 'admin' || userData?.isAdmin === true;
-      if (!isAdmin && (!userData?.totalDeposits || userData.totalDeposits <= 0)) {
-        showToast("গেম খেলতে হলে আগে অন্তত একবার ডিপোজিট করতে হবে", "warning");
-        setShowDepositRequired(true);
-        return;
-      }
 
       if (balance <= 0) {
         showToast("আপনার ব্যালেন্স যথেষ্ট নয়", "error");
@@ -1228,6 +1221,7 @@ export default function App() {
             if (data.casinoName) setCasinoName(data.casinoName);
             if (data.noticeText) setNoticeText(data.noticeText);
             if (data.telegramLink) setTelegramLink(data.telegramLink);
+            if (data.telegramBotAppLink) setTelegramBotAppLink(data.telegramBotAppLink);
             if (data.whatsappLink) setWhatsappLink(data.whatsappLink);
             if (data.facebookLink) setFacebookLink(data.facebookLink);
             if (data.supportEmail) setSupportEmail(data.supportEmail);
@@ -1245,6 +1239,7 @@ export default function App() {
             if (data.casinoName) setCasinoName(data.casinoName);
             if (data.noticeText) setNoticeText(data.noticeText);
             if (data.telegramLink) setTelegramLink(data.telegramLink);
+            if (data.telegramBotAppLink) setTelegramBotAppLink(data.telegramBotAppLink);
             if (data.whatsappLink) setWhatsappLink(data.whatsappLink);
             if (data.facebookLink) setFacebookLink(data.facebookLink);
             if (data.supportEmail) setSupportEmail(data.supportEmail);
@@ -1907,6 +1902,12 @@ export default function App() {
                         return;
                       }
 
+                      // All external / other games are under maintenance as requested
+                      if (selectedGame?.id !== 'spribe_aviator' && selectedGame?.id !== 'native_slot') {
+                        setShowGameMaintenance(true);
+                        return;
+                      }
+
                       try {
                         const token = await auth.currentUser?.getIdToken();
                         if (!token) return;
@@ -2277,6 +2278,8 @@ export default function App() {
                 setWelcomeBonus={setWelcomeBonus}
                 telegramLink={telegramLink}
                 setTelegramLink={setTelegramLink}
+                telegramBotAppLink={telegramBotAppLink}
+                setTelegramBotAppLink={setTelegramBotAppLink}
                 updateGlobalImage={handleUpdateGlobalImage}
                 onAddUser={handleAddUser}
                 globalImages={globalImages}
@@ -2342,6 +2345,74 @@ export default function App() {
             onClose={() => setShowDailyReward(false)}
             onClaim={handleClaimDailyReward}
           />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showGameMaintenance && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[2000] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 max-w-[512px] mx-auto"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="relative w-full max-w-sm bg-[#13171f] border border-white/10 rounded-[32px] p-8 text-center shadow-2xl overflow-hidden flex flex-col items-center"
+            >
+              {/* Decorative top pulse block */}
+              <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-amber-500 to-transparent"></div>
+              
+              {/* Animated visual layout */}
+              <div className="relative mb-6">
+                <div className="absolute inset-0 bg-amber-500/15 rounded-3xl blur-xl animate-pulse"></div>
+                <div className="w-20 h-20 bg-amber-500/10 border border-amber-500/20 rounded-3xl flex items-center justify-center text-amber-400 relative z-10">
+                  <Wrench size={38} className="animate-bounce" />
+                </div>
+                <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-amber-500 rounded-full flex items-center justify-center text-black shadow-lg">
+                  <span className="text-xs font-black">!</span>
+                </div>
+              </div>
+
+              {/* Game Icon & Name */}
+              {selectedGame && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-full border border-white/5 mb-4">
+                  <img 
+                    src={globalLogos[selectedGame.id] || GAME_LOGO_URLS[selectedGame.id] || selectedGame.image} 
+                    alt={selectedGame.name} 
+                    className="w-5 h-5 rounded-md object-cover"
+                  />
+                  <span className="text-xs font-bold text-gray-300">
+                    {globalNames[selectedGame.id] || selectedGame.name}
+                  </span>
+                </div>
+              )}
+
+              <p className="text-amber-500 text-[10px] font-black uppercase tracking-[0.3em] mb-1.5">UNDER MAINTENANCE</p>
+              <h3 className="text-xl font-black text-white italic tracking-tight mb-3 font-sans">গেম এর কাজ চলতেছে</h3>
+              
+              <div className="w-full h-[1px] bg-white/5 my-3"></div>
+
+              <p className="text-gray-300 font-medium text-xs leading-relaxed mb-4">
+                প্রিয় গ্রাহক, কারিগরি আপগ্রেড এবং সার্ভার রক্ষণাবেক্ষণের জন্য এই গেমটি সাময়িকভাবে বন্ধ আছে। খুব শীঘ্রই এটি পুনরায় চালু করা হবে।
+              </p>
+              <p className="text-gray-500 text-[10px] italic leading-relaxed mb-6">
+                This game is currently undergoing technical updates and server maintenance. It will be back online shortly. We thank you for your patience!
+              </p>
+
+              <button 
+                onClick={() => {
+                  setShowGameMaintenance(false);
+                  setSelectedGame(null); // safely exit game panel
+                }}
+                className="w-full py-4 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-[0.2em] rounded-2xl transition-all shadow-xl shadow-amber-500/15 active:scale-95 flex items-center justify-center gap-2"
+              >
+                ঠিক আছে (Okay)
+              </button>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 

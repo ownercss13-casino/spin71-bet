@@ -155,6 +155,11 @@ export default function InviteView({
   const handleClaimReward = async (tier: any, index: number) => {
     if (!userData?.id || !onUpdateUser || !onAddTransaction) return;
     
+    if (!userData?.totalDeposits || userData.totalDeposits <= 0) {
+      showToast("রেফারেল পুরস্কার দাবি করার আগে প্রথম ডিপোজিট করা আবশ্যক।", "warning");
+      return;
+    }
+    
     const validCount = userData.validReferralCount || 0;
     if (validCount < tier.count) {
       showToast(`আপনার অন্তত ${tier.count} জন সঠিক রেফারেল প্রয়োজন।`, "warning");

@@ -178,10 +178,17 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       return;
     }
 
-    let msg = "কিছু ভুল হয়েছে। (Something went wrong.)";
+    let msg = `কিছু ভুল হয়েছে। (Error: ${err.code || 'unknown'})`;
     
     // Firebase Auth Error Codes
-    if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential' || err.code === 'auth/invalid-login-credentials' || err.code === 'auth/user-not-found') {
+    if (err.code === 'auth/unauthorized-domain') {
+      const currentDomain = window.location.hostname;
+      msg = `এই ডোমেনটি (${currentDomain}) Firebase Authentication-এ অনুমোদিত (Authorized) নয়! দয়া করে ফায়ারবেস কনসোলে এই ডোমেনটি যুক্ত করুন।`;
+    } else if (err.code === 'auth/configuration-not-found' || err.code === 'auth/operation-not-allowed') {
+      msg = "গুগল লগইন পদ্ধতিটি ফায়ারবেস কনসোলে চালু করা নেই! দয়া করে Authentication > Sign-in method থেকে Google চালু করুন।";
+    } else if (err.code === 'auth/popup-blocked') {
+      msg = "ব্রাউজার পপআপ ব্লক করেছে! দয়া করে পপআপ অনুমোদন করুন এবং পুনরায় চেষ্টা করুন।";
+    } else if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential' || err.code === 'auth/invalid-login-credentials' || err.code === 'auth/user-not-found') {
       msg = "অ্যাকাউন্ট পাওয়া যায়নি বা username/পাসওয়ার্ড ভুল হচ্ছে!";
     } else {
       if (err.code === 'auth/wrong-password') msg = "ভুল পাসওয়ার্ড! (Wrong password)";
@@ -191,7 +198,6 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       if (err.code === 'auth/invalid-email') msg = "সঠিক ফরম্যাট দিন! (Invalid format)";
       if (err.code === 'auth/weak-password') msg = "পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে (Weak password)";
       if (err.code === 'auth/too-many-requests') msg = "অতিরিক্ত রিকোয়েস্ট! কিছুক্ষণ পর চেষ্টা করুন। (Too many requests)";
-      if (err.code === 'auth/operation-not-allowed') msg = "ইমেইল/পাসওয়ার্ড পদ্ধতিটি ফায়ারবেস কনসোলে বন্ধ করা আছে!";
       if (err.message && err.message.includes('missing or insufficient permissions')) msg = "ডেটাবেস পারমিশন সমস্যা! (Permission Denied)";
     }
     
@@ -200,6 +206,11 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       if (err.message.includes('Username already taken')) msg = "এই ইউজারনেমটি ইতিমধ্যে ব্যবহার করা হয়েছে";
       if (err.message.includes('Phone already registered')) msg = "এই ফোন নম্বরটি ইতিমধ্যে ব্যবহার করা হয়েছে";
       if (err.message.includes('not found')) msg = err.message;
+    }
+
+    // Default detailed fallback if msg stays generic
+    if (msg.startsWith('কিছু ভুল হয়েছে') && err.message) {
+      msg = `লগইন ব্যর্থ হয়েছে: ${err.message} (কোড: ${err.code})`;
     }
 
     setError(msg);

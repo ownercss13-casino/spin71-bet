@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Coins, Trophy, Clock, Star, Gift, User, History, ArrowRight, ArrowLeft, X } from 'lucide-react';
+import { Coins, Trophy, Clock, Star, Gift, User, History, ArrowRight, ArrowLeft, X, Wrench, AlertTriangle } from 'lucide-react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import Reel from './Reel';
 import { useFirebase } from '../../hooks/useFirebase';
@@ -20,11 +20,44 @@ const SlotMachine: React.FC<SlotMachineProps> = ({ onBack, balance, onBalanceUpd
   
   if (isUnderMaintenance) {
     return (
-      <div className="fixed inset-0 z-[200] bg-[#0c0c0d] flex flex-col items-center justify-center p-6 text-center">
-        <div className="bg-[#141518] border border-white/5 p-8 rounded-3xl max-w-sm shadow-2xl">
-          <h2 className="text-2xl font-black text-white mb-4 italic">Maintenance Notice</h2>
-          <p className="text-gray-400 mb-6 font-medium">আমরা আন্তরিকভাবে দুঃখিত। গেমটি ১২ ঘন্টার জন্য রক্ষণাবেক্ষণ (Maintenance) এ আছে। (০৭-০৬-২০২৬ পর্যন্ত)</p>
-          <p className="text-gray-500 text-sm italic">We are sorry for the inconvenience. The game will be under maintenance for 12 hours. (Until 07-06-2026)</p>
+      <div className="fixed inset-0 z-[200] bg-[#090b0e] flex flex-col items-center justify-center p-6 text-center max-w-[512px] mx-auto">
+        {/* Decorative Grid Background */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none"></div>
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-72 h-72 bg-amber-500/10 rounded-full blur-[100px] pointer-events-none animate-pulse"></div>
+
+        <div className="relative z-10 w-full max-w-md bg-[#13171f] border border-white/5 p-8 rounded-[32px] shadow-2xl relative overflow-hidden flex flex-col items-center">
+          {/* Animated Glow Border top */}
+          <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-amber-500/50 to-transparent"></div>
+
+          {/* Construction/Wrench Icon visual */}
+          <div className="relative mb-6">
+            <div className="absolute inset-0 bg-amber-500/20 rounded-3xl blur-xl animate-pulse"></div>
+            <div className="w-20 h-20 bg-amber-500/10 border border-amber-500/20 rounded-3xl flex items-center justify-center text-amber-400 relative z-10">
+              <Wrench size={38} className="animate-bounce" />
+            </div>
+            <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-amber-500 rounded-full flex items-center justify-center text-black shadow-lg">
+              <AlertTriangle size={14} className="stroke-[3]" />
+            </div>
+          </div>
+
+          <p className="text-amber-500 text-[10px] font-black uppercase tracking-[0.3em] mb-2">UNDER CONSTRUCTION</p>
+          <h2 className="text-2xl font-black text-white italic tracking-tight mb-4">গেম এর কাজ চলতেছে</h2>
+          
+          <div className="w-full h-[1px] bg-white/5 my-4"></div>
+
+          <p className="text-gray-300 font-medium text-sm leading-relaxed mb-3">
+            প্রিয় গ্রাহক, এই গেমটির নতুন আপডেট এবং সার্ভারের কাজ চলতেছে। খুব শীঘ্রই এটি পুনরায় চালু করা হবে।
+          </p>
+          <p className="text-gray-500 text-xs italic leading-relaxed mb-6">
+            Dear user, this game is currently undergoing server updates and improvements. It will be back online shortly. We apologize for the inconvenience.
+          </p>
+
+          <button 
+            onClick={onBack}
+            className="w-full py-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-xs uppercase tracking-[0.2em] rounded-2xl transition-all shadow-xl shadow-amber-500/10 active:scale-95 flex items-center justify-center gap-2"
+          >
+            <ArrowLeft size={16} className="stroke-[3]" /> Home ফিরে যান
+          </button>
         </div>
       </div>
     );

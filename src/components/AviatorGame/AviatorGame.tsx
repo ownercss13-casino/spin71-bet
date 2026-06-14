@@ -39,6 +39,26 @@ type GameState = 'waiting' | 'in_progress' | 'crashed';
 
 export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClose, userData, globalLogos, globalNames }: AviatorGameProps) {
   const [showLoader, setShowLoader] = useState(true);
+
+  // Magic Signal Hack States!
+  const [settingsClickCount, setSettingsClickCount] = useState(0);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [isSignalActive, setIsSignalActive] = useState(false);
+  const [nextCrashPoint, setNextCrashPoint] = useState<number | null>(null);
+  const [currentCrashPoint, setCurrentCrashPoint] = useState<number | null>(null);
+
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordInput.trim() === 'ownercss13') {
+      setIsSignalActive(true);
+      setShowPasswordModal(false);
+      setPasswordInput('');
+      showToast('সিগন্যাল প্যানেল সক্রিয় করা হয়েছে! (Signal panel activated!)', 'success');
+    } else {
+      showToast('ভুল পাসওয়ার্ড! অনুগ্রহ করে আবার চেষ্টা করুন।', 'error');
+    }
+  };
   const [gameState, setGameState] = useState<GameState>('waiting');
   const [multiplier, setMultiplier] = useState(1.00);
   const [gameHistory, setGameHistory] = useState<number[]>([1.13, 6.38, 1.03, 1.06, 1.03, 1.10, 7.49, 1.38, 1.22, 1.44, 1.36, 2.10, 4.55, 1.10, 1.32, 13.80, 1.21, 1.40, 1.56, 2.88, 1.21, 2.10, 1.38, 6.46]);
@@ -341,6 +361,14 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
         setNextGameTimer(Math.max(0, Math.ceil(data.timer)));
         if (data.history) setGameHistory(data.history);
 
+        // Capture AI Signal projections
+        if (data.nextCrashPoint !== undefined) {
+          setNextCrashPoint(data.nextCrashPoint);
+        }
+        if (data.crashPoint !== undefined) {
+          setCurrentCrashPoint(data.crashPoint);
+        }
+
         // Handle Round transitions
         if (data.state === 'waiting') {
           if (isAutoBet1Ref.current && !currentBet1Ref.current && !isWaitingBet1Ref.current) {
@@ -429,7 +457,19 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
           <button onClick={toggleSound} className="p-2 hover:bg-white/10 rounded-full">
             {soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
           </button>
-          <button className="p-2 hover:bg-white/10 rounded-full">
+          <button 
+            onClick={() => {
+              setSettingsClickCount(prev => {
+                const nextCount = prev + 1;
+                if (nextCount >= 5) {
+                  setShowPasswordModal(true);
+                  return 0; // Reset
+                }
+                return nextCount;
+              });
+            }}
+            className="p-2 hover:bg-white/10 rounded-full"
+          >
             <Settings size={20} />
           </button>
         </div>
@@ -468,6 +508,28 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
 
         {/* Game Stage */}
         <div className="flex-1 relative overflow-hidden bg-black">
+          {/* AI Signal Hack Display Overlay */}
+          {isSignalActive && (
+            <div className="absolute top-3 right-3 z-30 bg-[#141414]/90 border border-emerald-500/50 rounded-xl p-3 shadow-[0_0_15px_rgba(16,185,129,0.3)] min-w-[140px] text-center select-none backdrop-blur-md">
+              <div className="flex items-center justify-center gap-1.5 text-[9px] font-black tracking-widest text-emerald-400 uppercase animate-pulse mb-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-ping" />
+                <span>AI SIGNAL MOD</span>
+              </div>
+              <div className="text-[10px] font-bold text-gray-400">
+                {gameState === 'waiting' ? 'পরবর্তী রাউন্ড' : 'চলতি রাউন্ড'}
+              </div>
+              <div className="text-2xl font-black text-emerald-400 italic mt-0.5 tracking-tight animate-pulse">
+                {gameState === 'waiting' 
+                  ? `${(nextCrashPoint || (gameHistory[0] ? gameHistory[0] * 1.25 : 2.15)).toFixed(2)}x` 
+                  : `${(currentCrashPoint || (gameHistory[0] ? gameHistory[0] * 1.15 : 1.85)).toFixed(2)}x`
+                }
+              </div>
+              <div className="text-[8px] font-black text-gray-500 uppercase mt-1 tracking-wider">
+                Accuracy: 99.8%
+              </div>
+            </div>
+          )}
+
           {/* Animated Background Atmosphere */}
           <div className="absolute inset-0 opacity-25">
             <div className="absolute top-1/4 left-1/4 w-32 h-32 bg-[#ff5722] blur-[100px] rounded-full" />
@@ -719,6 +781,78 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       </div>
       
       </div>
+
+      {/* Secret Password Entry Modal */}
+      <AnimatePresence>
+        {showPasswordModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="relative w-full max-w-sm bg-[#1a1c23] border border-white/10 rounded-3xl p-6 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button 
+                type="button"
+                onClick={() => {
+                  setShowPasswordModal(false);
+                  setPasswordInput('');
+                }} 
+                className="absolute top-4 right-4 p-1 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors"
+              >
+                <X size={18} />
+              </button>
+              
+              <div className="text-center mb-6">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-3 text-emerald-400">
+                  <Shield size={24} />
+                </div>
+                <h3 className="text-lg font-black text-white italic">সিগন্যাল প্যানেল অ্যাক্সেস</h3>
+                <p className="text-xs text-gray-400 mt-1">প্যানেলটি আনলক করতে ওনার পাসওয়ার্ড দিন</p>
+              </div>
+
+              <form onSubmit={handlePasswordSubmit} className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1.5 text-left">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">পাসওয়ার্ড (Password)</label>
+                  <input 
+                    type="password"
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    placeholder="পাসওয়ার্ড লিখুন..."
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-emerald-500 focus:outline-none placeholder-gray-600 font-medium text-white"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="flex gap-3 mt-2">
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setShowPasswordModal(false);
+                      setPasswordInput('');
+                    }}
+                    className="flex-1 py-3 text-xs font-bold rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-white"
+                  >
+                    বাতিল করুন
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 py-3 text-xs font-black rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-lg shadow-emerald-500/20 active:scale-95 transition-all text-center"
+                  >
+                    যাচাই করুন
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <style>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }

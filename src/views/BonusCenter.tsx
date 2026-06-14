@@ -102,6 +102,7 @@ export default function BonusCenter({
   // Triggers checking reward direct claim
   const handleClaimDailyCheckIn = async () => {
     if (isDailyClaimedToday || dailyClaiming) return;
+
     setDailyClaiming(true);
     const dayIndex = Math.min(dailyStreak, 6);
     const amount = rewards[dayIndex].amount;
@@ -140,6 +141,13 @@ export default function BonusCenter({
     if (userData?.bonusesClaimed?.includes(bonusId) || genericClaiming.includes(bonusId)) {
         showToast("আপনি এই বোনাসটি ইতিমধ্যে নিয়েছেন", "info");
         return;
+    }
+
+    // Force first deposit for all bonuses as requested
+    if (!userData?.totalDeposits || userData.totalDeposits <= 0) {
+      showToast("কোন প্রকার বোনাস বা উপহার দাবি করার আগে প্রথম ডিপোজিট করা আবশ্যক", "warning");
+      onTabChange('deposit');
+      return;
     }
 
     // Validation logic for specific bonuses
@@ -232,6 +240,12 @@ export default function BonusCenter({
     const bonusId = `vip_level_${levelNum}_reward`;
     if (userData?.bonusesClaimed?.includes(bonusId) || claimingVip) {
       showToast("এই লেভেল বোনাসটি আপনি ইতিমধ্যে দাবি করেছেন", "info");
+      return;
+    }
+
+    if (!userData?.totalDeposits || userData.totalDeposits <= 0) {
+      showToast("ভিআইপি বোনাস দাবি করার আগে প্রথম ডিপোজিট করা আবশ্যক", "warning");
+      onTabChange('deposit');
       return;
     }
     

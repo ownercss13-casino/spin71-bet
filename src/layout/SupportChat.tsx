@@ -18,9 +18,9 @@ export default function SupportChat({
   isOpen, 
   onClose, 
   userData, 
-  telegramLink = "https://t.me/spin71bet_official",
-  whatsappLink = "https://wa.me/...",
-  facebookLink = "https://facebook.com/..."
+  telegramLink = "",
+  whatsappLink = "",
+  facebookLink = ""
 }: { 
   isOpen: boolean, 
   onClose: () => void, 

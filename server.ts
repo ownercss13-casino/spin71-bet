@@ -742,6 +742,20 @@ async function getTelegramConfig() {
           chatId = fsChatId;
         }
       }
+
+      // Load telegram bot app shortener link dynamically from settings
+      try {
+        const settingsDoc: any = await fetchWithTimeout(db.collection('metadata').doc('settings').get(), 1500);
+        if (settingsDoc && settingsDoc.exists) {
+          const settingsData = settingsDoc.data();
+          if (settingsData && settingsData.telegramBotAppLink) {
+            cachedTelegramBotAppLink = settingsData.telegramBotAppLink.trim();
+          }
+        }
+      } catch (e) {
+        // fail silently for optional parameter
+      }
+
       // If successful, reset the inaccessible flag
       firestoreInaccessible = false;
     } catch (err: any) {
@@ -1200,8 +1214,6 @@ async function pollTelegramUpdates() {
                   `${stateText}\n` +
                   `━━━━━━━━━━━━━━━━━━━\n` +
                   `${extraAdvice}\n\n` +
-                  `🎮 <b>গেম খেলতে সরাসরি অ্যাপে যান:</b>\n` +
-                  `🔗 <a href="https://spin71bet1.vercel.app">SPIN71 App Link</a>\n\n` +
                   `<i>⚠️ AI সংকেত ১০০% গ্যারান্টি দেয় না, কৌশল অনুযায়ী বুদ্ধি খাটিয়ে বেট করুন!</i>`;
 
                 await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
@@ -1475,6 +1487,9 @@ let currentCrashXState = {
   updatedAt: Date.now()
 };
 
+let lastSeenDomain = "";
+let cachedTelegramBotAppLink = "";
+
 const crashXClients: any[] = [];
 const telegramSubscribers = new Set<string>();
 const telegramOptedOut = new Set<string>();
@@ -1522,7 +1537,7 @@ async function broadcastAviatorPredictionToTelegram(roundId: string, crashPoint:
       `💥 <b>আনুমানিক ক্র্যাশ পয়েন্ট:</b> <code><b>${crashPoint.toFixed(2)}x</b></code>\n\n` +
       `💡 <i>টিপস: ${suggestion}</i>\n` +
       `━━━━━━━━━━━━━━━━━━━\n` +
-      `👉 <b>এখনই বেট করুন:</b> <a href="https://spin71bet1.vercel.app">SPIN71 App এ যান</a>`;
+      `<i>⚠️ AI সংকেত ১০০% গ্যারান্টি দেয় না, কৌশল অনুযায়ী বুদ্ধি খাটিয়ে বেট করুন!</i>`;
 
     // Loop through recipients and dispatch
     for (const targetChat of recipientChats) {
@@ -1945,6 +1960,21 @@ async function startServer() {
   });
 
   app.use((req, res, next) => {
+    try {
+      const host = req.headers['x-forwarded-host'] || req.headers.host;
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+      if (
+        host && 
+        !host.includes('localhost') && 
+        !host.includes('127.0.0.1') && 
+        !host.includes('.run.app') && 
+        !host.includes('vercel.app')
+      ) {
+        lastSeenDomain = `${protocol}://${host}`;
+      }
+    } catch (e) {
+      // safe ignore
+    }
     if (req.path.startsWith('/api')) {
       console.log(`[API] ${req.method} ${req.path}`);
     }
@@ -2327,13 +2357,11 @@ async function startServer() {
         if (!userSnap.exists) throw new Error("User not found");
         const userData = userSnap.data()!;
 
-        // Condition Check: NEWUSER71 needs a completed deposit to claim
-        if (promoId === "NEWUSER71") {
-          const totalDeps = userData.totalDeposits || 0;
-          if (totalDeps <= 0) {
-            depositRequiredError = true;
-            return;
-          }
+        // Condition Check: Any promo/bonus code requires a completed deposit to claim
+        const totalDeps = userData.totalDeposits || 0;
+        if (totalDeps <= 0) {
+          depositRequiredError = true;
+          return;
         }
 
         // Update User
@@ -3528,6 +3556,15 @@ async function startServer() {
       const rewardRef = db.collection('daily_rewards').doc(uid);
 
       await db.runTransaction(async (transaction) => {
+        const userSnap = await transaction.get(userRef);
+        if (!userSnap.exists) {
+          throw new Error("User not found");
+        }
+        const uData = userSnap.data()!;
+        if (!uData.totalDeposits || uData.totalDeposits <= 0) {
+          throw new Error("ডেইলি রিওয়ার্ড দাবি করার আগে প্রথম ডিপোজিট করা আবশ্যক");
+        }
+
         const rewardDoc = await transaction.get(rewardRef);
         const now = new Date();
         now.setHours(0,0,0,0);

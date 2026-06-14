@@ -113,6 +113,8 @@ interface AdminPanelViewProps {
   setWelcomeBonus: (val: number) => void;
   telegramLink: string;
   setTelegramLink: (val: string) => void;
+  telegramBotAppLink: string;
+  setTelegramBotAppLink: (val: string) => void;
   globalImages: Record<string, string>;
   updateGlobalImage: (key: string, url: string) => Promise<void>;
   onAddUser: (user: any) => Promise<void>;
@@ -2268,6 +2270,7 @@ function GlobalSettings(props: AdminPanelViewProps) {
         minWithdraw: props.minWithdraw,
         welcomeBonus: props.welcomeBonus,
         telegramLink: props.telegramLink,
+        telegramBotAppLink: props.telegramBotAppLink,
         updatedAt: serverTimestamp()
       }, { merge: true });
       
@@ -2413,7 +2416,7 @@ function GlobalSettings(props: AdminPanelViewProps) {
         <div className="space-y-6">
            <h3 className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] border-b border-white/10 pb-2">Communications</h3>
            <div>
-              <label className="block text-xs font-bold text-teal-200 uppercase mb-2 ml-1">Telegram Official URL</label>
+              <label className="block text-xs font-bold text-teal-200 uppercase mb-2 ml-1">Telegram Official URL (বোট/চ্যানেল লিংক)</label>
               <div className="relative">
                 <MessageSquare className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-400" size={20} />
                 <input 
@@ -2423,6 +2426,21 @@ function GlobalSettings(props: AdminPanelViewProps) {
                   placeholder="https://t.me/..."
                 />
               </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-teal-200 uppercase mb-2 ml-1">Telegram Bot Game Link (টেলিগ্রাম বোট সিগন্যাল গেম লিংক)</label>
+              <div className="relative">
+                <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-400" size={20} />
+                <input 
+                  value={props.telegramBotAppLink}
+                  onChange={(e) => props.setTelegramBotAppLink(e.target.value)}
+                  className="w-full bg-black/20 border border-white/10 rounded-2xl px-12 py-4 text-sm font-bold text-white focus:outline-none focus:border-emerald-500"
+                  placeholder="https://ln.run/6qgOI"
+                />
+              </div>
+              <span className="text-[9px] font-medium text-teal-300/70 block mt-1 ml-1 leading-relaxed">
+                টেলিগ্রাম বোট থেকে পাঠানো সিগন্যালের ভেতরের "App Link / SPIN71 App এ যান" বাটনে এই লিংকটি সেট হবে। যেমন: <code>https://ln.run/6qgOI</code> বা আপনার কাস্টম ডোমেইন।
+              </span>
             </div>
             <div>
               <label className="block text-xs font-bold text-teal-200 uppercase mb-2 ml-1">Telegram Bot Token (Notifications)</label>

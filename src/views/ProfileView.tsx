@@ -73,8 +73,8 @@ export default function ProfileView({
   onUpdateUser,
   onAddTransaction,
   onInstallApp,
-  telegramLink = "https://t.me/spin71bet_official",
-  whatsappLink = "https://wa.me/..."
+  telegramLink = "",
+  whatsappLink = ""
 }: { 
   onTabChange: (tab: any) => void, 
   balance: number, 
@@ -2466,8 +2466,8 @@ function SupportTicketsTab({ userData, showToast, onBack }: { userData: any, sho
     try {
       await addDoc(collection(db, 'support_tickets'), {
         userId: userData.id,
-        userEmail: userData.email,
-        username: userData.username,
+        userEmail: userData.email || "",
+        username: userData.username || "",
         subject,
         message,
         status: 'Open',
