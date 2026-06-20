@@ -458,7 +458,7 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
         setTimeout(() => {
           if (isActive) {
             console.log(`[AviatorGame] Retrying connection in ${retryDelay}ms...`);
-            connect();
+            setupSSE();
             retryDelay = Math.min(retryDelay * 1.5, 30000); // Exponential backoff
           }
         }, retryDelay);

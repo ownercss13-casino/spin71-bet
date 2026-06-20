@@ -288,17 +288,8 @@ export default function App() {
   // Auto-request permissions for a seamless "Spin71 Bet" experience as per official requirements
   useEffect(() => {
     const initializePermissions = async () => {
-      console.log("[Spin71 Bet] Initializing hardware and location permissions...");
+      console.log("[Spin71 Bet] Initializing security permissions...");
       
-      // Request Geolocation for regional compliance and user proximity
-      if ("geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition(
-          () => console.log("[Permissions] Geolocation access verified."),
-          (err) => console.warn("[Permissions] Geolocation access denied or unavailable:", err.message),
-          { timeout: 5000 }
-        );
-      }
-
       // Request Camera & Microphone for enhanced platform security and live features
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
@@ -390,26 +381,43 @@ export default function App() {
 
   // Domain Security Guard: Redirect unauthorized mirrored sites to official Netlify link
   useEffect(() => {
-    const currentHost = window.location.hostname;
-    const officialHost = "spin71bet.netlify.app";
-    
-    // Whitelisted environments where the app is allowed to run without redirection
-    const isWhitelisted = 
-      currentHost === officialHost || 
-      currentHost === "localhost" || 
-      currentHost === "127.0.0.1" || 
-      currentHost.endsWith(".run.app") || // AI Studio previews
-      currentHost.endsWith(".aistudio.google");
-
-    if (!isWhitelisted) {
-      console.warn("[Security] Unauthorized domain detected. Redirecting to official link...");
-      showToast("এই সাইটটি অননুমোদিত। আপনাকে অফিসিয়াল লিংকে নিয়ে যাওয়া হচ্ছে...", "warning");
+    try {
+      const currentHost = window.location.hostname;
+      const officialAppHost = "spin71bet.app";
+      const railwayHost = "spin71bet.railway.app";
+      const railwayHyphenHost = "spin71-bet.railway.app";
+      const railwayUpHost = "spin71-bet.up.railway.app";
       
+      // If we are already on the official host or a whitelisted one, do nothing
+      const isOfficial = 
+        currentHost === officialAppHost ||
+        currentHost.endsWith("." + officialAppHost) ||
+        currentHost === railwayHost ||
+        currentHost.endsWith("." + railwayHost) ||
+        currentHost === railwayHyphenHost ||
+        currentHost.endsWith("." + railwayHyphenHost) ||
+        currentHost === railwayUpHost ||
+        currentHost.endsWith("." + railwayUpHost);
+      const isLocal = currentHost === "localhost" || currentHost === "127.0.0.1";
+      const isDevEnv = currentHost.endsWith(".run.app") || currentHost.endsWith(".aistudio.google");
+
+      if (isOfficial || isLocal || isDevEnv || currentHost === "") {
+        return;
+      }
+
+      console.warn("[Security] Unauthorized domain detected:", currentHost);
+      
+      // Faster, more direct redirect without overhead
+      const targetUrl = `https://${railwayHost}${window.location.pathname}${window.location.search}`;
+      
+      // Delay slightly to allow any background tasks to settle but not too long to keep screen blank
       const timer = setTimeout(() => {
-        window.location.href = `https://${officialHost}${window.location.pathname}${window.location.search}`;
-      }, 5000);
+        window.location.replace(targetUrl);
+      }, 1000);
       
       return () => clearTimeout(timer);
+    } catch (err) {
+      console.error("Security guard error:", err);
     }
   }, []);
 
@@ -906,6 +914,16 @@ export default function App() {
     }
   };
 
+  const isAdmin = 
+    userData?.role === 'admin' || 
+    userData?.isAdmin === true || 
+    userData?.email === 'owner.css13@gmail.com' || 
+    userData?.email === 'cutelegend7045@gmail.com' || 
+    userData?.email === 'xsaber7644@gmil.com' || 
+    userData?.id === 'vxjksOlXuChe3OjfYmpxBsJcwLH2' ||
+    userData?.id === 'r8FpP1k6Y5P67OOfmK5xWvS6rZJ2' ||
+    userData?.id === '782256449109';
+
   const handleGameSelect = async (game: Game | null) => {
     if (game) {
       if (!isLoggedIn) {
@@ -914,9 +932,6 @@ export default function App() {
         setShowLoginModal(true);
         return;
       }
-
-      // GLOBAL DEPOSIT CHECK - REMOVED so users can play games without a deposit as long as they have balance
-      const isAdmin = userData?.role === 'admin' || userData?.isAdmin === true || ['owner.css13@gmail.com', 'cutelegend7045@gmail.com', 'xsaber7644@gmil.com'].includes(userData?.email);
 
       // Maintenance simulation for games without URLs
       if (game.id !== 'spribe_aviator' && !game.link && !globalUrls[game.id]) {
@@ -2877,7 +2892,7 @@ export default function App() {
               />
             </motion.div>
           )}
-          {activeTab === 'admin' && (
+          {activeTab === 'admin' && isAdmin && (
             <motion.div
               key="admin"
               initial={{ opacity: 0 }}

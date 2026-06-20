@@ -62,7 +62,6 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 type RegisterFormValues = z.infer<typeof registerSchema>;
 type ResetFormValues = z.infer<typeof resetSchema>;
 
-import { formatDisplayUID } from '../utils/idUtils';
 import { ToastType } from '../types';
 import { auth, db } from '../services/firebase';
 import { 

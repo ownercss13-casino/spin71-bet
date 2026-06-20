@@ -3772,78 +3772,12 @@ function SettingsTab({
 
   useEffect(() => {
     if (!country && !isFetchingLocation) {
-      // Check if permission is already granted
-      if ('permissions' in navigator) {
-        navigator.permissions.query({ name: 'geolocation' as any }).then((result) => {
-          if (result.state === 'granted') {
-            fetchLocation();
-          }
-        });
-      }
+       fetchLocationByIP();
     }
   }, [country]);
 
   const fetchLocation = () => {
-    if (!navigator.geolocation) {
-      fetchLocationByIP();
-      return;
-    }
-
-    setIsFetchingLocation(true);
-    setLocationError(null);
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const { latitude, longitude } = position.coords;
-          let countryName = null;
-
-          // Try BigDataCloud first
-          try {
-            const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`);
-            if (response.ok) {
-              const data = await response.json();
-              countryName = data.countryName;
-            }
-          } catch (e) {
-            console.warn("BigDataCloud reverse geocode failed:", e);
-          }
-
-          // Fallback to Nominatim if BigDataCloud fails
-          if (!countryName) {
-            try {
-              const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=3&addressdetails=1`, {
-                headers: { 'Accept-Language': 'en' }
-              });
-              if (response.ok) {
-                const data = await response.json();
-                countryName = data.address?.country;
-              }
-            } catch (e) {
-              console.warn("Nominatim reverse geocode failed:", e);
-            }
-          }
-
-          if (countryName) {
-            handleUpdateCountry(countryName);
-          } else {
-            // If reverse geocoding failed, try IP-based
-            await fetchLocationByIP();
-          }
-        } catch (error) {
-          console.error("Error processing geolocation:", error);
-          await fetchLocationByIP();
-        } finally {
-          setIsFetchingLocation(false);
-        }
-      },
-      async (error) => {
-        console.warn("Geolocation error, falling back to IP:", error);
-        await fetchLocationByIP();
-        setIsFetchingLocation(false);
-      },
-      { timeout: 8000, maximumAge: 60000 }
-    );
+    fetchLocationByIP();
   };
 
   const fetchLocationByIP = async () => {
