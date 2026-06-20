@@ -20,12 +20,14 @@ import {
   ExternalLink
 } from 'lucide-react';
 import Receipt from '../components/Receipt';
+import { getBackendUrl } from '../config';
 import { motion, AnimatePresence } from 'motion/react';
-import { ToastType } from '../components/ui/Toast';
+import { ToastType } from '../types';
 import GlobalImage from '../components/ui/GlobalImage';
 import VIPLoader from '../components/ui/VIPLoader';
-import { auth, db } from '../services/firebase';
+import { auth, db, getActiveUser } from '../services/firebase';
 import { collection, query, where, orderBy, getDocs, limit, onSnapshot } from 'firebase/firestore';
+import { useSound } from '../context/SoundContext';
 
 const paymentMethods = [
   { 
@@ -111,6 +113,7 @@ export default function DepositView({
   onUpdateGlobalImage?: (key: string, url: string) => Promise<void>,
   onDepositSuccess?: (amount: number, trxId?: string, senderNumber?: string, method?: string) => void
 }) {
+  const { playSound } = useSound();
   const [step, setStep] = useState(1);
   const [selectedMethod, setSelectedMethod] = useState('nagad');
   const [selectedChannel, setSelectedChannel] = useState('ch1');
@@ -266,16 +269,20 @@ export default function DepositView({
     setIsSubmitting(true);
     
     try {
-      const user = auth.currentUser;
+      const user = getActiveUser();
       if (!user) throw new Error("Not authenticated");
       
-      // Artificial deluxe processing delay to let the VIP payment gateway animations play smoothly
-      await new Promise(resolve => setTimeout(resolve, 3200));
+      // Artificial deluxe processing delay removed for speed
+      await new Promise(resolve => setTimeout(resolve, 400));
       
-      // Notify Telegram
-      await fetch('/api/telegram/event', {
+      // Notify Telegram (Non-blocking)
+      const idToken = await user.getIdToken();
+      fetch(`${getBackendUrl()}/api/telegram/event`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
         body: JSON.stringify({
           event: 'Deposit',
           userId: user.uid,
@@ -283,13 +290,19 @@ export default function DepositView({
           balance: userData.balance + parseFloat(amount),
           details: `Amount: ${parseFloat(amount)}, Method: ${selectedMethod}`
         })
-      });
+      }).catch(err => console.warn("Telegram notification failed:", err));
 
       if (onDepositSuccess) {
         await onDepositSuccess(parseFloat(amount), trxId, senderNumber, selectedMethod);
       } else {
         // Fallback testing
         showToast('Deposit confirmed! / ডিপোজিট সফল হয়েছে!', 'success');
+      }
+      
+      try {
+        playSound('deposit_success');
+      } catch (soundErr) {
+         console.warn("Sound play failed:", soundErr);
       }
       
       setReceiptData({ type: 'deposit', amount: parseFloat(amount), trxId, date: new Date().toLocaleString(), status: 'Pending' });

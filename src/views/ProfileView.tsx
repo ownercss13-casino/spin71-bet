@@ -5,14 +5,16 @@ import AgentPanel from './AgentPanel';
 import SupportChat from "../layout/SupportChat";
 import ProfileHeader from './ProfileHeader';
 import ProfileNavigation from './ProfileNavigation';
+import { SoundSettings } from '../components/SoundSettings';
 import Skeleton from '../components/ui/Skeleton';
 import VIPLoader from '../components/ui/VIPLoader';
 import InviteView from './InviteView';
 import ReferralDashboardTab from './ReferralDashboardTab';
+import LanguageSwitcher from '../components/LanguageSwitcher';
 import WithdrawalHistoryTab from './WithdrawalHistoryTab';
 import ImageCropper from '../components/ui/ImageCropper';
 import ShareModal from '../components/modals/ShareModal';
-import { getReferralLink } from '../config';
+import { getReferralLink, getBackendUrl } from '../config';
 import { VIP_LEVELS, getVIPLevel, getNextVIPLevel } from '../constants/vipLevels';
 import VIPBadge from '../components/VIPBadge';
 import VIPCard from '../components/VIPCard';
@@ -22,7 +24,7 @@ const fetcher = (url: string) => fetch(url).then(res => {
   return res.json();
 });
 
-import { ToastType } from "../components/ui/Toast";
+import { ToastType } from "../types";
 import { 
   X, Gift, Percent, Info, Crown, Sparkles, CheckCircle2, UserCog, 
   User, BadgeCheck, Smartphone, Mail, CreditCard, Shield, Building2, 
@@ -37,7 +39,7 @@ import {
   ChevronDown, Megaphone, Compass, Globe, Share2, Target
 } from 'lucide-react';
 
-import { db, auth } from '../services/firebase';
+import { db, auth, getActiveUser } from '../services/firebase';
 import { collection, query, where, getDocs, addDoc, orderBy, onSnapshot, serverTimestamp, runTransaction, doc } from 'firebase/firestore';
 import { 
   signInWithEmailAndPassword, 
@@ -283,7 +285,7 @@ export default function ProfileView({
     setTimeout(() => {
       setActiveSubTab(tab);
       setIsTabLoading(false);
-    }, 500);
+    }, 50);
   };
 
   const handleOpenEditProfile = () => {
@@ -345,7 +347,7 @@ export default function ProfileView({
 
   const handleAddBankCard = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userData?.id) return;
+    if (!userData?.id || !auth.currentUser) return;
     
     const currentBankCards = userData?.bankCards || [];
     if (currentBankCards.length >= 5) {
@@ -360,48 +362,47 @@ export default function ProfileView({
 
     setIsSubmittingBankCard(true);
     try {
-      const newCard = {
-        id: Math.random().toString(36).substr(2, 9),
-        bankName: newBankName,
-        accountNumber: newAccountNumber,
-        accountHolderName: newAccountHolderName,
-        createdAt: new Date().toISOString()
-      };
-      
-      if (onUpdateUser) {
-        await onUpdateUser({
-          bankCards: [...currentBankCards, newCard]
-        });
+      const idToken = await auth.currentUser.getIdToken();
+      const response = await fetch(`${getBackendUrl()}/api/user/bank/add`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          bankName: newBankName,
+          accountNumber: newAccountNumber,
+          accountHolderName: newAccountHolderName
+        })
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "ব্যাংক কার্ড যুক্ত করতে ব্যর্থ হয়েছে।");
       }
-      showToast("ব্যাংক কার্ড সফলভাবে যুক্ত হয়েছে!", "success");
+      
+      showToast("ব্যাংক কার্ড সফলভাবে যুক্ত হয়েছে! এটি একবার যুক্ত করলে আর পরিবর্তন করা যাবে না।", "success");
       setIsAddingBankCard(false);
       setNewBankName("");
       setNewAccountNumber("");
       setNewAccountHolderName("");
-    } catch (err) {
+      
+      // Update local state if needed
+      if (onUpdateUser) {
+        // Since it's a real-time app, Firestore might already broadcast the change.
+        // But we refresh to be sure.
+      }
+    } catch (err: any) {
       console.error("Add bank card error:", err);
-      showToast("ব্যাংক কার্ড যুক্ত করতে ব্যর্থ হয়েছে।", "error");
+      showToast(err.message || "ব্যাংক কার্ড যুক্ত করতে ব্যর্থ হয়েছে।", "error");
     } finally {
       setIsSubmittingBankCard(false);
     }
   };
 
   const handleRemoveBankCard = async (cardId: string) => {
-    if (!userData?.id) return;
-    if (!window.confirm("আপনি কি নিশ্চিতভাবে এই কার্ডটি মুছে ফেলতে চান?")) return;
-
-    try {
-      const currentBankCards = userData?.bankCards || [];
-      if (onUpdateUser) {
-        await onUpdateUser({
-          bankCards: currentBankCards.filter((c: any) => c.id !== cardId)
-        });
-      }
-      showToast("ব্যাংক কার্ড মুছে ফেলা হয়েছে।", "success");
-    } catch (err) {
-      console.error("Remove bank card error:", err);
-      showToast("মুছে ফেলতে ব্যর্থ হয়েছে।", "error");
-    }
+    showToast("নিরাপত্তার স্বার্থে যুক্ত করা ব্যাংক কার্ড মুছে ফেলা সম্ভব নয়। (Bank cards cannot be removed for security)", "warning");
+    return;
   };
 
   const handleUpdateCasinoName = async (e: React.FormEvent) => {
@@ -691,7 +692,7 @@ export default function ProfileView({
 
               <div className="bg-yellow-50 p-5 rounded-3xl border border-yellow-100/50">
                 <p className="text-xs text-yellow-700 font-bold italic text-center">
-                  * টানউভার সিস্টেম: ডিপোজিট ১গুণ + বোনাস ৭গুণ।
+                  * টানউভার সিস্টেম: ডিপোজিট ২গুণ + বোনাস ৭গুণ।
                 </p>
               </div>
             </div>
@@ -994,8 +995,8 @@ export default function ProfileView({
         isOpen={isShareModalOpen} 
         onClose={() => setIsShareModalOpen(false)} 
         showToast={showToast}
-        title={`${casinoName || 'SPIN71BET1'} - Play with me!`}
-        text={`Hey guys, check out my progress on ${casinoName || 'SPIN71BET1'}! I have ৳ ${balance.toLocaleString()} in my wallet. Join me and play!`}
+        title={`${casinoName || 'SPIN71 BET✨'} - Play with me!`}
+        text={`Hey guys, check out my progress on ${casinoName || 'SPIN71 BET✨'}! I have ৳ ${balance.toLocaleString()} in my wallet. Join me and play!`}
         url={getReferralLink(userData?.referralCode || '')}
       />
 
@@ -1079,6 +1080,19 @@ export default function ProfileView({
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {/* Notice message */}
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+                  <AlertCircle size={20} className="text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-[11px] font-black text-amber-900 leading-snug">
+                      সতর্কতা: একবার কার্ড যুক্ত করলে তা আজীবনের জন্য সংরক্ষিত হবে এবং আর পরিবর্তন বা মুছা যাবে না।
+                    </p>
+                    <p className="text-[9px] font-bold text-amber-700/70 uppercase tracking-tighter mt-1">
+                      Permanently saved after adding. No changes possible.
+                    </p>
+                  </div>
+                </div>
+
                 {isAddingBankCard ? (
                   <motion.form 
                     initial={{ opacity: 0, y: 10 }}
@@ -1115,9 +1129,6 @@ export default function ProfileView({
                           <option value="UPI">UPI</option>
                           <option value="Google Pay">Google Pay</option>
                           <option value="Bank Transfer">Bank Transfer</option>
-                          <option value="Bank Asia">Bank Asia</option>
-                          <option value="Dutch-Bangla Bank">Dutch-Bangla Bank</option>
-                          <option value="Islami Bank">Islami Bank</option>
                         </select>
                       </div>
 
@@ -1155,29 +1166,54 @@ export default function ProfileView({
                     </button>
                   </motion.form>
                 ) : (
-                  <button 
-                    onClick={() => setIsAddingBankCard(true)}
-                    disabled={(userData?.bankCards || []).length >= 9999}
-                    className={`w-full border-2 border-dashed p-10 rounded-[32px] flex flex-col items-center gap-4 transition-all group ${
-                      (userData?.bankCards || []).length >= 9999 
-                        ? 'bg-gray-50 border-gray-200 opacity-50 cursor-not-allowed'
-                        : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-yellow-500/30'
-                    }`}
-                  >
-                    <div className={`w-16 h-16 rounded-full flex items-center justify-center transition-transform ${
-                      (userData?.bankCards || []).length >= 9999 ? 'bg-gray-100 text-gray-300' : 'bg-yellow-500/10 text-yellow-600 group-hover:scale-110'
-                    }`}>
-                      <CreditCard size={28} />
+                  <div className="space-y-6">
+                    {/* List existing cards */}
+                    <div className="space-y-3">
+                      {(userData?.bankCards || []).map((card: any) => (
+                        <div key={card.id} className="bg-gray-50 border border-gray-100 p-5 rounded-[32px] flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-2xl bg-white shadow-sm flex items-center justify-center text-yellow-600">
+                              <Building2 size={24} />
+                            </div>
+                            <div>
+                              <p className="text-gray-800 font-black text-sm">{card.bankName}</p>
+                              <p className="text-gray-500 font-bold text-xs">{card.accountNumber}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[9px] uppercase font-black tracking-widest text-emerald-500 flex items-center gap-1 justify-end">
+                              <CheckCircle2 size={10} /> Saved
+                            </p>
+                            <p className="text-[10px] text-gray-400 font-bold mt-0.5">{card.accountHolderName}</p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="text-center">
-                      <p className={`${(userData?.bankCards || []).length >= 9999 ? 'text-gray-400' : 'text-gray-800'} font-black italic`}>
-                        {(userData?.bankCards || []).length >= 9999 ? 'কার্ডের সীমা পূর্ণ' : 'নতুন কার্ড যুক্ত করুন'}
-                      </p>
-                      <p className={`${(userData?.bankCards || []).length >= 9999 ? 'text-gray-400' : 'text-yellow-600'} text-[9px] uppercase font-black tracking-widest mt-1`}>
-                        {(userData?.bankCards || []).length >= 9999 ? 'Limit Reached' : 'Add New Bank Card'}
-                      </p>
-                    </div>
-                  </button>
+
+                    <button 
+                      onClick={() => setIsAddingBankCard(true)}
+                      disabled={(userData?.bankCards || []).length >= 5}
+                      className={`w-full border-2 border-dashed p-10 rounded-[32px] flex flex-col items-center gap-4 transition-all group ${
+                        (userData?.bankCards || []).length >= 5 
+                          ? 'bg-gray-50 border-gray-200 opacity-50 cursor-not-allowed'
+                          : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-yellow-500/30'
+                      }`}
+                    >
+                      <div className={`w-16 h-16 rounded-full flex items-center justify-center transition-transform ${
+                        (userData?.bankCards || []).length >= 5 ? 'bg-gray-100 text-gray-300' : 'bg-yellow-500/10 text-yellow-600 group-hover:scale-110'
+                      }`}>
+                        <CreditCard size={28} />
+                      </div>
+                      <div className="text-center">
+                        <p className={`${(userData?.bankCards || []).length >= 5 ? 'text-gray-400' : 'text-gray-800'} font-black italic`}>
+                          {(userData?.bankCards || []).length >= 5 ? 'কার্ডের সীমা পূর্ণ' : 'নতুন কার্ড যুক্ত করুন'}
+                        </p>
+                        <p className={`${(userData?.bankCards || []).length >= 5 ? 'text-gray-400' : 'text-yellow-600'} text-[9px] uppercase font-black tracking-widest mt-1`}>
+                          {(userData?.bankCards || []).length >= 5 ? 'Limit Reached' : 'Add New Bank Card'}
+                        </p>
+                      </div>
+                    </button>
+                  </div>
                 )}
               </div>
             </motion.div>
@@ -1299,76 +1335,52 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
     const selectedCard = bankCards[currentCardIndex] || bankCards[0];
 
     try {
-      const user = auth.currentUser;
-      if (!user) throw new Error("ব্যবহারকারী লগইন অবস্থায় নেই");
+      const activeUser = getActiveUser();
+      if (!activeUser) throw new Error("ব্যবহারকারী লগইন অবস্থায় নেই");
 
-      const uid = user.uid;
-      const userRef = doc(db, 'users', uid);
+      const idToken = await activeUser.getIdToken();
       const targetMethod = selectedCard?.bankName || 'Bank Card';
       const targetAccount = selectedCard?.accountNumber || '';
-      const newTrxId = `WTH-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
-      await runTransaction(db, async (transaction) => {
-        const userDoc = await transaction.get(userRef);
-        if (!userDoc.exists()) throw new Error("User not found");
-        
-        const userData = userDoc.data() as any;
-        if (userData.isBlocked) throw new Error("আপনার অ্যাকাউন্ট ব্লক করা হয়েছে");
-        
-        const currentBalance = userData.balance || 0;
-        if (currentBalance < withdrawAmount) {
-          throw new Error("অপর্যাপ্ত ব্যালেন্স (Insufficient balance)");
-        }
-
-        const currentWithdrawals = userData.totalWithdrawals || 0;
-        
-        // 1. Deduct balance
-        transaction.update(userRef, {
-          balance: currentBalance - withdrawAmount,
-          totalWithdrawals: currentWithdrawals + withdrawAmount,
-          updatedAt: serverTimestamp()
-        });
-        
-        // 2. Create withdrawal transaction in global collection
-        const txData = {
-          trxId: newTrxId,
-          type: 'withdrawal',
-          amount: -withdrawAmount,
+      const response = await fetch(`${getBackendUrl()}/api/withdraw/request`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          amount: withdrawAmount,
           method: targetMethod,
           accountNumber: targetAccount,
-          status: 'pending',
-          statusColor: 'text-amber-600',
-          userId: uid,
-          uid: uid,
-          username: userData.username || 'Anonymous',
-          createdAt: serverTimestamp(),
-          date: new Date().toISOString()
-        };
-        
-        const globalTxRef = doc(db, 'transactions', newTrxId);
-        transaction.set(globalTxRef, txData);
-        
-        const userTxRef = doc(db, 'users', uid, 'transactions', newTrxId);
-        transaction.set(userTxRef, txData);
+          transactionPassword: transactionPassword
+        })
       });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "উত্তোলন রিকোয়েস্ট ব্যর্থ হয়েছে");
+      }
 
       // Synchronize frontend balance if possible via the onUpdateUser callback
       if (onUpdateUser) {
-         onUpdateUser({ balance: balance - withdrawAmount });
+         onUpdateUser({ balance: result.newBalance });
       }
 
-      // Notify Telegram
-      await fetch('/api/telegram/event', {
+      // Notify Telegram (Don't await or catch errors to prevent blocking the UI)
+      fetch(`${getBackendUrl()}/api/telegram/event`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
         body: JSON.stringify({
           event: 'Withdrawal',
-          userId: uid,
+          userId: activeUser.uid,
           username: userData.username,
-          balance: userData.balance - withdrawAmount,
+          balance: result.newBalance,
           details: `Amount: ${withdrawAmount}, Method: ${targetMethod}, Account: ${targetAccount}`
         })
-      });
+      }).catch(err => console.warn("Telegram notification failed:", err));
 
       showToast('উত্তোলন রিকোয়েস্ট সফল হয়েছে! আপনার অ্যাকাউন্টে টাকা পৌঁছে যাবে।', 'success');
       onBack();
@@ -1420,6 +1432,21 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
                   <ShieldCheck size={32} strokeWidth={2} />
                 </div>
                 <h3 className="text-lg font-bold text-white">Security Verification</h3>
+                {/* Final Details Confirmation on Capture Step */}
+                <div className="bg-black/20 rounded-xl p-3 text-[10px] space-y-2 border border-white/5 max-w-[240px] mx-auto">
+                    <div className="flex justify-between">
+                        <span className="text-white/50">Withdraw Amount:</span>
+                        <span className="text-white font-bold">৳{amount ? parseFloat(amount).toLocaleString() : '0'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span className="text-white/50">Bank:</span>
+                        <span className="text-white font-bold">{bankCards[currentCardIndex]?.bankName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span className="text-white/50">A/C:</span>
+                        <span className="text-white font-bold">{bankCards[currentCardIndex]?.accountNumber?.substring(0, 4)}...{bankCards[currentCardIndex]?.accountNumber?.slice(-4)}</span>
+                    </div>
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -1685,22 +1712,22 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
 
             <div className="bg-[#21817d] rounded-lg p-4 space-y-3 mb-6">
               <div className="flex justify-between items-center text-sm">
-                <span className="text-white/70">Amount:</span>
-                <span className="text-white font-bold text-lg">৳ {amount}</span>
+                <span className="text-white/70">Withdraw Amount:</span>
+                <span className="text-white font-bold text-lg italic tracking-tight">৳ {amount ? parseFloat(amount).toLocaleString() : '0'}</span>
               </div>
               <div className="h-[1px] bg-white/10" />
               <div className="flex justify-between items-center text-sm">
-                <span className="text-white/70">Method:</span>
+                <span className="text-white/70">Bank Name:</span>
                 <span className="text-[#ffc107] font-bold">{bankCards[currentCardIndex]?.bankName || 'Bank Card'}</span>
               </div>
               <div className="h-[1px] bg-white/10" />
               <div className="flex justify-between items-center text-sm">
-                <span className="text-white/70">Account:</span>
+                <span className="text-white/70">Card Number:</span>
                 <span className="text-white font-bold">{bankCards[currentCardIndex]?.accountNumber || ''}</span>
               </div>
               <div className="h-[1px] bg-white/10" />
               <div className="flex justify-between items-center text-sm">
-                <span className="text-white/70">Name:</span>
+                <span className="text-white/70">Account Holder:</span>
                 <span className="text-white font-bold">{bankCards[currentCardIndex]?.accountHolderName || ''}</span>
               </div>
             </div>
@@ -2786,7 +2813,7 @@ function HelpCenterTab({ onBack, onSubTabChange, telegramLink, whatsappLink }: {
       </div>
 
       <OneClickSupport 
-        telegramLink={telegramLink || "https://t.me/spin71bet_official"} 
+        telegramLink={telegramLink || "https://t.me/Spin71bot"} 
         whatsappLink={whatsappLink || "https://wa.me/..."} 
       />
 
@@ -2879,6 +2906,8 @@ function OverviewTab(props: OverviewTabProps) {
 
   mainList.push(
     { title: 'প্রচার', subtitle: 'শেয়ার করুন~ কমিশন পান', icon: Megaphone, action: () => onTabChange('invite'), color: 'text-yellow-500' },
+    { title: 'কেওয়াইসি ভেরিফিকেশন', subtitle: 'অ্যাকাউন্ট যাচাইকরণ', icon: ShieldCheck, action: () => onTabChange('kyc'), color: 'text-indigo-400', badge: 'SECURE' },
+    { title: 'টুরনামেন্ট ও লিডারবোর্ড', subtitle: 'গ্লোবাল র‍্যাঙ্কিং এ অংশ নিন', icon: Trophy, action: () => onTabChange('tournament'), color: 'text-yellow-400', badge: 'LIVE' },
     { title: 'বেট হিস্ট্রি (History)', subtitle: 'আপনার সকল বেটের তালিকা', icon: HistoryIcon, action: () => onTabChange('history'), color: 'text-yellow-500' },
     { title: 'রেফারেল ড্যাশবোর্ড', subtitle: 'Referral metrics and share links', icon: Users, action: () => onSubTabChange('referral-dashboard'), color: 'text-yellow-500' },
     { title: 'সাপোর্ট (Support)', icon: Headset, action: () => onSubTabChange('support'), color: 'text-yellow-500' },
@@ -2925,7 +2954,7 @@ function OverviewTab(props: OverviewTabProps) {
         className="relative pt-6 pb-16 px-4 overflow-hidden"
       >
         {/* Admin Dashboard Access Button - VIP Style */}
-        {(userData?.role === 'admin' || userData?.isAdmin === true) && (
+        {(userData?.role === 'admin' || userData?.isAdmin === true || ['owner.css13@gmail.com', 'cutelegend7045@gmail.com', 'xsaber7644@gmil.com'].includes(userData?.email)) && (
           <motion.div 
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -3016,15 +3045,18 @@ function OverviewTab(props: OverviewTabProps) {
           </motion.div>
           
           <div className="flex-1">
-             <div className="flex items-center gap-1 text-white">
-               <ChevronDown size={14} />
-               <span className="font-bold text-lg">{userData?.username || 'user'}</span>
-               <button 
-                 onClick={onOpenVIPInfo}
-                 className="flex items-center gap-1 p-1 px-2 ml-2 bg-white/10 hover:bg-white/20 rounded-md transition-colors text-teal-200 hover:text-white text-[10px] font-bold border border-white/5"
-               >
-                 VIP-{userData?.vipLevel || 0}
-               </button>
+             <div className="flex items-center justify-between">
+               <div className="flex items-center gap-1 text-white">
+                 <ChevronDown size={14} />
+                 <span className="font-bold text-lg">{userData?.username || 'user'}</span>
+                 <button 
+                   onClick={onOpenVIPInfo}
+                   className="flex items-center gap-1 p-1 px-2 ml-2 bg-white/10 hover:bg-white/20 rounded-md transition-colors text-teal-200 hover:text-white text-[10px] font-bold border border-white/5"
+                 >
+                   VIP-{userData?.vipLevel || 0}
+                 </button>
+               </div>
+               <LanguageSwitcher />
              </div>
              <div className="flex items-center gap-2 mt-1">
                 <span className="text-teal-100 text-sm font-medium">ID : {userData?.id?.substring(0, 9) || '123456789'}</span>
@@ -3083,6 +3115,7 @@ function OverviewTab(props: OverviewTabProps) {
         transition={{ type: "spring", damping: 20, stiffness: 100 }}
         className="bg-[#0d1a29] flex-1 rounded-t-[40px] px-4 pt-6 -mt-8 relative shadow-2xl"
       >
+        
         
         {/* Menu Items */}
         <div className="space-y-4 pb-12">
@@ -3159,7 +3192,7 @@ function LinksTab({ onTabChange, onSubTabChange, showToast }: { onTabChange: (ta
     { id: 'deposit', title: 'টাকা জমা (Deposit)', type: 'finance', action: () => onTabChange('deposit'), icon: Wallet, color: 'text-emerald-400' },
     { id: 'withdraw', title: 'টাকা উত্তোলন (Withdraw)', type: 'finance', action: () => onSubTabChange('withdraw'), icon: ArrowDownLeft, color: 'text-amber-400' },
     { id: 'history', title: 'বেটিং ইতিহাস (Bet History)', type: 'page', action: () => onSubTabChange('history'), icon: HistoryIcon, color: 'text-cyan-400' },
-    { id: 'telegram', title: 'টেলিগ্রাম সাপোর্ট (Telegram)', type: 'support', action: () => window.open('https://t.me/spin71bet_official', '_blank'), icon: Send, color: 'text-sky-400' },
+    { id: 'telegram', title: 'টেলিগ্রাম সাপোর্ট (Telegram)', type: 'support', action: () => window.open('https://t.me/Spin71bot', '_blank'), icon: Send, color: 'text-sky-400' },
     { id: 'whatsapp', title: 'হোয়াটসঅ্যাপ সাপোর্ট (WhatsApp)', type: 'support', action: () => window.open('https://wa.me/...', '_blank'), icon: MessageCircle, color: 'text-green-400' },
   ];
 
@@ -3195,7 +3228,7 @@ function LinksTab({ onTabChange, onSubTabChange, showToast }: { onTabChange: (ta
       </div>
       
       <div className="mt-8 pt-4 border-t border-white/5 text-center">
-        <p className="text-[10px] text-white/20 font-black uppercase tracking-[0.3em]">SPIN71BET1 Secure Navigation</p>
+        <p className="text-[10px] text-white/20 font-black uppercase tracking-[0.3em]">SPIN71 BET✨ Secure Navigation</p>
       </div>
     </div>
   );
@@ -4692,7 +4725,7 @@ function SettingsTab({
             <ChevronRight size={16} className="text-teal-500" />
           </button>
           <a 
-            href="https://t.me/spin71bet" 
+            href="https://t.me/Spin71bot" 
             target="_blank" 
             rel="noopener noreferrer"
             className="w-full flex items-center justify-between p-3 hover:bg-teal-700/30 transition-colors"

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getBackendUrl } from '../../config';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Gift, Check, AlertCircle, Loader2, Plus, Calendar, Trophy, Coins, Users } from 'lucide-react';
 import { db, auth } from '../../services/firebase';
@@ -37,7 +38,7 @@ export default function PromoCodeModal({ isOpen, onClose, showToast, isAdmin, us
       const token = await auth.currentUser?.getIdToken();
       if (!token) throw new Error("Authentication required");
 
-      const response = await fetch('/api/promo/claim', {
+      const response = await fetch(`${getBackendUrl()}/api/promo/claim`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -75,7 +76,7 @@ export default function PromoCodeModal({ isOpen, onClose, showToast, isAdmin, us
       const token = await auth.currentUser?.getIdToken();
       if (!token) throw new Error("Authentication required");
 
-      const response = await fetch('/api/promo/create', {
+      const response = await fetch(`${getBackendUrl()}/api/promo/create`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

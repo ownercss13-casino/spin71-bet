@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Gift, Sparkles, Coins, CheckCircle2, X } from 'lucide-react';
+import { Gift, Sparkles, Coins, CheckCircle2, X, Wallet, RefreshCw } from 'lucide-react';
+import { auth, getDb } from '../../services/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 interface DailyRewardPopupProps {
   onClose: () => void;
   onClaim: (amount: number) => Promise<void>;
   currentStreak?: number;
+  onNavigateToDeposit?: () => void;
 }
 
 interface CoinParticle {
@@ -20,16 +23,77 @@ interface CoinParticle {
   iconType: 'coin' | 'sparkle' | 'goldStar';
 }
 
-const DailyRewardPopup: React.FC<DailyRewardPopupProps> = ({ onClose, onClaim, currentStreak = 0 }) => {
+const DailyRewardPopup: React.FC<DailyRewardPopupProps> = ({ onClose, onClaim, currentStreak = 0, onNavigateToDeposit }) => {
   const [claimed, setClaimed] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [particles, setParticles] = useState<CoinParticle[]>([]);
   const [windowDimensions, setWindowDimensions] = useState({ width: 1000, height: 800 });
 
+  // 24 Hour Deposit Check states
+  const [hasRecentDeposit, setHasRecentDeposit] = useState<boolean | null>(null);
+  const [checkingDeposit, setCheckingDeposit] = useState(true);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setWindowDimensions({ width: window.innerWidth, height: window.innerHeight });
     }
+  }, []);
+
+  useEffect(() => {
+    const checkUserDeposit = async () => {
+      const user = auth.currentUser;
+      if (!user) {
+        setHasRecentDeposit(false);
+        setCheckingDeposit(false);
+        return;
+      }
+
+      try {
+        const dbInstance = getDb();
+        if (!dbInstance) {
+          setHasRecentDeposit(false);
+          setCheckingDeposit(false);
+          return;
+        }
+
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        
+        // Single field query to avoid composite index errors
+        const q = query(
+          collection(dbInstance, 'transactions'),
+          where('userId', '==', user.uid)
+        );
+
+        const snap = await getDocs(q);
+        const approvedDeposits = snap.docs.map(doc => {
+          const data = doc.data();
+          let timestamp = null;
+          if (data.createdAt) {
+            timestamp = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+          } else if (data.date) {
+            timestamp = new Date(data.date);
+          }
+          return { ...data, timestamp };
+        });
+
+        // Filter for approved deposits in the last 24 hours on client-side
+        const recentDeposit = approvedDeposits.find((tx: any) => {
+          const isDeposit = tx.type === 'deposit';
+          const isApproved = tx.status === 'approved';
+          const isWithin24h = tx.timestamp && tx.timestamp >= oneDayAgo;
+          return isDeposit && isApproved && isWithin24h;
+        });
+
+        setHasRecentDeposit(!!recentDeposit);
+      } catch (err) {
+        console.error("Error checking recent deposit:", err);
+        setHasRecentDeposit(false);
+      } finally {
+        setCheckingDeposit(false);
+      }
+    };
+
+    checkUserDeposit();
   }, []);
 
   const rewards = [
@@ -43,20 +107,24 @@ const DailyRewardPopup: React.FC<DailyRewardPopupProps> = ({ onClose, onClaim, c
   ];
 
   const handleClaim = async () => {
-    if (claimed || claiming) return;
+    if (claimed || claiming || !hasRecentDeposit) {
+      if (!hasRecentDeposit && onNavigateToDeposit) {
+        onNavigateToDeposit();
+      }
+      return;
+    }
     setClaiming(true);
     const day = Math.min(currentStreak + 1, 7);
     const amount = rewards[day - 1].amount;
 
     // Generate stunning shrapnel physical coin explosion particles centered from the click context
     const burstParticles: CoinParticle[] = Array.from({ length: 45 }).map((_, i) => {
-      // Balanced radial angles to map a glorious circle burst with random offsets
       const angle = (Math.PI * 2 * i) / 45 + (Math.random() - 0.5) * 0.25;
       const speed = 180 + Math.random() * 240;
 
       const targetX = Math.cos(angle) * speed;
-      const targetYUp = -220 - Math.random() * 240; // upward thrust before falling
-      const targetYDown = 450 + Math.random() * 450; // gravity downward exit
+      const targetYUp = -220 - Math.random() * 240; 
+      const targetYDown = 450 + Math.random() * 450; 
 
       const iconTypes: Array<'coin' | 'sparkle' | 'goldStar'> = ['coin', 'coin', 'coin', 'sparkle', 'goldStar'];
       const iconType = iconTypes[Math.floor(Math.random() * iconTypes.length)];
@@ -81,7 +149,7 @@ const DailyRewardPopup: React.FC<DailyRewardPopupProps> = ({ onClose, onClaim, c
       setClaimed(true);
       setTimeout(() => {
         onClose();
-      }, 3500); // Allow maximum visibility of the magnificent coin cascade
+      }, 3500); 
     } catch (error) {
       console.error(error);
     } finally {
@@ -100,7 +168,7 @@ const DailyRewardPopup: React.FC<DailyRewardPopupProps> = ({ onClose, onClaim, c
         {/* Lights */}
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-red-500 to-transparent"></div>
         
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors z-55">
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors z-[305]">
           <X size={24} />
         </button>
 
@@ -140,35 +208,68 @@ const DailyRewardPopup: React.FC<DailyRewardPopupProps> = ({ onClose, onClaim, c
 
           {/* Centered button container */}
           <div className="relative w-full">
-            {/* The pulsing button */}
-            <motion.button
-              disabled={claimed || claiming}
-              onClick={handleClaim}
-              animate={claimed || claiming ? { 
-                scale: 1,
-                boxShadow: "0 0 0px rgba(234, 179, 8, 0)"
-              } : { 
-                scale: [1, 1.04, 1],
-                boxShadow: [
-                  "0 0 12px rgba(234, 179, 8, 0.2)",
-                  "0 0 24px rgba(234, 179, 8, 0.6)",
-                  "0 0 12px rgba(234, 179, 8, 0.2)"
-                ]
-              }}
-              transition={{ 
-                duration: 2, 
-                repeat: Infinity, 
-                ease: "easeInOut" 
-              }}
-              className={`
-                w-full py-5 rounded-2xl font-black text-xl uppercase tracking-widest transition-all relative z-10 select-none
-                ${claimed ? 'bg-green-600 text-white shadow-[0_0_20px_rgba(22,163,74,0.4)] cursor-default' : 
-                  claiming ? 'bg-yellow-600 text-black cursor-wait' :
-                  'bg-gradient-to-b from-yellow-300 via-yellow-400 to-yellow-600 text-black active:scale-95 cursor-pointer'}
-              `}
-            >
-              {claimed ? 'CLAIMED!' : claiming ? 'CLAIMING...' : 'CLAIM NOW'}
-            </motion.button>
+            {checkingDeposit ? (
+              <div className="flex flex-col items-center justify-center p-4 bg-white/5 border border-white/10 rounded-2xl gap-2">
+                <RefreshCw className="animate-spin text-yellow-400" size={24} />
+                <p className="text-[11px] font-bold text-yellow-300">ডিপোজিট স্থিতি চেক করা হচ্ছে...</p>
+              </div>
+            ) : !hasRecentDeposit ? (
+              <div className="space-y-4">
+                <div className="p-3 bg-red-950/40 border border-red-500/20 rounded-2xl text-center space-y-1">
+                  <p className="text-[11px] font-black text-rose-400">ডিপোজিট নেই! (No Deposit Found)</p>
+                  <p className="text-[10px] text-gray-300 font-medium leading-relaxed">
+                    ডেইলি রিওয়ার্ড দাবি করতে বিগত ২৪ ঘণ্টার মধ্যে কমপক্ষে একটি সফল ডিপোজিট থাকতে হবে।
+                  </p>
+                </div>
+                
+                <motion.button
+                  onClick={onNavigateToDeposit}
+                  animate={{ 
+                    scale: [1, 1.02, 1],
+                    boxShadow: [
+                      "0 0 10px rgba(244, 63, 94, 0.2)",
+                      "0 0 20px rgba(244, 63, 94, 0.4)",
+                      "0 0 10px rgba(244, 63, 94, 0.2)"
+                    ]
+                  }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                  className="w-full py-4.5 bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white rounded-2xl font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-lg active:scale-95 transition-all"
+                >
+                  <Wallet size={16} />
+                  ডিপোজিট করুন (Deposit Now)
+                </motion.button>
+              </div>
+            ) : (
+              /* The pulsing button */
+              <motion.button
+                disabled={claimed || claiming}
+                onClick={handleClaim}
+                animate={claimed || claiming ? { 
+                  scale: 1,
+                  boxShadow: "0 0 0px rgba(234, 179, 8, 0)"
+                } : { 
+                  scale: [1, 1.04, 1],
+                  boxShadow: [
+                    "0 0 12px rgba(234, 179, 8, 0.2)",
+                    "0 0 24px rgba(234, 179, 8, 0.6)",
+                    "0 0 12px rgba(234, 179, 8, 0.2)"
+                  ]
+                }}
+                transition={{ 
+                  duration: 2, 
+                  repeat: Infinity, 
+                  ease: "easeInOut" 
+                }}
+                className={`
+                  w-full py-5 rounded-2xl font-black text-xl uppercase tracking-widest transition-all relative z-10 select-none
+                  ${claimed ? 'bg-green-600 text-white shadow-[0_0_20px_rgba(22,163,74,0.4)] cursor-default' : 
+                    claiming ? 'bg-yellow-600 text-black cursor-wait' :
+                    'bg-gradient-to-b from-yellow-300 via-yellow-400 to-yellow-600 text-black active:scale-95 cursor-pointer'}
+                `}
+              >
+                {claimed ? 'CLAIMED!' : claiming ? 'CLAIMING...' : 'CLAIM NOW'}
+              </motion.button>
+            )}
 
             {/* Exploding Coin Particles starting precisely from the button's center */}
             <AnimatePresence>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Settings, Bell, Moon, Sun, Monitor, BellRing, BellOff, Volume2, VolumeX, Shield, Save, Languages } from 'lucide-react';
 import { useSound } from '../context/SoundContext';
+import { SoundSettings } from '../components/SoundSettings';
 import { useLanguage } from '../context/LanguageContext';
 import { LOCALIZED_STRINGS } from '../constants/localization';
 
@@ -256,65 +257,8 @@ export default function SettingsView({ userData, onUpdateUser, showToast }: Sett
           </div>
         </div>
 
-        {/* Audio Settings */}
-        <div className="bg-teal-900/20 border border-teal-800/30 rounded-[28px] overflow-hidden">
-          <div className="p-5 border-b border-teal-800/30 flex items-center gap-3 bg-teal-900/30">
-            <Volume2 className="text-teal-500" size={20} />
-            <h3 className="text-lg font-black text-white italic tracking-tight">{strings.audioTitle}</h3>
-          </div>
-          <div className="p-5 space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-black/20 flex items-center justify-center text-gray-400 border border-white/5">
-                  {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-white">{strings.soundEffectsLabel}</h4>
-                </div>
-              </div>
-              <button 
-                onClick={toggleSound}
-                className={`w-12 h-6 rounded-full p-1 transition-colors ${soundEnabled ? 'bg-teal-500' : 'bg-gray-600'}`}
-              >
-                <motion.div 
-                  className="w-4 h-4 rounded-full bg-white"
-                  animate={{ x: soundEnabled ? 24 : 0 }}
-                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                />
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs text-gray-400 font-bold">
-                <span>{strings.bgMusicLabel}</span>
-                <span>{bgMusicVolume}%</span>
-              </div>
-              <input 
-                type="range"
-                min="0"
-                max="100"
-                value={bgMusicVolume}
-                onChange={(e) => setBgMusicVolume(Number(e.target.value))}
-                className="w-full h-2 bg-black/20 rounded-lg appearance-none cursor-pointer accent-teal-500"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs text-gray-400 font-bold">
-                <span>{strings.gameSoundLabel}</span>
-                <span>{gameSoundVolume}%</span>
-              </div>
-              <input 
-                type="range"
-                min="0"
-                max="100"
-                value={gameSoundVolume}
-                onChange={(e) => setGameSoundVolume(Number(e.target.value))}
-                className="w-full h-2 bg-black/20 rounded-lg appearance-none cursor-pointer accent-teal-500"
-              />
-            </div>
-          </div>
-        </div>
+        {/* Audio Settings Integration */}
+        <SoundSettings />
 
         {/* Daily Bet Limit */}
         <div className="bg-teal-900/20 border border-teal-800/30 rounded-[28px] overflow-hidden p-5">

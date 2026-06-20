@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getBackendUrl } from '../../config';
 import { motion, AnimatePresence } from 'motion/react';
 import { Coins, Trophy, Clock, Star, Gift, User, History, ArrowRight, ArrowLeft, X, Wrench, AlertTriangle } from 'lucide-react';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -14,8 +15,9 @@ interface SlotMachineProps {
 }
 
 const SlotMachine: React.FC<SlotMachineProps> = ({ onBack, balance, onBalanceUpdate, showToast, userData }) => {
-  const [isUnderMaintenance] = useState(true);
-  const { db, auth } = useFirebase();
+  // const [isUnderMaintenance] = useState(true);
+  const [isUnderMaintenance] = useState(false);
+  const { db, auth, user } = useFirebase();
   const [betAmount, setBetAmount] = useState(10);
   
   if (isUnderMaintenance) {
@@ -92,8 +94,8 @@ const SlotMachine: React.FC<SlotMachineProps> = ({ onBack, balance, onBalanceUpd
     setShowWin(false);
 
     try {
-      const idToken = await auth.currentUser?.getIdToken();
-      const response = await fetch('/api/game/slot/spin', {
+      const idToken = await user?.getIdToken();
+      const response = await fetch(`${getBackendUrl()}/api/game/slot/spin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ betAmount, idToken })
@@ -129,7 +131,7 @@ const SlotMachine: React.FC<SlotMachineProps> = ({ onBack, balance, onBalanceUpd
       {/* Top Banner / Logo */}
       <div className="absolute top-0 left-0 right-0 h-20 flex items-center justify-center z-20 pointer-events-none pt-4">
         <span className="text-3xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 drop-shadow-[0_0_12px_rgba(253,216,53,0.5)]">
-          SPIN71BET1
+          SPIN71 BET✨
         </span>
       </div>
 

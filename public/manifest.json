@@ -1,6 +1,6 @@
 {
-  "name": "Spin71 Bet",
-  "short_name": "Spin71",
+  "name": "SPIN71 BET✨",
+  "short_name": "SPIN71✨",
   "description": "Premium Sports & Gaming Platform",
   "start_url": "/",
   "display": "standalone",
@@ -8,13 +8,13 @@
   "theme_color": "#ea7308",
   "icons": [
     {
-      "src": "/images/app_logo.png",
+      "src": "/images/app_logo_v2.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/images/app_logo.png",
+      "src": "/images/app_logo_v2.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

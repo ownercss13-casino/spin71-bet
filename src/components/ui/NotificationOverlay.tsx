@@ -1,47 +1,66 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
 interface NotificationOverlayProps {
   isOpen: boolean;
   onClose: () => void;
   message: string;
-  type: 'success' | 'info' | 'error';
+  type: 'success' | 'info' | 'error' | 'warning';
+  title?: string;
 }
 
-export default function NotificationOverlay({ isOpen, onClose, message, type }: NotificationOverlayProps) {
-  const config = {
-    success: { icon: CheckCircle2, color: 'text-[#4ade80]', bg: 'bg-green-500/10' },
-    info: { icon: Info, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-    error: { icon: AlertCircle, color: 'text-red-500', bg: 'bg-red-500/10' },
+export default function NotificationOverlay({ isOpen, onClose, message, type, title }: NotificationOverlayProps) {
+  const getTitle = () => {
+    if (title) return title;
+    switch (type) {
+      case 'success': return 'সফল হয়েছে';
+      case 'error': return 'ব্যর্থ হয়েছে';
+      case 'warning': return 'সতর্কতা';
+      default: return 'নিশ্চিতকরণ';
+    }
   };
 
-  const { icon: Icon, color, bg } = config[type];
+  const getTitleColor = () => {
+    switch (type) {
+      case 'success': return 'text-green-500';
+      case 'error': return 'text-red-500';
+      case 'warning': return 'text-yellow-500';
+      default: return 'text-[#48b2ff]';
+    }
+  };
+  
+  const getButtonBg = () => {
+    switch (type) {
+      case 'success': return 'bg-gradient-to-r from-green-500 to-green-600';
+      case 'error': return 'bg-gradient-to-r from-red-500 to-red-600';
+      case 'warning': return 'bg-gradient-to-r from-yellow-500 to-yellow-600';
+      default: return 'bg-gradient-to-r from-[#4fc3f7] to-[#29b6f6]';
+    }
+  };
 
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[3000] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[5000] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
           <motion.div 
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.8, opacity: 0 }}
-            className={`relative bg-[#1e1e1e] border border-white/10 rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl`}
+            initial={{ scale: 0.95, opacity: 0, y: 10 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.95, opacity: 0, y: 10 }}
+            className="w-full max-w-[320px] bg-[#282a2f] rounded-[24px] p-6 text-center shadow-2xl border border-white/5"
           >
-            <button onClick={onClose} className="absolute top-4 right-4 text-white/50 hover:text-white">
-              <X size={20} />
-            </button>
-            <div className={`w-16 h-16 ${bg} rounded-full flex items-center justify-center mx-auto mb-6`}>
-              <Icon size={32} className={color} />
-            </div>
-            <p className="text-white text-lg font-bold">
+            <h3 className={`text-xl font-bold mb-4 ${getTitleColor()}`}>
+              {getTitle()}
+            </h3>
+
+            <p className="text-white text-base font-medium leading-relaxed mb-8">
               {message}
             </p>
+
             <button 
               onClick={onClose}
-              className="mt-6 w-full font-bold py-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all"
+              className={`w-full py-3 rounded-full text-white font-bold text-base transition-all active:scale-95 ${getButtonBg()}`}
             >
-              বন্ধ করুন
+              ঠিক আছে
             </button>
           </motion.div>
         </div>

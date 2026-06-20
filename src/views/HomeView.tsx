@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AnimatedBalance } from '../components/AnimatedBalance';
-import { Clock, Download, X, RefreshCw, ChevronRight, Wallet, Users, Star, TrendingUp, History, User, Menu, Bell, Search, Volume2, Flame, Gamepad2, Hexagon, Tv, Club, Fish, Ticket, ChevronLeft, Mail, Sparkles, Zap, Gift, Send, MessageSquare, Plane, Smartphone, Trophy } from 'lucide-react';
+import { Clock, Download, X, RefreshCw, ChevronRight, Wallet, Users, Star, TrendingUp, History, User, Menu, Bell, Search, Volume2, Flame, Gamepad2, Hexagon, Tv, Club, Fish, Ticket, ChevronLeft, Mail, Sparkles, Zap, Gift, Send, MessageSquare, Headset, Plane, Smartphone, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GAME_IMAGES } from '../constants/gameAssets';
 import { GameGrid, games } from "../components/ui/GameGrid";
@@ -10,6 +10,8 @@ import LiveBetsTicker from '../components/LiveBetsTicker';
 
 import { useLanguage } from '../context/LanguageContext';
 import { LOCALIZED_STRINGS } from '../constants/localization';
+import { db } from '../services/firebase';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
 function WinAnimation({ gameId }: { gameId: string }) {
   const [wins, setWins] = useState<{ id: number; amount: string; x: number; y: number }[]>([]);
@@ -127,7 +129,7 @@ export default function HomeView({
   updateGlobalImage,
   allButtonName,
   updateAllButtonName,
-  casinoName = "SPIN71BET1",
+  casinoName = "SPIN71 BET✨",
   updateCasinoName,
   noticeText = "আমাদের গেম উপভোগ করুন এবং বড় জয় নিশ্চিত করুন!",
   telegramLink,
@@ -145,6 +147,68 @@ export default function HomeView({
   const { strings } = useLanguage();
   const [editingCasinoName, setEditingCasinoName] = React.useState(false);
   const [tempCasinoName, setTempCasinoName] = React.useState(casinoName || "SPIN71BET1");
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  const bannerSlides = [
+    {
+      id: 'banner1',
+      image: "https://www.image2url.com/r2/default/images/1780756072411-5bf24ebb-fb2f-467a-a559-8875dfb29a60.png",
+      title: strings.heroCasinoTitle,
+      desc: strings.heroCasinoDesc,
+      isDefault: true,
+      action: () => onNavigate?.('invite')
+    },
+    {
+      id: 'banner2',
+      image: "/src/assets/images/casino_hero_banner_2_1780243907033.png",
+      title: strings.heroAviatorTitle,
+      desc: strings.heroAviatorDesc,
+      isDefault: false,
+      action: () => onNavigate?.('aviator')
+    },
+    {
+      id: 'banner3',
+      image: "/src/assets/images/casino_hero_banner_3_1780243929232.png",
+      title: strings.heroJackpotTitle,
+      desc: strings.heroJackpotDesc,
+      isDefault: false,
+      action: () => onNavigate?.('deposit')
+    }
+  ];
+
+  // Sync current slide with category selection if user manually switches tabs
+  useEffect(() => {
+    if (activeCategory === 'ক্র্যাশ') {
+      setCurrentSlide(1);
+    } else if (activeCategory === 'স্লট') {
+      setCurrentSlide(2);
+    } else {
+      setCurrentSlide(0);
+    }
+  }, [activeCategory]);
+
+  // Set up auto rotation every 5 seconds (5000ms)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentSlide(prev => (prev + 1) % 3);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const trackBannerClick = async (slide: typeof bannerSlides[0]) => {
+    try {
+      await addDoc(collection(db, 'banner_clicks'), {
+        bannerId: slide.id,
+        bannerTitle: slide.title || 'Welcome Promo Bonus Banner',
+        userId: userData?.uid || userData?.id || 'anonymous',
+        username: userData?.username || 'anonymous',
+        timestamp: serverTimestamp()
+      });
+      console.log(`[HomeView] Tracked banner click engagement: ${slide.id}`);
+    } catch (err) {
+      console.error('[HomeView] Failed to track banner click:', err);
+    }
+  };
 
   const categories = [
     { id: 'সব', icon: Gamepad2, label: strings.catAll },
@@ -241,6 +305,12 @@ export default function HomeView({
               </div>
               <button 
                 className="w-10 h-10 flex items-center justify-center text-[#90a4ae] hover:text-[#00e5ff] transition-colors relative"
+                onClick={() => window.dispatchEvent(new CustomEvent('openSupportChat'))}
+              >
+                <Headset size={22} className="animate-pulse" />
+              </button>
+              <button 
+                className="w-10 h-10 flex items-center justify-center text-[#90a4ae] hover:text-[#00e5ff] transition-colors relative"
                 onClick={() => setIsNotificationCenterOpen(true)}
               >
                 <Bell size={22} />
@@ -255,23 +325,18 @@ export default function HomeView({
         </div>
       </header>
 
-      {/* Premium Hero Slider */}
+      {/* Premium Hero Slider with 5-Second Auto Rotation */}
       <div className="px-3 pt-3">
         <div 
           onClick={() => {
-            if (activeCategory === 'ক্র্যাশ') {
-              onNavigate?.('aviator');
-            } else if (activeCategory === 'সেরা') {
-              onNavigate?.('invite');
-            } else {
-              onNavigate?.('deposit');
-            }
+            trackBannerClick(bannerSlides[currentSlide]);
+            bannerSlides[currentSlide].action();
           }}
           className="relative w-full aspect-[2.65/1] md:aspect-auto md:h-64 rounded-2xl overflow-hidden shadow-2xl border border-white/5 bg-[#14253a] cursor-pointer"
         >
           <AnimatePresence mode="wait">
             <motion.div
-              key={activeCategory === 'সেরা' ? 'banner1' : activeCategory === 'ক্র্যাশ' ? 'banner2' : 'banner3'}
+              key={bannerSlides[currentSlide].id}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -279,19 +344,13 @@ export default function HomeView({
               className="absolute inset-0"
             >
               <img 
-                src={
-                  activeCategory === 'ক্র্যাশ' 
-                    ? "/src/assets/images/casino_hero_banner_2_1780243907033.png" 
-                    : activeCategory === 'স্লট' 
-                      ? "/src/assets/images/casino_hero_banner_3_1780243929232.png"
-                      : "https://www.image2url.com/r2/default/images/1780756072411-5bf24ebb-fb2f-467a-a559-8875dfb29a60.png"
-                } 
+                src={bannerSlides[currentSlide].image} 
                 alt="Casino Banner" 
                 className="w-full h-full object-fill md:object-cover"
               />
               
               {/* Only show text overlay if NOT the default 'সেরা' category banner, as the default banner already has the beautifully formatted Bengali text and CTA buttons baked directly into it */}
-              {activeCategory !== 'সেরা' ? (
+              {!bannerSlides[currentSlide].isDefault ? (
                 <>
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0d1a29] via-transparent to-transparent opacity-60"></div>
                   
@@ -302,10 +361,10 @@ export default function HomeView({
                       transition={{ delay: 0.3 }}
                     >
                       <h2 className="text-sm sm:text-lg md:text-2xl lg:text-3xl font-black text-white italic leading-tight drop-shadow-lg scale-y-110 tracking-tight">
-                        {activeCategory === 'ক্র্যাশ' ? strings.heroAviatorTitle : activeCategory === 'স্লট' ? strings.heroJackpotTitle : strings.heroCasinoTitle}
+                        {bannerSlides[currentSlide].title}
                       </h2>
                       <p className="text-[8px] sm:text-[10px] md:text-sm text-yellow-400 font-bold uppercase tracking-widest mt-0.5 sm:mt-1">
-                        {activeCategory === 'ক্র্যাশ' ? strings.heroAviatorDesc : activeCategory === 'স্লট' ? strings.heroJackpotDesc : strings.heroCasinoDesc}
+                        {bannerSlides[currentSlide].desc}
                       </p>
                     </motion.div>
                     
@@ -328,8 +387,15 @@ export default function HomeView({
           
           {/* Slider Indicators */}
           <div className="absolute bottom-4 right-4 flex gap-1.5 z-10">
-            {[0, 1, 2].map(i => (
-              <div key={i} className={`w-1.5 h-1.5 rounded-full ${i === (activeCategory === 'ক্র্যাশ' ? 1 : activeCategory === 'স্লট' ? 2 : 0) ? 'bg-yellow-400 w-4' : 'bg-white/30'} transition-all`} />
+            {bannerSlides.map((_, i) => (
+              <button 
+                key={i} 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentSlide(i);
+                }}
+                className={`w-1.5 h-1.5 rounded-full ${i === currentSlide ? 'bg-yellow-400 w-4' : 'bg-white/30'} transition-all`} 
+              />
             ))}
           </div>
         </div>
@@ -517,19 +583,17 @@ export default function HomeView({
             <MessageSquare size={16} className="text-blue-400" />
             Customer Support
         </h4>
-        <div className="grid grid-cols-3 gap-3">
-          <a href={telegramLink} target="_blank" rel="noopener noreferrer" className="bg-[#0088cc] flex flex-col items-center justify-center p-3 rounded-2xl gap-1 hover:scale-105 transition-transform">
-             <Send size={20} className="text-white" />
-             <span className="text-[9px] font-bold text-white uppercase">Telegram</span>
+        <div className="grid grid-cols-2 gap-2">
+          <a href={telegramLink} target="_blank" rel="noopener noreferrer" className="bg-[#0088cc] flex flex-col items-center justify-center p-3 rounded-2xl gap-1 hover:scale-105 transition-transform overflow-hidden relative group">
+              <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <Send size={20} className="text-white relative z-10" />
+              <span className="text-[8px] font-black text-white uppercase relative z-10">Telegram</span>
           </a>
-          <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="bg-[#25D366] flex flex-col items-center justify-center p-3 rounded-2xl gap-1 hover:scale-105 transition-transform">
-             <MessageSquare size={20} className="text-white" />
-             <span className="text-[9px] font-bold text-white uppercase">WhatsApp</span>
+          <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="bg-[#25D366] flex flex-col items-center justify-center p-3 rounded-2xl gap-1 hover:scale-105 transition-transform overflow-hidden relative group">
+              <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <MessageSquare size={20} className="text-white relative z-10" />
+              <span className="text-[8px] font-black text-white uppercase relative z-10">WhatsApp</span>
           </a>
-          <button onClick={() => setIsSupportChatOpen?.(true)} className="bg-[#0cf] flex flex-col items-center justify-center p-3 rounded-2xl gap-1 hover:scale-105 transition-transform">
-             <MessageSquare size={20} className="text-white" />
-             <span className="text-[9px] font-bold text-white uppercase">Live Chat</span>
-          </button>
         </div>
       </div>
 

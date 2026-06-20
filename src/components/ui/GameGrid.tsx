@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Star, Info, Camera, Edit2, X, Upload } from 'lucide-react';
+import { Star, Info, Camera, Edit2, X, Upload, Send } from 'lucide-react';
 import Skeleton from './Skeleton';
 import { GAME_IMAGES } from '../../constants/gameAssets';
 import { GAME_LOGO_URLS } from '../../constants/gameLogos';
@@ -173,7 +173,7 @@ export const GameGrid: React.FC<GameGridProps> = ({
     setInternalLoading(true);
     const timer = setTimeout(() => {
       setInternalLoading(false);
-    }, 600);
+    }, 50);
     return () => clearTimeout(timer);
   }, [category, selectedProvider]);
 
@@ -245,6 +245,19 @@ export const GameGrid: React.FC<GameGridProps> = ({
             </div>
           );
         })}
+        {/* Live Support Quick Access */}
+        <div className="shrink-0 snap-start h-8">
+             <button
+                onClick={() => window.open('https://t.me/Spin71bot', '_blank')}
+                className="h-full rounded-lg bg-gradient-to-tr from-[#00d0f5] to-[#0080ff] px-3 flex items-center gap-1.5 shadow-[0_4px_12px_rgba(0,128,255,0.3)] active:scale-95 transition-all group border border-white/10"
+              >
+                <div className="relative">
+                  <Send size={12} className="text-white group-hover:rotate-12 transition-transform" />
+                  <span className="absolute -top-1.5 -right-1.5 w-2 h-2 bg-emerald-500 rounded-full border border-[#0d1a29] animate-pulse"></span>
+                </div>
+                <span className="text-[9px] font-black text-white italic uppercase tracking-tighter whitespace-nowrap">Live Chat</span>
+              </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">

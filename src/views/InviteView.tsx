@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { QRCodeSVG } from 'qrcode.react';
 import { motion } from 'motion/react';
 import { db } from "../services/firebase";
-import { collection, query, where, getDocs, orderBy, limit } from "firebase/firestore";
+import { collection, query, where, getDocs, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { 
   Copy, 
   HelpCircle, 
@@ -36,7 +36,7 @@ import {
   Download,
   Loader2
 } from "lucide-react";
-import { ToastType } from '../components/ui/Toast';
+import { ToastType } from '../types';
 import { getReferralLink } from '../config';
 
 import ShareModal from '../components/modals/ShareModal';
@@ -68,76 +68,47 @@ export default function InviteView({
   const [expandedRef, setExpandedRef] = useState<string | null>(null);
 
   useEffect(() => {
-    // Artificial tab loading experience as requested by user
+    // Fast tab loading experience
     setIsTabLoading(true);
-    const timer = setTimeout(() => setIsTabLoading(false), 900);
+    const timer = setTimeout(() => setIsTabLoading(false), 50);
     return () => clearTimeout(timer);
   }, [activeTab]);
 
   useEffect(() => {
-    if (userData?.id) {
-      const fetchReferrals = async () => {
-        setIsLoading(true);
-        try {
-          // Fetch users who were referred
-          // Fetch users who were referred (omitting orderBy to prevent index errors)
-          const q = query(
-            collection(db, 'users'), 
-            where('referredBy', '==', userData.id)
-          );
-          const querySnapshot = await getDocs(q);
-          
-          // Try to fetch from the referrals subcollection to get commission data, handle errors gracefully
-          let subSnapshotDocs: any[] = [];
-          try {
-            const subRefQ = query(collection(db, 'users', userData.id, 'referrals'));
-            const subSnapshot = await getDocs(subRefQ);
-            subSnapshotDocs = subSnapshot.docs;
-          } catch (subErr) {
-            console.warn("[InviteView] Non-critical: Could not fetch subcollection referrals", subErr);
-          }
+    if (!userData?.id) return;
 
-          const subDataMap = new Map();
-          subSnapshotDocs.forEach(doc => {
-            subDataMap.set(doc.id, doc.data());
-          });
+    // Listen to referred users in real-time
+    const q = query(
+      collection(db, 'users'), 
+      where('referredBy', '==', userData.id)
+    );
 
-          const list = querySnapshot.docs.map(doc => {
-            const data = doc.data();
-            const subData = subDataMap.get(doc.id) || {};
-            return {
-              id: doc.id,
-              ...data,
-              commissionFromUser: subData.bonusEarned || 0,
-              lastReferralActivity: subData.timestamp || null
-            };
-          });
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
 
-          // Sort by createdAt descending in memory
-          list.sort((a: any, b: any) => {
-            const timeA = a.createdAt?.seconds || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-            const timeB = b.createdAt?.seconds || (b.createdAt ? new Date(b.createdAt).getTime() : 0);
-            return timeB - timeA;
-          });
-          
-          setReferralsList(list);
-          
-          // Calculate stats locally for extra accuracy
-          const valid = list.filter((u: any) => (u.totalDeposits || 0) > 0 || (u.deposits || 0) > 0).length;
-          setStats({
-            registers: list.length,
-            validReferrals: valid,
-            totalEarnings: userData.totalReferralEarnings || 0
-          });
-        } catch (error) {
-          console.error("Error fetching referrals:", error);
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      
-      fetchReferrals();
-    }
+      // Sort by createdAt descending
+      list.sort((a: any, b: any) => {
+        const timeA = a.createdAt?.seconds || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const timeB = b.createdAt?.seconds || (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return timeB - timeA;
+      });
+
+      setReferralsList(list);
+
+      // Recalculate stats locally
+      const valid = list.filter((u: any) => (u.totalDeposits || 0) > 0 || (u.deposits || 0) > 0).length;
+      setStats({
+        registers: list.length,
+        validReferrals: valid,
+        totalEarnings: userData.totalReferralEarnings || 0
+      });
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
   }, [userData?.id, userData?.totalReferralEarnings]);
 
   const [stats, setStats] = useState({
@@ -148,7 +119,7 @@ export default function InviteView({
   
   const referralCode = userData?.referralCode || 'BETAIG';
   const referralLink = getReferralLink(referralCode);
-  const displayCasinoName = casinoName || "SPIN71BET1";
+  const displayCasinoName = casinoName || "SPIN71 BET✨";
 
   const [isClaiming, setIsClaiming] = useState<number | null>(null);
 
@@ -323,9 +294,14 @@ export default function InviteView({
             <div className="bg-[#1c1d29] rounded-[32px] p-6 shadow-2xl border border-white/5 relative overflow-hidden group">
                <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-500/5 rounded-full blur-3xl -mr-16 -mt-16"></div>
               <div className="relative z-10">
-                <p className="text-[11px] font-black text-yellow-500 uppercase tracking-[0.3em] mb-6 text-center">আমন্ত্রণ লিংক ও কোড</p>
+                <p className="text-[11px] font-black text-yellow-500 uppercase tracking-[0.3em] mb-4 text-center">আমন্ত্রণ লিংক ও কোড</p>
                 
                 <div className="flex flex-col gap-6 items-center">
+                  <div className="flex flex-col items-center justify-center bg-black/40 px-6 py-3 border border-white/5 shadow-inner rounded-[20px] w-full">
+                     <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">আপনার ইউজার নেম</span>
+                     <span className="text-xl font-black text-white uppercase tracking-wider">{userData?.username || 'User'}</span>
+                  </div>
+
                   <div className="relative group cursor-pointer" onClick={downloadQRCode}>
                     <div className="w-32 h-32 bg-white p-2 rounded-[24px] flex items-center justify-center relative shadow-[0_0_40px_rgba(255,255,255,0.1)] group-hover:scale-105 transition-transform duration-500">
                       <QRCodeSVG 
@@ -431,13 +407,14 @@ export default function InviteView({
             <div className="bg-[#1c1d29] rounded-[32px] p-6 shadow-2xl border border-white/5 mb-10">
                <h3 className="text-white font-black italic text-lg mb-6 flex items-center gap-3">
                  <Shield size={20} className="text-yellow-500" />
-                 TERMS
+                 নীতিমালা (TERMS)
                </h3>
                <div className="space-y-4 px-1">
                  {[
-                   "আপনার আমন্ত্রিত বন্ধু প্রোফাইল ভেরিফাই করলে বোনাস পাবেন।",
+                   "আমন্ত্রিত বন্ধু নিবন্ধন করলে কোনো সাইনআপ বোনাস পাবেন না।",
+                   "আপনার বন্ধু অন্তত ২০০ টাকা ডিপোজিট এবং ১২০০ টাকা বেটিং সম্পূর্ণ করলে আপনি ৪০০ টাকা বোনাস পাবেন।",
                    "একই আইপি বা ডিভাইস থেকে একাধিক অ্যাকাউন্ট খোলার চেষ্টা করবেন না।",
-                   "প্রতারণা প্রমাণিত হলে অ্যাকাউন্ট বাতিল করা হবে।"
+                   "প্রতারণা প্রমাণিত হলে অ্যাকাউন্ট এবং রেফারেল বোনাস বাতিল করা হবে।"
                  ].map((rule, idx) => (
                    <div key={idx} className="flex gap-4 items-start">
                      <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-yellow-500 shrink-0 shadow-[0_0_8px_rgba(234,179,8,0.8)]"></div>
@@ -451,7 +428,14 @@ export default function InviteView({
 
         {activeTab === 'rewards' && (
           <div className="p-4 space-y-3 animate-in fade-in duration-500">
-            <div className="text-right text-[10px] text-gray-400 mb-2">no expiration</div>
+            <div className="bg-indigo-600/10 border border-indigo-500/20 rounded-2xl p-4 mb-4">
+              <h4 className="text-indigo-900 font-black text-xs uppercase mb-2">বোনাস পাওয়ার শর্ত:</h4>
+              <p className="text-[10px] text-gray-500 font-bold leading-relaxed">
+                আপনার আমন্ত্রিত বন্ধুকে অবশ্যই <span className="text-indigo-600 italic">কমপক্ষে ২০০ টাকা ডিপোজিট</span> এবং <span className="text-indigo-600 italic">১২০০ টাকা বেটিং (Turnover)</span> সম্পূর্ণ করতে হবে। এই শর্ত পূরণ হলে আপনি প্রতি বন্ধুর জন্য <span className="text-emerald-600 font-black">৪০০ টাকা</span> বোনাস সরাসরি আপনার মেইন ব্যালেন্সে পাবেন।
+              </p>
+            </div>
+            
+            <div className="text-right text-[10px] text-gray-400 mb-2 font-bold uppercase tracking-widest">মাইলস্টোন বোনাস তালিকা</div>
             {[
               { count: 5, reward: '399.00', icon: Award, color: 'text-orange-400' },
               { count: 20, reward: '1,699.00', icon: Award, color: 'text-green-400' },

@@ -50,7 +50,7 @@ export const GAME_LOGO_URLS: Record<string, string> = {
 
   // SPRIBE
   'spribe_aviator': '/src/assets/images/aviator_g_promo_1780444424200.png',
-  'rocket_1': 'https://spribe.co/games/aviator-logo.png',
+  'rocket_1': 'https://images.unsplash.com/photo-1517976487492-5750f3195933?auto=format&fit=crop&w=400&h=600&q=80',
   'spribe_2': 'https://spribe.co/games/mines-logo.png',
   'spribe_3': 'https://spribe.co/games/dice-logo.png',
   'spribe_4': 'https://spribe.co/games/hilo-logo.png',

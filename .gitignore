@@ -7,3 +7,6 @@ coverage/
 !.env.example
 firebase-service-account.json
 
+
+# Local Netlify folder
+.netlify

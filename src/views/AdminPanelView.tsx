@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db, auth } from '../services/firebase';
+import { db, auth, getActiveUser } from '../services/firebase';
+import { getBackendUrl } from '../config';
 import { 
   collection, 
   query, 
@@ -115,6 +116,8 @@ interface AdminPanelViewProps {
   setTelegramLink: (val: string) => void;
   telegramBotAppLink: string;
   setTelegramBotAppLink: (val: string) => void;
+  showFloatingChat: boolean;
+  setShowFloatingChat: (val: boolean) => void;
   globalImages: Record<string, string>;
   updateGlobalImage: (key: string, url: string) => Promise<void>;
   onAddUser: (user: any) => Promise<void>;
@@ -137,6 +140,7 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
   const PAGE_SIZE_TRXS = 50;
   
   const [trafficStats, setTrafficStats] = useState<any>(null);
+  const [bannerClicks, setBannerClicks] = useState<any[]>([]);
   const [serverInfo, setServerInfo] = useState<any>(null);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [messagingUser, setMessagingUser] = useState<any>(null);
@@ -226,10 +230,22 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
     if (!isUserAdmin) return;
     setIsRefreshingData(true);
     try {
+      const fetchClicks = async () => {
+        try {
+          const clicksSnap = await getDocs(
+            query(collection(db, 'banner_clicks'), orderBy('timestamp', 'desc'), limit(1000))
+          );
+          setBannerClicks(clicksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        } catch (err) {
+          console.error("Fetch clicks error:", err);
+        }
+      };
+
       await Promise.all([
         fetchUsers(true),
         fetchTransactions(true),
-        fetch('/api/server-info').then(res => res.json()).then(setServerInfo).catch(() => {})
+        fetchClicks(),
+        fetch(`${getBackendUrl()}/api/server-info`).then(res => res.json()).then(setServerInfo).catch(() => {})
       ]);
 
       // Restore simulated traffic stats
@@ -323,9 +339,9 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
           }
         }
       } else if (trx.type === 'withdrawal') {
-        const withdrawalAmount = Math.abs(Number(trx.amount));
         batch.update(userRef, {
-          totalWithdrawals: increment(withdrawalAmount),
+          requiredTurnover: 0,
+          turnover: 0,
           updatedAt: serverTimestamp()
         });
       }
@@ -455,8 +471,8 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
     
     setIsLoading(true);
     try {
-      const token = await auth.currentUser?.getIdToken();
-      const response = await fetch('/api/admin/users/delete-all', {
+      const token = await getActiveUser()?.getIdToken();
+      const response = await fetch(`${getBackendUrl()}/api/admin/users/delete-all`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -482,8 +498,8 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
     
     setIsLoading(true);
     try {
-      const token = await auth.currentUser?.getIdToken();
-      const response = await fetch('/api/admin/users/delete', {
+      const token = await getActiveUser()?.getIdToken();
+      const response = await fetch(`${getBackendUrl()}/api/admin/users/delete`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -560,13 +576,16 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
     }
   };
 
-  const filteredUsers = users.filter(u => 
-    u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    u.id.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredUsers = users.filter(u => {
+    if (!u) return false;
+    const uName = (u.username || '').toLowerCase();
+    const uId = (u.id || '').toLowerCase();
+    const sQuery = (searchQuery || '').toLowerCase();
+    return uName.includes(sQuery) || uId.includes(sQuery);
+  });
 
-  const pendingDeposits = transactions.filter(t => t.type === 'deposit' && t.status === 'pending');
-  const pendingWithdrawals = transactions.filter(t => t.type === 'withdrawal' && t.status === 'pending');
+  const pendingDeposits = transactions.filter(t => t && t.type === 'deposit' && t.status === 'pending');
+  const pendingWithdrawals = transactions.filter(t => t && t.type === 'withdrawal' && t.status === 'pending');
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Main' },
@@ -752,7 +771,7 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
             >
-              {activeTab === 'dashboard' && <DashboardOverview stats={trafficStats} serverInfo={serverInfo} users={users} transactions={transactions} />}
+              {activeTab === 'dashboard' && <DashboardOverview stats={trafficStats} serverInfo={serverInfo} users={users} transactions={transactions} bannerClicks={bannerClicks} />}
               {activeTab === 'retool' && <RetoolAdminSection showToast={showToast} />}
               {activeTab === 'users' && (
                 <UserManagement 
@@ -815,11 +834,32 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
           onClose={() => setSelectedUser(null)} 
           onSave={async (updates) => {
             try {
-              await updateDoc(doc(db, 'users', selectedUser.id), updates);
-              showToast('User updated successfully', 'success');
+              const token = await getActiveUser()?.getIdToken();
+              const response = await fetch(`/api/admin/users/${selectedUser.id}/update-details`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(updates)
+              });
+
+              if (!response.ok) {
+                const text = await response.text();
+                let errorMsg = 'Failed to update user';
+                try {
+                  const data = JSON.parse(text);
+                  errorMsg = data.error || errorMsg;
+                } catch (_) {}
+                throw new Error(errorMsg);
+              }
+
+              showToast('ইউজার সফলভাবে আপডেট করা হয়েছে।', 'success');
               setSelectedUser(null);
-            } catch (err) {
-              showToast('Failed to update user', 'error');
+              fetchUsers(true);
+            } catch (err: any) {
+              console.error("Failed to update user details:", err);
+              showToast(err.message || 'ইউজার আপডেট করতে ব্যর্থ হয়েছে।', 'error');
             }
           }}
           onAdjustBalance={handleAdjustBalance}
@@ -992,11 +1032,42 @@ function AddBonusModal({ user, onClose, onSendBonus, isLoading }: any) {
   );
 }
 
-function DashboardOverview({ stats, users, transactions, serverInfo }: any) {
+function DashboardOverview({ stats, users, transactions, serverInfo, bannerClicks = [] }: any) {
   const totalBalance = users.reduce((acc: number, u: any) => acc + (u.balance || 0), 0);
   const totalDeposits = transactions.filter((t: any) => t.type === 'deposit' && t.status === 'approved').reduce((acc: number, t: any) => acc + (Number(t.amount) || 0), 0);
   const totalWithdrawals = transactions.filter((t: any) => t.type === 'withdrawal' && t.status === 'approved').reduce((acc: number, t: any) => acc + (Number(t.amount) || 0), 0);
   const netProfit = totalDeposits - totalWithdrawals;
+
+  // Memoized banner clicks analytics
+  const bannerStats = React.useMemo(() => {
+    const counts: Record<string, { id: string; title: string, count: number, percentage: number, color: string }> = {
+      banner1: { id: 'banner1', title: 'Invite Friends (Affiliate Program)', count: 0, percentage: 0, color: '#eab308' },
+      banner2: { id: 'banner2', title: 'Aviator Signal Hack Override', count: 0, percentage: 0, color: '#f43f5e' },
+      banner3: { id: 'banner3', title: 'Jackpot Deposit Reward', count: 0, percentage: 0, color: '#10b981' },
+    };
+
+    let total = 0;
+    bannerClicks.forEach((click: any) => {
+      const bId = click.bannerId || 'banner1';
+      if (!counts[bId]) {
+        counts[bId] = { id: bId, title: click.bannerTitle || bId, count: 0, percentage: 0, color: '#3b82f6' };
+      }
+      counts[bId].count++;
+      total++;
+    });
+
+    if (total > 0) {
+      Object.keys(counts).forEach(key => {
+        counts[key].percentage = Math.round((counts[key].count / total) * 100);
+      });
+    }
+
+    return {
+      total,
+      breakdown: Object.values(counts).sort((a, b) => b.count - a.count),
+      recent: bannerClicks.slice(0, 5)
+    };
+  }, [bannerClicks]);
 
   // Process transactions for daily revenue trend
   const revenueData = React.useMemo(() => {
@@ -1159,6 +1230,89 @@ function DashboardOverview({ stats, users, transactions, serverInfo }: any) {
           </div>
         </div>
       </div>
+
+      {/* Banner Performance & Engagement Metrics */}
+      <div className="bg-[#0b6b62] p-8 rounded-[32px] border border-white/5 shadow-xl space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-white/10">
+          <div>
+            <h3 className="text-lg font-black text-white uppercase tracking-tight flex items-center gap-2">
+              <Zap className="text-yellow-400 fill-yellow-400 shrink-0" size={22} />
+              Banner Campaign Performance (প্রমো ব্যানার ট্র্যাকার)
+            </h3>
+            <p className="text-xs font-bold text-teal-100 mt-0.5">Track real-time click engagement and conversion for active home screen banners.</p>
+          </div>
+          <div className="bg-[#0c4e48] px-4 py-2 rounded-2xl border border-white/5 shrink-0 flex items-center gap-3">
+            <span className="text-[10px] font-black uppercase tracking-widest text-teal-200">Total Campaign Clicks</span>
+            <span className="text-xl font-black text-white">{bannerStats.total}</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* Banner Distribution and Conversion rates */}
+          <div className="lg:col-span-7 space-y-4">
+            <h4 className="text-xs font-black uppercase tracking-widest text-[#99f6e4]">Engagement Breakdown</h4>
+            <div className="space-y-4 pt-1">
+              {bannerStats.breakdown.map((banner) => (
+                <div key={banner.id} className="bg-[#0c4e48] p-4 rounded-2xl border border-white/5 space-y-2">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-extrabold text-white">{banner.title}</span>
+                    <span className="font-black text-white">{banner.count} clicks ({banner.percentage}%)</span>
+                  </div>
+                  <div className="h-2.5 w-full bg-black/30 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full rounded-full transition-all duration-500" 
+                      style={{ 
+                        width: `${banner.percentage}%`, 
+                        backgroundColor: banner.color 
+                      }} 
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Recent Clicks list */}
+          <div className="lg:col-span-5 space-y-4">
+            <h4 className="text-xs font-black uppercase tracking-widest text-[#99f6e4]">Recent Engagements</h4>
+            <div className="space-y-3">
+              {bannerStats.recent.length === 0 ? (
+                <div className="bg-[#0c4e48]/50 border border-dashed border-white/10 p-6 rounded-2xl text-center text-xs text-[#99f6e4]">
+                  No click engagement logged yet.
+                </div>
+              ) : (
+                bannerStats.recent.map((click: any, idx: number) => {
+                  let clickDate = 'Just Now';
+                  if (click.timestamp) {
+                    const d = click.timestamp.toDate ? click.timestamp.toDate() : new Date(click.timestamp);
+                    clickDate = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' ' + d.toLocaleDateString();
+                  }
+
+                  const bannerBadgeColor = 
+                    click.bannerId === 'banner1' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
+                    click.bannerId === 'banner2' ? 'bg-rose-500/20 text-rose-400 border-rose-500/30' :
+                    'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+
+                  return (
+                    <div key={click.id || idx} className="bg-[#0c4e48] px-4 py-3 rounded-2xl border border-white/5 flex items-center justify-between text-xs hover:bg-[#0c4e48]/80 transition-colors">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-extrabold text-white">@{click.username || 'anonymous'}</span>
+                          <span className="text-[9px] text-teal-300 font-bold bg-black/20 px-2 py-0.5 rounded-full">UID: {click.userId ? click.userId.substring(0, 6) : 'anon'}</span>
+                        </div>
+                        <p className="text-[10px] text-teal-200">{clickDate}</p>
+                      </div>
+                      <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-lg border ${bannerBadgeColor}`}>
+                        {click.bannerId}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1184,9 +1338,12 @@ function UserManagement({ users, searchQuery, setSearchQuery, onToggleBan, onAdj
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUserData.username || !newUserData.password) return;
+    const usernameTrimmed = (newUserData.username || "").trim();
+    const passwordTrimmed = (newUserData.password || "").trim();
+    
+    if (!usernameTrimmed || !passwordTrimmed) return;
     try {
-      await onAddUser(newUserData);
+      await onAddUser({ ...newUserData, username: usernameTrimmed, password: passwordTrimmed });
       setIsAddingUser(false);
       setNewUserData({ username: '', password: '', role: 'user', balance: 0 });
     } catch (err) {
@@ -1302,7 +1459,9 @@ function UserManagement({ users, searchQuery, setSearchQuery, onToggleBan, onAdj
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-white/5">
-                <th className="px-6 py-4 text-[10px] font-black text-teal-300 uppercase tracking-widest">User</th>
+                <th className="px-6 py-4 text-[10px] font-black text-teal-300 uppercase tracking-widest">User / ID</th>
+                <th className="px-6 py-4 text-[10px] font-black text-teal-300 uppercase tracking-widest">Mobile (নাম্বার)</th>
+                <th className="px-6 py-4 text-[10px] font-black text-teal-300 uppercase tracking-widest">Password</th>
                 <th className="px-6 py-4 text-[10px] font-black text-teal-300 uppercase tracking-widest">Balance</th>
                 <th className="px-6 py-4 text-[10px] font-black text-teal-300 uppercase tracking-widest">Status</th>
                 <th className="px-6 py-4 text-[10px] font-black text-teal-300 uppercase tracking-widest">Role</th>
@@ -1326,6 +1485,12 @@ function UserManagement({ users, searchQuery, setSearchQuery, onToggleBan, onAdj
                         <p className="text-[10px] font-bold text-teal-400 font-mono tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity uppercase">ID: {formatDisplayUID(user.id)}</p>
                       </div>
                     </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-xs font-black text-teal-200 font-mono">{user.phone || user.mobileNumber || 'N/A'}</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-xs font-black text-yellow-300 font-mono bg-black/30 px-2 py-1 rounded border border-white/5 select-all">{user.password || 'N/A'}</span>
                   </td>
                   <td className="px-6 py-4">
                     <span className="text-sm font-black text-emerald-400">৳{(user.balance || 0).toLocaleString()}</span>
@@ -1434,7 +1599,10 @@ function UserEditModal({ user, onClose, onSave, onAdjustBalance }: any) {
     email: user.email || '',
     phone: user.phone || '',
     fullName: user.fullName || '',
-    mobileNumber: user.mobileNumber || ''
+    mobileNumber: user.mobileNumber || '',
+    turnover: Number(user.turnover || 0),
+    requiredTurnover: Number(user.requiredTurnover || 0),
+    password: user.password || ''
   });
   const [adjustAmount, setAdjustAmount] = useState<number>(0);
 
@@ -1474,6 +1642,14 @@ function UserEditModal({ user, onClose, onSave, onAdjustBalance }: any) {
              <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
                 <p className="text-[9px] font-black text-teal-400 uppercase tracking-widest mb-1">Last Withdraw</p>
                 <p className="text-xl font-black text-white">৳{(user.lastWithdrawAmount || 0).toLocaleString()}</p>
+             </div>
+             <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+                <p className="text-[9px] font-black text-teal-400 uppercase tracking-widest mb-1">Current Turnover</p>
+                <p className="text-xl font-black text-white">৳{(user.turnover || 0).toLocaleString()}</p>
+             </div>
+             <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+                <p className="text-[9px] font-black text-teal-400 uppercase tracking-widest mb-1">Required Turnover</p>
+                <p className={`text-xl font-black ${(user.turnover || 0) >= (user.requiredTurnover || 0) ? 'text-emerald-400' : 'text-yellow-400'}`}>৳{(user.requiredTurnover || 0).toLocaleString()}</p>
              </div>
           </div>
 
@@ -1545,6 +1721,41 @@ function UserEditModal({ user, onClose, onSave, onAdjustBalance }: any) {
                   onChange={(e) => setFormData({...formData, phone: e.target.value, mobileNumber: e.target.value})}
                   className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold text-white focus:outline-none focus:border-emerald-500"
                   placeholder="017xxxxxxxx"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-yellow-300 uppercase mb-2 ml-1">Password (পাসওয়ার্ড)</label>
+                <input 
+                  type="text"
+                  value={formData.password}
+                  onChange={(e) => setFormData({...formData, password: (e.target.value || "").trim()})}
+                  className="w-full bg-white/5 border border-yellow-500/35 rounded-2xl px-5 py-4 text-sm font-black text-yellow-300 focus:outline-none focus:border-yellow-500 font-mono tracking-wider"
+                  placeholder="Enter new password to change"
+                />
+                <p className="text-[10px] text-teal-200 mt-1 font-bold ml-1">এখানে নতুন পাসওয়ার্ড লিখে Save Changes দিলে ইউজারের নতুন পাসওয়ার্ড সেট হবে। (Enter new password here to update user's login password)</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-teal-200 uppercase mb-2 ml-1">Manual Completed Turnover</label>
+                <input 
+                  type="number"
+                  value={formData.turnover}
+                  onChange={(e) => setFormData({...formData, turnover: Number(e.target.value)})}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-teal-200 uppercase mb-2 ml-1">Manual Required Turnover</label>
+                <input 
+                  type="number"
+                  value={formData.requiredTurnover}
+                  onChange={(e) => setFormData({...formData, requiredTurnover: Number(e.target.value)})}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
             </div>
@@ -2171,7 +2382,7 @@ function GlobalSettings(props: AdminPanelViewProps) {
   useEffect(() => {
     const fetchTelegramStatus = async () => {
       try {
-        const res = await fetch('/api/telegram/status');
+        const res = await fetch(`${getBackendUrl()}/api/telegram/status`);
         if (res.ok) {
           const data = await res.json();
           setTelegramStatus(data);
@@ -2224,7 +2435,8 @@ function GlobalSettings(props: AdminPanelViewProps) {
       
       // Trigger server-side sync immediately
       try {
-        await fetch('/api/aviator/admin/sync-override', { method: 'POST' });
+        const backend = getBackendUrl();
+        await fetch(`${backend}/api/aviator/admin/sync-override`, { method: 'POST' });
       } catch (fErr) {
         console.warn("Server sync trigger failed, but data was saved to Firestore");
       }
@@ -2248,7 +2460,8 @@ function GlobalSettings(props: AdminPanelViewProps) {
       }, { merge: true });
       
       try {
-        await fetch('/api/crashx/admin/sync-override', { method: 'POST' });
+        const backend = getBackendUrl();
+        await fetch(`${backend}/api/crashx/admin/sync-override`, { method: 'POST' });
       } catch (fErr) {}
       
       props.showToast(`Crash X কন্ট্রোলার আপডেট করা হয়েছে! (সক্রিয়: ${enabledVal ? 'হ্যাঁ' : 'না'}, ক্র্যাশ পয়েন্ট: ${pointVal}x)`, 'success');
@@ -2271,6 +2484,7 @@ function GlobalSettings(props: AdminPanelViewProps) {
         welcomeBonus: props.welcomeBonus,
         telegramLink: props.telegramLink,
         telegramBotAppLink: props.telegramBotAppLink,
+        showFloatingChat: props.showFloatingChat,
         updatedAt: serverTimestamp()
       }, { merge: true });
       
@@ -2374,6 +2588,24 @@ function GlobalSettings(props: AdminPanelViewProps) {
                 className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold text-teal-500 focus:outline-none cursor-not-allowed"
                 placeholder="Managed in App config"
               />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-teal-200 uppercase mb-2 ml-1">Floating Support Chat</label>
+              <div className="flex items-center justify-between bg-black/20 p-4 rounded-2xl border border-white/10">
+                <div>
+                  <p className="text-xs font-black text-white">লাইভ চ্যাট বাটন (Live Chat Button)</p>
+                  <p className="text-[10px] text-teal-300 font-medium">ব্যবহারকারীদের জন্য হোভারিং লাইভ চ্যাট লাইভ বাটন প্রদর্শন করুন</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => props.setShowFloatingChat(!props.showFloatingChat)}
+                  className={`relative inline-flex h-7.5 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${props.showFloatingChat ? 'bg-emerald-500' : 'bg-zinc-700'}`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${props.showFloatingChat ? 'translate-x-6.5' : 'translate-x-0'}`}
+                  />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2497,6 +2729,49 @@ function GlobalSettings(props: AdminPanelViewProps) {
                 />
               </div>
             </div>
+
+            {/* Live Support Chat Settings */}
+            <div className="p-5 bg-blue-500/5 rounded-2xl border border-blue-500/10 space-y-4">
+              <div>
+                <h4 className="text-[11px] font-black text-blue-400 uppercase tracking-widest mb-3">Live Support Chat Settings (চ্যাট উইজেট লাইভ কনফিগারেশন)</h4>
+                <label className="block text-[10px] font-bold text-teal-200 uppercase mb-2 ml-1">Chat Widget Type (চ্যাট উইজেট ধরণ)</label>
+                <select
+                  value={props.globalImages['chat_widget_type'] || 'crisp'}
+                  onChange={(e) => props.updateGlobalImage('chat_widget_type', e.target.value)}
+                  className="w-full bg-slate-900 border border-white/10 rounded-2xl px-4 py-3.5 text-sm font-bold text-white focus:outline-none focus:border-blue-500 cursor-pointer"
+                >
+                  <option value="crisp">Crisp Live Chat (ডিফল্ট ক্রিস্প)</option>
+                  <option value="custom">Custom Chat Script URL (কাস্টম স্ক্রিপ্ট)</option>
+                  <option value="disabled">Disabled (বন্ধ)</option>
+                </select>
+              </div>
+              
+              {props.globalImages['chat_widget_type'] !== 'disabled' && (
+                <div>
+                  <label className="block text-[10px] font-bold text-teal-200 uppercase mb-2 ml-1">
+                    {props.globalImages['chat_widget_type'] === 'custom' 
+                      ? "Custom Chat JS Script URL (কাস্টম চ্যাট জাভাস্ক্রিপ্ট লিংক)" 
+                      : "Crisp Website ID (ক্রিস্প ওয়েবসাইট আইডি)"}
+                  </label>
+                  <div className="relative">
+                    <MessageCircle className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-400" size={20} />
+                    <input
+                      value={props.globalImages['chat_widget_value'] || ''}
+                      onChange={(e) => props.updateGlobalImage('chat_widget_value', e.target.value)}
+                      className="w-full bg-black/20 border border-white/10 rounded-2xl px-12 py-4 text-sm font-bold text-white focus:outline-none focus:border-blue-500"
+                      placeholder={props.globalImages['chat_widget_type'] === 'custom' 
+                        ? "e.g. https://YOUR-CHATBOT-URL/chat.js" 
+                        : "e.g. 54a98df8-a272-4146-ae24-de2442f51bd8"}
+                    />
+                  </div>
+                  <p className="text-[10px] font-medium text-teal-300/70 mt-1.5 ml-1 leading-normal">
+                    {props.globalImages['chat_widget_type'] === 'custom' 
+                      ? "আপনার চ্যাটবট বা লাইভ চ্যাটের (Tawk.to, Smartsupp বা কাস্টম স্ক্রিপ্ট) মেইন JS ইউআরএল এখানে লিখুন।" 
+                      : "Crisp.chat ড্যাশবোর্ড এর Website Settings থেকে পাওয়া Website ID টি এখানে বসান। (ডিফল্ট: 54a98df8-a272-4146-ae24-de2442f51bd8)"}
+                  </p>
+                </div>
+              )}
+            </div>
             {/* Telegram Bot Tester */}
             <div className="pt-2 space-y-4">
               <div className="bg-slate-900/50 p-4 rounded-xl border border-white/5">
@@ -2505,7 +2780,7 @@ function GlobalSettings(props: AdminPanelViewProps) {
                   <button 
                     onClick={async () => {
                       try {
-                        const response = await fetch('/api/telegram/status');
+                        const response = await fetch(`${getBackendUrl()}/api/telegram/status`);
                         const data = await response.json();
                         setTelegramStatus(data);
                         console.log("Telegram Status:", data);
@@ -2563,7 +2838,7 @@ function GlobalSettings(props: AdminPanelViewProps) {
                   onClick={async () => {
                     try {
                       props.showToast('Sending test message...', 'info');
-                      const response = await fetch('/api/telegram/send', {
+                      const response = await fetch(`${getBackendUrl()}/api/telegram/send`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ message: `🔔 <b>Test Notification from Admin Panel!</b>\n\n🕒 <b>Time:</b> ${new Date().toLocaleString()}\n✅ Your Telegram Bot is properly connected to this ID.` })
@@ -2572,7 +2847,7 @@ function GlobalSettings(props: AdminPanelViewProps) {
                       const data = await response.json();
                       
                       // Refresh status response
-                      const statusRes = await fetch('/api/telegram/status');
+                      const statusRes = await fetch(`${getBackendUrl()}/api/telegram/status`);
                       const statusData = await statusRes.json();
                       setTelegramStatus(statusData);
 
@@ -2745,7 +3020,8 @@ function PromoManagement({ showToast, userData }: { showToast: any, userData: an
   const [newPromo, setNewPromo] = useState({ code: '', amount: 0, maxUses: 100, expireDays: 7, active: true });
 
   useEffect(() => {
-    if (userData?.role !== 'admin' && userData?.isAdmin !== true) return;
+    const isAuthorized = userData?.role === 'admin' || userData?.isAdmin === true || ['owner.css13@gmail.com', 'cutelegend7045@gmail.com', 'xsaber7644@gmil.com'].includes(userData?.email);
+    if (!isAuthorized) return;
     
     const unsub = onSnapshot(query(collection(db, 'promo_codes'), limit(100)), (snapshot) => {
       setPromoCodes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -2758,8 +3034,8 @@ function PromoManagement({ showToast, userData }: { showToast: any, userData: an
     if (!newPromo.code || newPromo.amount <= 0) return;
     setIsLoading(true);
     try {
-      const token = await auth.currentUser?.getIdToken();
-      const response = await fetch('/api/promo/create', {
+      const token = await getActiveUser()?.getIdToken();
+      const response = await fetch(`${getBackendUrl()}/api/promo/create`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

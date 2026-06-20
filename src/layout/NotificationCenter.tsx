@@ -321,7 +321,7 @@ export default function NotificationCenter({
                         {/* Circular App/Game Logo inside the row */}
                         <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-gray-200 bg-white flex items-center justify-center mr-1 shadow-sm">
                           <img 
-                            src={appLogo || '/images/app_logo.png'} 
+                            src={appLogo || 'https://www.image2url.com/r2/default/images/1781024598371-46bd7cc9-4b5f-49cd-b4b3-60d4d200534a.png'} 
                             alt="App Logo" 
                             className="w-full h-full object-cover" 
                           />
@@ -391,7 +391,7 @@ export default function NotificationCenter({
                     {/* Dynamic App Logo with circular preview matching the exact layout */}
                     <div className="w-[42px] h-[42px] rounded-full overflow-hidden border border-gray-200 shrink-0 flex items-center justify-center bg-[#1c1c1c] shadow-sm">
                       <img 
-                        src={appLogo || '/images/app_logo.png'} 
+                        src={appLogo || 'https://www.image2url.com/r2/default/images/1781024598371-46bd7cc9-4b5f-49cd-b4b3-60d4d200534a.png'} 
                         alt="App Logo" 
                         className="w-full h-full object-cover" 
                       />

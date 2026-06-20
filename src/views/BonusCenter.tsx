@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
-import { Gift, X, Calendar, Star, AlertCircle, RefreshCw, ArrowLeft, Trophy, Users, Zap, CheckCircle2, Copy, Play, ArrowRight, BookOpen, Clock, Settings, Bell, CircleDollarSign, DollarSign, ArrowUpRight, ArrowDownLeft, Share2, Sparkles, HelpCircle, Coins, ShieldCheck, Ticket, Lock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Gift, X, Calendar, Star, AlertCircle, RefreshCw, ArrowLeft, Trophy, Users, Zap, CheckCircle2, Copy, Play, ArrowRight, BookOpen, Clock, Settings, Bell, CircleDollarSign, DollarSign, ArrowUpRight, ArrowDownLeft, Share2, Sparkles, HelpCircle, Coins, ShieldCheck, Ticket, Lock, TrendingDown, Wallet } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getReferralLink, APP_CONFIG } from '../config';
-import { ToastType } from '../components/ui/Toast';
+import { ToastType } from '../types';
+import InstallAppButton from '../components/InstallAppButton';
+import { apiService } from '../services/apiService';
+import { auth } from '../services/firebase';
 
 interface CoinParticle {
   id: number;
@@ -46,13 +49,74 @@ export default function BonusCenter({
   const [dailyClaiming, setDailyClaiming] = useState(false);
   const [genericClaiming, setGenericClaiming] = useState<string[]>([]);
   const [particles, setParticles] = useState<CoinParticle[]>([]);
+  const [lossStats, setLossStats] = useState<any>(null);
+  const [isLoadingLossStats, setIsLoadingLossStats] = useState(false);
+  const [isClaimingLossRebate, setIsClaimingLossRebate] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'loss_rebate' && userData) {
+      fetchLossStats();
+    }
+  }, [activeTab, userData]);
+
+  const fetchLossStats = async () => {
+    setIsLoadingLossStats(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) return;
+      const res = await apiService.get<any>(`/rebate/loss/stats`, {
+        'Authorization': `Bearer ${idToken}`
+      });
+      if (res.success) {
+        setLossStats(res.data);
+      }
+    } catch (err) {
+      console.error("Error fetching loss stats:", err);
+    } finally {
+      setIsLoadingLossStats(false);
+    }
+  };
+
+  const handleClaimLossRebate = async () => {
+    if (!isPWA) {
+      showToast("বোনাস নিতে অনুগ্রহ করে আমাদের অ্যাপটি ইনস্টল করুন", "warning");
+      return;
+    }
+    if (!lossStats || !lossStats.canClaim || lossStats.rebateAmount <= 0) {
+      showToast("আপনার দাবি করার মতো কোনো লস রিবেট নেই", "warning");
+      return;
+    }
+
+    setIsClaimingLossRebate(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) return;
+      
+      const res = await apiService.post<any>(`/rebate/loss/claim`, {
+        idToken
+      }, {
+        'Authorization': `Bearer ${idToken}`
+      });
+
+      if (res.success) {
+        triggerCoinsExplosion(50);
+        showToast(`অভিনন্দন! আপনার ৳${res.data.amount} লস রিবেট সফলভাবে ব্যালেন্সে যুক্ত হয়েছে।`, "success");
+        onBalanceUpdate(balance + res.data.amount);
+        fetchLossStats(); // Refresh stats
+      } else {
+        showToast(res.error || "দাবি করতে ব্যর্থ হয়েছে", "error");
+      }
+    } catch (err: any) {
+      showToast(err.message || "দাবি করতে সমস্যা হয়েছে", "error");
+    } finally {
+      setIsClaimingLossRebate(false);
+    }
+  };
 
   const tabs = [
-    { id: 'event', label: 'ইভেন্ট', badge: 2 },
-    { id: 'mission', label: 'মিশন', badge: 3 },
+    { id: 'mission', label: 'মিশন' },
+    { id: 'loss_rebate', label: 'লস রিবেট' },
     { id: 'vip', label: 'VIP' },
-    { id: 'svip', label: 'SVIP' },
-    { id: 'claim', label: 'দাবি করুন' },
     { id: 'cashback', label: 'ক্যাশব্যাক' },
   ];
 
@@ -70,7 +134,21 @@ export default function BonusCenter({
     { day: 7, amount: 200 },
   ];
 
-  // Particle explosion logic matching the user's interactive spec
+  const isPWA = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+
+  // Render PWA install reminder if needed
+  const renderPWAReminder = () => {
+    if (isPWA) return null;
+    return (
+      <div className="bg-yellow-400/10 border border-yellow-500/30 rounded-2xl p-5 mb-5 flex items-center justify-between gap-4">
+        <div>
+           <p className="text-yellow-400 font-black text-xs uppercase tracking-wider mb-1">বোনাস পেতে অ্যাপ ইনস্টল করুন</p>
+           <p className="text-[10px] text-yellow-500/70 font-bold">আমাদের অ্যাপটি ইনস্টল করলে আপনি নিরবচ্ছিন্ন অভিজ্ঞতা এবং এক্সকুসিভ বোনাস পাবেন!</p>
+        </div>
+        <InstallAppButton />
+      </div>
+    );
+  };
   const triggerCoinsExplosion = (count: number) => {
     const burstParticles: CoinParticle[] = Array.from({ length: count }).map((_, i) => {
       const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.25;
@@ -101,6 +179,10 @@ export default function BonusCenter({
 
   // Triggers checking reward direct claim
   const handleClaimDailyCheckIn = async () => {
+    if (!isPWA) {
+        showToast("বোনাস নিতে অনুগ্রহ করে আমাদের অ্যাপটি ইনস্টল করুন", "warning");
+        return;
+    }
     if (isDailyClaimedToday || dailyClaiming) return;
 
     setDailyClaiming(true);
@@ -138,20 +220,30 @@ export default function BonusCenter({
   };
 
   const handleClaimReward = async (amount: number, bonusId: string) => {
+    if (!isPWA) {
+        showToast("বোনাস নিতে অনুগ্রহ করে আমাদের অ্যাপটি ইনস্টল করুন", "warning");
+        return;
+    }
     if (userData?.bonusesClaimed?.includes(bonusId) || genericClaiming.includes(bonusId)) {
         showToast("আপনি এই বোনাসটি ইতিমধ্যে নিয়েছেন", "info");
         return;
     }
 
-    // Force first deposit for all bonuses as requested
-    if (!userData?.totalDeposits || userData.totalDeposits <= 0) {
+    // Force first deposit for all bonuses EXCEPT registration (app install) bonus
+    if (bonusId !== 'registration_bonus' && (!userData?.totalDeposits || userData.totalDeposits <= 0)) {
       showToast("কোন প্রকার বোনাস বা উপহার দাবি করার আগে প্রথম ডিপোজিট করা আবশ্যক", "warning");
       onTabChange('deposit');
       return;
     }
 
     // Validation logic for specific bonuses
-    if (bonusId === 'first_deposit_bonus') {
+    if (bonusId === 'registration_bonus') {
+       // Registration bonus is accessible ONLY via PWA as per user request
+       if (!isPWA) {
+         showToast("এই বোনাসটি শুধুমাত্র আমাদের অ্যাপ থেকে দাবিযোগ্য", "warning");
+         return;
+       }
+    } else if (bonusId === 'first_deposit_bonus') {
       if (!userData?.totalDeposits || userData.totalDeposits <= 0) {
         showToast("এই বোনাসটি নেওয়ার আগে প্রথম ডিপোজিট করা আবশ্যক", "warning");
         onTabChange('deposit');
@@ -237,6 +329,10 @@ export default function BonusCenter({
     : 100;
 
   const handleClaimVipReward = async (levelNum: number, rewardAmount: number) => {
+    if (!isPWA) {
+        showToast("বোনাস নিতে অনুগ্রহ করে আমাদের অ্যাপটি ইনস্টল করুন", "warning");
+        return;
+    }
     const bonusId = `vip_level_${levelNum}_reward`;
     if (userData?.bonusesClaimed?.includes(bonusId) || claimingVip) {
       showToast("এই লেভেল বোনাসটি আপনি ইতিমধ্যে দাবি করেছেন", "info");
@@ -287,6 +383,10 @@ export default function BonusCenter({
   const simulatedCashback = Math.max(Math.floor(turnover * 0.015), 15); // Guaranteed at least 15 for loyalty
 
   const handleClaimCashback = async () => {
+    if (!isPWA) {
+        showToast("বোনাস নিতে অনুগ্রহ করে আমাদের অ্যাপটি ইনস্টল করুন", "warning");
+        return;
+    }
     if (simulatedCashback <= 0) {
       showToast("আপনার দাবির উপযোগী কোনো ক্যাশব্যাক জমে নেই", "warning");
       return;
@@ -354,11 +454,6 @@ export default function BonusCenter({
                     className="absolute -bottom-1 left-0 right-0 h-0.5 bg-yellow-400 rounded-full"
                   />
                 )}
-                {tab.badge && (
-                  <span className="absolute -top-2 -right-3.5 bg-red-500 text-white text-[8px] w-3.5 h-3.5 flex items-center justify-center rounded-full font-black">
-                    {tab.badge}
-                  </span>
-                )}
               </button>
             ))}
           </div>
@@ -366,288 +461,124 @@ export default function BonusCenter({
       </div>
 
       <div className="px-4 flex-1 overflow-y-auto pt-4 pb-6 space-y-5 relative z-10">
+        {renderPWAReminder()}
         
         {/* ======================================================== */}
         {/* MISSION TAB VIEW */}
         {/* ======================================================== */}
         {activeTab === 'mission' && (
-          <>
-            {/* Chest Progress Section - Refined for Dark Theme */}
-            <div className="bg-[#0f1926] rounded-2xl p-5 shadow-2xl border border-teal-500/10 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-2 opacity-5 pointer-events-none">
-                 <Zap size={100} className="fill-teal-500" />
-              </div>
-              <div className="flex justify-between items-center mb-7 relative z-10">
-                <div className="flex flex-col">
-                  <span className="text-[10px] text-teal-500 font-black uppercase tracking-widest leading-none mb-1">Energy Streak</span>
-                  <div className="flex items-center gap-1.5 font-black text-2xl text-white italic">
-                    <Zap size={20} className="fill-yellow-400 text-yellow-400" />
-                    <span>{dailyStreak * 10}</span>
-                  </div>
+          <div className="space-y-4">
+            {/* 1. Registration Bonus */}
+            <div className="bg-[#0f1926] border border-white/5 rounded-2xl overflow-hidden shadow-xl group">
+              <div className="bg-[#1a2533] px-4 py-3 flex items-center justify-between border-b border-white/5">
+                <div className="flex items-center gap-2">
+                   <div className="w-8 h-8 rounded-lg bg-pink-500/10 flex items-center justify-center text-pink-400">
+                      <Gift size={18} />
+                   </div>
+                   <span className="text-white text-xs font-black uppercase tracking-wider">নিবন্ধন বোনাস (৳১৭)</span>
                 </div>
-                <button className="bg-white/5 px-3 py-1.5 rounded-lg text-[10px] font-black text-teal-400 uppercase tracking-widest border border-white/5 active:bg-white/10">Rules</button>
+                <span className="text-[9px] bg-yellow-400/10 text-yellow-500 px-2.5 py-1 rounded-full font-black uppercase tracking-widest border border-yellow-500/20">APP ONLY</span>
               </div>
+              <div className="p-5 flex items-center justify-between">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block">Bonus Reward</span>
+                  <span className="font-black text-teal-400 text-2xl italic tracking-tighter">৳{welcomeBonus}</span>
+                </div>
+                <motion.button 
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handleClaimReward(welcomeBonus || 17, 'registration_bonus')}
+                  disabled={userData?.bonusesClaimed?.includes('registration_bonus')}
+                  className={`h-12 px-8 rounded-xl font-black text-xs uppercase tracking-[0.1em] transition-all shadow-lg ${
+                    userData?.bonusesClaimed?.includes('registration_bonus') 
+                      ? 'bg-white/5 text-gray-500 border border-white/5 cursor-not-allowed' 
+                      : 'bg-teal-500 hover:bg-teal-400 text-black shadow-teal-500/20'
+                  }`}
+                >
+                  {userData?.bonusesClaimed?.includes('registration_bonus') ? 'CLAIMED' : 'CLAIM'}
+                </motion.button>
+              </div>
+            </div>
+          </div>
+        )}
 
-              <div className="relative flex items-center justify-between px-2 pb-4">
-                <div className="absolute left-[10%] right-[10%] top-6 h-0.5 bg-white/5 rounded-full -z-0">
-                  <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: `${Math.min((dailyStreak / 7) * 100, 100)}%` }}
-                    className="h-full bg-gradient-to-r from-teal-500 to-yellow-400 rounded-full shadow-[0_0_10px_rgba(45,212,191,0.3)]"
-                  />
+        {/* ======================================================== */}
+        {/* LOSS REBATE TAB VIEW */}
+        {/* ======================================================== */}
+        {activeTab === 'loss_rebate' && (
+          <div className="space-y-4">
+             <div className="bg-[#0f1926] rounded-[32px] p-6 border border-white/5 shadow-2xl relative overflow-hidden group">
+                <div className="absolute -top-12 -right-12 p-4 opacity-5 pointer-events-none group-hover:opacity-10 transition-opacity">
+                   <TrendingDown size={180} />
                 </div>
                 
-                {[
-                  { id: 1, energy: 10, required: 1, amount: 5, active: dailyStreak >= 1 },
-                  { id: 2, energy: 30, required: 3, amount: 15, active: dailyStreak >= 3 },
-                  { id: 3, energy: 50, required: 5, amount: 30, active: dailyStreak >= 5 },
-                  { id: 4, energy: 70, required: 7, amount: 50, active: dailyStreak >= 7 },
-                ].map((chest) => {
-                  const chestBonusId = `mission_chest_${chest.id}`;
-                  const isClaimed = userData?.bonusesClaimed?.includes(chestBonusId);
-                  
-                  return (
-                    <div key={chest.id} className="flex flex-col items-center gap-3 z-10">
-                      <motion.button 
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => handleClaimReward(chest.amount, chestBonusId)}
-                        className={`w-14 h-14 rounded-2xl flex items-center justify-center border transition-all relative ${
-                          isClaimed ? 'bg-[#070d14] border-white/5 opacity-40' :
-                          chest.active ? 'bg-gradient-to-b from-yellow-300 to-orange-500 border-yellow-200 shadow-[0_0_20px_rgba(251,191,36,0.3)] scale-110 cursor-pointer' : 
-                          'bg-[#1a2533] border-white/10 opacity-70 cursor-not-allowed'
-                        }`}
-                      >
-                        {isClaimed ? (
-                          <CheckCircle2 size={20} className="text-teal-400" />
-                        ) : (
-                          <Gift size={24} className={chest.active ? 'text-white drop-shadow-md animate-bounce' : 'text-gray-500'} />
-                        )}
-                        {chest.active && !isClaimed && (
-                          <span className="absolute -top-1 -right-1 flex h-4 w-4">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-4 w-4 bg-yellow-500"></span>
-                          </span>
-                        )}
-                      </motion.button>
-                      <div className="flex flex-col items-center">
-                        <div className={`flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-full border ${chest.active ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30' : 'bg-white/5 text-gray-500 border-white/5'}`}>
-                          <Zap size={10} className={chest.active ? 'fill-yellow-400' : ''} />
-                          <span>{chest.energy}</span>
+                <div className="flex flex-col items-center text-center space-y-4 relative z-10">
+                   <div className="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center text-red-400 border border-red-500/20 mb-2">
+                      <TrendingDown size={32} />
+                   </div>
+                   
+                   <div className="space-y-1">
+                      <h3 className="text-white font-black text-2xl uppercase italic tracking-tighter">উইকলি লস রিবেট</h3>
+                      <p className="text-teal-400 text-[10px] font-black uppercase tracking-[0.2em]">WEEKLY RECOVERY: 1% RATE</p>
+                   </div>
+
+                   {isLoadingLossStats ? (
+                     <div className="w-full bg-white/5 rounded-3xl p-10 flex flex-col items-center justify-center space-y-3">
+                        <RefreshCw className="animate-spin text-teal-500" size={32} />
+                        <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Calculating your losses...</p>
+                     </div>
+                   ) : (
+                     <>
+                        <div className="w-full grid grid-cols-2 gap-3">
+                           <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                              <p className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1">Total Wagered</p>
+                              <span className="text-white text-lg font-black italic tabular-nums">৳{(lossStats?.totalBet || 0).toLocaleString()}</span>
+                           </div>
+                           <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                              <p className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1">Weekly Net Loss</p>
+                              <span className="text-red-400 text-lg font-black italic tabular-nums">৳{(lossStats?.netLoss || 0).toLocaleString()}</span>
+                           </div>
                         </div>
-                        {!isClaimed && (
-                           <span className="text-[10px] text-white/50 font-black mt-1">৳{chest.amount}</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
 
-            {/* Sub Tabs - Consistent Dark Style */}
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex bg-[#0f1926] p-1 rounded-xl border border-white/5 shadow-inner flex-1">
-                <button 
-                  onClick={() => setSubTab('new_player')}
-                  className={`flex-1 relative py-2.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all ${
-                    subTab === 'new_player' 
-                      ? 'bg-teal-600 text-white shadow-lg' 
-                      : 'text-gray-400 hover:text-white'
-                  }`}
-                >
-                  New Player
-                  {subTab !== 'new_player' && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] w-3.5 h-3.5 flex items-center justify-center rounded-full font-black">3</span>
-                  )}
-                </button>
-                <button 
-                  onClick={() => setSubTab('daily')}
-                  className={`flex-1 relative py-2.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all ${
-                    subTab === 'daily' 
-                      ? 'bg-teal-600 text-white shadow-lg' 
-                      : 'text-gray-400 hover:text-white'
-                  }`}
-                >
-                  Daily Mission
-                </button>
-              </div>
-              <motion.button 
-                whileTap={{ scale: 0.95 }}
-                onClick={onOpenPromoModal}
-                className="flex items-center gap-2 bg-gradient-to-r from-yellow-300 to-yellow-500 text-black px-5 py-3 rounded-xl text-[11px] font-black uppercase tracking-tight shadow-xl shadow-yellow-500/20 active:scale-95 transition-all"
-              >
-                <Star size={14} className="fill-black" />
-                Promo
-              </motion.button>
-            </div>
+                        <div className="w-full bg-gradient-to-br from-[#1a2533] to-[#0f1926] rounded-3xl p-6 border border-teal-500/20 shadow-xl">
+                           <p className="text-teal-500/70 text-[10px] font-black uppercase tracking-widest mb-1.5">Claimable Bonus (1%)</p>
+                           <div className="flex items-baseline justify-center gap-1">
+                              <span className="text-white text-5xl font-black italic tabular-nums">৳{(lossStats?.rebateAmount || 0).toLocaleString()}</span>
+                           </div>
+                        </div>
 
-            {/* NEW PLAYER ITEMS */}
-            {subTab === 'new_player' && (
-              <div className="space-y-4">
-                {/* 1. Registration Bonus */}
-                <div className="bg-[#0f1926] border border-white/5 rounded-2xl overflow-hidden shadow-xl group">
-                  <div className="bg-[#1a2533] px-4 py-3 flex items-center justify-between border-b border-white/5">
-                    <div className="flex items-center gap-2">
-                       <div className="w-8 h-8 rounded-lg bg-pink-500/10 flex items-center justify-center text-pink-400">
-                          <Gift size={18} />
-                       </div>
-                       <span className="text-white text-xs font-black uppercase tracking-wider">নিবন্ধন বোনাস (৳১৭)</span>
-                    </div>
-                    <span className="text-[9px] bg-yellow-400/10 text-yellow-500 px-2.5 py-1 rounded-full font-black uppercase tracking-widest border border-yellow-500/20">NO DEPOSIT</span>
-                  </div>
-                  <div className="p-5 flex items-center justify-between">
-                    <div className="space-y-1">
-                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block">Bonus Reward</span>
-                      <span className="font-black text-teal-400 text-2xl italic tracking-tighter">৳১৭.০০</span>
-                    </div>
-                    <motion.button 
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => handleClaimReward(17, 'registration_bonus')}
-                      disabled={userData?.bonusesClaimed?.includes('registration_bonus')}
-                      className={`h-12 px-8 rounded-xl font-black text-xs uppercase tracking-[0.1em] transition-all shadow-lg ${
-                        userData?.bonusesClaimed?.includes('registration_bonus') 
-                          ? 'bg-white/5 text-gray-500 border border-white/5 cursor-not-allowed' 
-                          : 'bg-teal-500 hover:bg-teal-400 text-black shadow-teal-500/20'
-                      }`}
-                    >
-                      {userData?.bonusesClaimed?.includes('registration_bonus') ? 'CLAIMED' : 'CLAIM'}
-                    </motion.button>
-                  </div>
+                        <motion.button 
+                          whileTap={{ scale: 0.95 }}
+                          onClick={handleClaimLossRebate}
+                          disabled={isClaimingLossRebate || !lossStats?.canClaim || (lossStats?.rebateAmount || 0) <= 0}
+                          className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all shadow-2xl flex items-center justify-center gap-2 ${
+                             !lossStats?.canClaim || (lossStats?.rebateAmount || 0) <= 0
+                             ? 'bg-white/5 text-gray-500 border border-white/5 cursor-not-allowed' 
+                             : 'bg-gradient-to-r from-teal-500 to-teal-600 text-black shadow-teal-500/20'
+                          }`}
+                        >
+                          {isClaimingLossRebate ? (
+                            <RefreshCw className="animate-spin" size={18} />
+                          ) : (
+                            <Wallet size={18} />
+                          )}
+                          {!lossStats?.canClaim ? 'ALREADY CLAIMED THIS WEEK' : (lossStats?.rebateAmount || 0) <= 0 ? 'NO REBATE AVAILABLE' : 'CLAIM WEEKLY REBATE'}
+                        </motion.button>
+                        
+                        <div className="flex items-center gap-2 text-[9px] text-gray-500 font-bold uppercase tracking-widest bg-white/5 px-4 py-2 rounded-full border border-white/5">
+                           <Clock size={12} />
+                           <span>Next Claim Available: {lossStats?.lastClaimedAt ? new Date(new Date(lossStats.lastClaimedAt).getTime() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString() : 'Now'}</span>
+                        </div>
+                     </>
+                   )}
+                   
+                   <div className="bg-yellow-400/5 rounded-2xl p-4 border border-yellow-500/10 w-full">
+                      <p className="text-[9px] text-yellow-500/70 font-bold uppercase tracking-widest leading-relaxed text-center">
+                         গত ৭ দিনের নিট লসের ওপর ১% ক্যাশব্যাক রিবেট পান। এটি সপ্তাহে একবার দাবি করা যায়।
+                      </p>
+                   </div>
                 </div>
-
-                {/* 2. first deposit */}
-                <div className="bg-[#0f1926] border border-white/5 rounded-2xl overflow-hidden shadow-xl">
-                  <div className="bg-[#1a2533] px-4 py-3 flex items-center gap-2 border-b border-white/5">
-                     <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-400">
-                        <DollarSign size={18} />
-                     </div>
-                     <span className="text-white text-xs font-black uppercase tracking-wider">প্রথম ডিপোজিট বোনাস (৳৪৭)</span>
-                  </div>
-                  <div className="p-5 flex items-center justify-between">
-                    <div className="space-y-1">
-                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block">First Time Recharge</span>
-                      <span className="font-black text-teal-400 text-2xl italic tracking-tighter">৳৪৭.০০</span>
-                    </div>
-                    <motion.button 
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => handleClaimReward(47, 'first_deposit_bonus')}
-                      disabled={userData?.bonusesClaimed?.includes('first_deposit_bonus')}
-                      className={`h-12 px-8 rounded-xl font-black text-xs uppercase tracking-[0.1em] transition-all shadow-lg ${
-                        userData?.bonusesClaimed?.includes('first_deposit_bonus') 
-                          ? 'bg-white/5 text-gray-500 border border-white/5 cursor-not-allowed' 
-                          : 'bg-teal-500 hover:bg-teal-400 text-black shadow-teal-500/20'
-                      }`}
-                    >
-                      {userData?.bonusesClaimed?.includes('first_deposit_bonus') ? 'CLAIMED' : 'CLAIM'}
-                    </motion.button>
-                  </div>
-                </div>
-
-                {/* 3. verification reward */}
-                <div className="bg-[#0f1926] border border-white/5 rounded-2xl overflow-hidden shadow-xl">
-                  <div className="bg-[#1a2533] px-4 py-3 flex items-center gap-2 border-b border-white/5">
-                     <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400">
-                        <Settings size={18} />
-                     </div>
-                     <span className="text-white text-xs font-black uppercase tracking-wider">নিরাপত্তা ভেরিফিকেশন (৳১২)</span>
-                  </div>
-                  <div className="p-5 flex items-center justify-between">
-                    <div className="space-y-1">
-                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block">Account Security</span>
-                      <span className="font-black text-teal-400 text-2xl italic tracking-tighter">৳১২.০০</span>
-                    </div>
-                    <motion.button 
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => handleClaimReward(12, 'account_verification_bonus')}
-                      disabled={userData?.bonusesClaimed?.includes('account_verification_bonus')}
-                      className={`h-12 px-8 rounded-xl font-black text-xs uppercase tracking-[0.1em] transition-all shadow-lg ${
-                        userData?.bonusesClaimed?.includes('account_verification_bonus') 
-                          ? 'bg-white/5 text-gray-500 border border-white/5 cursor-not-allowed' 
-                          : 'bg-teal-500 hover:bg-teal-400 text-black shadow-teal-500/20'
-                      }`}
-                    >
-                      {userData?.bonusesClaimed?.includes('account_verification_bonus') ? 'CLAIMED' : 'CLAIM'}
-                    </motion.button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* DAILY MISSIONS TAB WITH FULLY ACTIVE 7-DAY BOARD & PULSE BUTTON */}
-            {subTab === 'daily' && (
-              <div className="bg-[#0f1926] border border-white/5 rounded-[24px] p-6 space-y-7 shadow-2xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-                   <Calendar size={120} />
-                </div>
-                
-                <div className="flex items-center gap-2 relative z-10">
-                  <div className="w-8 h-8 rounded-lg bg-yellow-400/10 flex items-center justify-center text-yellow-400">
-                     <Calendar size={18} />
-                  </div>
-                  <span className="text-white text-base font-black uppercase tracking-tight italic">Daily Login Rewards</span>
-                </div>
-
-                {/* 7 Day Matrix */}
-                <div className="grid grid-cols-4 sm:grid-cols-7 gap-3 relative z-10">
-                  {rewards.map((dayReward, index) => {
-                    const isClaimed = index < dailyStreak;
-                    const isToday = index === dailyStreak;
-
-                    return (
-                      <div 
-                        key={index}
-                        className={`p-3 rounded-2xl flex flex-col items-center justify-center border text-center transition-all ${
-                          isClaimed ? 'bg-teal-500/5 border-teal-500/10 text-teal-500 opacity-50' : 
-                          isToday ? 'bg-yellow-400 border-yellow-300 text-black shadow-[0_0_20px_rgba(251,191,36,0.25)] scale-105' : 
-                          'bg-white/5 border-white/5 text-gray-500'
-                        }`}
-                      >
-                        <span className="text-[9px] font-black uppercase block tracking-wider mb-1.5">{isToday ? 'TODAY' : `DAY ${dayReward.day}`}</span>
-                        {isClaimed ? (
-                          <CheckCircle2 size={18} className="mb-1.5" />
-                        ) : (
-                          <Coins size={18} className={`mb-1.5 ${isToday ? 'text-black' : 'text-gray-600'}`} />
-                        )}
-                        <span className={`text-[11px] font-black block tabular-nums ${isToday ? 'text-black' : 'text-white'}`}>৳{dayReward.amount}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Claim button with exact pulse animation and coins effect */}
-                <div className="relative pt-2 z-10">
-                  <motion.button
-                    onClick={handleClaimDailyCheckIn}
-                    disabled={isDailyClaimedToday || dailyClaiming}
-                    whileTap={{ scale: 0.98 }}
-                    animate={isDailyClaimedToday || dailyClaiming ? {} : { 
-                      boxShadow: [
-                        "0 0 10px rgba(45,212,191,0.1)",
-                        "0 0 25px rgba(45,212,191,0.4)",
-                        "0 0 10px rgba(45,212,191,0.1)"
-                      ]
-                    }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                    className={`
-                      w-full py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] text-center relative transition-all shadow-xl
-                      ${isDailyClaimedToday ? 'bg-white/5 text-gray-500 border border-white/5 cursor-default' : 
-                        dailyClaiming ? 'bg-teal-700 text-black cursor-wait' :
-                        'bg-gradient-to-r from-teal-500 to-teal-600 text-black hover:from-teal-400 hover:to-teal-500 active:scale-95'}
-                    `}
-                  >
-                    {isDailyClaimedToday ? 'ALREADY CLAIMED TODAY' : dailyClaiming ? 'CLAIMING...' : `Claim Day ${Math.min(dailyStreak + 1, 7)} Reward`}
-                  </motion.button>
-                </div>
-
-                <div className="bg-white/5 rounded-2xl p-4 text-gray-400 text-[11px] leading-relaxed border border-white/5 relative z-10">
-                  <p className="flex items-center gap-1.5 font-black text-teal-400 mb-1 uppercase tracking-widest text-[9px]">
-                    <Sparkles size={11} /> Activity rules:
-                  </p>
-                  প্রতিদিন লগইন করুন এবং টাকা জিতে নিন। যদি কোনো দিন মিস করেন তবে আপনার স্ট্রিক পুনরায় ১ দিন থেকে শুরু হতে পারে। উপহার দাবি করার সাথে সাথে ব্যালেন্সে টাকা যুক্ত হবে।
-                </div>
-              </div>
-            )}
-          </>
+             </div>
+          </div>
         )}
 
         {/* INFO RULES BOX - UPDATED */}
@@ -661,84 +592,12 @@ export default function BonusCenter({
            <ul className="space-y-2 text-white/60">
              <li className="flex gap-2">
                 <span className="text-teal-500 font-black">•</span>
-                <span><b>নিবন্ধন বোনাস:</b> নতুন আইডি তৈরি করার পর যে কেউ সরাসরি ১৭ টাকা দাবি করতে পারবেন, কোনো আমানত ছাড়াই।</span>
-             </li>
-             <li className="flex gap-2">
-                <span className="text-teal-500 font-black">•</span>
-                <span><b>প্রথম ডিপোজিট বোনাস:</b> আপনার অ্যাকাউন্টে প্রথম ডিপোজিট সফলভাবে সম্পূর্ণ করার পর ৪৭ টাকা দাবি করতে পারবেন।</span>
-             </li>
-             <li className="flex gap-2">
-                <span className="text-teal-500 font-black">•</span>
-                <span><b>ভেরিফিকেশন বোনাস:</b> অ্যাকাউন্ট ভেরিফাই এবং সুরক্ষিত করার জন্য ১২ টাকা বোনাস দাবি করতে পারবেন যদি প্রথম ডিপোজিট করা থাকে।</span>
+                <span><b>নিবন্ধন বোনাস:</b> নতুন আইডি তৈরি করার পর যে কেউ আমাদের অ্যাপ ব্যবহার করে ১৭ টাকা দাবি করতে পারবেন।</span>
              </li>
            </ul>
         </div>
       
 
-        {/* ======================================================== */}
-        {/* EVENT TAB VIEW */}
-        {/* ======================================================== */}
-        {activeTab === 'event' && (
-          <div className="space-y-4">
-            <div className="bg-[#0f1926] rounded-3xl overflow-hidden shadow-2xl border border-white/5 relative">
-              <div className="h-40 overflow-hidden relative group">
-                <img 
-                  src="https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&q=80&w=800" 
-                  alt="Referral" 
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0f1926] via-transparent to-transparent" />
-                <div className="absolute bottom-4 left-6">
-                   <h4 className="text-white font-black text-2xl uppercase italic tracking-tighter drop-shadow-lg">সীমাহীন রেফার করুন</h4>
-                   <p className="text-teal-400 text-[10px] font-black uppercase tracking-[0.2em]">Refer & Earn ৳১০০+ Recharge</p>
-                </div>
-              </div>
-              <div className="p-6 space-y-5">
-                <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-gray-500 bg-white/5 px-4 py-2 rounded-xl">
-                   <span>Your Referral Code</span>
-                   <span className="text-teal-400 font-mono text-xs">{userData?.referralCode || '----'}</span>
-                </div>
-                <div className="flex flex-col gap-3">
-                  <p className="text-gray-400 text-xs leading-relaxed font-bold">আপনার আমন্ত্রিত বন্ধু প্রথমবার ২০০ টাকা বা তার বেশি ডিপোজিট করলে আপনি ১০০ টাকা বোনাস পাবেন।</p>
-                  <motion.button 
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => {
-                        const link = getReferralLink(userData?.referralCode || '');
-                        navigator.clipboard.writeText(link);
-                        showToast("রেফারেল লিঙ্ক কপি করা হয়েছে!", "success");
-                    }}
-                    className="w-full py-4 bg-teal-600 hover:bg-teal-500 text-white font-black rounded-2xl transition-all shadow-xl shadow-teal-600/20 active:scale-95 flex items-center justify-center gap-3 uppercase text-xs tracking-[0.2em]"
-                  >
-                    <Share2 size={16} />
-                    Copy Invite Link
-                  </motion.button>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-[#0f1926] rounded-3xl p-6 border border-white/5 shadow-2xl space-y-4">
-               <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400">
-                     <Users size={20} />
-                  </div>
-                  <div>
-                     <span className="text-white font-black uppercase tracking-tight block">Referral Stats</span>
-                     <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-none">Your network overview</span>
-                  </div>
-               </div>
-               <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                     <span className="text-[10px] text-gray-500 font-black uppercase block tracking-wider mb-1">Total Invites</span>
-                     <span className="text-2xl font-black text-white italic">০ জন</span>
-                  </div>
-                  <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                     <span className="text-[10px] text-gray-500 font-black uppercase block tracking-wider mb-1">Total Earned</span>
-                     <span className="text-2xl font-black text-yellow-500 italic">৳০.০০</span>
-                  </div>
-               </div>
-            </div>
-          </div>
-        )}
 
         {/* ======================================================== */}
         {/* VIP TAB VIEW */}

@@ -1,6 +1,8 @@
+import { getBackendUrl } from '../config';
+
 export const getAIResponse = async (message: string, userData?: any, type: 'support' | 'assistant' = 'support') => {
   try {
-    const response = await fetch('/api/ai/chat', {
+    const response = await fetch(`${getBackendUrl()}/api/ai/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message, userData, type }),

@@ -67,7 +67,7 @@ export default function AppInstallModal({ isOpen, onClose, deferredPrompt, onIns
                     মোবাইল অ্যাপ ডাউনলোড
                   </h2>
                   <p className="text-xs text-teal-300 font-bold uppercase tracking-widest mt-0.5">
-                    SPIN71BET1 Web App Installation
+                    SPIN71 BET✨ Web App Installation
                   </p>
                 </div>
               </div>
@@ -110,7 +110,7 @@ export default function AppInstallModal({ isOpen, onClose, deferredPrompt, onIns
                     <Sparkles size={10} />
                     PWA App System Active
                   </div>
-                  <h3 className="text-white font-black text-sm">SPIN71BET1 মোবাইল ব্রাউজার অ্যাপ</h3>
+                  <h3 className="text-white font-black text-sm">SPIN71 BET✨ মোবাইল ব্রাউজার অ্যাপ</h3>
                   <p className="text-gray-400 text-[10px] leading-relaxed px-4">
                     প্লেস্টোর ছাড়াও সরাসরি ব্রাউজারের মাধ্যমে আসল অ্যাপ বানাতে নিচের গাইডটি অনুসরণ করুন। এটি সাধারণ অ্যাপের মতোই কাজ করবে।
                   </p>
@@ -170,7 +170,7 @@ export default function AppInstallModal({ isOpen, onClose, deferredPrompt, onIns
                       <div className="space-y-1">
                         <p className="text-white font-bold text-xs">ইন্সটল সম্পন্ন করুন</p>
                         <p className="text-gray-400 text-[10px] leading-relaxed">
-                          পপআপ কনফার্মেশন ডায়ালগে <span className="text-white font-bold">"Install"</span> বা "Add" বাটনে ক্লিক করুন। কয়েক সেকেন্ডের মধ্যে ফোনে SPIN71 অ্যাপ হিসেবে সেট হয়ে যাবে!
+                          পপআপ কনফার্মেশন ডায়ালগে <span className="text-white font-bold">"Install"</span> বা "Add" বাটনে ক্লিক করুন। কয়েক সেকেন্ডের মধ্যে ফোনে SPIN71 BET✨ অ্যাপ হিসেবে সেট হয়ে যাবে!
                         </p>
                       </div>
                     </div>
@@ -226,7 +226,7 @@ export default function AppInstallModal({ isOpen, onClose, deferredPrompt, onIns
                     <div className="flex gap-3.5 items-start">
                       <div className="w-6 h-6 rounded-lg bg-teal-500/10 text-teal-400 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">2</div>
                       <div className="space-y-1">
-                        <p className="text-white font-bold text-xs">"Install SPIN71" এ ক্লিক করুন</p>
+                        <p className="text-white font-bold text-xs">"Install SPIN71 BET✨" এ ক্লিক করুন</p>
                         <p className="text-gray-400 text-[10px] leading-relaxed">
                           আইকনটিতে প্রেস করলে <span className="text-yellow-400 font-bold">"Install"</span> করার জন্য একটি ছোট ডায়ালগ বক্স শো হবে, সেটি কনফার্ম করুন।
                         </p>

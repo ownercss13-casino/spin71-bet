@@ -1,7 +1,9 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
-import { getFirestore, initializeFirestore, CACHE_SIZE_UNLIMITED, setLogLevel } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, CACHE_SIZE_UNLIMITED, setLogLevel, getDoc, getDocs, onSnapshot, setDoc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
+
+const config = firebaseConfig as any;
 
 // Silence verbose connection warnings in console by prioritizing severe errors only
 try {
@@ -10,15 +12,15 @@ try {
   console.warn("[Firebase] Failed to silence verbose logging:", logErr);
 }
 
-const app = initializeApp(firebaseConfig);
+const app = initializeApp(config);
 
-console.log("[Firebase] Initializing Firestore with DB ID:", firebaseConfig.firestoreDatabaseId);
+console.log("[Firebase] Initializing Firestore with DB ID:", config.firestoreDatabaseId);
 
 // Handle (default) database ID
-const dbId = firebaseConfig.firestoreDatabaseId === '(default)' ? undefined : firebaseConfig.firestoreDatabaseId;
+const dbId = config.firestoreDatabaseId === '(default)' ? undefined : config.firestoreDatabaseId;
 
 // Initialize Firestore with specific settings to improve stability in restricted environments
-let dbInstance;
+let dbInstance: any;
 try {
   console.log("[Firebase] Attempting to initialize Firestore with DB ID:", dbId);
   dbInstance = initializeFirestore(app, {
@@ -56,6 +58,21 @@ export const switchToDefaultDb = () => {
 
 export const auth = getAuth(app);
 
+// Helper to get either the real Firebase user or a mock session user
+export const getActiveUser = () => {
+  const mockUid = localStorage.getItem('mock_user_uid');
+  if (mockUid) {
+    return {
+      uid: mockUid,
+      email: localStorage.getItem('mock_user_email') || `${mockUid}@spin71bet1.aistudio`,
+      displayName: localStorage.getItem('mock_user_username') || 'User',
+      isMock: true,
+      getIdToken: async (_forceRefresh?: boolean) => localStorage.getItem('mock_user_token') || ""
+    } as any;
+  }
+  return auth.currentUser;
+};
+
 // Explicitly configure browserLocalPersistence to guarantee user session longevity
 try {
   setPersistence(auth, browserLocalPersistence)
@@ -92,9 +109,12 @@ export interface FirestoreErrorInfo {
   }
 }
 
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+export function handleFirestoreError(error: any, operationType: OperationType, path: string | null) {
+  const code = error?.code || 'unknown';
+  const message = error?.message || String(error);
+  
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: `${code}: ${message}`,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
@@ -106,11 +126,18 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   };
   
   const errorMessage = JSON.stringify(errInfo);
-  console.error('[Firestore Error]:', errorMessage);
+  console.error(`[Firestore ${operationType} Error on ${path}]:`, errorMessage);
   
-  // Re-throw if it is a permission error, wrapped in our formal IR
-  if (errInfo.error.includes('permissions') || errInfo.error.includes('PERMISSION_DENIED')) {
-    throw new Error(errorMessage);
+  if (message.includes('Quota') || message.includes('Resource exhausted') || message.includes('RESOURCE_EXHAUSTED')) {
+    console.warn('[Firestore] Suppressed Quota Error for operation:', operationType, path);
+    return;
+  }
+
+  // Re-throw if it is a permission error, ensuring it's caught and displayed
+  if (code === 'permission-denied' || message.includes('permissions') || message.includes('PERMISSION_DENIED')) {
+    const permError = new Error(`Firebase Permission Error [${operationType}]: ${path}. User: ${auth.currentUser?.uid || 'Not Logged In'}`);
+    (permError as any).details = errInfo;
+    throw permError;
   }
   
   throw error;

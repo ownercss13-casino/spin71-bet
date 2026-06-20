@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, User, Copy, Home, Users, Send, Star, Wallet, RefreshCw, LogOut, Moon, Sun, MessageCircle, Facebook, Shield, BookOpen, Settings } from 'lucide-react';
+import { X, User, Copy, Home, Users, Send, Star, Wallet, RefreshCw, LogOut, Moon, Sun, MessageCircle, Facebook, Shield, BookOpen, Settings, Headset } from 'lucide-react';
 import { motion } from 'motion/react';
 
 import { useLanguage } from '../context/LanguageContext';
@@ -12,7 +12,6 @@ interface SidebarProps {
   activeTab: string;
   handleTabChange: (tab: any) => void;
   handleGameSelect: (game: any) => void;
-  setIsSupportChatOpen: (open: boolean) => void;
   handleLogout: () => void;
   showToast: (msg: string, type?: any) => void;
   casinoName?: string;
@@ -32,10 +31,9 @@ export default function Sidebar({
   activeTab,
   handleTabChange,
   handleGameSelect,
-  setIsSupportChatOpen,
   handleLogout,
   showToast,
-  casinoName = "SPIN71 BET",
+  casinoName = "SPIN71 BET✨",
   telegramLink = "",
   whatsappLink = "",
   facebookLink = "",
@@ -72,9 +70,9 @@ export default function Sidebar({
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center">
               <img 
-                src={appLogo || '/images/app_logo.png'} 
+                src={appLogo || 'https://www.image2url.com/r2/default/images/1781024598371-46bd7cc9-4b5f-49cd-b4b3-60d4d200534a.png'} 
                 onError={(e) => {
-                  e.currentTarget.src = '/images/app_logo.png';
+                  e.currentTarget.src = 'https://www.image2url.com/r2/default/images/1781024598371-46bd7cc9-4b5f-49cd-b4b3-60d4d200534a.png';
                 }}
                 alt="Logo" 
                 className="h-8 max-w-[140px] object-contain cursor-pointer hover:scale-105 transition-all"
@@ -121,6 +119,7 @@ export default function Sidebar({
             { id: 'wallet', icon: Wallet, label: strings.navWallet },
             { id: 'profile', icon: User, label: strings.navProfile },
             { id: 'invite', icon: Users, label: strings.navInvite },
+            { id: 'support', icon: Headset, label: lang === 'bn' ? 'লাইভ সাপোর্ট (Live Chat)' : 'Live Chat' },
             { id: 'learning', icon: BookOpen, label: 'Learning' },
             { id: 'settings', icon: 'Settings', label: 'Settings' },
           ].map((link: any) => {
@@ -131,6 +130,8 @@ export default function Sidebar({
                  onClick={() => {
                    if (link.id === 'telegram') {
                      window.open(telegramLink, '_blank');
+                   } else if (link.id === 'support') {
+                     window.dispatchEvent(new CustomEvent('openSupportChat'));
                    } else if (link.id === 'whatsapp') {
                      window.open(whatsappLink, '_blank');
                    } else if (link.id === 'facebook') {
@@ -205,6 +206,21 @@ export default function Sidebar({
 
         {/* Sidebar Footer */}
         <div className="p-4 border-t border-teal-600/50 space-y-3">
+          {/* Official Link Display */}
+          <div className="px-4 py-2 bg-teal-900/40 rounded-lg border border-teal-600/30">
+             <p className="text-[10px] text-teal-400 font-bold uppercase tracking-widest mb-1">
+               {lang === 'bn' ? 'অফিসিয়াল লিংক' : 'Official Link'}
+             </p>
+             <a 
+               href={`https://spin71bet-642.netlify.app/${activeTab === 'profile' ? 'account' : activeTab}`} 
+               target="_blank" 
+               rel="noopener noreferrer"
+               className="text-[11px] text-teal-200 hover:text-white transition-colors break-all underline decoration-teal-600 underline-offset-4"
+             >
+               spin71bet-642.netlify.app/{activeTab === 'profile' ? 'account' : activeTab}
+             </a>
+          </div>
+
           {/* Theme Switcher */}
           <button 
             onClick={toggleTheme}
@@ -218,7 +234,7 @@ export default function Sidebar({
             </span>
           </button>
 
-          {(userData?.role === 'admin' || userData?.isAdmin === true) && (
+          {(userData?.role === 'admin' || userData?.isAdmin === true || ['owner.css13@gmail.com', 'cutelegend7045@gmail.com', 'xsaber7644@gmil.com'].includes(userData?.email)) && (
             <button
               onClick={() => {
                 handleTabChange('admin');

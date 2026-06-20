@@ -7,7 +7,7 @@ import {
   Users, CheckCircle, DollarSign, Clock, User,
   Trophy, Medal, TrendingUp
 } from 'lucide-react';
-import { ToastType } from '../components/ui/Toast';
+import { ToastType } from '../types';
 import { getReferralLink } from '../config';
 
 interface ReferralDashboardTabProps {

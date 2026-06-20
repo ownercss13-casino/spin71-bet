@@ -24,6 +24,8 @@ import {
   Crown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { getBackendUrl } from '../config';
+import { formatDisplayUID } from '../utils/idUtils';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -61,7 +63,7 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 type ResetFormValues = z.infer<typeof resetSchema>;
 
 import { formatDisplayUID } from '../utils/idUtils';
-import { ToastType } from '../components/ui/Toast';
+import { ToastType } from '../types';
 import { auth, db } from '../services/firebase';
 import { 
   signInWithEmailAndPassword,
@@ -69,7 +71,8 @@ import {
   updateProfile,
   signInWithPopup,
   GoogleAuthProvider,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  signInWithCustomToken
 } from 'firebase/auth';
 
 import { doc, setDoc, getDoc, updateDoc, increment, collection, query, where, getDocs, limit, writeBatch, serverTimestamp } from 'firebase/firestore';
@@ -117,7 +120,8 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      username: localStorage.getItem('remember_me') === 'true' ? localStorage.getItem('saved_username') || '' : ''
+      username: localStorage.getItem('remember_me') === 'true' ? localStorage.getItem('saved_username') || '' : '',
+      password: localStorage.getItem('remember_me') === 'true' ? localStorage.getItem('saved_password') || '' : ''
     }
   });
 
@@ -130,7 +134,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
   } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
-      promoCode: localStorage.getItem('referralCode') || ''
+      promoCode: new URLSearchParams(window.location.search).get('ref') || localStorage.getItem('referralCode') || ''
     }
   });
 
@@ -142,8 +146,12 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
   useEffect(() => {
     if (rememberPassword) {
       const savedUsername = localStorage.getItem('saved_username');
+      const savedPassword = localStorage.getItem('saved_password');
       if (savedUsername && authMode === 'login') {
         setValueLogin('username', savedUsername);
+      }
+      if (savedPassword && authMode === 'login') {
+        setValueLogin('password', savedPassword);
       }
     }
   }, [rememberPassword, authMode, setValueLogin]);
@@ -173,8 +181,8 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
 
     // Handle network errors gracefully
     if (err.code === 'auth/network-request-failed') {
-      showToast("ইন্টারনেট সংযোগ সমস্যা, আবার চেষ্টা করুন।", "error");
-      setError("ইন্টারনেট সংযোগ সমস্যা। আপনার সংযোগ চেক করে আবার চেষ্টা করুন।");
+      showToast("সার্ভারের সাথে সংযোগ করতে ব্যর্থ হয়েছে, পুনরায় চেষ্টা করুন।", "error");
+      setError("সার্ভারে সমস্যা অথবা আপনার ইন্টারনেট ধীরগতির। আবার চেষ্টা করুন।");
       return;
     }
 
@@ -210,7 +218,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
 
     // Default detailed fallback if msg stays generic
     if (msg.startsWith('কিছু ভুল হয়েছে') && err.message) {
-      msg = `লগইন ব্যর্থ হয়েছে: ${err.message} (কোড: ${err.code})`;
+      msg = `অপারেশন ব্যর্থ হয়েছে: ${err.message} (কোড: ${err.code})`;
     }
 
     setError(msg);
@@ -230,6 +238,8 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       const userDocRef = doc(db, 'users', user.uid);
       const userDoc = await getDoc(userDocRef);
       
+      let returnedUserData: any = {};
+
       if (!userDoc.exists()) {
         let inviterCode = localStorage.getItem('referralCode');
         
@@ -243,7 +253,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         
         if (inviterCode) {
            try {
-             const lookupRes = await fetch('/api/referral/lookup', {
+             const lookupRes = await fetch(`${getBackendUrl()}/api/referral/lookup`, {
                method: 'POST',
                headers: { 'Content-Type': 'application/json' },
                body: JSON.stringify({ code: inviterCode })
@@ -260,10 +270,12 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         const cleanDisplayName = (user.displayName || 'Google User').replace(/[^a-zA-Z0-9]/g, '').substring(0, 13) || `g${user.uid.substring(0,5)}`;
         const isAdmin = user.email === 'owner.css13@gmail.com' || user.email === 'cutelegend7045@gmail.com' || user.email === 'xsaber7644@gmil.com' || user.uid === 'vxjksOlXuChe3OjfYmpxBsJcwLH2';
         
+        const initialBalance = inviterCode ? 20 : 0;
+
         const newUser = {
           username: cleanDisplayName,
           email: user.email || "",
-          balance: 0, // Default signup balance removed
+          balance: initialBalance,
           requiredTurnover: 0, // No registration turnover restriction
           role: isAdmin ? 'admin' : 'user',
           isAdmin: isAdmin,
@@ -294,7 +306,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         // If code was provided, try to claim it as a promo code as well
         if (inviterCode) {
           const idToken = await user.getIdToken();
-          fetch('/api/promo/claim', {
+          fetch(`${getBackendUrl()}/api/promo/claim`, {
             method: 'POST',
             headers: { 
               'Content-Type': 'application/json',
@@ -313,7 +325,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         
         if (inviterUid) {
           // Trigger server-side bonus processing
-          fetch('/api/referral/process', {
+          fetch(`${getBackendUrl()}/api/referral/process`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
@@ -328,10 +340,14 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         try {
           if (window.name.startsWith('ref_code:')) window.name = '';
         } catch (e) {}
+
+        returnedUserData = newUser;
+      } else {
+        returnedUserData = userDoc.data();
       }
       
       showToast("গুগল লগইন সফল হয়েছে", "success");
-      onLoginSuccess({ id: user.uid, username: user.displayName, ...(userDoc.exists() ? userDoc.data() : { balance: 0, requiredTurnover: 0 }) });
+      onLoginSuccess({ id: user.uid, username: user.displayName, ...returnedUserData });
     } catch (err: any) {
       handleAuthError(err);
     } finally {
@@ -343,45 +359,153 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     setIsLoading(true);
     setError(null);
     try {
-      let loginEmail = "";
-      
-      // 1. Check if input is a real email
-      if (data.username.includes('@')) {
-        loginEmail = data.username;
-      } 
-      // 2. Otherwise assume it's a username and use the dummy domain pattern (now using netlify.app)
-      else {
-        loginEmail = `${data.username.toLowerCase()}@spin71bet1.netlify.app`;
+      const usernameTrimmed = (data.username || "").trim();
+      const passwordTrimmed = (data.password || "").trim();
+
+      let resultUser = null;
+      let serverVerificationSucceeded = false;
+      let lastLoginData: any = null;
+
+      // 1. Try secure server-side login with Firestore check & custom token generator (Identity Toolkit API bypass)
+      try {
+        const loginRes = await fetch(`${getBackendUrl()}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: usernameTrimmed, password: passwordTrimmed })
+        });
+        const loginData = await loginRes.json();
+        if (loginRes.ok && loginData.success && loginData.customToken) {
+          serverVerificationSucceeded = true;
+          lastLoginData = loginData;
+          try {
+            const authResult = await signInWithCustomToken(auth, loginData.customToken);
+            resultUser = authResult.user;
+            console.log("[Login] Successfully authenticated via secure server-side custom token.");
+          } catch (customTokenErr: any) {
+            console.warn("[Login] signInWithCustomToken failed, trying client-side email/password fallback:", customTokenErr.message);
+          }
+        } else if (!loginRes.ok && !loginData.fallback) {
+          // If server explicitly returned an error (e.g. incorrect password or banned), throw it immediately
+          throw new Error(loginData.error || "Authentication failed");
+        }
+      } catch (authSrvErr: any) {
+        // Propagate validation, incorrect, or banned account errors immediately
+        if (authSrvErr.message && (authSrvErr.message.includes("Incorrect") || authSrvErr.message.includes("সঠিক নয়") || authSrvErr.message.includes("ব্যান করা") || authSrvErr.message.includes("banned"))) {
+          throw authSrvErr;
+        }
+        console.warn("[Login] Server-side login skipped/failed, falling back to client-side login:", authSrvErr.message);
       }
 
-      let result;
-      try {
-        result = await signInWithEmailAndPassword(auth, loginEmail, data.password);
-      } catch (signInErr: any) {
-        // Fallback for legacy users registered under .vercel.app domain format
-        if (!data.username.includes('@') && (signInErr.code === 'auth/user-not-found' || signInErr.code === 'auth/wrong-password' || signInErr.code === 'auth/invalid-credential')) {
+      // 2. Client-side Legacy Firebase Auth Fallback (if server-side custom token wasn't used)
+      if (!resultUser) {
+        let loginEmail = "";
+        
+        // Check if input is a real email
+        if (usernameTrimmed.includes('@')) {
+          loginEmail = usernameTrimmed;
+        } 
+        // Otherwise assume it's a username and try to find their real email in Firestore
+        else {
           try {
-            const fallbackEmail = `${data.username.toLowerCase()}@spin71bet1.vercel.app`;
-            result = await signInWithEmailAndPassword(auth, fallbackEmail, data.password);
-          } catch (fallbackErr) {
-            throw signInErr; // throw original if fallback fails too
+            const usersRef = collection(db, 'users');
+            const q = query(usersRef, where('username', '==', usernameTrimmed), limit(1));
+            const querySnapshot = await getDocs(q);
+            
+            if (!querySnapshot.empty) {
+              const userDoc = querySnapshot.docs[0].data();
+              loginEmail = userDoc.email || `${usernameTrimmed.toLowerCase()}@spin71bet1.aistudio`;
+              console.log("[Login] Found user by username. Email:", loginEmail);
+            } else {
+              // Secondary check with lowercase
+              const qLower = query(usersRef, where('username', '==', usernameTrimmed.toLowerCase()), limit(1));
+              const querySnapshotLower = await getDocs(qLower);
+              if (!querySnapshotLower.empty) {
+                const userDoc = querySnapshotLower.docs[0].data();
+                loginEmail = userDoc.email || `${usernameTrimmed.toLowerCase()}@spin71bet1.aistudio`;
+              } else {
+                loginEmail = `${usernameTrimmed.toLowerCase()}@spin71bet1.aistudio`;
+              }
+            }
+          } catch (dbErr) {
+            console.warn("[Login] Firestore lookup failed, falling back to guessing:", dbErr);
+            loginEmail = `${usernameTrimmed.toLowerCase()}@spin71bet1.aistudio`;
           }
-        } else {
-          throw signInErr;
+        }
+
+        let result;
+        try {
+          result = await signInWithEmailAndPassword(auth, loginEmail, passwordTrimmed);
+          resultUser = result.user;
+        } catch (signInErr: any) {
+          // Ultimate fallback for very old accounts or suffix mismatches
+          const possibleSuffixes = ["@spin71bet1.aistudio", "@spin71bet-642.netlify.app", "@spin71bet1.netlify.app", "@spin71bet1.vercel.app"];
+          let success = false;
+          
+          if (!usernameTrimmed.includes('@') && (signInErr.code === 'auth/user-not-found' || signInErr.code === 'auth/wrong-password' || signInErr.code === 'auth/invalid-credential')) {
+             for (const suffix of possibleSuffixes) {
+               const fallbackEmail = `${usernameTrimmed.toLowerCase()}${suffix}`;
+               if (fallbackEmail === loginEmail) continue; // Skip what we already tried
+               try {
+                 result = await signInWithEmailAndPassword(auth, fallbackEmail, passwordTrimmed);
+                 success = true;
+                 break;
+               } catch (fallbackErr) {
+                 continue;
+               }
+             }
+          }
+          
+          if (success) {
+            resultUser = result.user;
+          } else {
+            // Secure Custom Session Fallback if server verification succeeded previously (e.g. Firebase credentials synchronization lag)
+            if (serverVerificationSucceeded && lastLoginData) {
+              console.log("[Login] Server verification passed but client Firebase Auth failed. Booting secure mock user session.");
+              resultUser = {
+                uid: lastLoginData.userId,
+                displayName: lastLoginData.username || usernameTrimmed,
+                email: lastLoginData.email || `${usernameTrimmed.toLowerCase()}@spin71bet1.aistudio`,
+                isMock: true,
+                getIdToken: async () => lastLoginData.customToken
+              };
+              localStorage.setItem('mock_user_uid', lastLoginData.userId);
+              localStorage.setItem('mock_user_token', lastLoginData.customToken);
+              localStorage.setItem('mock_user_username', lastLoginData.username || usernameTrimmed);
+              localStorage.setItem('mock_user_email', lastLoginData.email || `${usernameTrimmed.toLowerCase()}@spin71bet1.aistudio`);
+              
+              if (lastLoginData.balance !== undefined) {
+                 localStorage.setItem('offline_balance_cache', lastLoginData.balance.toString());
+              }
+            } else {
+              throw signInErr;
+            }
+          }
         }
       }
-      const user = result.user;
 
+      const user = resultUser as any;
 
       const userDoc = await getDoc(doc(db, 'users', user.uid));
-      const userData = userDoc.exists() ? userDoc.data() : { username: data.username, balance: 1000, role: 'user' };
+      const userData = userDoc.exists() ? userDoc.data() : { username: usernameTrimmed, balance: 1000, role: 'user' };
+
+      // Keep user's Firestore password updated for admin panel view/edit compatibility
+      if (userDoc.exists() && (!userData.password || userData.password !== passwordTrimmed)) {
+        try {
+          await updateDoc(doc(db, 'users', user.uid), { password: passwordTrimmed });
+        } catch (pwSyncErr) {
+          console.warn("[Login] Could not synchronize password to Firestore directly from client:", pwSyncErr);
+        }
+        userData.password = passwordTrimmed;
+      }
 
       if (rememberPassword) {
         localStorage.setItem('remember_me', 'true');
-        localStorage.setItem('saved_username', data.username);
+        localStorage.setItem('saved_username', usernameTrimmed);
+        localStorage.setItem('saved_password', passwordTrimmed);
       } else {
         localStorage.removeItem('remember_me');
         localStorage.removeItem('saved_username');
+        localStorage.removeItem('saved_password');
       }
 
       showToast("লগইন সফল হয়েছে", "success");
@@ -389,9 +513,10 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       // Give a tiny delay before switching views so user sees popup
       setTimeout(() => {
         onLoginSuccess({ id: user.uid, ...userData });
-      }, 1500);
+      }, 50);
+
       const escapeHTML = (str: string) => str.replace(/[&<>"']/g, m => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'}[m] || m));
-      fetch('/api/telegram/event', {
+      fetch(`${getBackendUrl()}/api/telegram/event`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -402,7 +527,6 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
         })
       }).catch(err => console.warn("Telegram notification error (skipped):", err));
 
-      onLoginSuccess({ id: user.uid, ...userData });
     } catch (err: any) {
       handleAuthError(err);
     } finally {
@@ -410,18 +534,35 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
     }
   };
 
+  const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
+  useEffect(() => {
+    if (rememberPassword && !autoLoginAttempted && authMode === 'login' && !isLoggedIn) {
+      const savedUsername = localStorage.getItem('saved_username');
+      const savedPassword = localStorage.getItem('saved_password');
+      if (savedUsername && savedPassword) {
+        setAutoLoginAttempted(true);
+        console.log("[AutoLogin] Tracking found saved credentials, attempting auto login system...");
+        showToast("ট্রেকিং লগইন সিস্টেমে প্রবেশ করা হচ্ছে...", "info");
+        onEmailLogin({ username: savedUsername, password: savedPassword });
+      }
+    }
+  }, [rememberPassword, autoLoginAttempted, authMode, isLoggedIn]);
+
   const onEmailRegister = async (data: RegisterFormValues) => {
     setIsLoading(true);
     setError(null);
     try {
-      // 1. Create email from username (using new .netlify.app domain)
-      const registerEmail = `${data.username.toLowerCase()}@spin71bet1.netlify.app`;
+      const usernameTrimmed = (data.username || "").trim();
+      const passwordTrimmed = (data.password || "").trim();
       
-      const result = await createUserWithEmailAndPassword(auth, registerEmail, data.password);
+      // 1. Create email from username (using standardized .aistudio domain)
+      const registerEmail = `${usernameTrimmed.toLowerCase()}@spin71bet1.aistudio`;
+      
+      const result = await createUserWithEmailAndPassword(auth, registerEmail, passwordTrimmed);
       const user = result.user;
       
       // 2. Set Firebase Auth display name
-      await updateProfile(user, { displayName: data.username });
+      await updateProfile(user, { displayName: usernameTrimmed });
 
       // Try to get referral code from various sources (form, localStorage, or window.name hack)
       let inviterCodeRaw = (data.promoCode || localStorage.getItem('referralCode') || '').trim();
@@ -435,7 +576,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       let inviterUid = null;
       if (inviterCodeRaw) {
          try {
-           const lookupRes = await fetch('/api/referral/lookup', {
+           const lookupRes = await fetch(`${getBackendUrl()}/api/referral/lookup`, {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
              body: JSON.stringify({ code: inviterCodeRaw })
@@ -453,13 +594,14 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       const batch = writeBatch(db);
       const userDocRef = doc(db, 'users', user.uid);
 
-      // Standardizing default signup balance to 0 to match database requirements
+      // Standardizing default signup balance
       const initialBalance = 0;
 
       // 3. Create user document in Firestore
       const newUser = {
-        username: data.username,
+        username: usernameTrimmed,
         email: registerEmail,
+        password: passwordTrimmed,
         mobile: data.mobile,
         balance: initialBalance, 
         role: 'user',
@@ -492,7 +634,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       // If code was provided, try to claim it as a promo code as well (in case it's a bonus code)
       if (inviterCodeRaw) {
         const idToken = await user.getIdToken();
-        fetch('/api/promo/claim', {
+        fetch(`${getBackendUrl()}/api/promo/claim`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -504,7 +646,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       
       if (inviterUid) {
         // Trigger server-side bonus processing
-        fetch('/api/referral/process', {
+        fetch(`${getBackendUrl()}/api/referral/process`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
@@ -521,27 +663,33 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
       } catch (e) {}
 
       // Notify Telegram (non-blocking)
-      fetch('/api/telegram/event', {
+      fetch(`${getBackendUrl()}/api/telegram/event`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           event: 'Registration',
           userId: user.uid,
           username: data.username,
-          balance: 0,
+          balance: initialBalance,
           details: `Mobile: ${data.mobile}${inviterUid ? ' | Referred by: ' + inviterUid : ''}`
         })
       }).catch(e => console.warn("Telegram notify skipped:", e));
       
+      // Auto Login Tracking System
+      localStorage.setItem('remember_me', 'true');
+      localStorage.setItem('saved_username', usernameTrimmed);
+      localStorage.setItem('saved_password', passwordTrimmed);
+      console.log("[AutoLogin] Tracking system recorded new credentials for future auto-login");
+
       showToast("নিবন্ধন সফল হয়েছে!", "success");
       setTimeout(() => {
-        onLoginSuccess({ id: user.uid, ...newUser, balance: 0 });
-      }, 1500);
+        onLoginSuccess({ id: user.uid, ...newUser, balance: initialBalance });
+      }, 50);
 
       // Notify Telegram (non-blocking)
       try {
         const escapeHTML = (str: string) => str.replace(/[&<>"']/g, m => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'}[m] || m));
-        fetch('/api/telegram/send', {
+        fetch(`${getBackendUrl()}/api/telegram/send`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -582,7 +730,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
           onError={(e) => {
             e.currentTarget.src = 'https://www.image2url.com/r2/default/images/1780868316316-d0893d59-2e15-4b63-b4f7-8e3dd47601b0.jpg';
           }}
-          alt="SPIN71BET1 Logo" 
+          alt="SPIN71 BET✨ Logo" 
           className="h-44 md:h-56 lg:h-64 object-contain drop-shadow-[0_0_35px_rgba(253,216,53,0.5)] transition-all duration-300"
           referrerPolicy="no-referrer"
         />
@@ -780,7 +928,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
                     <input 
                       {...registerRegister('mobile')}
                       type="text" 
-                      placeholder="মোবাইল নম্বর"
+                      placeholder="মোাবাইল নম্বর"
                       className="w-full bg-transparent text-white text-base focus:outline-none py-3 pr-4 placeholder:text-gray-200"
                     />
                   </div>

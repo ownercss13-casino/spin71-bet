@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { gsap } from 'gsap';
-import { auth } from '../../services/firebase';
+import { auth, getActiveUser } from '../../services/firebase';
 import GameLoader from '../ui/GameLoader';
 import { 
   Plus, 
@@ -24,6 +24,12 @@ import { useSound } from '../../context/SoundContext';
 import { getBackendUrl } from '../../config';
 
 import DummyPlayersList from './DummyPlayersList';
+
+const getCleanApiKey = (): string => {
+  const rawKey = import.meta.env.VITE_AVIATOR_API_KEY || '#spin71bet_aviator_game109';
+  if (!rawKey || typeof rawKey !== 'string') return '#spin71bet_aviator_game109';
+  return rawKey.trim().replace(/^['"]|['"]$/g, '');
+};
 
 interface AviatorGameProps {
   balance: number;
@@ -50,7 +56,7 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordInput.trim() === 'ownercss13') {
+    if (passwordInput.trim() === '#spin71bet_aviator_game109' || passwordInput.trim() === 'spin71bet55') {
       setIsSignalActive(true);
       setShowPasswordModal(false);
       setPasswordInput('');
@@ -64,8 +70,11 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
   const [gameHistory, setGameHistory] = useState<number[]>([1.13, 6.38, 1.03, 1.06, 1.03, 1.10, 7.49, 1.38, 1.22, 1.44, 1.36, 2.10, 4.55, 1.10, 1.32, 13.80, 1.21, 1.40, 1.56, 2.88, 1.21, 2.10, 1.38, 6.46]);
   const [nextGameTimer, setNextGameTimer] = useState(10);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const { soundEnabled, toggleSound, playSound } = useSound();
+  const [showRulesModal, setShowRulesModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const { playSound, startBgm, stopBgm, updateEngineSound, stopEngineSound } = useSound();
   const gameContainerRef = useRef<HTMLDivElement>(null);
+  const prevGameStateRef = useRef<GameState | null>(null);
 
   useEffect(() => {
     // We avoid auto-requesting fullscreen on mount as browsers strictly reject non-gestured fullscreen requests in iframe contexts.
@@ -78,6 +87,15 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       } catch (err) {
         console.warn("[AviatorGame] Fullscreen exit error:", err);
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    // Start Spribe-like arpeggiating background chord music
+    startBgm();
+    return () => {
+      stopBgm();
+      stopEngineSound();
     };
   }, []);
 
@@ -233,7 +251,13 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
     lastMultiplierRef.current = multiplier;
   }, [multiplier, gameState]);
 
+  const isProcessingBet1Ref = useRef(false);
+  const isProcessingBet2Ref = useRef(false);
+
   const placeBet = async (panel: 1 | 2, fromWaiting = false) => {
+    const isProcessing = panel === 1 ? isProcessingBet1Ref.current : isProcessingBet2Ref.current;
+    if (isProcessing) return;
+
     const amount = panel === 1 ? betAmount1 : betAmount2;
     if (balanceRef.current < amount) {
       showToast('Insufficient Balance', 'error');
@@ -246,17 +270,20 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       return;
     }
 
+    if (panel === 1) isProcessingBet1Ref.current = true;
+    else isProcessingBet2Ref.current = true;
+
     try {
-      const idToken = await auth.currentUser?.getIdToken();
+      const idToken = await getActiveUser()?.getIdToken();
       const backendUrl = getBackendUrl();
       const res = await fetch(`${backendUrl}/api/game/aviator/action`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': import.meta.env.VITE_AVIATOR_API_KEY || '#spin71bet_aviator_game109' },
+        headers: { 'Content-Type': 'application/json', 'x-api-key': getCleanApiKey() },
         body: JSON.stringify({ action: 'bet', amount, idToken })
       });
       const data = await res.json();
       if (data.success) {
-        onBalanceUpdate(data.newBalance);
+        onBalanceUpdate(data.newBalance, false);
         if (panel === 1) {
           setCurrentBet1({ amount, cashedOut: false });
           setIsWaitingBet1(false);
@@ -274,21 +301,37 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       showToast('Bet request failed', 'error');
       if (panel === 1) setIsWaitingBet1(false);
       else setIsWaitingBet2(false);
+    } finally {
+      if (panel === 1) isProcessingBet1Ref.current = false;
+      else isProcessingBet2Ref.current = false;
     }
   };
 
+  const isCashingOut1Ref = useRef(isCashingOut1);
+  const isCashingOut2Ref = useRef(isCashingOut2);
+  useEffect(() => { isCashingOut1Ref.current = isCashingOut1; }, [isCashingOut1]);
+  useEffect(() => { isCashingOut2Ref.current = isCashingOut2; }, [isCashingOut2]);
+
   const handleCashout = async (panel: 1 | 2) => {
     const bet = panel === 1 ? currentBet1Ref.current : currentBet2Ref.current;
-    if (!bet || bet.cashedOut || gameState !== 'in_progress') return;
+    const isCashingOut = panel === 1 ? isCashingOut1Ref.current : isCashingOut2Ref.current;
+    
+    if (!bet || bet.cashedOut || gameState !== 'in_progress' || isCashingOut) return;
 
-    if (panel === 1) setIsCashingOut1(true); else setIsCashingOut2(true);
+    if (panel === 1) {
+      setIsCashingOut1(true);
+      isCashingOut1Ref.current = true;
+    } else {
+      setIsCashingOut2(true);
+      isCashingOut2Ref.current = true;
+    }
 
     try {
-      const idToken = await auth.currentUser?.getIdToken();
+      const idToken = await getActiveUser()?.getIdToken();
       const backendUrl = getBackendUrl();
       const res = await fetch(`${backendUrl}/api/game/aviator/action`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': import.meta.env.VITE_AVIATOR_API_KEY || '#spin71bet_aviator_game109' },
+        headers: { 'Content-Type': 'application/json', 'x-api-key': getCleanApiKey() },
         body: JSON.stringify({ 
           action: 'cashout', 
           amount: bet.amount, 
@@ -298,7 +341,7 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       });
       const data = await res.json();
       if (data.success) {
-        onBalanceUpdate(data.newBalance);
+        onBalanceUpdate(data.newBalance, false);
         if (panel === 1) setCurrentBet1({ ...bet, cashedOut: true });
         else setCurrentBet2({ ...bet, cashedOut: true });
         playSound('win');
@@ -309,7 +352,55 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
     } catch (err) {
       showToast('Cashout request failed', 'error');
     } finally {
-      if (panel === 1) setIsCashingOut1(false); else setIsCashingOut2(false);
+      if (panel === 1) {
+        setIsCashingOut1(false);
+        isCashingOut1Ref.current = false;
+      } else {
+        setIsCashingOut2(false);
+        isCashingOut2Ref.current = false;
+      }
+    }
+  };
+
+  const handleCancel = async (panel: 1 | 2) => {
+    const bet = panel === 1 ? currentBet1 : currentBet2;
+    if (!bet) {
+      if (panel === 1) {
+        setIsWaitingBet1(false);
+      } else {
+        setIsWaitingBet2(false);
+      }
+      return;
+    }
+
+    try {
+      const idToken = await getActiveUser()?.getIdToken();
+      const backendUrl = getBackendUrl();
+      const res = await fetch(`${backendUrl}/api/game/aviator/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': getCleanApiKey() },
+        body: JSON.stringify({ 
+          action: 'cancel', 
+          amount: bet.amount, 
+          idToken 
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        onBalanceUpdate(data.newBalance, false);
+        if (panel === 1) {
+          setCurrentBet1(null);
+          setIsWaitingBet1(false);
+        } else {
+          setCurrentBet2(null);
+          setIsWaitingBet2(false);
+        }
+        showToast('বাজি বাতিল করা হয়েছে এবং রিফান্ড করা হয়েছে।', 'success');
+      } else {
+        showToast(data.error || 'Cancellation rejected', 'error');
+      }
+    } catch (err) {
+      showToast('Cancellation request failed', 'error');
     }
   };
 
@@ -325,11 +416,11 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
     const setupSSE = async () => {
       if (!isActive) return;
       
-      const user = auth.currentUser;
+      const user = getActiveUser();
       if (!user) {
         console.log("[AviatorGame] Waiting for authenticated user to establish SSE stream...");
         if (retryTimeoutId) clearTimeout(retryTimeoutId);
-        retryTimeoutId = setTimeout(setupSSE, 1000); // Check again in 1 second
+        retryTimeoutId = setTimeout(setupSSE, 2000); 
         return;
       }
 
@@ -351,6 +442,26 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       eventSource.onopen = () => {
         console.log("[AviatorGame] SSE stable connection established successfully.");
         retryDelay = 2000; // Reset retry delay upon success
+        setShowLoader(false); // Ensure loader is hidden when connected
+      };
+
+      eventSource.onerror = (err) => {
+        console.error("[AviatorGame] SSE Connection Error:", err);
+        eventSource?.close();
+        
+        // Don't show loader again if we already have a game state (silent retry)
+        // Only show loader if we've never received data
+        if (multiplier === 1.00 && gameState === 'waiting') {
+           setShowLoader(true);
+        }
+        
+        setTimeout(() => {
+          if (isActive) {
+            console.log(`[AviatorGame] Retrying connection in ${retryDelay}ms...`);
+            connect();
+            retryDelay = Math.min(retryDelay * 1.5, 30000); // Exponential backoff
+          }
+        }, retryDelay);
       };
 
       eventSource.onmessage = (event) => {
@@ -368,6 +479,31 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
         if (data.crashPoint !== undefined) {
           setCurrentCrashPoint(data.crashPoint);
         }
+
+        // Synthesize dynamic sound transitions in real time (climbing engine revs, and flight state swooshes)
+        const nextState = data.state;
+        const currentMult = data.multiplier;
+
+        if (nextState === 'in_progress') {
+          if (prevGameStateRef.current !== 'in_progress') {
+            // Takeoff! Play launch alarm scale sounds
+            playSound('takeoff');
+          }
+          // Dynamically scale pitch and modulate propeller vibrato based on current altitude multiplier
+          updateEngineSound(currentMult);
+        } else if (nextState === 'crashed') {
+          if (prevGameStateRef.current === 'in_progress') {
+            // Crashed / Flew away! Stop the motor and play wind rust sweeps
+            stopEngineSound();
+            playSound('flew_away');
+          } else {
+            stopEngineSound();
+          }
+        } else if (nextState === 'waiting') {
+          stopEngineSound();
+        }
+
+        prevGameStateRef.current = nextState;
 
         // Handle Round transitions
         if (data.state === 'waiting') {
@@ -415,19 +551,20 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       };
     };
 
-    const unsubscribeAuth = auth.onAuthStateChanged((user) => {
-      setupSSE();
-    });
+    setupSSE();
 
     return () => {
       isActive = false;
-      unsubscribeAuth();
       if (retryTimeoutId) clearTimeout(retryTimeoutId);
-      if (eventSource) eventSource.close();
+      if (eventSource) (eventSource as EventSource).close();
     };
   }, []);
 
   if (showLoader) return <GameLoader />;
+
+  // Real-time Parabolic flight trail tracking coordinates
+  const planeX = gameState === 'in_progress' ? Math.min(80, 15 + Math.pow(multiplier - 1, 0.72) * 15) + Math.sin(multiplier * 4) * 0.6 : 15;
+  const planeY = gameState === 'in_progress' ? Math.min(72, 15 + Math.pow(multiplier - 1, 0.85) * 10) + Math.cos(multiplier * 5) * 1.0 : 15;
 
   return (
     <div 
@@ -454,8 +591,14 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
             <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Credits</span>
             <span className="text-sm font-black text-white">{balance.toFixed(2)}</span>
           </div>
-          <button onClick={toggleSound} className="p-2 hover:bg-white/10 rounded-full">
-            {soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
+          {/* Sound settings removed to use global controller */}
+
+          <button 
+            onClick={() => setShowRulesModal(true)} 
+            className="p-2 hover:bg-white/10 rounded-full text-gray-300 hover:text-white transition-colors"
+            title="How to Play"
+          >
+            <HelpCircle size={20} />
           </button>
           <button 
             onClick={() => {
@@ -501,7 +644,7 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
               ))}
            </div>
            <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-[#141414] to-transparent pointer-events-none" />
-           <button className="ml-auto p-1 text-gray-400 hover:text-white">
+           <button onClick={() => setShowHistoryModal(true)} className="ml-auto p-1 text-gray-400 hover:text-white transition-colors">
               <History size={16} />
            </button>
         </div>
@@ -532,8 +675,8 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
 
           {/* Animated Background Atmosphere */}
           <div className="absolute inset-0 opacity-25">
-            <div className="absolute top-1/4 left-1/4 w-32 h-32 bg-[#ff5722] blur-[100px] rounded-full" />
-            <div className="absolute bottom-1/4 right-1/4 w-40 h-40 bg-orange-600 blur-[100px] rounded-full" />
+            <div className="absolute top-1/4 left-1/4 w-32 h-32 bg-[#ff5722] blur-[100px] rounded-full animate-[pulse_8s_infinite]" />
+            <div className="absolute bottom-1/4 right-1/4 w-40 h-40 bg-red-600 blur-[100px] rounded-full animate-[pulse_10s_infinite]" />
           </div>
 
           {/* Grid/Chart Background */}
@@ -568,32 +711,62 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
               </motion.div>
             ) : gameState === 'in_progress' ? (
               <div className="flex flex-col items-center justify-center z-10 w-full h-full relative">
+                
+                {/* Floating Real-Time Large Multiplier */}
                 <div 
                   ref={multiplierDisplayRef}
-                  className="text-7xl md:text-8xl font-black text-white italic z-20 select-none cursor-default"
+                  className="text-7xl md:text-8xl font-black text-white italic z-20 select-none cursor-default mb-10"
                   style={{ textShadow: '0 0 20px rgba(255, 255, 255, 0.2)' }}
                 >
                   {multiplier.toFixed(2)}<span className="text-[#e00508] ml-0.5">x</span>
                 </div>
-                
-                {/* Flying Plane */}
+
+                {/* Flying Plane Container positioned on parabolic offsets */}
                 <div 
-                  className="absolute z-10 transition-transform duration-75 ease-out"
+                  className="absolute z-20 transition-all duration-100 ease-out flex items-center justify-center"
                   style={{
-                    transform: `translate3d(${multiplier > 1.5 ? 100 : multiplier * 50}px, ${multiplier > 1.5 ? -50 : -multiplier * 20}px, 0) rotate(-12deg)`
+                    left: `${planeX}%`,
+                    bottom: `${planeY}%`,
+                    transform: 'translate(-50%, 50%) rotate(-5deg)'
                   }}
                 >
-                   <Plane size={84} fill="currentColor" className="text-[#e00508] drop-shadow-[0_0_15px_rgba(224,5,8,0.5)]" />
+                   <div className="relative">
+                     {/* Flame jet sparkles */}
+                     <div className="absolute -left-6 top-1/2 -translate-y-1/2 w-8 h-3 bg-gradient-to-r from-transparent via-[#ff3d00] to-[#e00508] blur-sm animate-[pulse_0.15s_infinite] rounded-full pointer-events-none" />
+                     <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-4 h-2 bg-orange-500 blur-md rounded-full animate-ping" />
+                     
+                     <Plane size={72} fill="currentColor" className="text-[#e00508] transform rotate-[10deg] drop-shadow-[0_0_12px_rgba(224,5,8,0.85)]" />
+                   </div>
                 </div>
 
-                {/* Flying Curve like image */}
-                <svg className="absolute bottom-0 left-0 w-full h-full pointer-events-none overflow-visible z-0">
+                {/* Elegant Parabolic SVG Flight curves */}
+                <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible z-10">
+                   <defs>
+                     <linearGradient id="plane-trail" x1="0%" y1="100%" x2="100%" y2="0%">
+                       <stop offset="0%" stopColor="#e00508" stopOpacity="0.05" />
+                       <stop offset="65%" stopColor="#e00508" stopOpacity="0.35" />
+                       <stop offset="100%" stopColor="#e00508" stopOpacity="0.85" />
+                     </linearGradient>
+                     <linearGradient id="plane-fill-glow" x1="0%" y1="100%" x2="0%" y2="0%">
+                       <stop offset="0%" stopColor="#e00508" stopOpacity="0" />
+                       <stop offset="100%" stopColor="#e00508" stopOpacity="0.22" />
+                     </linearGradient>
+                   </defs>
+
+                   {/* Fill curve path below flight route */}
                    <path 
-                     d={`M -20 ${600} Q ${multiplier * 20} ${600 - multiplier * 15} ${multiplier > 1.5 ? 400 + multiplier * 10 : 200 + multiplier * 40} ${multiplier > 1.5 ? 200 : 300 - multiplier * 30}`}
+                     d={`M 0 100% Q ${planeX * 0.45}% ${100 - planeY * 0.15}% ${planeX}% ${100 - planeY}% L ${planeX}% 100% Z`}
+                     fill="url(#plane-fill-glow)"
+                   />
+
+                   {/* Solid, glowing trail curve */}
+                   <path 
+                     d={`M 0 100% Q ${planeX * 0.45}% ${100 - planeY * 0.15}% ${planeX}% ${100 - planeY}%`}
                      fill="none"
-                     stroke="#e00508"
-                     strokeWidth="6"
+                     stroke="url(#plane-trail)"
+                     strokeWidth="4.5"
                      strokeLinecap="round"
+                     className="drop-shadow-[0_0_10px_rgba(224,5,8,0.65)]"
                    />
                 </svg>
               </div>
@@ -601,10 +774,22 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
               <motion.div 
                 initial={{ scale: 1.5, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="flex flex-col items-center gap-2 text-center z-10"
+                className="flex flex-col items-center gap-2 text-center z-10 relative w-full h-full justify-center"
               >
-                <div className="text-3xl font-black text-gray-400 italic uppercase">Flew Away!</div>
-                <div className="text-8xl font-black text-[#e00508] italic drop-shadow-[0_0_30px_rgba(224,5,8,0.4)]">
+                {/* Crashed Escape Flight */}
+                <div 
+                  className="absolute z-10 opacity-30 transition-all duration-[2000ms] ease-out-sine pointer-events-none"
+                  style={{
+                    left: `${planeX + 25}%`,
+                    bottom: `${planeY + 30}%`,
+                    transform: 'scale(0.3) rotate(-35deg)',
+                  }}
+                >
+                   <Plane size={72} fill="currentColor" className="text-[#3c3d40] drop-shadow-[0_0_5px_rgba(255,255,255,0.2)]" />
+                </div>
+
+                <div className="text-3xl font-black text-gray-500 italic uppercase tracking-wider animate-pulse">Flew Away!</div>
+                <div className="text-8xl font-black text-[#e00508] italic drop-shadow-[0_0_35px_rgba(224,5,8,0.55)]">
                    {multiplier.toFixed(2)}x
                 </div>
               </motion.div>
@@ -734,39 +919,31 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
                         <button 
                           onClick={() => {
                             if (currentBet || isWaiting) {
-                              if (panel === 1) {
-                                setCurrentBet1(null);
-                                setIsWaitingBet1(false);
-                              } else {
-                                setCurrentBet2(null);
-                                setIsWaitingBet2(false);
-                              }
+                              handleCancel(panel);
                             } else {
                               placeBet(panel);
                             }
                           }}
-                          disabled={gameState === 'crashed' || isWaiting}
+                          disabled={gameState === 'crashed'}
                           className={`w-full h-full rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 shadow-lg ${
                             isWaiting || currentBet 
-                              ? 'bg-red-600/20 border border-red-500/50 text-red-500' 
+                              ? 'bg-gradient-to-b from-red-600 to-red-800 hover:from-red-500 hover:to-red-700 border border-red-500/50 text-white shadow-[0_4px_15px_rgba(239,68,68,0.3)] animate-pulse' 
                               : 'bg-gradient-to-b from-[#4caf50] to-[#2e7d32] hover:from-[#66bb6a] hover:to-[#388e3c] border border-[#ffffff20]'
                           }`}
                         >
-                          {isWaiting ? (
-                              <div className="w-5 h-5 border-2 border-red-500/30 border-t-red-500 rounded-full animate-spin" />
+                          <span className="text-xl font-black text-white italic uppercase tracking-tighter">
+                            {currentBet || isWaiting ? 'Cancel' : 'Bet'}
+                          </span>
+                          {(currentBet || isWaiting) ? (
+                            <span className="text-[9px] text-red-100 font-bold uppercase tracking-wider">
+                              (Click to Cancel)
+                            </span>
                           ) : (
                             <>
-                                <span className="text-xl font-black text-white italic uppercase tracking-tighter">
-                                  {currentBet ? 'Cancel' : 'Bet'}
-                                </span>
-                                {!currentBet && (
-                                    <span className="text-base font-black text-white italic tracking-tighter">
-                                      {amount.toFixed(2)}
-                                    </span>
-                                )}
-                                {!currentBet && (
-                                   <span className="text-[7px] font-black uppercase tracking-widest text-white/70">(Next Round)</span>
-                                )}
+                              <span className="text-base font-black text-white italic tracking-tighter">
+                                {amount.toFixed(2)}
+                              </span>
+                              <span className="text-[7px] font-black uppercase tracking-widest text-white/70 mt-0.5">(Next Round)</span>
                             </>
                           )}
                         </button>
@@ -849,6 +1026,177 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Real Casino Aviator Instruction Manual (How to Play Rules) */}
+        {showRulesModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="relative w-full max-w-lg bg-[#14151b] border border-white/10 rounded-3xl p-6 shadow-2xl flex flex-col max-h-[85vh] overflow-y-auto no-scrollbar"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button 
+                type="button"
+                onClick={() => setShowRulesModal(false)}
+                className="absolute top-4 right-4 p-1.5 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors"
+              >
+                <X size={18} />
+              </button>
+
+              <div className="flex items-center gap-2 mb-4 border-b border-white/15 pb-3">
+                <Info className="text-[#e00508]" size={24} />
+                <h3 className="text-lg font-extrabold text-white uppercase tracking-wider">এভিয়েটর গেমের নিয়মাবলী (Aviator Rules)</h3>
+              </div>
+
+              <div className="space-y-4 text-xs leading-relaxed text-gray-300">
+                <div className="bg-[#e00508]/10 border border-[#e00508]/25 rounded-2xl p-4">
+                  <h4 className="text-white font-extrabold text-[13px] mb-1 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-[#e00508]" />
+                    মূল মেকানিজম (Basic Gameplay)
+                  </h4>
+                  <p>
+                    Aviator একটি সামাজিক মাল্টিপ্লেয়ার ক্র্যাশ কভার গেম। আপনার লক্ষ্য হলো বিমানটি উড়ার সাথে সাথে আপনার বাজিটিকে গুণিত হতে দেখা এবং বিমানটি উধাও হওয়ার পূর্বেই <strong>Cash Out</strong> বাটনে ক্লিক করে বোনাস ক্যাশ ইন করা।
+                  </p>
+                </div>
+
+                <div className="bg-white/5 rounded-2xl p-4 border border-white/5 space-y-3">
+                  <div>
+                    <h5 className="text-white font-bold mb-1">১. বাজি স্থাপন (Placing Bets):</h5>
+                    <p>
+                      প্রতি রাউন্ড শুরু হওয়ার পূর্বে আপনার কাঙ্ক্ষিত ক্রাউড অ্যামাউন্ট নির্ধারণ করুন ও "Bet" বোতামে চাপ দিন। আপনি চাইলে একই সময়ে সর্বমোট দুটি (Dual panels) আলাদা বাজি ধরতে পারেন।
+                    </p>
+                  </div>
+                  <div>
+                    <h5 className="text-white font-bold mb-1">২. ক্যাশ আউট (Cashing Out):</h5>
+                    <p>
+                      বিমান চলাকালীন সময়ে আপনার উপার্জিত গুণিতক (Multiplier) পরিবর্তিত হতে থাকে। আপনি যত দেরিতে ক্যাশআউট করবেন, জেতার হার তত বেশি হবে; তবে বিমান উড়ে চলে যাওয়ার আগে ক্যাশআউট না করলে পুরো বাজির টাকা বাতিল হয়ে যাবে।
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-white/5 rounded-2xl p-4 border border-white/5 space-y-3">
+                  <h4 className="text-white font-extrabold text-[13px] mb-1">অটোমেটিক গেম ফিচার (Auto Features)</h4>
+                  <div>
+                    <h5 className="text-emerald-400 font-bold mb-1">● Auto Play:</h5>
+                    <p>
+                      এই অপশনটি অন রাখলে প্রতি নতুন রাউন্ডে স্বয়ংক্রিয়ভাবে আপনার নির্ধারণ করা বাজি পুনরায় প্লেস হয়ে যাবে, বার বার ক্লিক করতে হবে না।
+                    </p>
+                  </div>
+                  <div>
+                    <h5 className="text-emerald-400 font-bold mb-1">● Auto Cashout:</h5>
+                    <p>
+                      এখানে আপনার কাঙ্ক্ষিত মাল্টিপ্লায়ার (যেমনঃ 2.0x, 5.0x) সেভ করে রাখলে, বিমান ওই পয়েন্ট স্পর্শ করা মাত্রই স্বয়ংক্রিয়ভাবে জেতার টাকা ব্যালেন্সে যুক্ত হয়ে যাবে।
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-[#10b981]/10 border border-[#10b981]/20 rounded-2xl p-4 flex items-start gap-2.5">
+                  <Shield className="text-emerald-400 shrink-0 mt-0.5" size={16} />
+                  <div>
+                    <h5 className="text-white font-bold mb-1">স্বচ্ছতা গ্যারান্টি (RNG & Provably Fair)</h5>
+                    <p className="text-[11px] text-gray-400">
+                      এই গেমের ফলাফলসমূহ সম্পূর্ণ ক্রিপ্টোগ্রাফিক অ্যালগরিদম দ্বারা র্যান্ডমলি সার্ভারে প্রসেস করা হয়। প্রতি রাউন্ডের ডাটা স্বচ্ছ এবং কোনো ম্যানুয়াল কারচুপির সুযোগ নেই।
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <button 
+                type="button"
+                onClick={() => setShowRulesModal(false)}
+                className="w-full mt-5 py-3 text-xs font-black rounded-xl bg-gradient-to-r from-[#e00508] to-[#ff3d00] hover:brightness-110 text-white shadow-lg active:scale-95 transition-all text-center"
+              >
+                বুঝেছি, খেলা শুরু করুন!
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Detailed Round History Table Modal */}
+        {showHistoryModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md bg-[#14151b] border border-white/10 rounded-3xl p-6 shadow-2xl flex flex-col max-h-[80vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button 
+                type="button"
+                onClick={() => setShowHistoryModal(false)}
+                className="absolute top-4 right-4 p-1.5 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors"
+              >
+                <X size={18} />
+              </button>
+
+              <div className="flex items-center gap-2 mb-4 border-b border-white/10 pb-3">
+                <Clock className="text-amber-500" size={20} />
+                <h3 className="text-base font-extrabold text-white uppercase tracking-wider">বিগত রাউন্ডের তালিকা (Outcome History)</h3>
+              </div>
+
+              {/* Responsive Scrollable List */}
+              <div className="flex-1 overflow-y-auto space-y-2 no-scrollbar pr-1">
+                {gameHistory.length === 0 ? (
+                  <div className="text-center py-10 text-sm text-gray-500 font-bold">কোনো রাউন্ডের তথ্য উপলব্ধ নেই।</div>
+                ) : (
+                  gameHistory.map((mult, idx) => {
+                    // Decide type
+                    const isHigh = mult >= 10.0;
+                    const isMid = mult >= 2.0 && mult < 10.0;
+                    
+                    return (
+                      <div 
+                        key={idx} 
+                        className="flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/5 transition-all group"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-[11px] font-bold text-gray-500 group-hover:text-gray-400">
+                            #{gameHistory.length - idx}
+                          </span>
+                          <span className="w-1.5 h-1.5 rounded-full bg-white/20" />
+                          <div className="flex flex-col">
+                            <span className="text-xs font-black text-white">এভিয়েটর রাউন্ড</span>
+                            <span className="text-[9px] text-emerald-400/80 font-black tracking-widest uppercase flex items-center gap-0.5 mt-0.5">
+                              <Shield size={10} /> Verified Fair
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <span className={`px-2.5 py-1 rounded-xl text-[11px] font-black italic tracking-wide border ${
+                            isHigh ? 'text-[#f1c40f] border-[#f1c40f]/20 bg-[#f1c40f]/10' :
+                            isMid ? 'text-[#9b59b6] border-[#9b59b6]/20 bg-[#9b59b6]/10' :
+                            'text-[#3498db] border-[#3498db]/20 bg-[#3498db]/10'
+                          }`}>
+                            {mult.toFixed(2)}x
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-white/10 flex justify-between items-center text-[10px] text-gray-500 font-bold">
+                <span>RNG SEED: ACTIVE_PROVABLY_FAIR</span>
+                <span>TOTAL: {gameHistory.length} ROUNDS</span>
+              </div>
             </motion.div>
           </motion.div>
         )}

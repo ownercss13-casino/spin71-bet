@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { auth } from '../services/firebase';
+import { getBackendUrl } from '../config';
 import { 
   Database, 
   Users, 
@@ -114,8 +115,9 @@ export default function RetoolAdminSection({ showToast }: RetoolAdminSectionProp
     
     setError(null);
     try {
+      const backend = getBackendUrl();
       const token = await auth.currentUser?.getIdToken() || 'owner.css13';
-      const response = await fetch('/api/admin/retool-data', {
+      const response = await fetch(`${backend}/api/admin/retool-data`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -123,7 +125,16 @@ export default function RetoolAdminSection({ showToast }: RetoolAdminSectionProp
         }
       });
 
-      const json = await response.json();
+      const contentType = response.headers.get("content-type");
+      let json: any;
+      
+      if (contentType && contentType.includes("application/json")) {
+        json = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(text || `Server error: ${response.status} ${response.statusText}`);
+      }
+
       if (!response.ok) {
         throw new Error(json.error || 'Failed to fetch Retool configuration');
       }
@@ -169,13 +180,14 @@ export default function RetoolAdminSection({ showToast }: RetoolAdminSectionProp
     const finalAmount = customAmt || testAmount;
     const finalType = customType || testType;
     const finalGateway = customGateway || testGateway;
-    const finalUser = selectedUser || auth.currentUser?.email || 'test_retool_sim@spin71bet1.netlify.app';
+    const finalUser = selectedUser || auth.currentUser?.email || 'test_retool_sim@spin71bet1.aistudio';
 
     addLog(`PENDING: Broadcasting simulated ${finalType} webhook packet (৳${finalAmount} BDT)...`);
 
     try {
+      const backend = getBackendUrl();
       const token = await auth.currentUser?.getIdToken() || 'owner.css13';
-      const response = await fetch('/api/admin/retool-webhook', {
+      const response = await fetch(`${backend}/api/admin/retool-webhook`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -189,7 +201,16 @@ export default function RetoolAdminSection({ showToast }: RetoolAdminSectionProp
         })
       });
 
-      const resData = await response.json();
+      const contentType = response.headers.get("content-type");
+      let resData: any;
+      
+      if (contentType && contentType.includes("application/json")) {
+        resData = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(text || `Server error: ${response.status} ${response.statusText}`);
+      }
+
       if (!response.ok) throw new Error(resData.error || 'Webhook simulation error');
 
       showToast(`Retool: ${finalType === 'deposit' ? 'deposit credited' : 'withdrawal processed'} of ৳${finalAmount} for ${finalUser}`, 'success');

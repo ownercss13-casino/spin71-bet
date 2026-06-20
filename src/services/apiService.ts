@@ -3,6 +3,8 @@
  * This handles all external communications, proxying through our backend when necessary.
  */
 
+import { getBackendUrl } from '../config';
+
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
@@ -11,6 +13,7 @@ export interface ApiResponse<T> {
 
 class ApiService {
   private static instance: ApiService;
+  private backendUrl = getBackendUrl();
   private baseUrl = '/api';
 
   private constructor() {}
@@ -26,16 +29,23 @@ class ApiService {
    * Universal fetch helper with error handling
    */
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
+    const backend = getBackendUrl();
     // Ensure endpoint has leading slash
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
     
-    // Use relative URL for API requests
+    // Construct full URL
     let fullUrl = cleanEndpoint;
-    if (!cleanEndpoint.startsWith('http') && !cleanEndpoint.startsWith(this.baseUrl)) {
-      fullUrl = `${this.baseUrl}${cleanEndpoint}`;
+    
+    // If relative API call, prepend the correct backend
+    if (!cleanEndpoint.startsWith('http')) {
+      if (cleanEndpoint.startsWith(this.baseUrl)) {
+         fullUrl = `${backend}${cleanEndpoint}`;
+      } else {
+         fullUrl = `${backend}${this.baseUrl}${cleanEndpoint}`;
+      }
     }
     
-    console.log(`[ApiService] Full URL: ${fullUrl}`);
+    console.log(`[ApiService] Requesting: ${fullUrl}`);
     
     try {
       console.log(`[ApiService] Fetching: ${fullUrl}`, { 

@@ -24,7 +24,7 @@ const openaiClient = new OpenAI({
 
 export const getAIResponse = async (message: string, userData?: any, type: 'support' | 'assistant' = 'support') => {
   const systemInstruction = type === 'assistant' 
-    ? `You are the Official AI Assistant of SPIN71 BET Casino. 
+    ? `You are the Official AI Assistant of SPIN71 BET✨ Casino. 
 Your name is SPIN71 AI.
 User Info: ${JSON.stringify(userData || {})}
 Status: Online.
@@ -38,11 +38,11 @@ Guidelines:
 5. If asked about deposits, mention Nagad and Bkash are the fastest.
 6. Keep responses concise and engaging.
 7. Use emojis to make the chat lively.`
-    : `You are the AI Support Bot for Spin71 Casino. 
+    : `You are the AI Support Bot for SPIN71 BET✨ Casino. 
 User Info: ${JSON.stringify(userData || {})}
 Help users with their queries about games, deposits, and withdrawals.
 Always reply in Bengali. Be friendly and encouraging.
-Our official Telegram is @spin71bet_official.`;
+Our official Telegram is @Spin71bot.`;
 
   try {
     let retries = 0;
@@ -54,7 +54,7 @@ Our official Telegram is @spin71bet_official.`;
           throw new Error("Gemini AI is not configured.");
         }
         const response = await ai.models.generateContent({
-          model: "gemini-3.5-flash", 
+          model: "gemini-1.5-flash", 
           contents: message,
           config: {
             systemInstruction: systemInstruction,
@@ -111,7 +111,7 @@ Our official Telegram is @spin71bet_official.`;
     } catch (openaiErr: any) {
       console.error("[geminiBackend] Final OpenAI fallback failed as well:", openaiErr.message || openaiErr);
     }
-    console.error("AI Support Error:", error);
-    throw error;
+    console.error("AI Support Error (fallback triggered):", error);
+    return "সম্মানিত গ্রাহক, বর্তমানে আমাদের এআই (AI) সিস্টেম অত্যন্ত ব্যস্ত আছে। তবে আপনার একাউন্ট ব্যালেন্স ও ট্রানজেকশন সম্পূর্ণ নিরাপদ রয়েছে। যেকোনো জরুরি প্রশ্ন বা জমা/উত্তোলনের জন্য দয়া করে আমাদের লাইভ কাস্টমার সাপোর্ট বা অফিশিয়াল টেলিগ্রাম @Spin71bot এ যোগাযোগ করুন। ধন্যবাদ!";
   }
 };

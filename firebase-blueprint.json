@@ -163,12 +163,65 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["type", "action", "createdAt"]
+    },
+    "BannerClick": {
+      "title": "Banner Click Engagement Metric",
+      "description": "Logged user clicks/taps on home screen hero promotional banners.",
+      "type": "object",
+      "properties": {
+        "bannerId": { "type": "string" },
+        "bannerTitle": { "type": "string" },
+        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["bannerId", "timestamp"]
+    },
+    "Notification": {
+      "title": "User Notification",
+      "description": "Personalized inbox messages, bonus alerts, and promotions.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["bonus", "promotion", "system", "info"] },
+        "read": { "type": "boolean" },
+        "sender": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "message", "read"]
+    },
+    "Metadata": {
+      "title": "Application Metadata",
+      "description": "Dynamic settings for the UI, links, and limits.",
+      "type": "object",
+      "properties": {
+        "casinoName": { "type": "string" },
+        "noticeText": { "type": "string" },
+        "telegramLink": { "type": "string" },
+        "whatsappLink": { "type": "string" },
+        "minDeposit": { "type": "number" },
+        "minWithdraw": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "firestore": {
+    "/banner_clicks/{clickId}": {
+      "schema": "BannerClick",
+      "description": "Metric records of user clicks on main hero banners."
+    },
     "/users/{userId}": {
       "schema": "User",
       "description": "User documents keyed by their Firebase Auth UID."
+    },
+    "/users/{userId}/notifications/{notifId}": {
+      "schema": "Notification",
+      "description": "Subcollection for user-specific inbox notifications."
+    },
+    "/metadata/{docId}": {
+      "schema": "Metadata",
+      "description": "Global application metadata and settings."
     },
     "/game_settings/{gameId}": {
       "schema": "GameSetting",

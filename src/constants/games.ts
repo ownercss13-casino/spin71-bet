@@ -10,6 +10,7 @@ export interface Game {
   isVIP?: boolean;
   bgColor?: string;
   providerColor?: string;
+  link?: string;
 }
 
 export const PROVIDERS = [
@@ -151,6 +152,7 @@ export const games: Game[] = [
 
   // Table Games (13)
   { id: 'table_1', name: 'Blackjack', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/table1/400/600', category: 'Table Games', bgColor: 'from-green-700 to-green-900' },
+  { id: 'pp_super_acex', name: 'super Acex', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/super_acex/400/600', category: 'স্লট', isHot: true, bgColor: 'from-yellow-600 to-green-600', link: 'https://h5game-bs.victor-win.website:443/play/?icon-VA&language=en-US&token=49fd0655a15e4d8aadb8b78b7932c6aa' },
   { id: 'table_2', name: 'Roulette', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/table2/400/600', category: 'Table Games', bgColor: 'from-red-700 to-red-900' },
   { id: 'table_3', name: 'Baccarat', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/table3/400/600', category: 'Table Games', bgColor: 'from-blue-700 to-blue-900' },
   { id: 'table_4', name: 'Andar Bahar', provider: 'PRAGMATIC', image: 'https://picsum.photos/seed/table4/400/600', category: 'Table Games', isHot: true, bgColor: 'from-yellow-600 to-yellow-900' },

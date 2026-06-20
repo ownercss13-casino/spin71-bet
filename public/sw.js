@@ -14,11 +14,21 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  const isApi = event.request.url.includes('/api/');
+  if (event.request.method !== 'GET' || isApi) {
+    // Bypass Service Worker for API and non-GET requests to prevent body consumption issues
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then((response) => response || fetch(event.request).catch((err) => {
         console.warn('[SW Fetch Fail]', err);
-        return new Response('Offline or Network Error', { status: 480, statusText: 'Offline' });
+        return new Response(JSON.stringify({ error: 'Offline or Network Error', status: 480 }), {
+          status: 480,
+          statusText: 'Offline',
+          headers: { 'Content-Type': 'application/json' }
+        });
       }))
   );
 });
