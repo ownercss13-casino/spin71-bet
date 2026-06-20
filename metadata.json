@@ -1,6 +1,6 @@
 {
   "name": "SPIN71 BET✨",
-  "description": "SPIN71 BET✨ - Official Link: https://spin71bet-642.netlify.app/ - Premium Betting and Casino Platform",
+  "description": "SPIN71 BET✨ - Official Link: https://spin71bet.netlify.app/ - Premium Betting and Casino Platform",
   "requestFramePermissions": ["camera", "microphone", "geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

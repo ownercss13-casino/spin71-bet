@@ -2612,7 +2612,7 @@ async function startServer() {
       if (querySnapshot.empty) {
         const cleanName = username.toLowerCase().trim().replace(/\s+/g, '');
         const guessedEmail1 = `${cleanName}@spin71bet1.aistudio`;
-        const guessedEmail2 = `${cleanName}@spin71bet1.netlify.app`;
+        const guessedEmail2 = `${cleanName}@spin71bet.netlify.app`;
         const guessedEmail3 = `${cleanName}@spin71bet1.vercel.app`;
         
         console.log(`[Auth API] Username not found, trying guessed emails for "${username}": ${guessedEmail1}, etc.`);

@@ -388,6 +388,31 @@ export default function App() {
   const [autoLogoutCountdown, setAutoLogoutCountdown] = useState(60);
   const lastActivityTime = useRef<number>(Date.now());
 
+  // Domain Security Guard: Redirect unauthorized mirrored sites to official Netlify link
+  useEffect(() => {
+    const currentHost = window.location.hostname;
+    const officialHost = "spin71bet.netlify.app";
+    
+    // Whitelisted environments where the app is allowed to run without redirection
+    const isWhitelisted = 
+      currentHost === officialHost || 
+      currentHost === "localhost" || 
+      currentHost === "127.0.0.1" || 
+      currentHost.endsWith(".run.app") || // AI Studio previews
+      currentHost.endsWith(".aistudio.google");
+
+    if (!isWhitelisted) {
+      console.warn("[Security] Unauthorized domain detected. Redirecting to official link...");
+      showToast("এই সাইটটি অননুমোদিত। আপনাকে অফিসিয়াল লিংকে নিয়ে যাওয়া হচ্ছে...", "warning");
+      
+      const timer = setTimeout(() => {
+        window.location.href = `https://${officialHost}${window.location.pathname}${window.location.search}`;
+      }, 5000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);

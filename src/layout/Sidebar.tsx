@@ -149,18 +149,7 @@ export default function Sidebar({
              )
           })}
 
-          {onInstallApp && (
-             <button
-                onClick={() => {
-                   onInstallApp();
-                   onClose();
-                }}
-                className="w-full flex items-center gap-4 px-4 py-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 font-bold hover:bg-yellow-500/20 transition-all mt-4"
-             >
-                <DownloadIcon />
-                <span>{lang === 'bn' ? 'অ্যাপ ডাউনলোড (Download)' : 'Download App'}</span>
-             </button>
-          )}
+
 
           <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-4 mt-6 mb-2">
             {lang === 'bn' ? 'আমাদের গেমস (Our Games)' : 'Our Games'}
@@ -206,20 +195,7 @@ export default function Sidebar({
 
         {/* Sidebar Footer */}
         <div className="p-4 border-t border-teal-600/50 space-y-3">
-          {/* Official Link Display */}
-          <div className="px-4 py-2 bg-teal-900/40 rounded-lg border border-teal-600/30">
-             <p className="text-[10px] text-teal-400 font-bold uppercase tracking-widest mb-1">
-               {lang === 'bn' ? 'অফিসিয়াল লিংক' : 'Official Link'}
-             </p>
-             <a 
-               href={`https://spin71bet-642.netlify.app/${activeTab === 'profile' ? 'account' : activeTab}`} 
-               target="_blank" 
-               rel="noopener noreferrer"
-               className="text-[11px] text-teal-200 hover:text-white transition-colors break-all underline decoration-teal-600 underline-offset-4"
-             >
-               spin71bet-642.netlify.app/{activeTab === 'profile' ? 'account' : activeTab}
-             </a>
-          </div>
+
 
           {/* Theme Switcher */}
           <button 

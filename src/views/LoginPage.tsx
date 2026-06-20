@@ -438,7 +438,7 @@ export default function LoginPage({ onRegisterSuccess, onContinue, onLoginSucces
           resultUser = result.user;
         } catch (signInErr: any) {
           // Ultimate fallback for very old accounts or suffix mismatches
-          const possibleSuffixes = ["@spin71bet1.aistudio", "@spin71bet-642.netlify.app", "@spin71bet1.netlify.app", "@spin71bet1.vercel.app"];
+          const possibleSuffixes = ["@spin71bet.netlify.app", "@spin71bet1.netlify.app", "@spin71bet1.aistudio"];
           let success = false;
           
           if (!usernameTrimmed.includes('@') && (signInErr.code === 'auth/user-not-found' || signInErr.code === 'auth/wrong-password' || signInErr.code === 'auth/invalid-credential')) {
