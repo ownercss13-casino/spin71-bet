@@ -7,6 +7,7 @@ interface GameLoaderProps {
   provider?: string;
   logo?: string;
   hasError?: boolean;
+  ready?: boolean;
   onClose?: () => void;
   onLoadComplete?: () => void;
 }
@@ -16,6 +17,7 @@ export default function GameLoader({
   provider, 
   logo, 
   hasError = false, 
+  ready,
   onClose, 
   onLoadComplete 
 }: GameLoaderProps) {
@@ -41,16 +43,23 @@ export default function GameLoader({
   }, [progress]);
 
   useEffect(() => {
+    if (progress >= 100) {
+      setTimeout(() => {
+        if (onLoadCompleteRef.current) {
+          onLoadCompleteRef.current();
+        }
+      }, 0);
+    }
+  }, [progress]);
+
+  useEffect(() => {
     if (hasError) {
       setProgress(100);
       return;
     }
 
-    // High performance smooth dynamic duration
-    const duration = 1400; // 1.4 seconds for beautiful appreciation of the polished animation
     const interval = 16;   // ~60fps updates
-    const steps = duration / interval;
-    const increment = 100 / steps;
+    const hasReadyControl = typeof ready !== 'undefined';
 
     const timer = setInterval(() => {
       setProgress((prev) => {
@@ -58,23 +67,45 @@ export default function GameLoader({
           clearInterval(timer);
           return 100;
         }
-        // Add tiny variation for organic feeling
-        const variation = Math.random() * 0.4 + 0.8;
-        return Math.min(prev + (increment * variation), 100);
+
+        if (hasReadyControl) {
+          if (!ready) {
+            // progress organically and patiently up to 92%, then block
+            if (prev < 92) {
+              const capInc = (92 - prev) * 0.05 + 0.1;
+              return Math.min(prev + capInc, 91.8);
+            }
+            return 91.8;
+          } else {
+            // accelerate swiftly to 100% since ready is true
+            const fastInc = prev < 92 ? 4.5 : (100 - prev) * 0.28;
+            const nextVal = prev + Math.max(fastInc, 1.2);
+            if (nextVal >= 100) {
+              clearInterval(timer);
+              return 100;
+            }
+            return nextVal;
+          }
+        } else {
+          // Legacy/Fallback timer-based progression
+          const duration = 1400; // 1.4s total layout time
+          const steps = duration / interval;
+          const increment = 100 / steps;
+          const variation = Math.random() * 0.4 + 0.8;
+          const nextVal = prev + (increment * variation);
+          if (nextVal >= 100) {
+            clearInterval(timer);
+            return 100;
+          }
+          return nextVal;
+        }
       });
     }, interval);
 
-    const finishTimeout = setTimeout(() => {
-      if (onLoadCompleteRef.current) {
-        onLoadCompleteRef.current();
-      }
-    }, duration + 150);
-
     return () => {
       clearInterval(timer);
-      clearTimeout(finishTimeout);
     };
-  }, [hasError]);
+  }, [hasError, ready]);
 
   return (
     <div id="premium-game-loader" className="fixed inset-0 z-[1010] bg-[#090a0f] flex flex-col items-center justify-center p-6 overflow-hidden select-none">

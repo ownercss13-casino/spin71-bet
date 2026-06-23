@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { GAME_IMAGES } from '../constants/gameAssets';
 import { GameGrid, games } from "../components/ui/GameGrid";
 import GlobalImage from '../components/ui/GlobalImage';
+import { DEFAULT_BANNERS } from '../constants/banners';
 import Skeleton from '../components/ui/Skeleton';
 import LiveBetsTicker from '../components/LiveBetsTicker';
 
@@ -149,32 +150,34 @@ export default function HomeView({
   const [tempCasinoName, setTempCasinoName] = React.useState(casinoName || "SPIN71BET1");
   const [currentSlide, setCurrentSlide] = useState(0);
 
-  const bannerSlides = [
-    {
-      id: 'banner1',
-      image: "https://www.image2url.com/r2/default/images/1780756072411-5bf24ebb-fb2f-467a-a559-8875dfb29a60.png",
-      title: strings.heroCasinoTitle,
-      desc: strings.heroCasinoDesc,
-      isDefault: true,
-      action: () => onNavigate?.('invite')
-    },
-    {
-      id: 'banner2',
-      image: "/src/assets/images/casino_hero_banner_2_1780243907033.png",
-      title: strings.heroAviatorTitle,
-      desc: strings.heroAviatorDesc,
-      isDefault: false,
-      action: () => onNavigate?.('aviator')
-    },
-    {
-      id: 'banner3',
-      image: "/src/assets/images/casino_hero_banner_3_1780243929232.png",
-      title: strings.heroJackpotTitle,
-      desc: strings.heroJackpotDesc,
-      isDefault: false,
-      action: () => onNavigate?.('deposit')
+  const bannerSlides = DEFAULT_BANNERS.map(banner => {
+    let title = banner.title;
+    let desc = banner.desc;
+    if (banner.id === 'banner1') {
+      title = strings.heroCasinoTitle || banner.title;
+      desc = strings.heroCasinoDesc || banner.desc;
+    } else if (banner.id === 'banner2') {
+      title = strings.heroAviatorTitle || banner.title;
+      desc = strings.heroAviatorDesc || banner.desc;
+    } else if (banner.id === 'banner3') {
+      title = strings.heroJackpotTitle || banner.title;
+      desc = strings.heroJackpotDesc || banner.desc;
     }
-  ];
+
+    return {
+      id: banner.id,
+      image: globalImages[banner.id] || banner.defaultUrl,
+      title,
+      desc,
+      isDefault: banner.isDefault,
+      action: () => {
+        if (banner.actionTab === 'invite') onNavigate?.('invite');
+        else if (banner.actionTab === 'aviator') onNavigate?.('aviator');
+        else if (banner.actionTab === 'deposit') onNavigate?.('deposit');
+        else if (banner.actionTab === 'bonus') onNavigate?.('bonus');
+      }
+    };
+  });
 
   // Sync current slide with category selection if user manually switches tabs
   useEffect(() => {
@@ -190,10 +193,10 @@ export default function HomeView({
   // Set up auto rotation every 5 seconds (5000ms)
   useEffect(() => {
     const timer = setInterval(() => {
-      setCurrentSlide(prev => (prev + 1) % 3);
+      setCurrentSlide(prev => (prev + 1) % bannerSlides.length);
     }, 5000);
     return () => clearInterval(timer);
-  }, []);
+  }, [bannerSlides.length]);
 
   const trackBannerClick = async (slide: typeof bannerSlides[0]) => {
     try {
@@ -332,7 +335,8 @@ export default function HomeView({
             trackBannerClick(bannerSlides[currentSlide]);
             bannerSlides[currentSlide].action();
           }}
-          className="relative w-full aspect-[2.65/1] md:aspect-auto md:h-64 rounded-2xl overflow-hidden shadow-2xl border border-white/5 bg-[#14253a] cursor-pointer"
+          className="relative w-full md:h-64 rounded-2xl overflow-hidden shadow-2xl border border-white/5 bg-[#14253a] cursor-pointer"
+          style={{ aspectRatio: '2.65 / 1' }}
         >
           <AnimatePresence mode="wait">
             <motion.div
@@ -343,10 +347,18 @@ export default function HomeView({
               transition={{ duration: 0.5 }}
               className="absolute inset-0"
             >
-              <img 
-                src={bannerSlides[currentSlide].image} 
+              <GlobalImage 
+                imageKey={bannerSlides[currentSlide].id}
+                currentUrl={globalImages[bannerSlides[currentSlide].id]}
+                defaultUrl={DEFAULT_BANNERS.find(b => b.id === bannerSlides[currentSlide].id)?.defaultUrl || ""}
                 alt="Casino Banner" 
-                className="w-full h-full object-fill md:object-cover"
+                className="w-full h-full object-fill md:object-cover pointer-events-none"
+                isAdmin={isAdmin}
+                updateGlobalImage={async (url) => {
+                  if (updateGlobalImage) {
+                    await updateGlobalImage(bannerSlides[currentSlide].id, url);
+                  }
+                }}
               />
               
               {/* Only show text overlay if NOT the default 'সেরা' category banner, as the default banner already has the beautifully formatted Bengali text and CTA buttons baked directly into it */}

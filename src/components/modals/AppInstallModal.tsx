@@ -10,9 +10,10 @@ interface AppInstallModalProps {
   onClose: () => void;
   deferredPrompt: any;
   onInstall: () => Promise<void>;
+  appDownloadLink?: string;
 }
 
-export default function AppInstallModal({ isOpen, onClose, deferredPrompt, onInstall }: AppInstallModalProps) {
+export default function AppInstallModal({ isOpen, onClose, deferredPrompt, onInstall, appDownloadLink = "" }: AppInstallModalProps) {
   const [activePlatform, setActivePlatform] = useState<'android' | 'ios' | 'pc'>('android');
 
   // Auto detect platform on load
@@ -82,6 +83,32 @@ export default function AppInstallModal({ isOpen, onClose, deferredPrompt, onIns
             {/* Content */}
             <div className="p-6 max-h-[64vh] overflow-y-auto space-y-6 custom-scrollbar">
               
+              {/* Direct APK Download Option if Configured */}
+              {appDownloadLink ? (
+                <div className="bg-gradient-to-r from-emerald-950/50 via-teal-950/40 to-[#14253a]/30 p-5 rounded-3xl border border-emerald-500/30 text-center space-y-4 shadow-xl">
+                  <div className="inline-flex p-3 rounded-2xl bg-emerald-500/20 text-emerald-400 animate-pulse">
+                    <Smartphone size={28} />
+                  </div>
+                  <div>
+                    <h3 className="text-white font-black text-base flex items-center justify-center gap-1.5">
+                      <Sparkles size={14} className="text-yellow-400" />
+                      সরাসরি এপিকে (APK) ডাউনলোড করুন
+                    </h3>
+                    <p className="text-emerald-300 text-[11px] font-bold leading-relaxed mt-1">
+                      আমাদের অফিশিয়াল সুপার-ফাস্ট SPIN71 BET অ্যান্ড্রয়েড অ্যাপটি সরাসরি ডাউনলোড করুন।
+                    </p>
+                  </div>
+                  <a
+                    href={appDownloadLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full py-3.5 bg-gradient-to-r from-emerald-400 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-700 text-white font-black uppercase tracking-wider rounded-2xl shadow-lg shadow-emerald-500/20 transition-all font-sans text-xs active:scale-95 text-center decoration-transparent select-none cursor-pointer"
+                  >
+                    সরাসরি APK ডাউনলোড করুন 🚀
+                  </a>
+                </div>
+              ) : null}
+
               {/* Main Quick Trigger if Browser supports PWA popup */}
               {deferredPrompt ? (
                 <div className="bg-gradient-to-r from-teal-900/40 to-emerald-900/40 p-5 rounded-3xl border border-teal-500/30 text-center space-y-4">
@@ -104,7 +131,8 @@ export default function AppInstallModal({ isOpen, onClose, deferredPrompt, onIns
                     এখনই অ্যাপ ইন্সটল করুন ✨
                   </button>
                 </div>
-              ) : (
+              ) : !appDownloadLink ? (
+                // Fallback direct web app download guide if no direct link is configured yet
                 <div className="bg-[#14253a]/40 p-4 rounded-3xl border border-[#23354b] text-center space-y-2">
                   <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-teal-500/10 text-teal-300 rounded-full text-[10px] font-black uppercase">
                     <Sparkles size={10} />
@@ -112,10 +140,10 @@ export default function AppInstallModal({ isOpen, onClose, deferredPrompt, onIns
                   </div>
                   <h3 className="text-white font-black text-sm">SPIN71 BET✨ মোবাইল ব্রাউজার অ্যাপ</h3>
                   <p className="text-gray-400 text-[10px] leading-relaxed px-4">
-                    প্লেস্টোর ছাড়াও সরাসরি ব্রাউজারের মাধ্যমে আসল অ্যাপ বানাতে নিচের গাইডটি অনুসরণ করুন। এটি সাধারণ অ্যাপের মতোই কাজ করবে।
+                    প্লেস্টোর ছাড়াও সরাসরি ব্রাউজারের মাধ্যমে আসল অ্যাপ বানাতে নিচের গাইডটি treasures বা অ্যাডমিন প্যানেলে কাস্টম APK লিংক সেট করুন।
                   </p>
                 </div>
-              )}
+              ) : null}
 
               {/* Platform Selector Buttons */}
               <div className="grid grid-cols-3 gap-2 bg-[#09111b] p-1.5 rounded-2xl border border-[#1e2f42]/70">

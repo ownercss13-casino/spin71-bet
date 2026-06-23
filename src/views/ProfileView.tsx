@@ -279,7 +279,11 @@ export default function ProfileView({
     // Totals fetching removed (Firebase disconnected)
   }, []);
 
-  const handleSubTabChange = (tab: 'dashboard' | 'profile' | 'history' | 'withdraw' | 'links' | 'withdrawHistory' | 'reward-center' | 'betting-record' | 'profit-loss' | 'deposit-record' | 'withdraw-record' | 'account-record' | 'security' | 'rebate' | 'mail' | 'feedback' | 'support' | 'invite' | 'faq' | 'referral-dashboard' | 'support-tickets') => {
+  const handleSubTabChange = (tab: any) => {
+    if (tab === 'withdraw') {
+      onTabChange('withdraw');
+      return;
+    }
     if (tab === activeSubTab) return;
     setIsTabLoading(true);
     setTimeout(() => {
@@ -543,7 +547,7 @@ export default function ProfileView({
         {activeSubTab === 'history' && <HistoryTab userData={userData} onBack={() => handleSubTabChange('dashboard')} />}
         {activeSubTab === 'withdrawHistory' && <WithdrawalHistoryTab userData={userData} onBack={() => handleSubTabChange('dashboard')} />}
         {activeSubTab === 'links' && <LinksTab onTabChange={onTabChange} onSubTabChange={handleSubTabChange} showToast={showToast} />}
-        {activeSubTab === 'withdraw' && <WithdrawTab onBack={() => handleSubTabChange('dashboard')} balance={balance} showToast={showToast} userData={userData} setIsTurnoverInfoModalOpen={setIsTurnoverInfoModalOpen} minWithdraw={minWithdraw} onRefresh={handleRefresh} isRefreshing={isRefreshing} onOpenBankCards={() => setIsBankCardsModalOpen(true)} onUpdateUser={onUpdateUser} onAddTransaction={onAddTransaction} onSubTabChange={handleSubTabChange} />}
+        {activeSubTab === 'withdraw' && <div className="p-8 text-center text-white/50 text-xs italic">উত্তোলন পেজ লোড হচ্ছে... (Loading Withdraw Page...)</div>}
         
         {activeSubTab === 'betting-record' && <HistoryTab userData={userData} onBack={() => handleSubTabChange('dashboard')} />}
         {activeSubTab === 'deposit-record' && <DepositHistoryTab userData={userData} onBack={() => handleSubTabChange('dashboard')} />}
@@ -1306,10 +1310,9 @@ function WithdrawTab({ onBack, balance, showToast, userData, setIsTurnoverInfoMo
         if (transactionPassword !== userData.transactionPin) {
           throw new Error('পাসওয়ার্ড ভুল');
         }
-      } else if (auth.currentUser && auth.currentUser.email) {
-        const hasPasswordProvider = auth.currentUser.providerData.some(p => p.providerId === 'password');
-        if (hasPasswordProvider) {
-          await signInWithEmailAndPassword(auth, auth.currentUser.email, transactionPassword);
+      } else if (userData?.password) {
+        if (transactionPassword !== userData.password) {
+          throw new Error('পাসওয়ার্ড ভুল');
         }
       }
     } catch (e: any) {

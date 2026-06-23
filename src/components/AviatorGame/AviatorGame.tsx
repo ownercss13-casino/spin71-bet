@@ -18,7 +18,10 @@ import {
   Shield,
   Volume2,
   VolumeX,
-  X
+  X,
+  Wifi,
+  WifiOff,
+  Loader2
 } from 'lucide-react';
 import { useSound } from '../../context/SoundContext';
 import { getBackendUrl } from '../../config';
@@ -43,21 +46,55 @@ interface AviatorGameProps {
 
 type GameState = 'waiting' | 'in_progress' | 'crashed';
 
+interface QueuedAction {
+  id: string;
+  action: 'bet' | 'cashout' | 'cancel';
+  panel: 1 | 2;
+  amount: number;
+  multiplier?: number;
+  timestamp: number;
+  attempts: number;
+}
+
 export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClose, userData, globalLogos, globalNames }: AviatorGameProps) {
+  const settingsTimerRef = useRef<any>(null);
   const [showLoader, setShowLoader] = useState(true);
 
   // Magic Signal Hack States!
   const [settingsClickCount, setSettingsClickCount] = useState(0);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
-  const [isSignalActive, setIsSignalActive] = useState(false);
+  const [isSignalActive, setIsSignalActive] = useState(() => {
+    try {
+      const saved = localStorage.getItem('spin71bet_aviator_signal_active');
+      if (saved === 'true') return true;
+    } catch (_) {}
+    return false;
+  });
   const [nextCrashPoint, setNextCrashPoint] = useState<number | null>(null);
   const [currentCrashPoint, setCurrentCrashPoint] = useState<number | null>(null);
 
+  useEffect(() => {
+    if (userData) {
+      const email = userData.email || '';
+      const isAdmin = userData.role === 'admin' || userData.isAdmin === true || 
+        ['owner.css13@gmail.com', 'cutelegend7045@gmail.com', 'xsaber7644@gmail.com', 'xsaber7644@gmil.com'].includes(email);
+      if (isAdmin) {
+        setIsSignalActive(true);
+        try {
+          localStorage.setItem('spin71bet_aviator_signal_active', 'true');
+        } catch (_) {}
+      }
+    }
+  }, [userData]);
+
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordInput.trim() === '#spin71bet_aviator_game109' || passwordInput.trim() === 'spin71bet55') {
+    if (passwordInput.trim() === 'ownercss13') {
       setIsSignalActive(true);
+      try {
+        localStorage.setItem('spin71bet_aviator_signal_active', 'true');
+      } catch (_) {}
       setShowPasswordModal(false);
       setPasswordInput('');
       showToast('সিগন্যাল প্যানেল সক্রিয় করা হয়েছে! (Signal panel activated!)', 'success');
@@ -105,6 +142,8 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
   const [currentBet1, setCurrentBet1] = useState<{ amount: number; cashedOut: boolean } | null>(null);
   const [isWaitingBet1, setIsWaitingBet1] = useState(false);
   const [isCashingOut1, setIsCashingOut1] = useState(false);
+  const [isPlacingBet1, setIsPlacingBet1] = useState(false);
+  const [retryAttempt1, setRetryAttempt1] = useState(0);
 
   const [autoCashout1, setAutoCashout1] = useState(false);
   const [autoCashoutValue1, setAutoCashoutValue1] = useState(2.00);
@@ -114,8 +153,17 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
   const [currentBet2, setCurrentBet2] = useState<{ amount: number; cashedOut: boolean } | null>(null);
   const [isWaitingBet2, setIsWaitingBet2] = useState(false);
   const [isCashingOut2, setIsCashingOut2] = useState(false);
+  const [isPlacingBet2, setIsPlacingBet2] = useState(false);
+  const [retryAttempt2, setRetryAttempt2] = useState(0);
+
   const [autoCashout2, setAutoCashout2] = useState(false);
   const [autoCashoutValue2, setAutoCashoutValue2] = useState(2.00);
+
+  // Network queuing mechanism state references
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [offlineQueue, setOfflineQueue] = useState<QueuedAction[]>([]);
+  const offlineQueueRef = useRef<QueuedAction[]>([]);
+  const [sseConnected, setSseConnected] = useState(false);
 
   // Refs for async SSE handling
   const balanceRef = useRef(balance);
@@ -144,6 +192,7 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
   useEffect(() => { autoCashout2Ref.current = autoCashout2; }, [autoCashout2]);
   useEffect(() => { autoCashoutValue2Ref.current = autoCashoutValue2; }, [autoCashoutValue2]);
   useEffect(() => { multiplierRef.current = multiplier; }, [multiplier]);
+  useEffect(() => { offlineQueueRef.current = offlineQueue; }, [offlineQueue]);
 
   const multiplierDisplayRef = useRef<HTMLDivElement>(null);
   const lastThresholdRef = useRef<number>(1.00);
@@ -251,6 +300,164 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
     lastMultiplierRef.current = multiplier;
   }, [multiplier, gameState]);
 
+  const isProcessingQueueRef = useRef(false);
+
+  const processQueue = async () => {
+    if (isProcessingQueueRef.current || offlineQueueRef.current.length === 0) return;
+    isProcessingQueueRef.current = true;
+
+    console.log(`[Aviator Queue] Starting to process ${offlineQueueRef.current.length} pending actions...`);
+    
+    // We try to process each item sequentially
+    while (offlineQueueRef.current.length > 0) {
+      if (!navigator.onLine) {
+        console.log('[Aviator Queue] Network is still offline. Pausing sync.');
+        break;
+      }
+
+      const activeItem = offlineQueueRef.current[0];
+      let success = false;
+      let explicitReject = false;
+      let balanceToUpdate = 0;
+      let explicitError = '';
+
+      try {
+        const idToken = await getActiveUser()?.getIdToken();
+        const backendUrl = getBackendUrl();
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+        const bodyData: any = {
+          action: activeItem.action,
+          amount: activeItem.amount,
+          idToken
+        };
+        if (activeItem.action === 'cashout' && activeItem.multiplier) {
+          bodyData.multiplier = activeItem.multiplier;
+        }
+
+        const res = await fetch(`${backendUrl}/api/game/aviator/action`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': getCleanApiKey() },
+          body: JSON.stringify(bodyData),
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        const data = await res.json();
+        if (data.success) {
+          success = true;
+          balanceToUpdate = data.newBalance;
+        } else {
+          // If the server explicitly rejected (e.g. invalid balance, or already crashed), stop retrying this item
+          console.error(`[Aviator Queue] Action rejected by server:`, data.error);
+          explicitReject = true;
+          explicitError = data.error || 'Server error';
+        }
+      } catch (err: any) {
+        console.warn(`[Aviator Queue] Attempt failed for action ${activeItem.id}:`, err.message || err);
+      }
+
+      if (success) {
+        // Apply success states
+        onBalanceUpdate(balanceToUpdate, false);
+        if (activeItem.action === 'bet') {
+          if (activeItem.panel === 1) {
+            setCurrentBet1({ amount: activeItem.amount, cashedOut: false });
+            setIsWaitingBet1(false);
+          } else {
+            setCurrentBet2({ amount: activeItem.amount, cashedOut: false });
+            setIsWaitingBet2(false);
+          }
+          playSound('bet');
+          showToast(`বাজি সফলভাবে কিউ থেকে সম্পন্ন হয়েছে!`, 'success');
+        } else if (activeItem.action === 'cashout') {
+          if (activeItem.panel === 1) {
+            const bet = currentBet1Ref.current;
+            if (bet) setCurrentBet1({ ...bet, cashedOut: true });
+          } else {
+            const bet = currentBet2Ref.current;
+            if (bet) setCurrentBet2({ ...bet, cashedOut: true });
+          }
+          playSound('win');
+          showToast(`অফলাইন ক্যাশআউট সম্পন্ন! ${activeItem.multiplier?.toFixed(2)}x`, 'success');
+        } else if (activeItem.action === 'cancel') {
+          if (activeItem.panel === 1) {
+            setCurrentBet1(null);
+            setIsWaitingBet1(false);
+          } else {
+            setCurrentBet2(null);
+            setIsWaitingBet2(false);
+          }
+          showToast(`বাজি কিউ থেকে বাতিল হয়েছে।`, 'success');
+        }
+
+        // Remove from queue
+        const newQueue = offlineQueueRef.current.slice(1);
+        setOfflineQueue(newQueue);
+        offlineQueueRef.current = newQueue;
+      } else if (explicitReject) {
+        // Remove bad action
+        showToast(`অ্যাকশন বাতিল: ${explicitError}`, 'error');
+        if (activeItem.action === 'bet') {
+          if (activeItem.panel === 1) setIsWaitingBet1(false);
+          else setIsWaitingBet2(false);
+        }
+        const newQueue = offlineQueueRef.current.slice(1);
+        setOfflineQueue(newQueue);
+        offlineQueueRef.current = newQueue;
+      } else {
+        // Network timeout / transport error. Increase attempt and backoff, try later
+        activeItem.attempts += 1;
+        if (activeItem.attempts > 12) {
+          // drop from queue after 12 retries
+          showToast('নেটওয়ার্ক ত্রুটির কারণে অনুরোধটি বাতিল করা হয়েছে।', 'error');
+          if (activeItem.action === 'bet') {
+            if (activeItem.panel === 1) setIsWaitingBet1(false);
+            else setIsWaitingBet2(false);
+          }
+          const newQueue = offlineQueueRef.current.slice(1);
+          setOfflineQueue(newQueue);
+          offlineQueueRef.current = newQueue;
+        } else {
+          // Pause processing loop for a bit, let next run of processQueue handle it
+          break;
+        }
+      }
+    }
+    isProcessingQueueRef.current = false;
+  };
+
+  // Connectivity and Queue listeners
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      showToast('ইন্টারনেট সংযোগ ফিরে এসেছে! অমীমাংসিত অ্যাকশন সিঙ্ক করা হচ্ছে...', 'success');
+      processQueue();
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      showToast('নেটওয়ার্ক বিচ্ছিন্ন! অফলাইন ট্রানজেকশন কিউ সক্রিয় করা হয়েছে।', 'error');
+    };
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Periodic fallback processor
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      if (offlineQueue.length > 0 && navigator.onLine) {
+        processQueue();
+      }
+    }, 3500);
+    return () => clearInterval(intervalId);
+  }, [offlineQueue]);
+
   const isProcessingBet1Ref = useRef(false);
   const isProcessingBet2Ref = useRef(false);
 
@@ -270,40 +477,105 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       return;
     }
 
-    if (panel === 1) isProcessingBet1Ref.current = true;
-    else isProcessingBet2Ref.current = true;
+    if (panel === 1) {
+      isProcessingBet1Ref.current = true;
+      setIsPlacingBet1(true);
+      setRetryAttempt1(1);
+    } else {
+      isProcessingBet2Ref.current = true;
+      setIsPlacingBet2(true);
+      setRetryAttempt2(1);
+    }
 
-    try {
-      const idToken = await getActiveUser()?.getIdToken();
-      const backendUrl = getBackendUrl();
-      const res = await fetch(`${backendUrl}/api/game/aviator/action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': getCleanApiKey() },
-        body: JSON.stringify({ action: 'bet', amount, idToken })
-      });
-      const data = await res.json();
-      if (data.success) {
-        onBalanceUpdate(data.newBalance, false);
-        if (panel === 1) {
-          setCurrentBet1({ amount, cashedOut: false });
-          setIsWaitingBet1(false);
+    let success = false;
+    let explicitError = '';
+    const maxAttempts = 10;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      if (panel === 1) setRetryAttempt1(attempt);
+      else setRetryAttempt2(attempt);
+
+      try {
+        const idToken = await getActiveUser()?.getIdToken();
+        const backendUrl = getBackendUrl();
+        
+        // Fast timeout to avoid freezing during network degradation
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+        const res = await fetch(`${backendUrl}/api/game/aviator/action`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': getCleanApiKey() },
+          body: JSON.stringify({ action: 'bet', amount, idToken }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        const data = await res.json();
+        if (data.success) {
+          onBalanceUpdate(data.newBalance, false);
+          if (panel === 1) {
+            setCurrentBet1({ amount, cashedOut: false });
+            setIsWaitingBet1(false);
+          } else {
+            setCurrentBet2({ amount, cashedOut: false });
+            setIsWaitingBet2(false);
+          }
+          playSound('bet');
+          success = true;
+          break;
         } else {
-          setCurrentBet2({ amount, cashedOut: false });
-          setIsWaitingBet2(false);
+          explicitError = data.error || 'Bet failed';
+          break; // explicit server reject, stop retrying
         }
-        playSound('bet');
+      } catch (err: any) {
+        console.warn(`[Aviator Network Retry] Panel ${panel} - Attempt ${attempt}/${maxAttempts} failed:`, err.message || err);
+        
+        if (attempt === maxAttempts) {
+          explicitError = 'নেটওয়ার্ক সংযোগ ব্যর্থ। দয়া করে আপনার ইন্টারনেট চেক করুন।';
+          break;
+        }
+
+        if (attempt === 1) {
+          showToast('নেটওয়ার্ক ল্যাগ পাওয়া গেছে! আবার চেষ্টা করা হচ্ছে...', 'warning');
+        }
+
+        // Wait 1.2s before next retry
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+      }
+    }
+
+    if (!success) {
+      if (explicitError.includes('সংযোগ ব্যর্থ') || explicitError === '') {
+        showToast('নেটওয়ার্ক সংযোগ বিঘ্নিত! বাজিটি অটো-সিঙ্ক কিউতে রাখা হল...', 'warning');
+        const newAction: QueuedAction = {
+          id: `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          action: 'bet',
+          panel,
+          amount,
+          timestamp: Date.now(),
+          attempts: 1
+        };
+        const newQueue = [...offlineQueueRef.current, newAction];
+        setOfflineQueue(newQueue);
+        offlineQueueRef.current = newQueue;
+        processQueue();
       } else {
-        showToast(data.error || 'Bet failed', 'error');
+        showToast(explicitError || 'Bet failed', 'error');
         if (panel === 1) setIsWaitingBet1(false);
         else setIsWaitingBet2(false);
       }
-    } catch (err) {
-      showToast('Bet request failed', 'error');
-      if (panel === 1) setIsWaitingBet1(false);
-      else setIsWaitingBet2(false);
-    } finally {
-      if (panel === 1) isProcessingBet1Ref.current = false;
-      else isProcessingBet2Ref.current = false;
+    }
+
+    if (panel === 1) {
+      isProcessingBet1Ref.current = false;
+      setIsPlacingBet1(false);
+      setRetryAttempt1(0);
+    } else {
+      isProcessingBet2Ref.current = false;
+      setIsPlacingBet2(false);
+      setRetryAttempt2(0);
     }
   };
 
@@ -326,6 +598,8 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       isCashingOut2Ref.current = true;
     }
 
+    const targetMultiplier = multiplierRef.current;
+
     try {
       const idToken = await getActiveUser()?.getIdToken();
       const backendUrl = getBackendUrl();
@@ -335,7 +609,7 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
         body: JSON.stringify({ 
           action: 'cashout', 
           amount: bet.amount, 
-          multiplier: multiplierRef.current,
+          multiplier: targetMultiplier,
           idToken 
         })
       });
@@ -345,12 +619,29 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
         if (panel === 1) setCurrentBet1({ ...bet, cashedOut: true });
         else setCurrentBet2({ ...bet, cashedOut: true });
         playSound('win');
-        showToast(`Cashed out at ${multiplierRef.current.toFixed(2)}x`, 'success');
+        showToast(`Cashed out at ${targetMultiplier.toFixed(2)}x`, 'success');
       } else {
         showToast(data.error || 'Cashout rejected', 'error');
       }
     } catch (err) {
-      showToast('Cashout request failed', 'error');
+      console.warn('[Aviator Cashout Network Error] Adding to offline queue:', err);
+      showToast('নেটওয়ার্ক ল্যাগ! স্বয়ংক্রিয় অফলাইন ক্যাশআউট কিউতে যোগ করা হয়েছে...', 'warning');
+      
+      const newAction: QueuedAction = {
+        id: `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        action: 'cashout',
+        panel,
+        amount: bet.amount,
+        multiplier: targetMultiplier,
+        timestamp: Date.now(),
+        attempts: 1
+      };
+      
+      const newQueue = [...offlineQueueRef.current, newAction];
+      setOfflineQueue(newQueue);
+      offlineQueueRef.current = newQueue;
+      
+      processQueue();
     } finally {
       if (panel === 1) {
         setIsCashingOut1(false);
@@ -400,7 +691,23 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
         showToast(data.error || 'Cancellation rejected', 'error');
       }
     } catch (err) {
-      showToast('Cancellation request failed', 'error');
+      console.warn('[Aviator Cancel Network Error] Adding to offline queue:', err);
+      showToast('নেটওয়ার্ক ল্যাগ! বাজি বাতিলকরণ কিউতে যোগ করা হয়েছে...', 'warning');
+
+      const newAction: QueuedAction = {
+        id: `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        action: 'cancel',
+        panel,
+        amount: bet.amount,
+        timestamp: Date.now(),
+        attempts: 1
+      };
+      
+      const newQueue = [...offlineQueueRef.current, newAction];
+      setOfflineQueue(newQueue);
+      offlineQueueRef.current = newQueue;
+
+      processQueue();
     }
   };
 
@@ -442,7 +749,7 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       eventSource.onopen = () => {
         console.log("[AviatorGame] SSE stable connection established successfully.");
         retryDelay = 2000; // Reset retry delay upon success
-        setShowLoader(false); // Ensure loader is hidden when connected
+        setSseConnected(true);
       };
 
       eventSource.onerror = (err) => {
@@ -453,7 +760,8 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
         // Only show loader if we've never received data
         if (multiplier === 1.00 && gameState === 'waiting') {
            setShowLoader(true);
-        }
+           setSseConnected(false);
+         }
         
         setTimeout(() => {
           if (isActive) {
@@ -465,71 +773,76 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       };
 
       eventSource.onmessage = (event) => {
-        setShowLoader(false);
-        const data = JSON.parse(event.data);
-        setGameState(data.state);
-        setMultiplier(data.multiplier);
-        setNextGameTimer(Math.max(0, Math.ceil(data.timer)));
-        if (data.history) setGameHistory(data.history);
+        try {
+          if (!event.data) return;
+          setSseConnected(true);
+          const data = JSON.parse(event.data);
+          setGameState(data.state);
+          setMultiplier(typeof data.multiplier === 'number' ? data.multiplier : 1.0);
+          setNextGameTimer(Math.max(0, Math.ceil(typeof data.timer === 'number' ? data.timer : 0)));
+          if (Array.isArray(data.history)) setGameHistory(data.history);
 
-        // Capture AI Signal projections
-        if (data.nextCrashPoint !== undefined) {
-          setNextCrashPoint(data.nextCrashPoint);
-        }
-        if (data.crashPoint !== undefined) {
-          setCurrentCrashPoint(data.crashPoint);
-        }
-
-        // Synthesize dynamic sound transitions in real time (climbing engine revs, and flight state swooshes)
-        const nextState = data.state;
-        const currentMult = data.multiplier;
-
-        if (nextState === 'in_progress') {
-          if (prevGameStateRef.current !== 'in_progress') {
-            // Takeoff! Play launch alarm scale sounds
-            playSound('takeoff');
+          // Capture AI Signal projections
+          if (data.nextCrashPoint !== undefined) {
+            setNextCrashPoint(data.nextCrashPoint);
           }
-          // Dynamically scale pitch and modulate propeller vibrato based on current altitude multiplier
-          updateEngineSound(currentMult);
-        } else if (nextState === 'crashed') {
-          if (prevGameStateRef.current === 'in_progress') {
-            // Crashed / Flew away! Stop the motor and play wind rust sweeps
+          if (data.crashPoint !== undefined) {
+            setCurrentCrashPoint(data.crashPoint);
+          }
+
+          // Synthesize dynamic sound transitions in real time (climbing engine revs, and flight state swooshes)
+          const nextState = data.state;
+          const currentMult = data.multiplier;
+
+          if (nextState === 'in_progress') {
+            if (prevGameStateRef.current !== 'in_progress') {
+              // Takeoff! Play launch alarm scale sounds
+              playSound('takeoff');
+            }
+            // Dynamically scale pitch and modulate propeller vibrato based on current altitude multiplier
+            updateEngineSound(currentMult);
+          } else if (nextState === 'crashed') {
+            if (prevGameStateRef.current === 'in_progress') {
+              // Crashed / Flew away! Stop the motor and play wind rust sweeps
+              stopEngineSound();
+              playSound('flew_away');
+            } else {
+              stopEngineSound();
+            }
+          } else if (nextState === 'waiting') {
             stopEngineSound();
-            playSound('flew_away');
-          } else {
-            stopEngineSound();
-          }
-        } else if (nextState === 'waiting') {
-          stopEngineSound();
-        }
-
-        prevGameStateRef.current = nextState;
-
-        // Handle Round transitions
-        if (data.state === 'waiting') {
-          if (isAutoBet1Ref.current && !currentBet1Ref.current && !isWaitingBet1Ref.current) {
-            placeBet(1, true);
-          }
-          if (isAutoBet2Ref.current && !currentBet2Ref.current && !isWaitingBet2Ref.current) {
-            placeBet(2, true);
           }
 
-          if (isWaitingBet1Ref.current && !currentBet1Ref.current) {
-            placeBet(1, true);
+          prevGameStateRef.current = nextState;
+
+          // Handle Round transitions
+          if (data.state === 'waiting') {
+            if (isAutoBet1Ref.current && !currentBet1Ref.current && !isWaitingBet1Ref.current) {
+              placeBet(1, true);
+            }
+            if (isAutoBet2Ref.current && !currentBet2Ref.current && !isWaitingBet2Ref.current) {
+              placeBet(2, true);
+            }
+
+            if (isWaitingBet1Ref.current && !currentBet1Ref.current) {
+              placeBet(1, true);
+            }
+            if (isWaitingBet2Ref.current && !currentBet2Ref.current) {
+              placeBet(2, true);
+            }
+          } else if (data.state === 'crashed') {
+            setCurrentBet1(null);
+            setCurrentBet2(null);
+          } else if (data.state === 'in_progress') {
+            if (autoCashout1Ref.current && currentBet1Ref.current && !currentBet1Ref.current.cashedOut && data.multiplier >= autoCashoutValue1Ref.current) {
+              if (handleCashoutRef.current) handleCashoutRef.current(1);
+            }
+            if (autoCashout2Ref.current && currentBet2Ref.current && !currentBet2Ref.current.cashedOut && data.multiplier >= autoCashoutValue2Ref.current) {
+              if (handleCashoutRef.current) handleCashoutRef.current(2);
+            }
           }
-          if (isWaitingBet2Ref.current && !currentBet2Ref.current) {
-            placeBet(2, true);
-          }
-        } else if (data.state === 'crashed') {
-          setCurrentBet1(null);
-          setCurrentBet2(null);
-        } else if (data.state === 'in_progress') {
-          if (autoCashout1Ref.current && currentBet1Ref.current && !currentBet1Ref.current.cashedOut && data.multiplier >= autoCashoutValue1Ref.current) {
-            if (handleCashoutRef.current) handleCashoutRef.current(1);
-          }
-          if (autoCashout2Ref.current && currentBet2Ref.current && !currentBet2Ref.current.cashedOut && data.multiplier >= autoCashoutValue2Ref.current) {
-            if (handleCashoutRef.current) handleCashoutRef.current(2);
-          }
+        } catch (err) {
+          console.error("[AviatorGame] SSE Parse Error:", err);
         }
       };
 
@@ -538,6 +851,12 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
         if (eventSource) {
           eventSource.close();
           eventSource = null;
+        }
+
+        // Only show loader if we have never loaded successfully
+        if (multiplier === 1.00 && gameState === 'waiting') {
+          setShowLoader(true);
+          setSseConnected(false);
         }
 
         if (isActive) {
@@ -560,7 +879,14 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
     };
   }, []);
 
-  if (showLoader) return <GameLoader />;
+  if (showLoader) {
+    return (
+      <GameLoader 
+        ready={sseConnected} 
+        onLoadComplete={() => setShowLoader(false)} 
+      />
+    );
+  }
 
   // Real-time Parabolic flight trail tracking coordinates
   const planeX = gameState === 'in_progress' ? Math.min(80, 15 + Math.pow(multiplier - 1, 0.72) * 15) + Math.sin(multiplier * 4) * 0.6 : 15;
@@ -573,17 +899,12 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 bg-[#1a1a1a] border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
-            <X size={20} />
-          </button>
-          <div className="flex items-center gap-1">
-            {globalLogos?.['spribe_aviator'] ? (
-              <img src={globalLogos['spribe_aviator']} alt="Aviator Logo" className="h-6 object-contain" />
-            ) : (
-              <span className="text-xl font-black italic text-white tracking-tighter">Aviator</span>
-            )}
-          </div>
+        <div className="flex items-center gap-1">
+          {globalLogos?.['spribe_aviator'] ? (
+            <img src={globalLogos['spribe_aviator']} alt="Aviator Logo" className="h-6 object-contain" />
+          ) : (
+            <span className="text-xl font-black italic text-white tracking-tighter">Aviator</span>
+          )}
         </div>
         
         <div className="flex items-center gap-3">
@@ -594,26 +915,36 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
           {/* Sound settings removed to use global controller */}
 
           <button 
-            onClick={() => setShowRulesModal(true)} 
+            onClick={() => {
+              const nextCount = settingsClickCount + 1;
+              if (nextCount >= 5) {
+                setShowPasswordModal(true);
+                setSettingsClickCount(0);
+              } else {
+                setSettingsClickCount(nextCount);
+                // Clear count after 3 seconds of inactivity
+                if (settingsTimerRef.current) clearTimeout(settingsTimerRef.current);
+                settingsTimerRef.current = setTimeout(() => setSettingsClickCount(0), 3000);
+                
+                // Also show rules if clicked once
+                if (nextCount === 1) {
+                  setShowRulesModal(true);
+                }
+              }
+            }} 
             className="p-2 hover:bg-white/10 rounded-full text-gray-300 hover:text-white transition-colors"
             title="How to Play"
           >
             <HelpCircle size={20} />
           </button>
           <button 
-            onClick={() => {
-              setSettingsClickCount(prev => {
-                const nextCount = prev + 1;
-                if (nextCount >= 5) {
-                  setShowPasswordModal(true);
-                  return 0; // Reset
-                }
-                return nextCount;
-              });
-            }}
-            className="p-2 hover:bg-white/10 rounded-full"
+            className="p-2 hover:bg-white/10 rounded-full text-gray-300 hover:text-white transition-colors"
+            title="Settings"
           >
             <Settings size={20} />
+          </button>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+            <X size={20} />
           </button>
         </div>
       </div>
@@ -797,6 +1128,37 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
           </div>
         </div>
 
+        {/* Sync Queue Monitor Banner */}
+        {offlineQueue.length > 0 && (
+          <div className="mx-2 mt-4 p-2.5 bg-gradient-to-r from-amber-600/90 to-orange-700/90 border border-amber-500/50 rounded-xl flex items-center justify-between text-white text-xs shadow-lg animate-pulse z-25">
+            <div className="flex items-center gap-2">
+              <Loader2 size={16} className="animate-spin text-yellow-300" />
+              <div>
+                <span className="font-bold text-yellow-300">নেটওয়ার্ক সংযোগ পুনর্স্থাপন করা হচ্ছে...</span>
+                <p className="text-[10px] text-orange-100">অমীমাংসিত ট্রানজেকশন কিউতে আছে এবং স্বয়ংক্রিয়ভাবে পুনরায় চেষ্টা করা হচ্ছে</p>
+              </div>
+            </div>
+            <div className="bg-black/40 px-2 py-1 rounded-md text-[10px] font-mono font-bold text-orange-200">
+              {offlineQueue.length} Pending
+            </div>
+          </div>
+        )}
+
+        {!isOnline && (
+          <div className="mx-2 mt-4 p-2.5 bg-gradient-to-r from-red-600 to-red-800 border border-red-500/55 rounded-xl flex items-center justify-between text-white text-xs shadow-lg animate-pulse z-25">
+            <div className="flex items-center gap-2">
+              <WifiOff size={16} className="text-red-300 animate-bounce" />
+              <div>
+                <span className="font-bold text-red-100">আপনি অফলাইনে আছেন!</span>
+                <p className="text-[10px] text-red-100">আপনার বাজি এবং ক্যাশআউট অনুরোধগুলো অফলাইন কিউতে সংরক্ষিত রাখা হচ্ছে</p>
+              </div>
+            </div>
+            <div className="bg-black/40 px-2 py-1 rounded-md text-[10px] font-mono font-bold text-red-300">
+              OFFLINE
+            </div>
+          </div>
+        )}
+
         {/* Betting Panels */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 bg-[#0a0a0a] mt-4">
           
@@ -814,6 +1176,8 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
             const cashOutVal = panel === 1 ? autoCashoutValue1 : autoCashoutValue2;
             const setCashOutVal = panel === 1 ? setAutoCashoutValue1 : setAutoCashoutValue2;
             const isCashingOut = panel === 1 ? isCashingOut1 : isCashingOut2;
+            const isPlacing = panel === 1 ? isPlacingBet1 : isPlacingBet2;
+            const retryAttempt = panel === 1 ? retryAttempt1 : retryAttempt2;
 
             return (
               <div key={panel} className="bg-[#141414] rounded-xl p-2 border border-white/5 relative overflow-hidden group">
@@ -918,32 +1282,49 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
                       ) : (
                         <button 
                           onClick={() => {
+                            if (isPlacing) return;
                             if (currentBet || isWaiting) {
                               handleCancel(panel);
                             } else {
                               placeBet(panel);
                             }
                           }}
-                          disabled={gameState === 'crashed'}
+                          disabled={gameState === 'crashed' || isPlacing}
                           className={`w-full h-full rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 shadow-lg ${
-                            isWaiting || currentBet 
-                              ? 'bg-gradient-to-b from-red-600 to-red-800 hover:from-red-500 hover:to-red-700 border border-red-500/50 text-white shadow-[0_4px_15px_rgba(239,68,68,0.3)] animate-pulse' 
-                              : 'bg-gradient-to-b from-[#4caf50] to-[#2e7d32] hover:from-[#66bb6a] hover:to-[#388e3c] border border-[#ffffff20]'
+                            isPlacing
+                              ? 'bg-gradient-to-b from-amber-600 to-amber-800 border border-amber-500/50 text-white shadow-[0_4px_15px_rgba(245,158,11,0.3)] animate-pulse'
+                              : isWaiting || currentBet 
+                                ? 'bg-gradient-to-b from-red-600 to-red-800 hover:from-red-500 hover:to-red-700 border border-red-500/50 text-white shadow-[0_4px_15px_rgba(239,68,68,0.3)] animate-pulse' 
+                                : 'bg-gradient-to-b from-[#4caf50] to-[#2e7d32] hover:from-[#66bb6a] hover:to-[#388e3c] border border-[#ffffff20]'
                           }`}
                         >
-                          <span className="text-xl font-black text-white italic uppercase tracking-tighter">
-                            {currentBet || isWaiting ? 'Cancel' : 'Bet'}
-                          </span>
-                          {(currentBet || isWaiting) ? (
-                            <span className="text-[9px] text-red-100 font-bold uppercase tracking-wider">
-                              (Click to Cancel)
-                            </span>
+                          {isPlacing ? (
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              <Loader2 size={24} className="animate-spin text-yellow-300" />
+                              <span className="text-[11px] font-black uppercase text-yellow-300 tracking-wider">
+                                লোডিং হচ্ছে... ({retryAttempt}/১০)
+                              </span>
+                              <span className="text-[7px] text-white/70 block uppercase font-black tracking-widest leading-none mt-0.5">
+                                Reconnecting API
+                              </span>
+                            </div>
                           ) : (
                             <>
-                              <span className="text-base font-black text-white italic tracking-tighter">
-                                {amount.toFixed(2)}
+                              <span className="text-xl font-black text-white italic uppercase tracking-tighter">
+                                {currentBet || isWaiting ? 'Cancel' : 'Bet'}
                               </span>
-                              <span className="text-[7px] font-black uppercase tracking-widest text-white/70 mt-0.5">(Next Round)</span>
+                              {(currentBet || isWaiting) ? (
+                                <span className="text-[9px] text-red-100 font-bold uppercase tracking-wider">
+                                  (Click to Cancel)
+                                </span>
+                              ) : (
+                                <>
+                                  <span className="text-base font-black text-white italic tracking-tighter">
+                                    {amount.toFixed(2)}
+                                  </span>
+                                  <span className="text-[7px] font-black uppercase tracking-widest text-white/70 mt-0.5">(Next Round)</span>
+                                </>
+                              )}
                             </>
                           )}
                         </button>

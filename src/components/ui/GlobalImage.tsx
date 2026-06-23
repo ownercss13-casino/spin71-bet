@@ -28,11 +28,13 @@ export default function GlobalImage({
   const [newUrl, setNewUrl] = useState(currentUrl || defaultUrl);
   const [isSaving, setIsSaving] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [retryWithProxy, setRetryWithProxy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     setHasError(false);
-  }, [currentUrl, defaultUrl]);
+    setRetryWithProxy(false);
+  }, [currentUrl, defaultUrl, imageKey]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -123,7 +125,10 @@ export default function GlobalImage({
     );
   };
 
-  const currentSourceUrl = currentUrl || defaultUrl;
+  let currentSourceUrl = currentUrl || defaultUrl;
+  if (retryWithProxy && currentSourceUrl && currentSourceUrl.startsWith('http') && !currentSourceUrl.includes('images.weserv.nl') && !currentSourceUrl.includes('data:image/')) {
+    currentSourceUrl = `https://images.weserv.nl/?url=${encodeURIComponent(currentSourceUrl)}`;
+  }
   const isBrokenScreenshot = currentSourceUrl?.includes('image2url.com/r2/default/images/1780940921769') || 
                               currentSourceUrl?.includes('image2url.com/r2/default/images/1780940834051') ||
                               !currentSourceUrl;
@@ -136,7 +141,13 @@ export default function GlobalImage({
           alt={alt} 
           className={className}
           referrerPolicy="no-referrer"
-          onError={() => setHasError(true)}
+          onError={() => {
+            if (!retryWithProxy && currentSourceUrl && currentSourceUrl.startsWith('http') && !currentSourceUrl.includes('images.weserv.nl') && !currentSourceUrl.includes('data:image/')) {
+              setRetryWithProxy(true);
+            } else {
+              setHasError(true);
+            }
+          }}
         />
       ) : (
         renderFallback()

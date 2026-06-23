@@ -208,12 +208,7 @@ export default function WalletView({ balance, userData, onTabChange, onSubTabCha
               জমা (Deposit)
             </button>
             <button 
-              onClick={() => {
-                if (onSubTabChange) {
-                  onSubTabChange('withdraw');
-                }
-                onTabChange('profile');
-              }}
+              onClick={() => onTabChange('withdraw')}
               className="flex items-center justify-center gap-2 bg-[var(--bg-surface)] hover:bg-black/10 text-[var(--text-main)] font-black py-3.5 rounded-xl border border-[var(--border-color)] transition-all active:scale-95"
             >
               <ArrowUpRight size={20} />

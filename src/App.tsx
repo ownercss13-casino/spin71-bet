@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import canvasConfetti from 'canvas-confetti';
 import { formatDisplayUID } from './utils/idUtils';
 import { getBackendUrl } from './config';
@@ -24,6 +24,7 @@ import LeaderboardView from "./views/LeaderboardView";
 import HomeView from "./views/HomeView";
 import LoginPage from "./views/LoginPage";
 import DepositView from "./views/DepositView";
+import WithdrawView from "./views/WithdrawView";
 import WalletView from "./views/WalletView";
 import { AnimatedBalance } from './components/AnimatedBalance';
 import NotificationOverlay from "./components/ui/NotificationOverlay";
@@ -265,6 +266,90 @@ async function getDocsWithRetry(
   }
 }
 
+function PageTransitionLoader() {
+  const [msgIdx, setMsgIdx] = useState(0);
+  const messages = [
+    "লোডিং হচ্ছে...",
+    "পেজ পরিবর্তন হচ্ছে...",
+    "সার্ভার কানেক্ট করা হচ্ছে...",
+    "ডাটা ভেরিফাই করা হচ্ছে...",
+    "নতুন পেজ প্রস্তুত হচ্ছে...",
+    "ঝড়ো গতিতে লোড হচ্ছে...",
+    "দয়া করে অপেক্ষা করুন..."
+  ];
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setMsgIdx((prev) => (prev + 1) % messages.length);
+    }, 450);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <>
+      <motion.div 
+        initial={{ width: "0%", opacity: 0 }}
+        animate={{ width: "100%", opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.6 }}
+        className="fixed top-0 left-0 h-1 bg-gradient-to-r from-yellow-300 via-yellow-500 to-yellow-600 z-[2000] shadow-[0_0_15px_rgba(234,179,8,0.8)]"
+      />
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[1999] bg-black/95 backdrop-blur-lg flex flex-col items-center justify-center p-6"
+      >
+        <div className="relative flex flex-col items-center max-w-[320px] w-full text-center">
+          {/* Ambient Glow Background Accent */}
+          <div className="absolute w-44 h-44 rounded-full bg-yellow-500/10 blur-[80px] -z-10 animate-pulse pointer-events-none" />
+          
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            className="mb-8"
+          >
+            <span className="text-4xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 drop-shadow-[0_0_20px_rgba(253,216,53,0.5)]">
+              SPIN71BET✨
+            </span>
+          </motion.div>
+          
+          {/* Enhanced Circular Spinners */}
+          <div className="relative w-20 h-20 flex items-center justify-center mb-8">
+            <div className="absolute inset-0 border-4 border-yellow-500/10 rounded-full"></div>
+            <div className="absolute inset-0 border-4 border-t-yellow-500 border-r-amber-500 rounded-full animate-spin shadow-[0_0_20px_rgba(234,179,8,0.4)]"></div>
+            <div className="absolute w-12 h-12 border-2 border-b-yellow-400 border-l-yellow-600 rounded-full animate-spin opacity-70" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }}></div>
+          </div>
+          
+          <div className="h-6 flex items-center justify-center">
+            <AnimatePresence mode="wait">
+              <motion.p 
+                key={msgIdx}
+                initial={{ y: 5, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -5, opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                className="text-yellow-400 text-sm font-bold tracking-[0.05em]"
+              >
+                {messages[msgIdx]}
+              </motion.p>
+            </AnimatePresence>
+          </div>
+          
+          <motion.p
+            animate={{ opacity: [0.3, 0.7, 0.3] }}
+            transition={{ repeat: Infinity, duration: 1.2 }}
+            className="mt-3 text-white/40 text-[9px] font-black uppercase tracking-[0.3em] font-mono"
+          >
+            Please Wait...
+          </motion.p>
+        </div>
+      </motion.div>
+    </>
+  );
+}
+
 export default function App() {
   const db = getDb();
   const [dbStatus, setDbStatus] = useState<'testing' | 'success' | 'error'>('testing');
@@ -306,7 +391,7 @@ export default function App() {
     return () => clearTimeout(authCheckTimeout);
   }, []);
 
-  const [activeTab, setActiveTab] = useState<'home' | 'slot' | 'aviator' | 'profile' | 'invite' | 'deposit' | 'bonus' | 'wallet' | 'faq' | 'leaderboard' | 'terms' | 'analytics' | 'admin' | 'settings' | 'history' | 'register' | 'login' | 'kyc' | 'tournament'>(() => {
+  const [activeTab, setActiveTab] = useState<'home' | 'slot' | 'aviator' | 'profile' | 'invite' | 'deposit' | 'withdraw' | 'bonus' | 'wallet' | 'faq' | 'leaderboard' | 'terms' | 'analytics' | 'admin' | 'settings' | 'history' | 'register' | 'login' | 'kyc' | 'tournament'>(() => {
     const rawPath = window.location.pathname.replace(/^\/+|\/$/g, '').split('/')[0];
     const validTabs: any[] = ['home', 'slot', 'aviator', 'profile', 'invite', 'deposit', 'bonus', 'wallet', 'faq', 'leaderboard', 'terms', 'analytics', 'admin', 'settings', 'history', 'register', 'login', 'kyc', 'tournament'];
     if (validTabs.includes(rawPath)) {
@@ -625,11 +710,11 @@ export default function App() {
     // Professional delay to ensure smooth transition and show the loading state
     setTimeout(() => {
       setActiveTab(tab);
-      // Small buffer to let the new view render
+      // Small buffer to let the new view render and allow high-performance layout painting
       setTimeout(() => {
         setIsTabLoading(false);
-      }, 50);
-    }, 50);
+      }, 250);
+    }, 500);
   };
   
   const handleLogout = async () => {
@@ -1679,14 +1764,18 @@ export default function App() {
                 customLogo = GAME_LOGO_URLS['pg_fortune_ox'] || defaultLogo;
               }
 
-              await setDoc(docRef, {
-                game_id: game.id,
-                name: customName,
-                logo_url: customLogo,
-                game_url: defaultUrl,
-                provider_option: game.provider,
-                updatedAt: new Date().toISOString()
-              });
+              try {
+                await setDoc(docRef, {
+                  game_id: game.id,
+                  name: customName,
+                  logo_url: customLogo,
+                  game_url: defaultUrl,
+                  provider_option: game.provider,
+                  updatedAt: new Date().toISOString()
+                });
+              } catch (writeErr) {
+                console.warn("[App] Failed to write game_settings seed to Firestore (expected for non-admins):", writeErr);
+              }
 
               logos[game.id] = customLogo;
               names[game.id] = customName;
@@ -1887,10 +1976,10 @@ export default function App() {
     setNotification({ isOpen: true, message, type, title });
   };
 
-  const showToast = (message: string, type: ToastType = 'info', critical = false) => {
+  const showToast = useCallback((message: string, type: ToastType = 'info', critical = false) => {
     // Everything now goes through the centered modal as requested
     showNotification(message, type === 'warning' ? 'warning' : (type === 'error' ? 'error' : (type === 'success' ? 'success' : 'info')));
-  };
+  }, []);
 
   const removeToast = (id: string) => {
     // Toast feature removed, but function kept for any legacy props
@@ -1973,7 +2062,7 @@ export default function App() {
     console.log("Activity Log:", activity);
   };
 
-  const handleBalanceUpdate = async (newBalance: number, persist = true) => {
+  const handleBalanceUpdate = useCallback(async (newBalance: number, persist = true) => {
     // SECURITY/INTEGRITY GUARD: Never let balance be NaN, null, undefined, or invalid.
     if (newBalance === undefined || newBalance === null || isNaN(newBalance)) {
       console.error("[Balance Integrity Error] Refusing to set balance to invalid value:", newBalance);
@@ -2004,7 +2093,7 @@ export default function App() {
     } else {
       console.log(`[Aviator Debug V2] App.tsx handleBalanceUpdate: Not persisting. Persist flag: ${persist}, isLoggedIn: ${isLoggedIn}, userId: ${userData?.id}`);
     }
-  };
+  }, [isLoggedIn, userData, db]);
 
   const handleUpdateUser = async (updates: any) => {
     if (userData?.id) {
@@ -2344,47 +2433,7 @@ export default function App() {
 
       {/* Tab Loading Progress Bar & Full Screen Overlay */}
       <AnimatePresence>
-        {isTabLoading && (
-          <>
-            <motion.div 
-              initial={{ width: "0%", opacity: 0 }}
-              animate={{ width: "100%", opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.5 }}
-              className="fixed top-0 left-0 h-1 bg-gradient-to-r from-yellow-300 via-yellow-500 to-yellow-600 z-[2000] shadow-[0_0_15px_rgba(234,179,8,0.8)]"
-            />
-            {/* High-quality full-screen loader for perceived processing */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[1999] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-6"
-            >
-              <div className="relative flex flex-col items-center max-w-[280px] w-full">
-                <motion.div
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                  className="mb-8"
-                >
-                  <span className="text-4xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 drop-shadow-[0_0_15px_rgba(253,216,53,0.6)]">
-                    SPIN71BET1
-                  </span>
-                </motion.div>
-                
-                <div className="w-16 h-16 border-[3px] border-yellow-500/20 border-t-yellow-500 rounded-full animate-spin shadow-[0_0_30px_rgba(234,179,8,0.3)]"></div>
-                
-                <motion.p 
-                  animate={{ opacity: [0.5, 1, 0.5] }}
-                  transition={{ repeat: Infinity, duration: 1.5 }}
-                  className="mt-6 text-yellow-500 text-[11px] font-black uppercase tracking-[0.3em]"
-                >
-                  সার্ভার কানেক্ট হচ্ছে... (Loading)
-                </motion.p>
-              </div>
-            </motion.div>
-          </>
-        )}
+        {isTabLoading && <PageTransitionLoader />}
       </AnimatePresence>
 
       {/* Game Loader Overlay */}
@@ -2874,6 +2923,26 @@ export default function App() {
               />
             </motion.div>
           )}
+          {activeTab === 'withdraw' && (
+            <motion.div
+              key="withdraw"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <WithdrawView
+                onTabChange={handleTabChange}
+                onSubTabChange={setProfileSubTab}
+                balance={balance}
+                userData={userData}
+                showToast={showToast}
+                minWithdraw={minWithdraw}
+                onRefresh={handleRefresh}
+                isRefreshing={isRefreshing}
+              />
+            </motion.div>
+          )}
           {activeTab === 'wallet' && (
             <motion.div
               key="wallet"
@@ -3248,6 +3317,7 @@ export default function App() {
         onClose={() => setIsInstallModalOpen(false)}
         deferredPrompt={deferredPrompt}
         onInstall={triggerImmediatePwaInstall}
+        appDownloadLink={globalImages['app_download_link'] || ''}
       />
 
       <DepositRequiredModal 

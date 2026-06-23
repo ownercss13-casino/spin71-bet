@@ -70,7 +70,8 @@ import {
   ChevronRight,
   Power,
   Zap,
-  TerminalSquare
+  TerminalSquare,
+  Download
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -1053,8 +1054,8 @@ function DashboardOverview({ stats, users, transactions, serverInfo, bannerClick
   const bannerStats = React.useMemo(() => {
     const counts: Record<string, { id: string; title: string, count: number, percentage: number, color: string }> = {
       banner1: { id: 'banner1', title: 'Invite Friends (Affiliate Program)', count: 0, percentage: 0, color: '#eab308' },
-      banner2: { id: 'banner2', title: 'Aviator Signal Hack Override', count: 0, percentage: 0, color: '#f43f5e' },
-      banner3: { id: 'banner3', title: 'Jackpot Deposit Reward', count: 0, percentage: 0, color: '#10b981' },
+      banner4: { id: 'banner4', title: 'Promo Deal & Cashback Offer', count: 0, percentage: 0, color: '#06b6d4' },
+      banner5: { id: 'banner5', title: 'VIP Club Rewards System', count: 0, percentage: 0, color: '#8b5cf6' },
     };
 
     let total = 0;
@@ -1302,7 +1303,10 @@ function DashboardOverview({ stats, users, transactions, serverInfo, bannerClick
                   const bannerBadgeColor = 
                     click.bannerId === 'banner1' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
                     click.bannerId === 'banner2' ? 'bg-rose-500/20 text-rose-400 border-rose-500/30' :
-                    'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+                    click.bannerId === 'banner3' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+                    click.bannerId === 'banner4' ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' :
+                    click.bannerId === 'banner5' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' :
+                    'bg-teal-500/20 text-teal-400 border-teal-500/30';
 
                   return (
                     <div key={click.id || idx} className="bg-[#0c4e48] px-4 py-3 rounded-2xl border border-white/5 flex items-center justify-between text-xs hover:bg-[#0c4e48]/80 transition-colors">
@@ -2675,6 +2679,66 @@ function GlobalSettings(props: AdminPanelViewProps) {
               />
             </div>
             <div>
+              <label className="block text-xs font-bold text-teal-200 uppercase mb-2 ml-1">Website Banners & Promotions (হিরো ব্যানার সমূহ)</label>
+              <div className="space-y-4 bg-black/20 p-4 rounded-3xl border border-white/10">
+                {[
+                  { key: 'banner1', label: 'Banner 1: Invite Friends (রেফারেল ব্যানার)', defaultVal: 'https://www.image2url.com/r2/default/images/1780756072411-5bf24ebb-fb2f-467a-a559-8875dfb29a60.png' },
+                  { key: 'banner4', label: 'Banner 2: Promo Deal / Cashback (নতুন প্রোমো ব্যানার)', defaultVal: 'https://www.image2url.com/r2/default/images/1782136501663-6b5301a8-3b0c-4e53-bb7c-05d2ccf9e699.png' },
+                  { key: 'banner5', label: 'Banner 3: VIP Club Rewards (নতুন ভিআইপি ব্যানার)', defaultVal: 'https://www.image2url.com/r2/default/images/1782136595943-a5309f2a-65de-4512-adea-0650418d7dbb.png' },
+                ].map((b) => (
+                  <div key={b.key} className="space-y-2 border-b border-white/5 pb-3 last:border-0 last:pb-0">
+                    <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">{b.label}</p>
+                    <div className="flex items-center gap-3">
+                      <div className="w-20 h-10 rounded-lg bg-[#0d1a29] border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                        <img src={props.globalImages[b.key] || b.defaultVal} alt={b.key} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <input 
+                          type="text" 
+                          value={props.globalImages[b.key] || ''}
+                          onChange={(e) => props.updateGlobalImage(b.key, e.target.value)}
+                          placeholder="অথবা কাস্টম ইমেজ ইউআরএল পেস্ট করুন..." 
+                          className="w-full bg-black/40 border border-white/10 rounded-xl px-2.5 py-1 text-[10px] font-bold text-zinc-300 focus:outline-none focus:border-emerald-500 placeholder-zinc-500"
+                        />
+                        <div className="flex items-center gap-2">
+                          <label className="inline-flex items-center gap-1.5 bg-white/5 hover:bg-white/10 px-2 py-0.5 rounded-lg text-[9px] font-black text-white uppercase tracking-wider cursor-pointer transition-all border border-white/10">
+                            <ImageIcon size={10} />
+                            ফাইল আপলোড (Upload File)
+                            <input 
+                              type="file" 
+                              className="hidden" 
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onload = (re) => {
+                                    if (props.updateGlobalImage) {
+                                      props.updateGlobalImage(b.key, re.target?.result as string);
+                                    }
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                            />
+                          </label>
+                          {props.globalImages[b.key] && (
+                            <button 
+                              type="button"
+                              onClick={() => props.updateGlobalImage(b.key, '')}
+                              className="text-[9px] font-black text-rose-400 hover:text-rose-300 transition-colors uppercase tracking-wider"
+                            >
+                              রিসেট (Reset)
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
               <label className="block text-xs font-bold text-teal-200 uppercase mb-2 ml-1">Global Notice (Bengali)</label>
               <textarea 
                 value={props.noticeText}
@@ -2775,6 +2839,21 @@ function GlobalSettings(props: AdminPanelViewProps) {
               </div>
               <span className="text-[9px] font-medium text-teal-300/70 block mt-1 ml-1 leading-relaxed">
                 টেলিগ্রাম বোট থেকে পাঠানো সিগন্যালের ভেতরের "App Link / SPIN71 App এ যান" বাটনে এই লিংকটি সেট হবে। যেমন: <code>https://ln.run/6qgOI</code> বা আপনার কাস্টম ডোমেইন।
+              </span>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-teal-200 uppercase mb-2 ml-1">App Download Link (মোবাইল অ্যাপ ডাউনলোড লিংক / APK URL)</label>
+              <div className="relative">
+                <Download className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-400" size={20} />
+                <input 
+                  value={props.globalImages['app_download_link'] || ''}
+                  onChange={(e) => props.updateGlobalImage('app_download_link', e.target.value)}
+                  className="w-full bg-black/20 border border-white/10 rounded-2xl px-12 py-4 text-sm font-bold text-white focus:outline-none focus:border-emerald-500"
+                  placeholder="https://example.com/app.apk"
+                />
+              </div>
+              <span className="text-[9px] font-medium text-teal-300/70 block mt-1 ml-1 leading-relaxed">
+                মোবাইল অ্যাপ ডাউনলোড অপশনে ক্লিক করলে ব্যবহারকারী এই লিংকে গিয়ে সরাসরি এপিকে ফাইল বা কাস্টম অ্যাপ ডাউনলোড করতে পারবে।
               </span>
             </div>
             <div>

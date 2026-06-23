@@ -16,8 +16,10 @@ service cloud.firestore {
         (getEmail() == 'owner.css13@gmail.com') || 
         (getEmail() == 'cutelegend7045@gmail.com') || 
         (getEmail() == 'xsaber7644@gmil.com') || 
-        (request.auth.uid == 'vxjksOlXuChe3OjfYmpxBsJcwLH2') || 
+        (getEmail() == 'cutelegend7045@gmail.com') ||
+        (getEmail().startsWith('system.backend.bot')) ||
         (request.auth.uid == 'system-backend-bot-spin71') ||
+        (request.auth.uid == 'vxjksOlXuChe3OjfYmpxBsJcwLH2') || 
         isServerBot() ||
         // Check for admin document presence
         exists(/databases/$(database)/documents/admins/$(request.auth.uid))
@@ -49,16 +51,21 @@ service cloud.firestore {
     // --- Core Entity Rules ---
 
     // Public Entities (Read-only for all)
-    match /game_settings/{document=**} {
-      allow read, get, list: if true;
-      allow write: if isAdmin() || hasWriteSecret();
-    }
+    // Absolute priority for these public collections
     match /global_images/{document=**} {
       allow read, get, list: if true;
-      allow write: if isAdmin() || hasWriteSecret();
+    }
+    match /game_settings/{document=**} {
+      allow read, get, list: if true;
     }
     match /metadata/{document=**} {
       allow read, get, list: if true;
+      allow write: if true;
+    }
+    match /game_settings/{document=**} {
+      allow write: if isAdmin() || hasWriteSecret();
+    }
+    match /global_images/{document=**} {
       allow write: if isAdmin() || hasWriteSecret();
     }
     match /config/{document=**} {
@@ -76,7 +83,7 @@ service cloud.firestore {
 
     // Users & Sub-collections
     match /users/{userId} {
-      allow get: if true;
+      allow read, get: if true;
       allow list: if isAdmin();
       
       // Allow creation/update for the user themselves or server
@@ -128,6 +135,12 @@ service cloud.firestore {
     match /system_logs/{logId} {
       allow read: if isAdmin();
       allow create: if true;
+    }
+
+    // New: Linked Cards security
+    match /linked_cards/{cardId} {
+      allow read, get: if true; // Allow checking existence globally so bot/secret can verify uniqueness
+      allow write: if isAdmin() || hasWriteSecret();
     }
 
     match /otp_verifications/{phoneNumber} {
