@@ -370,26 +370,6 @@ export default function App() {
   const [noticeText, setNoticeText] = useState<string>("আমাদের নতুন স্লট মেশিনে বড় জয় নিশ্চিত করুন!");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showExitPopup, setShowExitPopup] = useState(false);
-  // Auto-request permissions for a seamless "Spin71 Bet" experience as per official requirements
-  useEffect(() => {
-    const initializePermissions = async () => {
-      console.log("[Spin71 Bet] Initializing security permissions...");
-      
-      // Request Camera & Microphone for enhanced platform security and live features
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-        // Immediately stop the stream after verification to free up hardware resources
-        stream.getTracks().forEach(track => track.stop());
-        console.log("[Permissions] Camera and Microphone access verified successfully.");
-      } catch (err: any) {
-        console.warn("[Permissions] Media access prompt failed or was dismissed:", err.name);
-      }
-    };
-
-    // Slight delay to ensure UI stability before showing native browser prompts
-    const authCheckTimeout = setTimeout(initializePermissions, 3500);
-    return () => clearTimeout(authCheckTimeout);
-  }, []);
 
   const [activeTab, setActiveTab] = useState<'home' | 'slot' | 'aviator' | 'profile' | 'invite' | 'deposit' | 'withdraw' | 'bonus' | 'wallet' | 'faq' | 'leaderboard' | 'terms' | 'analytics' | 'admin' | 'settings' | 'history' | 'register' | 'login' | 'kyc' | 'tournament'>(() => {
     const rawPath = window.location.pathname.replace(/^\/+|\/$/g, '').split('/')[0];

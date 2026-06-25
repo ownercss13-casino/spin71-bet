@@ -1,6 +1,5 @@
 {
   "name": "SPIN71 BET✨",
   "description": "SPIN71 BET✨ - Official Link: https://spin71bet-team.firebaseapp.com",
-  "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
