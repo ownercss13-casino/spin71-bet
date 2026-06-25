@@ -205,8 +205,8 @@ if (!originalAdmin.apps.length) {
     let credential: any = undefined;
     const localSaPath = path.resolve(process.cwd(), 'firebase-service-account.json');
     
-    // 1. Try environment variable
-    const saEnv = (process.env.FIREBASE_SERVICE_ACCOUNT || "").trim();
+    // 1. Try environment variable (accept either FIREBASE_SERVICE_ACCOUNT or GCP_SERVICE_ACCOUNT)
+    const saEnv = (process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GCP_SERVICE_ACCOUNT || "").trim();
     if (saEnv) {
       try {
         let saJson = saEnv;
@@ -1174,7 +1174,7 @@ async function pollTelegramUpdates() {
                   if (fileName === 'server.ts') {
                     extraMsg = `\n\n⚠️ <i>নিরাপত্তার স্বার্থে আপনার মূল <b>server.ts</b> ডিরেক্ট ফাইলটি <code>server_uploaded.ts</code> হিসেবে সেভ করা হয়েছে যেন মূল গেম ডেসক্রিপশন ক্র্যাশ না করে। এডমিন প্যানেল এবং ডেভেলপার এটি রিভিও করে এপিআই ইন্টিগ্রেট করবে।</i>`;
                   } else if (fileName === 'AviatorGame.tsx') {
-                    extraMsg = `\n\n📂 <i>গেমের মূল ভিজ্যুয়াল পার্ট নিরাপদ রাখতে আপনার <b>AviatorGame.tsx</b> ফাইলটি <code>AviatorGame_uploaded.tsx</code> হিসেবে সেভ করা হয়েছে।</i>`;
+                    extraMsg = `\n\n📂 <i>গেমের মূল ভিজ্যুয়াল পার্ট নিরাপদ রাখতে আপনার <b>AviatorGame.tsx</b> ফাইলটি <code>AviatorGame_uploaded.tsx</code> হিসেবে সেভ করা ���য়েছে।</i>`;
                   } else {
                     extraMsg = `\n\n⚡ ফাইলটি সরাসরি আপনার গেমের সোর্স ফোল্ডারে ইন্টিগ্রেট হয়ে গেছে!`;
                   }
