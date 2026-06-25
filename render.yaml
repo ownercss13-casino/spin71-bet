@@ -1,0 +1,44 @@
+# Render deployment configuration for Spin71 Bet
+# This runs the existing Node server (server.ts) which serves BOTH
+# the API/SSE engine and the built frontend.
+#
+# After creating the service on Render, set the environment variables
+# marked `sync: false` in the Render dashboard (they are secrets).
+services:
+  - type: web
+    name: spin71-bet
+    runtime: node
+    region: singapore
+    plan: free
+    branch: website-enhancements-review
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Tells server.ts it is running on Render (enables fallback-safe config path)
+      - key: RENDER
+        value: "true"
+      # Session signing secret. Generate a long random string.
+      - key: SESSION_SECRET
+        generateValue: true
+      # ---- Secrets: set these values in the Render dashboard ----
+      # Firebase Admin service account, pasted as a single-line JSON string.
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false
+      # Optional: Firebase Realtime Database URL (only if you use RTDB)
+      - key: FIREBASE_DATABASE_URL
+        sync: false
+      # Optional integrations (leave unset if unused)
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_ADMIN_CHAT_ID
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SMS_GATEWAY_API_KEY
+        sync: false
+      - key: RETOOL_DB_URL
+        sync: false

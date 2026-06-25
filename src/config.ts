@@ -14,26 +14,28 @@ export const getReferralLink = (referralCode: string) => {
   return `${window.location.origin}/?ref=${referralCode}`;
 };
 
+// Permanent backend (Node server.ts) deployed on Render.
+// Configurable at build time via VITE_BACKEND_URL; update the fallback below
+// once your Render service URL is known.
+const PERMANENT_BACKEND_URL =
+  (import.meta.env?.VITE_BACKEND_URL as string | undefined)?.replace(/\/$/, '') ||
+  'https://spin71-bet.onrender.com';
+
 export const getBackendUrl = () => {
   const currentOrigin = window.location.origin;
-  
-  // If we are on the actual backend domain (Cloud Run), use relative paths
-  if (currentOrigin.includes('run.app')) {
+
+  // If we are already on the backend host itself, use relative paths.
+  if (currentOrigin.includes('run.app') || currentOrigin.includes('onrender.com')) {
     return currentOrigin;
   }
-  
-  // Local development
+
+  // Local development: the dev server (tsx server.ts) serves the API too.
   if (currentOrigin.includes('localhost') || currentOrigin.includes('127.0.0.1')) {
     return currentOrigin;
   }
-  
-  // Netlify or external custom domains do not host the Node.js SSE engine.
-  // We route their backend api/requests to our active Cloud Run container.
-  // We prioritize the Dev URL if we detect we're likely in a developer context, otherwise use Shared Pre.
-  const devUrl = 'https://ais-dev-wxllhxlbpwpt7cv6zg665n-782256449109.asia-southeast1.run.app';
-  const preUrl = 'https://ais-pre-wxllhxlbpwpt7cv6zg665n-782256449109.asia-southeast1.run.app';
-  
-  // Fallback to shared preview as standard production bridge
-  return preUrl;
+
+  // Vercel/Netlify/custom domains only host the static frontend. Route all
+  // API + SSE requests to the permanent Render backend.
+  return PERMANENT_BACKEND_URL;
 };
 
