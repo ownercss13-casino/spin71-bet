@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, X, MessageCircle, User, Loader2, Trash2, Mail } from 'lucide-react';
+import { Send, X, MessageCircle, User, Loader2, Trash2, Mail, Headset } from 'lucide-react';
 import { getAIResponse } from '../services/geminiService';
 import SupportContactForm from './SupportContactForm';
 import { db } from '../services/firebase';
@@ -210,7 +210,28 @@ export default function SupportChat({
 
           {/* Messages Area */}
           <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#0a2a22]">
-            {view === 'chat' ? (
+            {!userData?.id ? (
+              <div className="flex flex-col items-center justify-center h-full text-center space-y-6 px-6 py-12">
+                <div className="w-16 h-16 rounded-full bg-teal-900/50 flex items-center justify-center border border-teal-800 shadow-xl">
+                  <Headset className="text-yellow-500 animate-bounce" size={32} />
+                </div>
+                <div className="space-y-2">
+                  <h4 className="text-white font-bold text-base">লাইভ সাপোর্ট চ্যাট (Live Support)</h4>
+                  <p className="text-teal-300 text-xs leading-relaxed max-w-[280px] mx-auto">
+                    আমাদের এজেন্টদের সাথে সরাসরি কথা বলতে এবং আপনার যেকোনো সমস্যার সমাধান করতে দয়া করে অ্যাকাউন্টে লগইন করুন।
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    onClose();
+                    window.dispatchEvent(new CustomEvent('openLoginModal'));
+                  }}
+                  className="w-full bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-black font-extrabold py-3 px-6 rounded-xl shadow-lg transform transition active:scale-95 text-xs tracking-wider"
+                >
+                  লগইন / রেজিস্টার করুন
+                </button>
+              </div>
+            ) : view === 'chat' ? (
                 <>
                 {chatHistory.length === 0 && (
                   <div className="flex flex-col items-center justify-center h-full text-center space-y-4 px-8">
@@ -275,25 +296,31 @@ export default function SupportChat({
 
           {/* Input Area */}
           <div className="p-4 bg-teal-950 border-t border-teal-800">
-            <form onSubmit={handleSendMessage} className="flex gap-2">
-              <input
-                type="text"
-                value={chatMessage}
-                onChange={(e) => {
-                  setChatMessage(e.target.value);
-                  setIsUserTyping(e.target.value.length > 0);
-                }}
-                placeholder="মেসেজ লিখুন..."
-                className="flex-1 bg-teal-900 border border-teal-700 rounded-full px-4 py-2 text-white text-sm focus:outline-none focus:border-yellow-500 transition-colors"
-              />
-              <button
-                type="submit"
-                disabled={!chatMessage.trim()}
-                className="w-10 h-10 rounded-full bg-yellow-500 text-black flex items-center justify-center disabled:opacity-50 disabled:bg-teal-800 disabled:text-teal-600 transition-all active:scale-95"
-              >
-                <Send size={18} />
-              </button>
-            </form>
+            {userData?.id ? (
+              <form onSubmit={handleSendMessage} className="flex gap-2">
+                <input
+                  type="text"
+                  value={chatMessage}
+                  onChange={(e) => {
+                    setChatMessage(e.target.value);
+                    setIsUserTyping(e.target.value.length > 0);
+                  }}
+                  placeholder="মেসেজ লিখুন..."
+                  className="flex-1 bg-teal-900 border border-teal-700 rounded-full px-4 py-2 text-white text-sm focus:outline-none focus:border-yellow-500 transition-colors"
+                />
+                <button
+                  type="submit"
+                  disabled={!chatMessage.trim()}
+                  className="w-10 h-10 rounded-full bg-yellow-500 text-black flex items-center justify-center disabled:opacity-50 disabled:bg-teal-800 disabled:text-teal-600 transition-all active:scale-95"
+                >
+                  <Send size={18} />
+                </button>
+              </form>
+            ) : (
+              <div className="text-center py-1 text-teal-400 text-[11px] font-medium bg-teal-900/30 border border-teal-800/50 rounded-xl">
+                চ্যাট করতে প্রথমে লগইন করুন
+              </div>
+            )}
             <div className="flex flex-col gap-2 mt-2">
               <p className="text-[10px] text-teal-500 text-center">
                 সরাসরি যোগাযোগ করুন:

@@ -14,6 +14,7 @@ import LanguageSwitcher from '../components/LanguageSwitcher';
 import WithdrawalHistoryTab from './WithdrawalHistoryTab';
 import ImageCropper from '../components/ui/ImageCropper';
 import ShareModal from '../components/modals/ShareModal';
+import LoadingSpinner from "../components/ui/LoadingSpinner";
 import { getReferralLink, getBackendUrl } from '../config';
 import { VIP_LEVELS, getVIPLevel, getNextVIPLevel } from '../constants/vipLevels';
 import VIPBadge from '../components/VIPBadge';
@@ -471,7 +472,7 @@ export default function ProfileView({
   const profileData = userData;
 
   return (
-    <div className="flex-1 flex flex-col overflow-y-auto pb-20 bg-[#0d1a29]">
+    <div className={`flex-1 flex flex-col overflow-y-auto ${activeSubTab === 'dashboard' ? 'bg-[#F7F8FA]' : 'bg-[#0d1a29] pb-20'}`}>
       {selectedImage && (
         <ImageCropper 
           image={selectedImage} 
@@ -484,10 +485,7 @@ export default function ProfileView({
       <div className="relative min-h-screen">
         {isTabLoading && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#0b0b0b]/60 backdrop-blur-[2px] rounded-2xl">
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 size={40} className="text-yellow-500 animate-spin" />
-              <span className="text-teal-200 text-xs font-bold animate-pulse">লোড হচ্ছে...</span>
-            </div>
+            <LoadingSpinner size="md" message="ডেটা লোড হচ্ছে..." />
           </div>
         )}
         
@@ -547,7 +545,11 @@ export default function ProfileView({
         {activeSubTab === 'history' && <HistoryTab userData={userData} onBack={() => handleSubTabChange('dashboard')} />}
         {activeSubTab === 'withdrawHistory' && <WithdrawalHistoryTab userData={userData} onBack={() => handleSubTabChange('dashboard')} />}
         {activeSubTab === 'links' && <LinksTab onTabChange={onTabChange} onSubTabChange={handleSubTabChange} showToast={showToast} />}
-        {activeSubTab === 'withdraw' && <div className="p-8 text-center text-white/50 text-xs italic">উত্তোলন পেজ লোড হচ্ছে... (Loading Withdraw Page...)</div>}
+        {activeSubTab === 'withdraw' && (
+          <div className="p-8">
+            <LoadingSpinner size="md" message="ডেটা লোড হচ্ছে..." />
+          </div>
+        )}
         
         {activeSubTab === 'betting-record' && <HistoryTab userData={userData} onBack={() => handleSubTabChange('dashboard')} />}
         {activeSubTab === 'deposit-record' && <DepositHistoryTab userData={userData} onBack={() => handleSubTabChange('dashboard')} />}
@@ -2185,8 +2187,8 @@ function DepositHistoryTab({ userData, onBack }: { userData?: any, onBack: () =>
 
       <div className="space-y-4">
         {isLoading ? (
-          <div className="flex justify-center p-8">
-            <span className="text-teal-500 font-bold">লোড হচ্ছে...</span>
+          <div className="p-8">
+            <LoadingSpinner size="md" message="ডেটা লোড হচ্ছে..." />
           </div>
         ) : filteredTransactions.length > 0 ? (
           <div className="overflow-x-auto rounded-[28px] border border-teal-800/30 bg-teal-900/40 shadow-lg">
@@ -2304,8 +2306,8 @@ function AccountRecordTab({ userData, onBack }: { userData?: any, onBack: () => 
       
       <div className="space-y-4">
         {isLoading ? (
-          <div className="flex justify-center p-8">
-            <span className="text-teal-500 font-bold">লোড হচ্ছে...</span>
+          <div className="p-8">
+            <LoadingSpinner size="md" message="ডেটা লোড হচ্ছে..." />
           </div>
         ) : transactions.length > 0 ? (
             transactions.map(trx => (
@@ -2548,9 +2550,8 @@ function SupportTicketsTab({ userData, showToast, onBack }: { userData: any, sho
       </div>
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <Loader2 size={40} className="text-teal-500 animate-spin" />
-          <p className="text-teal-400 text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">টিকিট লোড হচ্ছে...</p>
+        <div className="py-20">
+          <LoadingSpinner size="md" message="ডেটা লোড হচ্ছে..." />
         </div>
       ) : (
         <div className="space-y-6">
@@ -2853,27 +2854,15 @@ function HelpCenterTab({ onBack, onSubTabChange, telegramLink, whatsappLink }: {
 function OverviewTab(props: OverviewTabProps) {
   const { 
     onTabChange, 
-    onSubTabChange, 
+    onSubTabChange,
     balance, 
     isRefreshing, 
     onRefresh, 
-    profileData, 
     userData, 
-    onEditProfile, 
-    totals, 
-    setShowAgentPanel, 
-    setIsChatOpen, 
-    setIsTurnoverInfoModalOpen,
-    casinoName,
-    onEditCasinoName,
     onOpenBankCards,
     onLogout,
-    onOpenVIPDetails,
     onOpenVIPInfo,
     showToast,
-    onShareProgress,
-    setIsNotificationCenterOpen,
-    unreadNotificationsCount,
     onEditProfilePic,
     profilePic,
     onInstallApp,
@@ -2881,307 +2870,200 @@ function OverviewTab(props: OverviewTabProps) {
     whatsappLink
   } = props;
 
-
-  const [showNotification, setShowNotification] = useState(false);
-
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     showToast("কপি করা হয়েছে!", "success");
   };
 
-  const menuRows: { title: string; subtitle?: string; icon: any; action: () => void; color: string; badge?: string }[] = [
-    { title: 'আমার রেকর্ড', subtitle: 'বিস্তারিত, বাজি, রিপোর্ট, ব্যালেন্স পুনরুদ্ধার', icon: ClipboardCheck, action: () => onSubTabChange('account-record'), color: 'text-yellow-500', badge: '' },
-    { title: 'প্রত্যাহার ব্যবস্থাপনা', icon: CreditCard, action: onOpenBankCards, color: 'text-red-500', badge: '' },
+  const getJoinDate = (createdAt: any) => {
+    if (!createdAt) return '2026-06-19';
+    try {
+      let date: Date;
+      if (typeof createdAt.toDate === 'function') {
+        date = createdAt.toDate();
+      } else if (createdAt.seconds) {
+        date = new Date(createdAt.seconds * 1000);
+      } else {
+        date = new Date(createdAt);
+      }
+      if (isNaN(date.getTime())) {
+        return '2026-06-19';
+      }
+      return date.toISOString().split('T')[0];
+    } catch (e) {
+      return '2026-06-19';
+    }
+  };
+
+  const menuItems = [
+    { id: 'reward-center', title: 'পুরস্কার সেন্টার', icon: Gift, action: () => onSubTabChange('reward-center'), color: 'text-[#1899F7]', bgColor: 'bg-blue-50' },
+    { id: 'betting-record', title: 'বেটিং রেকর্ড', icon: HistoryIcon, action: () => onSubTabChange('betting-record'), color: 'text-[#FE5A00]', bgColor: 'bg-orange-50' },
+    { id: 'profit-loss', title: 'লাভ এবং লস', icon: BarChart3, action: () => onSubTabChange('profit-loss'), color: 'text-emerald-500', bgColor: 'bg-emerald-50' },
+    { id: 'deposit-record', title: 'জমা রেকর্ড', icon: ClipboardList, action: () => onSubTabChange('deposit-record'), color: 'text-indigo-500', bgColor: 'bg-indigo-50' },
+    { id: 'withdraw-record', title: 'উত্তোলন রেকর্ড', icon: ArrowDownLeft, action: () => onSubTabChange('withdraw-record'), color: 'text-rose-500', bgColor: 'bg-rose-50' },
+    { id: 'account-record', title: 'অ্যাকাউন্ট রেকর্ড', icon: FileText, action: () => onSubTabChange('account-record'), color: 'text-amber-500', bgColor: 'bg-amber-50' },
+    { id: 'profile', title: 'আমার অ্যাকাউন্ট', icon: User, action: () => onSubTabChange('profile'), color: 'text-violet-500', bgColor: 'bg-violet-50' },
+    { id: 'security', title: 'সুরক্ষা কেন্দ্র', icon: ShieldCheck, action: () => onSubTabChange('security'), color: 'text-cyan-500', bgColor: 'bg-cyan-50' },
+    { id: 'invite', title: 'বন্ধুদের আমন্ত্রণ জানান', icon: UserPlus, action: () => onTabChange('invite'), color: 'text-[#FE5A00]', bgColor: 'bg-orange-50' },
+    { id: 'rebate', title: 'রিবেট', icon: Percent, action: () => onSubTabChange('rebate'), color: 'text-pink-500', bgColor: 'bg-pink-50' },
+    { id: 'mail', title: 'মেইল', icon: Mail, action: () => onSubTabChange('mail'), color: 'text-blue-500', bgColor: 'bg-blue-50' },
+    { id: 'feedback', title: 'পরামর্শ', icon: MessageSquare, action: () => onSubTabChange('feedback'), color: 'text-purple-500', bgColor: 'bg-purple-50' },
+    { id: 'app-download', title: 'অ্যাপ ডাউনলোড করুন', icon: Download, action: onInstallApp || (() => {}), color: 'text-sky-500', bgColor: 'bg-sky-50' },
+    { id: 'support', title: 'কাস্টমার সার্ভিস', icon: Headset, action: () => onSubTabChange('support'), color: 'text-[#FE5A00]', bgColor: 'bg-orange-50' },
+    { id: 'faq', title: 'সাহায্য কেন্দ্র', icon: HelpCircle, action: () => onTabChange('faq'), color: 'text-slate-500', bgColor: 'bg-slate-50' },
+    { id: 'logout', title: 'লগআউট', icon: LogOut, action: onLogout, color: 'text-red-500', bgColor: 'bg-red-50' },
   ];
 
-  const mainList: { title: string; subtitle?: string; icon: any; action: () => void; color: string; badge?: string }[] = [];
-
-  if (onInstallApp) {
-    mainList.push({ 
-      title: 'মোবাইল অ্যাপ ডাউনলোড (App Download)', 
-      subtitle: '১-ক্লিকে আসল স্পিড অ্যাপ ইনস্টল করুন', 
-      icon: Download, 
-      action: onInstallApp, 
-      color: 'text-green-400', 
-      badge: 'NEW' 
-    });
-  }
-
-  mainList.push(
-    { title: 'প্রচার', subtitle: 'শেয়ার করুন~ কমিশন পান', icon: Megaphone, action: () => onTabChange('invite'), color: 'text-yellow-500' },
-    { title: 'কেওয়াইসি ভেরিফিকেশন', subtitle: 'অ্যাকাউন্ট যাচাইকরণ', icon: ShieldCheck, action: () => onTabChange('kyc'), color: 'text-indigo-400', badge: 'SECURE' },
-    { title: 'টুরনামেন্ট ও লিডারবোর্ড', subtitle: 'গ্লোবাল র‍্যাঙ্কিং এ অংশ নিন', icon: Trophy, action: () => onTabChange('tournament'), color: 'text-yellow-400', badge: 'LIVE' },
-    { title: 'বেট হিস্ট্রি (History)', subtitle: 'আপনার সকল বেটের তালিকা', icon: HistoryIcon, action: () => onTabChange('history'), color: 'text-yellow-500' },
-    { title: 'রেফারেল ড্যাশবোর্ড', subtitle: 'Referral metrics and share links', icon: Users, action: () => onSubTabChange('referral-dashboard'), color: 'text-yellow-500' },
-    { title: 'সাপোর্ট (Support)', icon: Headset, action: () => onSubTabChange('support'), color: 'text-yellow-500' },
-    { title: 'সাপোর্ট টিকিট', subtitle: 'আপনার সমস্যার সমাধান ট্র্যাক করুন', icon: FileText, action: () => onSubTabChange('support-tickets'), color: 'text-yellow-500', badge: 'NEW' },
-  );
-
-  const isAdmin = userData?.role === 'admin' || userData?.isAdmin === true || userData?.email === 'owner.css13@gmail.com' || userData?.email === 'cutelegend7045@gmail.com' || userData?.email === 'xsaber7644@gmil.com' || userData?.id === 'vxjksOlXuChe3OjfYmpxBsJcwLH2';
-
-  if (isAdmin) {
-    mainList.push({ 
-      title: 'Admin Panel', 
-      subtitle: 'Manage Users & Games', 
-      icon: Shield, 
-      action: () => onTabChange('admin'), 
-      color: 'text-red-500' 
-    });
-  }
-
-  if (userData?.role === 'agent' || isAdmin) {
-    mainList.push({ 
-      title: 'Agent Panel', 
-      subtitle: 'Agent Management Dashboard', 
-      icon: Activity, 
-      action: () => setShowAgentPanel(true), 
-      color: 'text-teal-500' 
-    });
-  }
-
-  mainList.push(
-    { title: 'প্রোফাইল', icon: UserCircle, action: () => onSubTabChange('profile'), color: 'text-yellow-500' },
-    { title: 'নিরাপত্তা কেন্দ্র', icon: ShieldCheck, action: () => onSubTabChange('security'), color: 'text-yellow-500' },
-    { title: 'ভাষা (Language)', subtitle: 'বাংলা', icon: Globe, action: () => {}, color: 'text-yellow-500' },
-    { title: 'FAQ', icon: HelpCircle, action: () => onTabChange('faq'), color: 'text-yellow-500' },
-    { title: 'মতামত (Feedback)', icon: MessageSquare, action: () => onSubTabChange('feedback'), color: 'text-yellow-500' },
-    { title: 'ডিভাইস হিস্টরি', icon: Smartphone, action: () => {}, color: 'text-yellow-500' }
-  );
-
   return (
-    <div className="bg-[#0d1a29] min-h-screen flex flex-col font-sans">
-      {/* 1. Top Header */}
-      <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="relative pt-6 pb-16 px-4 overflow-hidden"
-      >
-        {/* Admin Dashboard Access Button - VIP Style */}
-        {(userData?.role === 'admin' || userData?.isAdmin === true || ['owner.css13@gmail.com', 'cutelegend7045@gmail.com', 'xsaber7644@gmil.com'].includes(userData?.email)) && (
-          <motion.div 
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="mb-6"
-          >
-            <button 
-              onClick={() => onTabChange('admin')}
-              className="w-full bg-gradient-to-r from-red-600 via-rose-600 to-red-600 p-4 rounded-3xl border border-white/20 shadow-xl shadow-red-600/20 flex items-center justify-between group overflow-hidden relative"
-            >
-               <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-150 transition-transform duration-1000" />
-               <div className="flex items-center gap-4 relative z-10">
-                  <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-white backdrop-blur-md border border-white/20 group-hover:rotate-12 transition-transform">
-                    <Shield size={24} />
-                  </div>
-                  <div className="text-left">
-                    <span className="text-lg font-black text-white italic tracking-tighter block uppercase">এডমিন প্যানেল</span>
-                    <span className="text-[9px] font-bold text-red-200 uppercase tracking-widest leading-none">Admin Control Center</span>
-                  </div>
-               </div>
-               <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white shrink-0 group-hover:translate-x-1 transition-transform">
-                  <ChevronRight size={20} />
-               </div>
-            </button>
-          </motion.div>
-        )}
-        {/* Abstract Background Patterns */}
-        <div className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-10">
-          <svg className="w-full h-full" viewBox="0 0 400 400" preserveAspectRatio="none">
-             <path d="M0,100 C150,200 350,0 400,100 L400,400 L0,400 Z" fill="currentColor" className="text-teal-200" />
-          </svg>
-        </div>
+    <div className="bg-[#F7F8FA] min-h-screen flex flex-col font-sans overflow-x-hidden">
+      {/* Navbar matching mc-navbar-blue */}
+      <div className="bg-[#1899F7] text-white flex items-center h-14 px-4 shrink-0 shadow-md relative z-20">
+        <button onClick={() => onTabChange('home')} className="p-1 active:opacity-60 transition-opacity">
+          <ChevronLeft size={28} strokeWidth={2.5} />
+        </button>
+        <h1 className="flex-1 text-center text-[19px] font-black tracking-tight">আমার অ্যাকাউন্ট</h1>
+        <div className="w-10" />
+      </div>
 
-        {/* Top Icons & Balance Header */}
-        <div className="flex justify-between items-center mb-6 relative z-10">
-          <button onClick={() => onTabChange('home')} className="text-white">
-            <ChevronLeft size={28} />
-          </button>
-          
-          <motion.div 
-            initial={{ x: 20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            className="flex items-center gap-3 bg-gradient-to-br from-teal-800/80 to-teal-950/80 px-4 py-2.5 rounded-3xl border border-white/10 shadow-lg shadow-black/20"
+      <div className="flex-1 overflow-y-auto">
+        {/* Header Section matching default-member-wrapper */}
+        <div className="px-3 pt-4 pb-2">
+          <div 
+            className="rounded-[32px] p-6 relative overflow-hidden shadow-lg border border-white/40"
+            style={{ background: 'linear-gradient(248deg, #D9E4F5 0%, #F5F9FF 100%)' }}
           >
-             <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-[#1eec2a]/30 flex-shrink-0 relative bg-[#006a4e] shadow-lg flex items-center justify-center">
-                <div className="w-4 h-4 bg-[#f42a41] rounded-full"></div>
-             </div>
-             <div className="flex flex-col">
-                <span className="text-[9px] text-teal-300 font-black uppercase tracking-widest leading-none mb-0.5 ml-0.5 opacity-70">Balance</span>
-                <AnimatedBalance value={balance} decimals={2} className="text-white font-black text-xl tracking-tight leading-none truncate max-w-[120px] md:max-w-none" />
-             </div>
-             <button 
-               onClick={onRefresh}
-               className={`p-1.5 hover:bg-white/10 rounded-full transition-all active:scale-90 ${isRefreshing ? 'animate-spin' : ''}`}
-             >
-                <RefreshCw size={18} className="text-white/80" />
-             </button>
-          </motion.div>
-        </div>
+            {/* VIP Icon at top right */}
+            <div className="absolute top-6 right-6">
+              <div className="relative group">
+                <div className="absolute inset-0 bg-yellow-400/20 blur-xl rounded-full scale-150 animate-pulse" />
+                <img 
+                  src="https://www.77hbajee.com/mobile/mc/lv3.6bfbdb78.png" 
+                  alt="VIP" 
+                  className="w-14 h-14 object-contain drop-shadow-xl relative z-10"
+                />
+              </div>
+            </div>
 
-        {/* Profile Info Row */}
-        <div className="flex items-center gap-3 relative z-10">
-          <motion.div 
-            initial={{ scale: 0.8 }}
-            animate={{ scale: 1 }}
-            className="relative"
-          >
-             <div className="w-16 h-16 rounded-full border-2 border-white overflow-hidden bg-white">
-               {profilePic ? (
-                 <img 
-                   src={profilePic} 
-                   className="w-full h-full object-cover" 
-                   alt="User"
-                   referrerPolicy="no-referrer"
-                 />
-               ) : (
-                 <img 
-                   src="https://www.image2url.com/r2/default/images/1779828873931-409cfe92-d243-4926-91bd-67da3a1e0adc.png" 
-                   className="w-full h-full object-cover" 
-                   alt="User"
-                   referrerPolicy="no-referrer"
-                 />
-               )}
-             </div>
-             <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-white rounded-full flex items-center justify-center shadow-md cursor-pointer" onClick={onEditProfilePic}>
-               <Camera size={14} className="text-teal-700" />
-             </div>
-             <div className="absolute top-0 left-0 w-3 h-3 bg-red-500 rounded-full border-2 border-[#0d1a29]" />
-          </motion.div>
-          
-          <div className="flex-1">
-             <div className="flex items-center justify-between">
-               <div className="flex items-center gap-1 text-white">
-                 <ChevronDown size={14} />
-                 <span className="font-bold text-lg">{userData?.username || 'user'}</span>
-                 <button 
-                   onClick={onOpenVIPInfo}
-                   className="flex items-center gap-1 p-1 px-2 ml-2 bg-white/10 hover:bg-white/20 rounded-md transition-colors text-teal-200 hover:text-white text-[10px] font-bold border border-white/5"
-                 >
-                   VIP-{userData?.vipLevel || 0}
-                 </button>
-               </div>
-               <LanguageSwitcher />
-             </div>
-             <div className="flex items-center gap-2 mt-1">
-                <span className="text-teal-100 text-sm font-medium">ID : {userData?.id?.substring(0, 9) || '123456789'}</span>
-                <button onClick={() => copyToClipboard(userData?.id || '')} className="flex items-center gap-1 p-1 bg-white/10 hover:bg-white/20 rounded-md transition-colors text-teal-200 hover:text-white">
-                   <Copy size={12} className="text-teal-200" />
-                   <span className="text-[10px] font-bold">কপি</span>
-                </button>
-             </div>
+            {/* Profile Info Row */}
+            <div className="flex items-center gap-4 mt-6 mb-6">
+              <div className="relative" onClick={onEditProfilePic}>
+                <div className="w-[80px] h-[80px] rounded-full border-[3px] border-white overflow-hidden bg-gray-100 shadow-lg ring-4 ring-[#1899F7]/10">
+                  {profilePic ? (
+                    <img src={profilePic} className="w-full h-full object-cover" alt="User" referrerPolicy="no-referrer" />
+                  ) : (
+                    <img src="https://images.484930494.com//TCG_PROD_IMAGES/B2C/01_PROFILE/PROFILE/0.png" className="w-full h-full object-cover" alt="User" referrerPolicy="no-referrer" />
+                  )}
+                </div>
+                <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-[#1899F7] rounded-full flex items-center justify-center shadow-lg border-2 border-white text-white">
+                  <Camera size={16} />
+                </div>
+              </div>
+
+              <div className="flex-1 pt-1">
+                <div className="flex items-center flex-wrap gap-2 mb-1.5">
+                  <div className="flex items-center gap-1.5 active:opacity-60 transition-opacity" onClick={() => copyToClipboard(userData?.username || '')}>
+                    <span className="text-gray-900 font-black text-xl italic tracking-tight">{userData?.username || 'user'}</span>
+                    <Copy size={16} className="text-gray-400" />
+                  </div>
+                  <div className="bg-gradient-to-r from-yellow-400 to-amber-500 rounded-lg px-2.5 py-0.5 flex items-center gap-1 shadow-sm">
+                    <Crown size={12} className="text-white fill-white" />
+                    <span className="text-[11px] font-black text-white italic">VIP{userData?.vipLevel || 0}</span>
+                  </div>
+                </div>
+                
+                <div className="flex flex-col gap-1">
+                   <div className="flex items-center gap-1.5">
+                     <span className="text-gray-500 text-[12px] font-bold">ডাকনাম:</span>
+                     <span className="text-gray-800 text-[12px] font-black">{userData?.username || 'user'}</span>
+                     <button onClick={() => onSubTabChange('profile')} className="p-1 hover:scale-110 transition-transform">
+                       <Edit size={14} className="text-[#1899F7]" />
+                     </button>
+                   </div>
+                   <div className="flex items-center gap-1.5">
+                     <span className="text-gray-500 text-[12px] font-bold">যোগদান:</span>
+                     <span className="text-gray-800 text-[12px] font-black">
+                       {getJoinDate(userData?.createdAt)}
+                     </span>
+                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Balance Section matching amount-balance-common */}
+            <div className="flex items-center justify-between bg-white/70 backdrop-blur-md rounded-[28px] p-6 border border-white shadow-md">
+              <div className="flex flex-col">
+                <span className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-1 ml-1">মোট ব্যালেন্স</span>
+                <div className="flex items-center">
+                  <AnimatedBalance 
+                    value={balance} 
+                    decimals={2} 
+                    showCurrency={true}
+                    className="text-gray-900 font-black text-[36px] leading-none tracking-tight" 
+                  />
+                </div>
+              </div>
+              <button 
+                onClick={onRefresh}
+                className={`w-12 h-12 rounded-full bg-gradient-to-br from-white to-gray-50 flex items-center justify-center text-[#1899F7] shadow-lg border border-white transition-all active:scale-90 active:rotate-180 duration-500 ${isRefreshing ? 'animate-spin' : ''}`}
+              >
+                <RefreshCw size={26} strokeWidth={2.5} />
+              </button>
+            </div>
+
+            {/* Footer Actions matching default-member-footer */}
+            <div className="grid grid-cols-3 gap-3 mt-5">
+              <button 
+                onClick={() => onTabChange('deposit')}
+                className="bg-white/80 hover:bg-white rounded-2xl py-4 text-center transition-all shadow-sm border border-white/50 active:scale-95"
+              >
+                <span className="text-gray-800 text-[13px] font-black italic tracking-tight">জমা দিন</span>
+              </button>
+              <button 
+                onClick={() => onSubTabChange('withdraw')}
+                className="bg-white/80 hover:bg-white rounded-2xl py-4 text-center transition-all shadow-sm border border-white/50 active:scale-95"
+              >
+                <span className="text-gray-800 text-[13px] font-black italic tracking-tight">উত্তোলন</span>
+              </button>
+              <button 
+                onClick={onOpenBankCards}
+                className="bg-white/80 hover:bg-white rounded-2xl py-4 text-center transition-all shadow-sm border border-white/50 active:scale-95"
+              >
+                <span className="text-gray-800 text-[13px] font-black italic tracking-tight">আমার কার্ড</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* VIP Progress Bar */}
-        <div className="mt-6 px-2">
-           <div className="flex justify-between items-center mb-1">
-              <span className="text-[10px] text-teal-100 font-bold uppercase tracking-widest leading-none">VIP Level Progress</span>
-              <span className="text-[10px] text-teal-100 font-black tracking-widest leading-none">{userData?.vipPoints || 0} / {userData?.vipLevel === 0 ? 100 : userData?.vipLevel === 1 ? 500 : userData?.vipLevel === 2 ? 2000 : 10000}</span>
-           </div>
-           <div className="h-2 w-full bg-black/20 rounded-full overflow-hidden border border-white/5">
-              <motion.div 
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.min(100, ((userData?.vipPoints || 0) / (userData?.vipLevel === 0 ? 100 : userData?.vipLevel === 1 ? 500 : userData?.vipLevel === 2 ? 2000 : 10000)) * 100)}%` }}
-                className="h-full bg-gradient-to-r from-yellow-400 to-yellow-600 shadow-[0_0_10px_rgba(234,179,8,0.5)]"
-              />
-           </div>
+        {/* Member Center Title matching n-nav-list-title */}
+        <div className="px-4 py-4">
+          <div className="flex items-center gap-3 border-l-[5px] border-[#1899F7] pl-3">
+            <h2 className="text-gray-900 font-black text-base uppercase tracking-wider italic">সদস্য সেন্টার</h2>
+          </div>
         </div>
 
-        {/* Quick Actions (Dashboard level) Staggered */}
-        <div className="grid grid-cols-3 gap-4 mt-8 relative z-10 px-2">
-           {[
-             { label: 'উত্তোলন', icon: Wallet, action: () => onSubTabChange('withdraw') },
-             { label: 'জমা', icon: CreditCard, action: () => onTabChange('deposit'), badge: '+5%' },
-             { label: 'কুপন', icon: Percent, action: () => onSubTabChange('reward-center') }
-           ].map((item, i) => (
-             <motion.button 
-               key={i}
-               initial={{ opacity: 0, y: 10 }}
-               animate={{ opacity: 1, y: 0 }}
-               transition={{ delay: 0.1 + i * 0.1 }}
-               onClick={item.action} 
-               className="flex flex-col items-center gap-2 group"
-             >
-                <div className="w-14 h-14 bg-teal-800/40 rounded-2xl flex items-center justify-center text-white border border-teal-700/30 group-hover:bg-teal-700/50 transition-all">
-                   <item.icon size={32} />
+        {/* Menu Grid matching main-nav-list */}
+        <div className="px-3 pb-10">
+          <div className="grid grid-cols-4 gap-y-8 gap-x-1 bg-white rounded-[32px] p-6 shadow-sm border border-gray-100/80">
+            {menuItems.map((item) => (
+              <button 
+                key={item.id}
+                onClick={item.action}
+                className="flex flex-col items-center gap-2.5 group active:scale-90 transition-transform"
+              >
+                <div className={`w-[52px] h-[52px] rounded-[18px] ${item.bgColor || 'bg-[#F7F8FA]'} flex items-center justify-center ${item.color} shadow-sm border border-gray-50/50 group-hover:bg-white transition-colors relative overflow-visible`}>
+                  <item.icon size={28} strokeWidth={2} />
+                  {item.id === 'reward-center' && (
+                    <div className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 bg-[#FF3B30] rounded-full flex items-center justify-center text-[10px] font-black text-white border-2 border-white shadow-sm px-1">2</div>
+                  )}
                 </div>
-                <span className="text-white text-xs font-medium">{item.label}</span>
-                {item.badge && <div className="absolute top-0 right-0 bg-green-500 text-white text-[8px] px-1.5 py-0.5 rounded-full font-bold">{item.badge}</div>}
-             </motion.button>
-           ))}
+                <span className="text-gray-600 text-[11px] font-bold text-center leading-[1.2] line-clamp-2 px-0.5">
+                  {item.title}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
-      </motion.div>
-
-      {/* 2. Main Content Area */}
-      <motion.div 
-        initial={{ y: 100 }}
-        animate={{ y: 0 }}
-        transition={{ type: "spring", damping: 20, stiffness: 100 }}
-        className="bg-[#0d1a29] flex-1 rounded-t-[40px] px-4 pt-6 -mt-8 relative shadow-2xl"
-      >
-        
-        
-        {/* Menu Items */}
-        <div className="space-y-4 pb-12">
-           {/* Section 1 */}
-           <motion.div 
-             initial={{ opacity: 0 }}
-             animate={{ opacity: 1 }}
-             transition={{ delay: 0.4 }}
-             className="bg-[#14253a]/30 rounded-[24px] overflow-hidden"
-           >
-              {menuRows.map((item, idx) => (
-                <button 
-                  key={idx} 
-                  onClick={item.action} 
-                  className={`w-full flex items-center gap-4 p-5 hover:bg-white/5 transition-all text-white border-b border-white/5 last:border-0`}
-                >
-                  <div className={`p-2 rounded-xl bg-white/10 ${item.color}`}>
-                     <item.icon size={28} />
-                  </div>
-                  <div className="flex-1 text-left">
-                     <p className="font-bold text-sm tracking-tight">{item.title}</p>
-                     {item.subtitle && <p className="text-[10px] text-teal-200 opacity-60 leading-tight mt-0.5">{item.subtitle}</p>}
-                  </div>
-                  <ChevronRight size={20} className="text-white/20" />
-                </button>
-              ))}
-           </motion.div>
-
-           {/* Section 2 (List format like image) */}
-           <div className="space-y-1">
-              {mainList.map((item, idx) => (
-                <motion.button 
-                  key={idx} 
-                  initial={{ opacity: 0, x: -10 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: idx * 0.05 }}
-                  onClick={item.action} 
-                  className="w-full flex items-center gap-4 p-5 hover:bg-white/5 transition-all text-white"
-                >
-                  <div className="text-white/80">
-                     <item.icon size={28} strokeWidth={1.5} />
-                  </div>
-                  <div className="flex-1 text-left flex items-center justify-between">
-                     <p className="font-bold text-sm tracking-tight">{item.title}</p>
-                     <div className="flex items-center gap-2">
-                        {item.subtitle && <span className="text-[11px] text-white/40">{item.subtitle}</span>}
-                        {item.badge && (
-                           <div className="flex items-center gap-1 bg-green-500 px-2 py-0.5 rounded-full">
-                              <Gift size={12} className="text-white" />
-                              <span className="text-[10px] font-black text-white">{item.badge}</span>
-                           </div>
-                        )}
-                        <ChevronRight size={20} className="text-white/20" />
-                     </div>
-                  </div>
-                </motion.button>
-              ))}
-           </div>
-           
-
-        </div>
-      </motion.div>
+      </div>
     </div>
   );
 }

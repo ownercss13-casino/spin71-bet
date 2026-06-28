@@ -178,7 +178,7 @@ try {
   console.warn("[Firebase] Failed to setup file-backed localStorage:", err.message);
 }
 
-let useFallbackConfig = process.env.RENDER === "true";
+let useFallbackConfig = false;
 let hasRealAdminCredential = false;
 
 const firebaseConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
@@ -250,9 +250,10 @@ if (!originalAdmin.apps.length) {
     };
     if (credential) {
       initOptions.credential = credential;
+      useFallbackConfig = false;
+      hasRealAdminCredential = true;
     } else {
-      console.log("[Firebase] No admin credentials loaded. Ensuring fallback database configuration (useFallbackConfig = true) is active.");
-      useFallbackConfig = true;
+      console.log("[Firebase] No service account JSON found. Relying on Application Default Credentials or Fallback Mode.");
     }
     if (databaseURL) {
       initOptions.databaseURL = databaseURL;
@@ -421,6 +422,14 @@ class FakeCollection {
   
   async get() { 
     const qArgs = [...this._where, ...this._orderBy];
+    
+    // Automatically inject server secret filter for non-public collections to bypass rules constraints under client-auth fallback
+    const publicPaths = ['global_images', 'game_settings', 'metadata', 'config', 'promo_codes', 'game_live_bets', 'bets'];
+    const isPublic = publicPaths.some(p => this.path === p || this.path.startsWith(p + '/'));
+    if (!isPublic) {
+      qArgs.push(where('_serverSecret', '==', SERVER_SECRET));
+    }
+
     if (this._limit) qArgs.push(this._limit);
     let q;
     if (qArgs.length > 0) {
@@ -487,7 +496,7 @@ const admin = new Proxy(originalAdmin, {
                 try {
                   return await realAuth.verifyIdToken(token);
                 } catch (e) {
-                  if (token === 'owner.css13' || token === 'cutelegend7045' || token === 'xsaber7644') return { uid: 'owner-bypass', email: 'owner.css13@gmail.com' };
+                  if (token === 'owner.css13' || token === 'cutelegend7045') return { uid: 'owner-bypass', email: 'owner.css13@gmail.com' };
                   throw e;
                 }
               };
@@ -2049,7 +2058,11 @@ async function startServer() {
   console.log("[Server] Starting startServer sequence...");
   
   // Ensure Admin/Client Auth logic completes before starting background loops or processing requests
-  await runAdminConnectionProbe().catch(err => console.error("[Firebase] Admin connection probe failed:", err.message));
+  try {
+    await runAdminConnectionProbe();
+  } catch (err: any) {
+    console.error("[Firebase] Admin connection probe failed:", err.message);
+  }
   
   const app = express();
   app.use(express.json());
@@ -2057,6 +2070,8 @@ async function startServer() {
     origin: true,
     credentials: true
   }));
+
+
 
   const auth = admin.auth(); // Helper for easy access
 
@@ -2292,7 +2307,12 @@ async function startServer() {
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: process.env.NODE_ENV === 'production' }
+    cookie: {
+      secure: true,
+      sameSite: 'none',
+      httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1000 // 1 day
+    }
   }));
 
   // Initialize config asynchronously so it doesn't block the health check
@@ -2660,8 +2680,8 @@ async function startServer() {
       if (querySnapshot.empty) {
          const docById = await usersRef.doc(username).get();
          if (docById.exists) {
-            // Found by ID (some users might enter their UID)
-            // But we prefer finding by username for normal login
+            console.log(`[Auth API] Found user by direct document ID: "${username}"`);
+            querySnapshot = { empty: false, docs: [docById] } as any;
          }
       }
 
@@ -2711,11 +2731,23 @@ async function startServer() {
 
       // Generate custom auth token locally (No Identity Toolkit API needed)
       let customToken;
-      try {
-        customToken = await auth.createCustomToken(userDoc.id);
-      } catch (tokenErr) {
-        // Fallback: Generate custom mock JWT containing user's credentials to robustly survive fallback container environment
-        console.warn("[Auth API] auth.createCustomToken failed, generating custom mock JWT:", tokenErr);
+      let isMockToken = false;
+      
+      if (useFallbackConfig || !hasRealAdminCredential) {
+        isMockToken = true;
+      }
+      
+      if (!isMockToken) {
+        try {
+          customToken = await auth.createCustomToken(userDoc.id);
+        } catch (tokenErr) {
+          // Fallback: Generate custom mock JWT containing user's credentials to robustly survive fallback container environment
+          console.warn("[Auth API] auth.createCustomToken failed, generating custom mock JWT:", tokenErr);
+          isMockToken = true;
+        }
+      }
+
+      if (isMockToken) {
         const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString('base64').replace(/=/g, '');
         const payload = Buffer.from(JSON.stringify({
           uid: userDoc.id,
@@ -2727,16 +2759,20 @@ async function startServer() {
         const signature = "self_signed_mock_signature";
         customToken = `${header}.${payload}.${signature}`;
       }
+
       const userEmail = userData.email || `${username.toLowerCase()}@spin71bet1.aistudio`;
       const userBalance = userData.balance !== undefined ? userData.balance : 0;
       res.json({ 
         success: true, 
+        token: customToken, // Always supply customToken so client can verify mock JWT structure
         customToken, 
+        isMock: isMockToken,
         userId: userDoc.id,
         role: userData.role || 'user',
         username: userData.username || username,
         email: userEmail,
-        balance: userBalance
+        balance: userBalance,
+        fallback: isMockToken
       });
     } catch (error: any) {
       console.error("[Auth API] Login error:", error);
@@ -4308,7 +4344,7 @@ async function startServer() {
 
   // Helper to verify ID Token or fallback to unverified decoding if Auth/Identity Toolkit API is disabled
   async function verifyIdTokenOrFallback(token: string) {
-    if (token === 'owner.css13' || token === 'cutelegend7045' || token === 'xsaber7644') {
+    if (token === 'owner.css13' || token === 'cutelegend7045') {
       return { uid: 'owner-bypass', email: 'owner.css13@gmail.com' };
     }
     try {

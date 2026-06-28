@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { QRCodeSVG } from 'qrcode.react';
 import { motion } from 'motion/react';
+import LoadingSpinner from "../components/ui/LoadingSpinner";
 import { db } from "../services/firebase";
 import { collection, query, where, getDocs, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { 
@@ -34,7 +35,8 @@ import {
   Plane,
   Info,
   Download,
-  Loader2
+  Loader2,
+  RefreshCw
 } from "lucide-react";
 import { ToastType } from '../types';
 import { getReferralLink } from '../config';
@@ -282,9 +284,8 @@ export default function InviteView({
 
       <div className="flex-1 pb-24 bg-[#0b0c14] relative">
         {isTabLoading && (
-          <div className="absolute inset-0 z-50 bg-[#0b0c14] flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
-            <div className="w-12 h-12 border-4 border-yellow-500/10 border-t-yellow-500 rounded-full animate-spin shadow-[0_0_15px_rgba(234,179,8,0.3)]"></div>
-            <p className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.3em] animate-pulse">লোড হচ্ছে...</p>
+          <div className="absolute inset-0 z-50 bg-[#0b0c14] flex flex-col items-center justify-center animate-in fade-in duration-300">
+            <LoadingSpinner size="md" message="ডেটা লোড হচ্ছে..." />
           </div>
         )}
         

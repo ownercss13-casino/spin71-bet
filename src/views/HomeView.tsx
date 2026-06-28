@@ -8,6 +8,8 @@ import GlobalImage from '../components/ui/GlobalImage';
 import { DEFAULT_BANNERS } from '../constants/banners';
 import Skeleton from '../components/ui/Skeleton';
 import LiveBetsTicker from '../components/LiveBetsTicker';
+import MegaJackpotTicker from '../components/MegaJackpotTicker';
+// Removed LuckySpinWheel import
 
 import { useLanguage } from '../context/LanguageContext';
 import { LOCALIZED_STRINGS } from '../constants/localization';
@@ -98,6 +100,9 @@ interface HomeViewProps {
   onOpenLogin?: (mode?: 'login' | 'register') => void;
   setIsSupportChatOpen?: (open: boolean) => void;
   onInstallApp?: () => void;
+  onBalanceUpdate?: (newBalance: number) => void;
+  onUpdateUser?: (updates: any) => Promise<void>;
+  onAddTransaction?: (trx: any) => Promise<void>;
 }
 
 export default function HomeView({ 
@@ -143,7 +148,10 @@ export default function HomeView({
   onNavigate,
   onOpenLogin,
   setIsSupportChatOpen,
-  onInstallApp
+  onInstallApp,
+  onBalanceUpdate,
+  onUpdateUser,
+  onAddTransaction
 }: HomeViewProps) {
   const { strings } = useLanguage();
   const [editingCasinoName, setEditingCasinoName] = React.useState(false);
@@ -422,9 +430,15 @@ export default function HomeView({
           </div>
         </div>
         <div className="flex items-center gap-3 text-red-500">
-           <Gift size={18} className="cursor-pointer hover:scale-110 active:scale-95 transition-transform" onClick={() => onNavigate?.('bonus')} />
-           <Mail size={18} className="cursor-pointer hover:scale-110 active:scale-95 transition-transform" onClick={() => setIsNotificationCenterOpen(true)} />
+           <Gift size={18} className="cursor-pointer hover:scale-110 active:scale-95 transition-transform text-red-400" onClick={() => onNavigate?.('bonus')} />
+           <MessageSquare size={18} className="cursor-pointer hover:scale-110 active:scale-95 transition-transform text-teal-400" onClick={() => window.dispatchEvent(new CustomEvent('openGlobalChat'))} />
+           <Mail size={18} className="cursor-pointer hover:scale-110 active:scale-95 transition-transform text-blue-400" onClick={() => setIsNotificationCenterOpen(true)} />
         </div>
+      </div>
+
+      {/* Premium Live Mega Jackpot Billboard */}
+      <div className="px-3 pt-4">
+        <MegaJackpotTicker />
       </div>
 
       {/* Leaderboard Quick Access Card */}
@@ -449,6 +463,8 @@ export default function HomeView({
           </div>
         </motion.div>
       </div>
+
+
 
       {/* Game Search Bar */}
       <div className="px-3 pt-3 pb-1 bg-[#0d1a29]">

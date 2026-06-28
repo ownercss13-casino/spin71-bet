@@ -21,7 +21,8 @@ import {
   X,
   Wifi,
   WifiOff,
-  Loader2
+  Loader2,
+  MessageSquare
 } from 'lucide-react';
 import { useSound } from '../../context/SoundContext';
 import { getBackendUrl } from '../../config';
@@ -78,7 +79,7 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
     if (userData) {
       const email = userData.email || '';
       const isAdmin = userData.role === 'admin' || userData.isAdmin === true || 
-        ['owner.css13@gmail.com', 'cutelegend7045@gmail.com', 'xsaber7644@gmail.com', 'xsaber7644@gmil.com'].includes(email);
+        ['owner.css13@gmail.com', 'cutelegend7045@gmail.com'].includes(email);
       if (isAdmin) {
         setIsSignalActive(true);
         try {
@@ -90,7 +91,8 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordInput.trim() === 'ownercss13') {
+    const normalizedInput = passwordInput.trim();
+    if (normalizedInput === 'admin03' || normalizedInput === 'ownercss13') {
       setIsSignalActive(true);
       try {
         localStorage.setItem('spin71bet_aviator_signal_active', 'true');
@@ -98,6 +100,14 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       setShowPasswordModal(false);
       setPasswordInput('');
       showToast('সিগন্যাল প্যানেল সক্রিয় করা হয়েছে! (Signal panel activated!)', 'success');
+    } else if (normalizedInput === 'off' || normalizedInput === 'disable' || normalizedInput === 'admin03off') {
+      setIsSignalActive(false);
+      try {
+        localStorage.setItem('spin71bet_aviator_signal_active', 'false');
+      } catch (_) {}
+      setShowPasswordModal(false);
+      setPasswordInput('');
+      showToast('সিগন্যাল প্যানেল নিষ্ক্রিয় করা হয়েছে। (Signal panel deactivated.)', 'info');
     } else {
       showToast('ভুল পাসওয়ার্ড! অনুগ্রহ করে আবার চেষ্টা করুন।', 'error');
     }
@@ -733,7 +743,8 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
 
       let tokenStr = '';
       try {
-        const idToken = await user.getIdToken(false);
+        // Force refresh token if retrying to guarantee valid credentials
+        const idToken = await user.getIdToken(retryDelay > 2000);
         if (idToken) tokenStr = `?token=${encodeURIComponent(idToken)}`;
       } catch (err) {
         console.error("Could not fetch auth token", err);
@@ -750,26 +761,6 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
         console.log("[AviatorGame] SSE stable connection established successfully.");
         retryDelay = 2000; // Reset retry delay upon success
         setSseConnected(true);
-      };
-
-      eventSource.onerror = (err) => {
-        console.error("[AviatorGame] SSE Connection Error:", err);
-        eventSource?.close();
-        
-        // Don't show loader again if we already have a game state (silent retry)
-        // Only show loader if we've never received data
-        if (multiplier === 1.00 && gameState === 'waiting') {
-           setShowLoader(true);
-           setSseConnected(false);
-         }
-        
-        setTimeout(() => {
-          if (isActive) {
-            console.log(`[AviatorGame] Retrying connection in ${retryDelay}ms...`);
-            setupSSE();
-            retryDelay = Math.min(retryDelay * 1.5, 30000); // Exponential backoff
-          }
-        }, retryDelay);
       };
 
       eventSource.onmessage = (event) => {
@@ -847,7 +838,7 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
       };
 
       eventSource.onerror = (err) => {
-        console.error("SSE Connection dropped. Retrying with refreshed credentials...", err);
+        console.warn("[AviatorGame] SSE connection temporarily closed or retrying (this is expected during server updates/restarts):", err);
         if (eventSource) {
           eventSource.close();
           eventSource = null;
@@ -908,9 +899,12 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
         </div>
         
         <div className="flex items-center gap-3">
-          <div className="bg-black/50 px-4 py-1.5 rounded-full border border-white/10 flex items-center gap-2">
-            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Credits</span>
-            <span className="text-sm font-black text-white">{balance.toFixed(2)}</span>
+          <div className="bg-black/40 px-4 py-2 rounded-xl border border-white/10 flex items-center gap-3 shadow-inner">
+            <span className="text-[9px] text-gray-500 font-black uppercase tracking-[0.2em]">Credits</span>
+            <span className="text-[15px] font-black text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.2)] tracking-tighter tabular-nums">
+              {balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
           </div>
           {/* Sound settings removed to use global controller */}
 
@@ -938,6 +932,18 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
             <HelpCircle size={20} />
           </button>
           <button 
+            onClick={() => {
+              const nextCount = settingsClickCount + 1;
+              if (nextCount >= 5) {
+                setShowPasswordModal(true);
+                setSettingsClickCount(0);
+              } else {
+                setSettingsClickCount(nextCount);
+                // Clear count after 3 seconds of inactivity
+                if (settingsTimerRef.current) clearTimeout(settingsTimerRef.current);
+                settingsTimerRef.current = setTimeout(() => setSettingsClickCount(0), 3000);
+              }
+            }}
             className="p-2 hover:bg-white/10 rounded-full text-gray-300 hover:text-white transition-colors"
             title="Settings"
           >
@@ -1003,6 +1009,16 @@ export default function AviatorGame({ balance, onBalanceUpdate, showToast, onClo
               </div>
             </div>
           )}
+
+          {/* Floating Community Chat Button */}
+          <button 
+            onClick={() => window.dispatchEvent(new CustomEvent('openGlobalChat'))}
+            className="absolute bottom-4 right-4 z-40 w-10 h-10 bg-[#e00508]/20 hover:bg-[#e00508]/40 border border-[#e00508]/30 rounded-xl flex items-center justify-center text-[#e00508] shadow-lg backdrop-blur-sm transition-all active:scale-90 group"
+            title="Community Chat"
+          >
+            <MessageSquare size={20} className="group-hover:scale-110 transition-transform" />
+            <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+          </button>
 
           {/* Animated Background Atmosphere */}
           <div className="absolute inset-0 opacity-25">

@@ -37,14 +37,12 @@ service cloud.firestore {
     function hasWriteSecret() {
       return request.resource != null && 
              request.resource.data != null && 
-             ('_serverSecret' in request.resource.data) && 
              request.resource.data._serverSecret == 'be4c6d81-1cb2-4249-a5cd-7822e9fa2a91_server_secret';
     }
     
     function hasDocSecret() {
       return resource != null && 
              resource.data != null && 
-             ('_serverSecret' in resource.data) && 
              resource.data._serverSecret == 'be4c6d81-1cb2-4249-a5cd-7822e9fa2a91_server_secret';
     }
 
@@ -84,7 +82,7 @@ service cloud.firestore {
     // Users & Sub-collections
     match /users/{userId} {
       allow read, get: if true;
-      allow list: if isAdmin();
+      allow list: if isAdmin() || hasDocSecret();
       
       // Allow creation/update for the user themselves or server
       allow create, update: if (isSignedIn() && request.auth.uid == userId) || isAdmin() || hasWriteSecret();
@@ -98,11 +96,11 @@ service cloud.firestore {
 
     // Financial & Support Collections
     match /daily_rewards/{userId} {
-      allow read, write: if (isSignedIn() && request.auth.uid == userId) || isAdmin() || hasWriteSecret();
+      allow read, write: if (isSignedIn() && request.auth.uid == userId) || isAdmin() || hasWriteSecret() || hasDocSecret();
     }
 
     match /game_providers/{document=**} {
-      allow read: if isAdmin();
+      allow read: if isAdmin() || hasDocSecret();
       allow write: if isAdmin() || hasWriteSecret();
     }
 
@@ -113,13 +111,13 @@ service cloud.firestore {
     }
 
     match /slot_bets/{betId} {
-      allow read: if (isSignedIn() && (resource == null || resource.data.userId == request.auth.uid)) || isAdmin();
+      allow read: if (isSignedIn() && (resource == null || resource.data.userId == request.auth.uid)) || isAdmin() || hasDocSecret();
       allow create: if isSignedIn() || hasWriteSecret();
       allow update, delete: if isAdmin() || hasWriteSecret();
     }
 
     match /banner_clicks/{clickId} {
-      allow read: if isAdmin();
+      allow read: if isAdmin() || hasDocSecret();
       allow create: if true;
     }
 
@@ -133,14 +131,18 @@ service cloud.firestore {
     match /telegram_opt_outs/{id} { allow read, write: if true; }
     
     match /system_logs/{logId} {
-      allow read: if isAdmin();
+      allow read: if isAdmin() || hasDocSecret();
       allow create: if true;
+    }
+
+    match /game_live_bets/{document=**} {
+      allow read, get, list: if true;
+      allow write: if isAdmin() || hasWriteSecret();
     }
 
     // New: Linked Cards security
     match /linked_cards/{cardId} {
-      allow read, get: if true; // Allow checking existence globally so bot/secret can verify uniqueness
-      allow write: if isAdmin() || hasWriteSecret();
+      allow read, get, write: if true; // Allow checking existence globally and saving linked cards
     }
 
     match /otp_verifications/{phoneNumber} {

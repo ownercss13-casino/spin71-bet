@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { db } from '../services/firebase';
 import { collection, query, orderBy, limit, onSnapshot, getDocs, where } from 'firebase/firestore';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 interface LeaderboardUser {
   id: string;
@@ -195,9 +196,8 @@ export default function LeaderboardView({ onBack }: { onBack: () => void }) {
           </div>
 
           {loading ? (
-            <div className="p-20 flex flex-col items-center gap-4">
-              <RefreshCw className="text-yellow-500 animate-spin" size={40} />
-              <p className="text-teal-400 text-xs font-bold animate-pulse">ডেটা লোড হচ্ছে...</p>
+            <div className="py-12">
+              <LoadingSpinner size="md" message="ডেটা লোড হচ্ছে..." />
             </div>
           ) : (
             <div className="divide-y divide-[#1e3a5f]/20">

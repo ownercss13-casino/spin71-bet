@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowDownLeft, X, Clock } from 'lucide-react';
+import { ArrowDownLeft, X, Clock, RefreshCw } from 'lucide-react';
 import { db } from '../services/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import LoadingSpinner from './ui/LoadingSpinner';
 
 interface DepositHistorySectionProps {
   userData: any;
@@ -58,7 +59,11 @@ export default function DepositHistorySection({ userData }: DepositHistorySectio
   }, [userData?.id]);
 
   if (isLoading) {
-    return <div className="p-4 text-center text-sm font-bold text-teal-500">লোড হচ্ছে...</div>;
+    return (
+      <div className="p-10">
+        <LoadingSpinner size="md" message="ডেটা লোড হচ্ছে..." />
+      </div>
+    );
   }
 
   return (

@@ -157,7 +157,6 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
     props.userData?.isAdmin === true || 
     props.userData?.email === 'owner.css13@gmail.com' || 
     props.userData?.email === 'cutelegend7045@gmail.com' || 
-    props.userData?.email === 'xsaber7644@gmil.com' || 
     props.userData?.id === 'vxjksOlXuChe3OjfYmpxBsJcwLH2' ||
     props.userData?.id === 'r8FpP1k6Y5P67OOfmK5xWvS6rZJ2' || // Fallback user id
     props.userData?.id === '782256449109'; // Platform context ID potential
@@ -782,7 +781,24 @@ export default function AdminPanelView(props: AdminPanelViewProps) {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
             >
-              {activeTab === 'dashboard' && <DashboardOverview stats={trafficStats} serverInfo={serverInfo} users={users} transactions={transactions} bannerClicks={bannerClicks} />}
+              {activeTab === 'dashboard' && (
+                <DashboardOverview 
+                  stats={trafficStats} 
+                  serverInfo={serverInfo} 
+                  users={users} 
+                  transactions={transactions} 
+                  bannerClicks={bannerClicks} 
+                  onAdjustBalance={handleAdjustBalance}
+                  onApproveTrx={handleApproveTrx}
+                  onRejectTrx={handleRejectTrx}
+                  globalOptions={props.globalOptions}
+                  updateGlobalGameOption={props.updateGlobalGameOption}
+                  globalLogos={props.globalLogos}
+                  globalNames={props.globalNames}
+                  updateGlobalGameName={props.updateGlobalGameName}
+                  updateGlobalGameLogo={props.updateGlobalGameLogo}
+                />
+              )}
               {activeTab === 'retool' && <RetoolAdminSection showToast={showToast} />}
               {activeTab === 'users' && (
                 <UserManagement 
@@ -1044,11 +1060,130 @@ function AddBonusModal({ user, onClose, onSendBonus, isLoading }: any) {
   );
 }
 
-function DashboardOverview({ stats, users, transactions, serverInfo, bannerClicks = [] }: any) {
+function DashboardOverview({ 
+  stats, 
+  users, 
+  transactions, 
+  serverInfo, 
+  bannerClicks = [],
+  onAdjustBalance,
+  onApproveTrx,
+  onRejectTrx,
+  globalOptions,
+  updateGlobalGameOption,
+  globalLogos,
+  globalNames,
+  updateGlobalGameName,
+  updateGlobalGameLogo
+}: any) {
   const totalBalance = users.reduce((acc: number, u: any) => acc + (u.balance || 0), 0);
   const totalDeposits = transactions.filter((t: any) => t.type === 'deposit' && t.status === 'approved').reduce((acc: number, t: any) => acc + (Number(t.amount) || 0), 0);
   const totalWithdrawals = transactions.filter((t: any) => t.type === 'withdrawal' && t.status === 'approved').reduce((acc: number, t: any) => acc + (Number(t.amount) || 0), 0);
   const netProfit = totalDeposits - totalWithdrawals;
+
+  // Active Central States
+  const [balanceSearch, setBalanceSearch] = useState('');
+  const [selectedBalUser, setSelectedBalUser] = useState<any>(null);
+  const [adjustAmount, setAdjustAmount] = useState<string>('500');
+  const [isAdjusting, setIsAdjusting] = useState(false);
+
+  // Pending transactions needing approval
+  const [pendingActionId, setPendingActionId] = useState<string | null>(null);
+
+  // Active game config selector
+  const [selectedGameId, setSelectedGameId] = useState('aviator');
+  const [gameRate, setGameRate] = useState<number>(85);
+  const [gameMaxMult, setGameMaxMult] = useState<number>(100);
+  const [isSavingGame, setIsSavingGame] = useState(false);
+
+  // Helper to parse 'rate:85;max_mult:100' safely
+  const parseConfig = (configStr: string) => {
+    let rate = 85;
+    let max_mult = 100;
+    if (configStr) {
+      const parts = configStr.split(';');
+      for (const part of parts) {
+        const [key, val] = part.split(':');
+        if (key === 'rate') {
+          const parsed = parseInt(val, 10);
+          if (!isNaN(parsed)) rate = parsed;
+        } else if (key === 'max_mult') {
+          const parsed = parseInt(val, 10);
+          if (!isNaN(parsed)) max_mult = parsed;
+        }
+      }
+    }
+    return { rate, max_mult };
+  };
+
+  useEffect(() => {
+    if (globalOptions) {
+      const configStr = globalOptions[selectedGameId] || '';
+      const cfg = parseConfig(configStr);
+      setGameRate(cfg.rate);
+      setGameMaxMult(cfg.max_mult);
+    }
+  }, [selectedGameId, globalOptions]);
+
+  const matchedUsers = balanceSearch.trim() === '' 
+    ? [] 
+    : users.filter((u: any) => 
+        (u.username || '').toLowerCase().includes(balanceSearch.toLowerCase()) || 
+        (u.id || '').toLowerCase().includes(balanceSearch.toLowerCase()) ||
+        (u.phone || u.mobileNumber || '').includes(balanceSearch)
+      ).slice(0, 5);
+
+  const activeSelectedUser = selectedBalUser 
+    ? (users.find((u: any) => u.id === selectedBalUser.id) || selectedBalUser)
+    : null;
+
+  const handleQuickAdjust = async (amount: number) => {
+    if (!activeSelectedUser) return;
+    setIsAdjusting(true);
+    try {
+      await onAdjustBalance(activeSelectedUser.id, amount);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsAdjusting(false);
+    }
+  };
+
+  const pendingTrxs = transactions.filter((t: any) => t.status === 'pending');
+
+  const handleApprove = async (trx: any) => {
+    setPendingActionId(trx.id);
+    try {
+      await onApproveTrx(trx);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setPendingActionId(null);
+    }
+  };
+
+  const handleReject = async (trx: any) => {
+    setPendingActionId(trx.id);
+    try {
+      await onRejectTrx(trx);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setPendingActionId(null);
+    }
+  };
+
+  const handleSaveGame = async () => {
+    setIsSavingGame(true);
+    try {
+      const newStr = `rate:${gameRate};max_mult:${gameMaxMult}`;
+      await updateGlobalGameOption(selectedGameId, newStr);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSavingGame(false);
+    }
+  };
 
   // Memoized banner clicks analytics
   const bannerStats = React.useMemo(() => {
@@ -1146,6 +1281,273 @@ function DashboardOverview({ stats, users, transactions, serverInfo, bannerClick
         )}
       </div>
 
+      {/* Central Administrative Action Hub */}
+      <div className="bg-[#0d9488]/40 p-8 rounded-[32px] border border-white/10 shadow-2xl space-y-6">
+        <div>
+          <h2 className="text-xl font-black text-white uppercase tracking-tight flex items-center gap-2">
+            <ShieldCheck size={24} className="text-emerald-400" />
+            Central Administrative Action Hub (কেন্দ্রীয় প্রশাসনিক কন্ট্রোল হাব)
+          </h2>
+          <p className="text-xs font-bold text-teal-200 mt-1 uppercase tracking-wider">
+            Manage user balances, approve transaction requests, and update game settings instantly from one single screen.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* Column 1: Quick Balance Manager */}
+          <div className="bg-[#0c4e48] p-6 rounded-[24px] border border-white/5 flex flex-col justify-between space-y-4 shadow-lg">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 pb-2 border-b border-white/10">
+                <Wallet className="text-yellow-400" size={18} />
+                <h3 className="text-xs font-black uppercase tracking-widest text-white">Quick Balance Manager</h3>
+              </div>
+
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-teal-300" size={16} />
+                <input 
+                  type="text"
+                  placeholder="ব্যবহারকারীর নাম বা আইডি..."
+                  value={balanceSearch}
+                  onChange={(e) => setBalanceSearch(e.target.value)}
+                  className="w-full bg-black/20 border border-white/10 rounded-xl py-2.5 pl-9 pr-3 text-xs text-white placeholder-teal-600 focus:outline-none focus:border-emerald-500 font-bold"
+                />
+              </div>
+
+              {matchedUsers.length > 0 && (
+                <div className="bg-[#062421] border border-white/10 rounded-xl overflow-hidden divide-y divide-white/5 text-xs">
+                  {matchedUsers.map((u: any) => (
+                    <button 
+                      key={u.id}
+                      onClick={() => {
+                        setSelectedBalUser(u);
+                        setBalanceSearch('');
+                      }}
+                      className="w-full px-4 py-2 text-left hover:bg-white/5 flex items-center justify-between text-teal-100"
+                    >
+                      <span className="font-bold">{u.username}</span>
+                      <span className="font-mono text-[10px] text-teal-400">৳{(u.balance || 0).toLocaleString()}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {activeSelectedUser ? (
+                <div className="bg-black/10 p-4 rounded-xl border border-white/5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-black text-white">{activeSelectedUser.username}</p>
+                      <p className="text-[9px] font-bold text-teal-300 font-mono">ID: {activeSelectedUser.id.substring(0, 10)}...</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-teal-200">Current Balance</p>
+                      <p className="text-xs font-black text-emerald-400">৳{(activeSelectedUser.balance || 0).toLocaleString()}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pt-2 border-t border-white/5">
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="number"
+                        value={adjustAmount}
+                        onChange={(e) => setAdjustAmount(e.target.value)}
+                        className="w-full bg-black/30 border border-white/10 rounded-lg py-2 px-3 text-xs text-center text-white font-black font-mono focus:outline-none focus:border-emerald-500"
+                        placeholder="Amount"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[10px]">
+                      <button 
+                        disabled={isAdjusting || Number(adjustAmount) <= 0}
+                        onClick={() => handleQuickAdjust(Number(adjustAmount))}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2 rounded-lg uppercase tracking-wider flex items-center justify-center gap-1 shadow-md shadow-emerald-600/10 transition-all disabled:opacity-50"
+                      >
+                        <Plus size={12} /> Add
+                      </button>
+                      <button 
+                        disabled={isAdjusting || Number(adjustAmount) <= 0}
+                        onClick={() => handleQuickAdjust(-Number(adjustAmount))}
+                        className="bg-rose-600 hover:bg-rose-700 text-white font-black py-2 rounded-lg uppercase tracking-wider flex items-center justify-center gap-1 shadow-md shadow-rose-600/10 transition-all disabled:opacity-50"
+                      >
+                        <Minus size={12} /> Deduct
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-1 text-[8px] font-black font-mono">
+                    {[100, 500, 1000].map(amt => (
+                      <button 
+                        key={amt}
+                        onClick={() => setAdjustAmount(amt.toString())}
+                        className="bg-white/5 hover:bg-white/10 border border-white/5 py-1 rounded text-teal-300 hover:text-white transition-all text-center"
+                      >
+                        ৳{amt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-black/10 border border-dashed border-white/10 p-6 rounded-xl text-center text-xs text-teal-300">
+                  Select a user above to manage their wallet balance.
+                </div>
+              )}
+            </div>
+
+            {activeSelectedUser && (
+              <button 
+                onClick={() => setSelectedBalUser(null)}
+                className="w-full py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-[9px] font-black uppercase tracking-widest text-teal-300 transition-all"
+              >
+                Clear Selected User
+              </button>
+            )}
+          </div>
+
+          {/* Column 2: Fast Transaction Approvals */}
+          <div className="bg-[#0c4e48] p-6 rounded-[24px] border border-white/5 flex flex-col justify-between space-y-4 shadow-lg">
+            <div className="space-y-3 flex-1 flex flex-col">
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <Activity className="text-emerald-400 animate-pulse" size={18} />
+                  <h3 className="text-xs font-black uppercase tracking-widest text-white">Pending Transactions</h3>
+                </div>
+                {pendingTrxs.length > 0 && (
+                  <span className="bg-rose-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full border border-rose-400/20">
+                    {pendingTrxs.length} Req
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-2 flex-1 overflow-y-auto max-h-[190px] no-scrollbar">
+                {pendingTrxs.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center p-6 text-center text-xs text-teal-300 space-y-2">
+                    <CheckCircle2 size={24} className="text-emerald-400" />
+                    <p className="font-bold uppercase tracking-wider">All Clear!</p>
+                    <p className="text-[10px] text-teal-200/50">No pending deposits or withdrawals at this moment.</p>
+                  </div>
+                ) : (
+                  pendingTrxs.slice(0, 4).map((trx: any) => {
+                    const isDeposit = trx.type === 'deposit';
+                    const userRefName = trx.username || `User: ${trx.userId.substring(0, 6)}`;
+                    return (
+                      <div key={trx.id} className="bg-black/15 p-3 rounded-xl border border-white/5 flex items-center justify-between text-xs gap-3 font-bold">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md ${isDeposit ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/20 text-rose-400 border border-rose-500/20'}`}>
+                              {trx.type}
+                            </span>
+                            <span className="font-extrabold text-teal-200 truncate font-mono">৳{Number(trx.amount).toLocaleString()}</span>
+                          </div>
+                          <p className="text-[10px] font-black text-white mt-1 truncate">@{userRefName}</p>
+                          <p className="text-[8px] text-teal-400 font-bold uppercase mt-0.5">{trx.method || 'bkash'}</p>
+                        </div>
+
+                        <div className="flex gap-1 shrink-0">
+                          <button 
+                            disabled={pendingActionId !== null}
+                            onClick={() => handleApprove(trx)}
+                            className="w-7 h-7 bg-emerald-600 hover:bg-emerald-700 rounded-lg flex items-center justify-center text-white transition-all disabled:opacity-50 shadow-md"
+                            title="Approve"
+                          >
+                            {pendingActionId === trx.id ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                          </button>
+                          <button 
+                            disabled={pendingActionId !== null}
+                            onClick={() => handleReject(trx)}
+                            className="w-7 h-7 bg-rose-600 hover:bg-rose-700 rounded-lg flex items-center justify-center text-white transition-all disabled:opacity-50 shadow-md"
+                            title="Reject"
+                          >
+                            {pendingActionId === trx.id ? <Loader2 size={12} className="animate-spin" /> : <X size={14} />}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {pendingTrxs.length > 4 && (
+              <p className="text-[9px] font-black uppercase tracking-wider text-[#99f6e4] text-center">
+                + {pendingTrxs.length - 4} more requests. Navigate to financial tabs to view all.
+              </p>
+            )}
+          </div>
+
+          {/* Column 3: Primary Game Settings */}
+          <div className="bg-[#0c4e48] p-6 rounded-[24px] border border-white/5 flex flex-col justify-between space-y-4 shadow-lg">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <Gamepad2 className="text-orange-400" size={18} />
+                  <h3 className="text-xs font-black uppercase tracking-widest text-white">RTP Configurator</h3>
+                </div>
+                {selectedGameId === 'aviator' && (
+                  <span className="bg-orange-500/20 text-orange-400 text-[8px] font-black px-1.5 py-0.5 rounded border border-orange-500/30 uppercase tracking-widest animate-pulse">
+                    Hack Ready
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="text-[9px] font-black text-teal-200 uppercase tracking-widest block mb-1">Select Game</label>
+                  <select 
+                    value={selectedGameId}
+                    onChange={(e) => setSelectedGameId(e.target.value)}
+                    className="w-full bg-black/20 border border-white/10 rounded-xl px-3 py-2 text-xs text-white font-extrabold uppercase outline-none focus:border-emerald-500 cursor-pointer"
+                  >
+                    <option value="aviator">Aviator</option>
+                    <option value="slots_cricket">Cricket Star Slots</option>
+                    <option value="crazy_time">Crazy Time</option>
+                    <option value="mines">Mines</option>
+                    <option value="plinko">Plinko</option>
+                    <option value="fortune_gems">Fortune Gems</option>
+                  </select>
+                </div>
+
+                <div className="bg-black/10 p-3 rounded-xl border border-white/5 space-y-2">
+                  <div className="flex justify-between items-center text-[10px]">
+                    <span className="font-black text-teal-200 uppercase tracking-widest">RTP (Win Rate)</span>
+                    <span className="font-mono font-black text-amber-300 bg-amber-400/20 px-2 py-0.5 rounded-md">
+                      {gameRate}%
+                    </span>
+                  </div>
+                  <input 
+                    type="range"
+                    min="0"
+                    max="150"
+                    value={gameRate}
+                    onChange={(e) => setGameRate(Number(e.target.value))}
+                    className="w-full h-1.5 bg-black/30 rounded-lg appearance-none cursor-pointer accent-amber-400"
+                  />
+                </div>
+
+                <div className="bg-black/10 p-3 rounded-xl border border-white/5 space-y-1.5">
+                  <label className="text-[9px] font-black text-teal-200 uppercase tracking-widest block">Max Multiplier</label>
+                  <input 
+                    type="number"
+                    value={gameMaxMult}
+                    onChange={(e) => setGameMaxMult(Number(e.target.value))}
+                    className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-1.5 text-xs font-bold text-white focus:outline-none focus:border-emerald-500 font-mono"
+                    placeholder="100"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <button 
+              disabled={isSavingGame}
+              onClick={handleSaveGame}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+            >
+              {isSavingGame ? <Loader2 size={14} className="animate-spin" /> : <Settings size={14} />}
+              Save Game RTP
+            </button>
+          </div>
+
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <div className="xl:col-span-2 bg-[#0d9488] p-8 rounded-[32px] shadow-xl border border-white/5">
           <div className="flex items-center justify-between mb-8">
@@ -1230,7 +1632,7 @@ function DashboardOverview({ stats, users, transactions, serverInfo, bannerClick
                 <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">System Pulse</span>
              </div>
              <p className="text-sm font-bold text-teal-100 leading-relaxed">
-               All systems are operational. WebSocket latency is currenty <span className="text-white">12ms</span>.
+                All systems are operational. WebSocket latency is currenty <span className="text-white">12ms</span>.
              </p>
              <div className="mt-6 flex gap-2">
                 {[1,2,3,4,5,6,7,8,9,10].map(i => (
@@ -1941,7 +2343,7 @@ function TransactionList({ title, trxs, onApprove, onReject, isLoading, hasMore,
                    </p>
                    <div className="flex items-center gap-2 mt-2">
                       <span className="text-[9px] font-black bg-white/5 text-teal-400 py-1 px-2 rounded-full uppercase tracking-[0.1em]">User ID: {trx.userId}</span>
-                      <span className="text-[9px] font-black bg-emerald-500/20 text-emerald-400 py-1 px-2 rounded-full uppercase tracking-[0.1em]">{new Date(trx.createdAt?.seconds * 1000).toLocaleString()}</span>
+                      <span className="text-[9px] font-black bg-emerald-500/20 text-emerald-400 py-1 px-2 rounded-full uppercase tracking-[0.1em]">{trx.createdAt?.seconds ? new Date(trx.createdAt.seconds * 1000).toLocaleString() : (trx.createdAt ? new Date(trx.createdAt).toLocaleString() : '—')}</span>
                    </div>
                 </div>
               </div>
@@ -3202,7 +3604,7 @@ function PromoManagement({ showToast, userData }: { showToast: any, userData: an
   const [newPromo, setNewPromo] = useState({ code: '', amount: 0, maxUses: 100, expireDays: 7, active: true });
 
   useEffect(() => {
-    const isAuthorized = userData?.role === 'admin' || userData?.isAdmin === true || ['owner.css13@gmail.com', 'cutelegend7045@gmail.com', 'xsaber7644@gmil.com'].includes(userData?.email);
+    const isAuthorized = userData?.role === 'admin' || userData?.isAdmin === true || ['owner.css13@gmail.com', 'cutelegend7045@gmail.com'].includes(userData?.email);
     if (!isAuthorized) return;
     
     const unsub = onSnapshot(query(collection(db, 'promo_codes'), limit(100)), (snapshot) => {

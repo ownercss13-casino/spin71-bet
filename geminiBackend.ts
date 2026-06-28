@@ -54,7 +54,7 @@ Our official Telegram is @Spin71bot.`;
           throw new Error("Gemini AI is not configured.");
         }
         const response = await ai.models.generateContent({
-          model: "gemini-1.5-flash", 
+          model: "gemini-3.5-flash", 
           contents: message,
           config: {
             systemInstruction: systemInstruction,

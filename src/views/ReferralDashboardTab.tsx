@@ -63,7 +63,7 @@ export default function ReferralDashboardTab({ userData, showToast, onBack }: Re
       setIsTopLoading(true);
 
       // Check if current user is an admin or authorized to list all users
-      const isAdminUser = userData?.role === 'admin' || userData?.isAdmin === true || ['owner.css13@gmail.com', 'cutelegend7045@gmail.com', 'xsaber7644@gmil.com'].includes(userData?.email);
+      const isAdminUser = userData?.role === 'admin' || userData?.isAdmin === true || ['owner.css13@gmail.com', 'cutelegend7045@gmail.com'].includes(userData?.email);
       
       if (!isAdminUser) {
         setTopReferrers([]);

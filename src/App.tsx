@@ -44,7 +44,7 @@ import GlobalChat from "./layout/GlobalChat";
 import SettingsView from "./views/SettingsView";
 import { Game } from "./components/ui/GameGrid";
 import { games } from "./constants/games";
-import { GAME_LOGO_URLS } from "./constants/gameLogos";
+import { GAME_LOGO_URLS, getCleanGameLogo } from "./constants/gameLogos";
 import GameLoader from "./components/ui/GameLoader";
 import GlobalLoader from "./components/ui/GlobalLoader";
 // Toast system cleaned up as per request
@@ -63,6 +63,7 @@ import {
   Info,
   Wrench,
   Headset,
+  RefreshCw,
 } from "lucide-react";
 import RecentlyViewed from "./components/RecentlyViewed";
 
@@ -267,85 +268,15 @@ async function getDocsWithRetry(
 }
 
 function PageTransitionLoader() {
-  const [msgIdx, setMsgIdx] = useState(0);
-  const messages = [
-    "লোডিং হচ্ছে...",
-    "পেজ পরিবর্তন হচ্ছে...",
-    "সার্ভার কানেক্ট করা হচ্ছে...",
-    "ডাটা ভেরিফাই করা হচ্ছে...",
-    "নতুন পেজ প্রস্তুত হচ্ছে...",
-    "ঝড়ো গতিতে লোড হচ্ছে...",
-    "দয়া করে অপেক্ষা করুন..."
-  ];
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setMsgIdx((prev) => (prev + 1) % messages.length);
-    }, 450);
-    return () => clearInterval(interval);
-  }, []);
-
   return (
     <>
       <motion.div 
         initial={{ width: "0%", opacity: 0 }}
         animate={{ width: "100%", opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 0.6 }}
-        className="fixed top-0 left-0 h-1 bg-gradient-to-r from-yellow-300 via-yellow-500 to-yellow-600 z-[2000] shadow-[0_0_15px_rgba(234,179,8,0.8)]"
+        transition={{ duration: 0.4 }}
+        className="fixed top-0 left-0 h-1 bg-gradient-to-r from-yellow-300 via-yellow-500 to-yellow-600 z-[3000] shadow-[0_0_15px_rgba(234,179,8,0.8)] pointer-events-none"
       />
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[1999] bg-black/95 backdrop-blur-lg flex flex-col items-center justify-center p-6"
-      >
-        <div className="relative flex flex-col items-center max-w-[320px] w-full text-center">
-          {/* Ambient Glow Background Accent */}
-          <div className="absolute w-44 h-44 rounded-full bg-yellow-500/10 blur-[80px] -z-10 animate-pulse pointer-events-none" />
-          
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: "spring", stiffness: 300, damping: 20 }}
-            className="mb-8"
-          >
-            <span className="text-4xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-600 drop-shadow-[0_0_20px_rgba(253,216,53,0.5)]">
-              SPIN71BET✨
-            </span>
-          </motion.div>
-          
-          {/* Enhanced Circular Spinners */}
-          <div className="relative w-20 h-20 flex items-center justify-center mb-8">
-            <div className="absolute inset-0 border-4 border-yellow-500/10 rounded-full"></div>
-            <div className="absolute inset-0 border-4 border-t-yellow-500 border-r-amber-500 rounded-full animate-spin shadow-[0_0_20px_rgba(234,179,8,0.4)]"></div>
-            <div className="absolute w-12 h-12 border-2 border-b-yellow-400 border-l-yellow-600 rounded-full animate-spin opacity-70" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }}></div>
-          </div>
-          
-          <div className="h-6 flex items-center justify-center">
-            <AnimatePresence mode="wait">
-              <motion.p 
-                key={msgIdx}
-                initial={{ y: 5, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: -5, opacity: 0 }}
-                transition={{ duration: 0.18 }}
-                className="text-yellow-400 text-sm font-bold tracking-[0.05em]"
-              >
-                {messages[msgIdx]}
-              </motion.p>
-            </AnimatePresence>
-          </div>
-          
-          <motion.p
-            animate={{ opacity: [0.3, 0.7, 0.3] }}
-            transition={{ repeat: Infinity, duration: 1.2 }}
-            className="mt-3 text-white/40 text-[9px] font-black uppercase tracking-[0.3em] font-mono"
-          >
-            Please Wait...
-          </motion.p>
-        </div>
-      </motion.div>
     </>
   );
 }
@@ -376,13 +307,17 @@ export default function App() {
       console.log("[Spin71 Bet] Initializing security permissions...");
       
       // Request Camera & Microphone for enhanced platform security and live features
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-        // Immediately stop the stream after verification to free up hardware resources
-        stream.getTracks().forEach(track => track.stop());
-        console.log("[Permissions] Camera and Microphone access verified successfully.");
-      } catch (err: any) {
-        console.warn("[Permissions] Media access prompt failed or was dismissed:", err.name);
+      if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+          // Immediately stop the stream after verification to free up hardware resources
+          stream.getTracks().forEach(track => track.stop());
+          console.log("[Permissions] Camera and Microphone access verified successfully.");
+        } catch (err: any) {
+          console.warn("[Permissions] Media access prompt failed or was dismissed:", err.name);
+        }
+      } else {
+        console.log("[Permissions] Media devices API not available in this environment.");
       }
     };
 
@@ -532,25 +467,70 @@ export default function App() {
     };
   }, []);
 
+  const handleSupportRedirect = useCallback(() => {
+    window.open('https://49797fcd-e9bd-4be1-a841-3fb9a079aff0-00-8r954i6t6ups.pike.replit.dev/user.html', '_blank');
+    
+    try {
+      if (typeof window !== 'undefined') {
+        const dLayer = (window as any).dataLayer = (window as any).dataLayer || [];
+        dLayer.push({
+          event: 'initiate_support',
+          userId: userData?.id || 'anonymous',
+          username: userData?.username || 'anonymous',
+          timestamp: new Date().toISOString()
+        });
+        if ((window as any).gtag) {
+          (window as any).gtag('event', 'initiate_support', {
+            user_id: userData?.id || 'anonymous',
+            username: userData?.username || 'anonymous'
+          });
+        }
+      }
+    } catch (err) {
+      console.error('GA Support Event tracking failed:', err);
+    }
+
+    try {
+      if (db) {
+        const statsRef = doc(db, 'analytics', 'support_stats');
+        setDoc(statsRef, {
+          totalClicks: increment(1),
+          lastClickAt: serverTimestamp()
+        }, { merge: true }).catch(err => console.error('Firestore stats update failed:', err));
+
+        const logsRef = doc(collection(db, 'support_chats_logs'));
+        setDoc(logsRef, {
+          userId: userData?.id || 'anonymous',
+          username: userData?.username || 'anonymous',
+          clickedAt: serverTimestamp(),
+          userAgent: navigator.userAgent
+        }).catch(err => console.error('Firestore detailed log failed:', err));
+      }
+    } catch (err) {
+      console.error('Firestore Support Click tracking setup failed:', err);
+    }
+  }, [userData, db]);
+
   useEffect(() => {
     const handleOpenSupportChat = () => {
-      if ((window as any).$crisp) {
-        try {
-          (window as any).$crisp.push(['do', 'chat:show']);
-          (window as any).$crisp.push(['do', 'chat:open']);
-        } catch (e) {
-          console.error('[Crisp] Open error:', e);
-        }
-      } else {
-        window.open(telegramLink || 'https://t.me/Spin71bot', '_blank');
-      }
+      handleSupportRedirect();
+    };
+
+    const handleOpenLoginModal = () => {
+      setLoginModalMode('login');
+      setShowLoginModal(true);
     };
 
     window.addEventListener('openSupportChat', handleOpenSupportChat);
+    window.addEventListener('openLoginModal', handleOpenLoginModal);
+    const handleOpenGlobalChat = () => setIsGlobalChatOpen(true);
+    window.addEventListener('openGlobalChat', handleOpenGlobalChat);
     return () => {
       window.removeEventListener('openSupportChat', handleOpenSupportChat);
+      window.removeEventListener('openLoginModal', handleOpenLoginModal);
+      window.removeEventListener('openGlobalChat', handleOpenGlobalChat);
     };
-  }, [telegramLink]);
+  }, [handleSupportRedirect]);
 
   // Dynamic Live Chat Widget Injection (Crisp / Custom Script Link)
   useEffect(() => {
@@ -609,6 +589,35 @@ export default function App() {
       }
     }
   }, [globalImages['chat_widget_type'], globalImages['chat_widget_value']]);
+
+  // Sync HTML-based custom chat button visibility with React state
+  useEffect(() => {
+    const chatBtn = document.getElementById('spin71-chat-btn');
+    const overlay = document.getElementById('spin71-overlay');
+    
+    const updateVisibility = () => {
+      if (!chatBtn) return;
+      const isChatOpen = overlay?.classList.contains('open');
+      if (!selectedGame && showFloatingChat && !isChatOpen) {
+        chatBtn.style.setProperty('display', 'flex', 'important');
+      } else {
+        chatBtn.style.setProperty('display', 'none', 'important');
+      }
+    };
+
+    // Initial sync
+    updateVisibility();
+
+    // Re-check visibility when custom closed event is dispatched
+    const handleChatClosed = () => {
+      updateVisibility();
+    };
+
+    window.addEventListener('chatClosed', handleChatClosed);
+    return () => {
+      window.removeEventListener('chatClosed', handleChatClosed);
+    };
+  }, [selectedGame, activeTab, showFloatingChat]);
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
@@ -706,15 +715,15 @@ export default function App() {
     };
     const displayPath = getDisplayPath(tab);
     window.history.pushState({ page: 'tab', tab: tab }, '', `/${displayPath}${window.location.search}`);
+    
+    // Switch the tab instantly
+    setActiveTab(tab);
+    
+    // Flash a fast, non-blocking progress indicator at the top
     setIsTabLoading(true);
-    // Professional delay to ensure smooth transition and show the loading state
     setTimeout(() => {
-      setActiveTab(tab);
-      // Small buffer to let the new view render and allow high-performance layout painting
-      setTimeout(() => {
-        setIsTabLoading(false);
-      }, 250);
-    }, 500);
+      setIsTabLoading(false);
+    }, 450);
   };
   
   const handleLogout = async () => {
@@ -1004,7 +1013,6 @@ export default function App() {
     userData?.isAdmin === true || 
     userData?.email === 'owner.css13@gmail.com' || 
     userData?.email === 'cutelegend7045@gmail.com' || 
-    userData?.email === 'xsaber7644@gmil.com' || 
     userData?.id === 'vxjksOlXuChe3OjfYmpxBsJcwLH2' ||
     userData?.id === 'r8FpP1k6Y5P67OOfmK5xWvS6rZJ2' ||
     userData?.id === '782256449109';
@@ -1199,7 +1207,7 @@ export default function App() {
                 const data = snapshot.data();
                 console.log("[App] Real-time user update received", user.uid, "New Balance:", data.balance);
                 
-                const isAdmin = data.role === 'admin' || data.isAdmin === true || user.email === 'owner.css13@gmail.com' || user.email === 'cutelegend7045@gmail.com' || user.email === 'xsaber7644@gmil.com' || user.uid === 'vxjksOlXuChe3OjfYmpxBsJcwLH2';
+                const isAdmin = data.role === 'admin' || data.isAdmin === true || user.email === 'owner.css13@gmail.com' || user.email === 'cutelegend7045@gmail.com' || user.uid === 'vxjksOlXuChe3OjfYmpxBsJcwLH2';
                 
                 // Ensure existing user has a referralCode
                 if (!data.referralCode) {
@@ -1346,7 +1354,7 @@ export default function App() {
                     return;
                   }
                   
-                  const isAdmin = user.email === 'owner.css13@gmail.com' || user.email === 'cutelegend7045@gmail.com' || user.email === 'xsaber7644@gmil.com' || user.uid === 'vxjksOlXuChe3OjfYmpxBsJcwLH2';
+                  const isAdmin = user.email === 'owner.css13@gmail.com' || user.email === 'cutelegend7045@gmail.com' || user.uid === 'vxjksOlXuChe3OjfYmpxBsJcwLH2';
                   const baseName = user.displayName || user.email?.split('@')[0] || 'User';
                   const referralCode = baseName.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 4) + Math.floor(1000 + Math.random() * 9000);
                   
@@ -1972,14 +1980,14 @@ export default function App() {
     }
   }, [activePopupMessage]);
 
-  const showNotification = (message: string, type: 'success' | 'info' | 'error' | 'warning' = 'info', title?: string) => {
+  const showNotification = useCallback((message: string, type: 'success' | 'info' | 'error' | 'warning' = 'info', title?: string) => {
     setNotification({ isOpen: true, message, type, title });
-  };
+  }, []);
 
-  const showToast = useCallback((message: string, type: ToastType = 'info', critical = false) => {
+  const showToast = useCallback((message: string, type: ToastType = 'info', _critical = false) => {
     // Everything now goes through the centered modal as requested
     showNotification(message, type === 'warning' ? 'warning' : (type === 'error' ? 'error' : (type === 'success' ? 'success' : 'info')));
-  }, []);
+  }, [showNotification]);
 
   const removeToast = (id: string) => {
     // Toast feature removed, but function kept for any legacy props
@@ -2130,16 +2138,30 @@ export default function App() {
   };
 
   const handleAddTransaction = async (transaction: any) => {
-    if (userData?.id) {
+    const activeUser = getActiveUser();
+    const userId = userData?.id || activeUser?.uid;
+
+    if (userId) {
+      // Auto-heal userData state if it was missing the ID or uninitialized
+      if (!userData || !userData.id) {
+        const username = userData?.username || activeUser?.displayName || 'Anonymous';
+        const healedUserData = {
+          ...(userData || {}),
+          id: userId,
+          username: username
+        };
+        setUserData(healedUserData);
+        localStorage.setItem('currentUser', JSON.stringify(healedUserData));
+      }
+
       try {
         console.log("Attempting to add transaction:", transaction);
         const txData = {
           ...transaction,
-          userId: userData.id,
-          username: userData.username || 'Anonymous'
+          userId: userId,
+          username: userData?.username || activeUser?.displayName || 'Anonymous'
         };
 
-        const activeUser = getActiveUser();
         const idToken = activeUser ? await activeUser.getIdToken() : null;
 
         // Try server-side API first for better reliability (handles mock sessions perfectly)
@@ -2166,7 +2188,7 @@ export default function App() {
         const globalTxRef = doc(collection(db, 'transactions'));
         await setDoc(globalTxRef, { ...txData, createdAt: serverTimestamp() });
         
-        const userTxRef = doc(db, 'users', userData.id, 'transactions', globalTxRef.id);
+        const userTxRef = doc(db, 'users', userId, 'transactions', globalTxRef.id);
         await setDoc(userTxRef, { ...txData, createdAt: serverTimestamp() });
         
         console.log("Transaction records created successfully via client fallback.");
@@ -2176,7 +2198,7 @@ export default function App() {
         throw e;
       }
     } else {
-      console.error("Critical Error: handleAddTransaction called without userData.id");
+      console.error("Critical Error: handleAddTransaction called without userData.id or activeUser.uid");
     }
   };
 
@@ -2406,7 +2428,7 @@ export default function App() {
   return (
     <LanguageProvider>
       <SoundProvider>
-        <div className="w-full bg-[var(--bg-main)] min-h-[100dvh] relative overflow-x-hidden font-sans text-[var(--text-main)] pb-16 flex flex-col safe-top transition-colors duration-300">
+        <div className={`w-full bg-[var(--bg-main)] min-h-[100dvh] relative overflow-x-hidden font-sans text-[var(--text-main)] ${activeTab === 'profile' ? '' : 'pb-16 safe-top'} flex flex-col transition-colors duration-300`}>
       <AnimatePresence>
         {isSidebarOpen && (
           <Sidebar
@@ -2442,7 +2464,7 @@ export default function App() {
           <GameLoader 
             gameName={globalUrls[selectedGame.id] ? (globalNames[selectedGame.id] || selectedGame.name) : selectedGame.name}
             provider={selectedGame.provider}
-            logo={globalLogos[selectedGame.id] || GAME_LOGO_URLS[selectedGame.id] || selectedGame.image}
+            logo={getCleanGameLogo(selectedGame.id, globalLogos, selectedGame.image)}
             onClose={() => {
               setIsGameLoading(false);
               window.history.back();
@@ -2497,15 +2519,16 @@ export default function App() {
                   </span>
                 </div>
                </div>
-               <div className="flex items-center gap-2">
-                 <div className="bg-yellow-500/10 px-2 py-1 rounded border border-yellow-500/20">
-                   <AnimatedBalance value={balance} decimals={0} className="text-[10px] font-bold text-yellow-500" />
+               <div className="flex items-center gap-3">
+                 <div className="bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20 shadow-inner flex items-center gap-2">
+                   <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                   <AnimatedBalance value={balance} decimals={2} className="text-[13px] font-black text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.3)]" />
                  </div>
                  <button 
                   onClick={() => window.history.back()}
-                  className="w-10 h-10 flex items-center justify-center bg-red-600/10 hover:bg-red-600/20 rounded-full transition-all text-red-500 shadow-lg border border-red-500/20"
+                  className="w-10 h-10 flex items-center justify-center bg-rose-600/10 hover:bg-rose-600/20 rounded-full transition-all text-rose-500 shadow-lg border border-rose-500/20 active:scale-90"
                 >
-                  <X size={24} />
+                  <X size={22} />
                 </button>
                </div>
             </div>
@@ -2526,7 +2549,7 @@ export default function App() {
                     <div className="w-32 h-32 bg-white/10 rounded-3xl flex items-center justify-center mb-2 border-2 border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.5)] overflow-hidden relative z-10 transform transition-transform duration-500 group-hover:rotate-x-12 group-hover:-translate-y-2">
                       <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-white/20"></div>
                       <img 
-                        src={globalLogos[selectedGame.id] || GAME_LOGO_URLS[selectedGame.id] || selectedGame.image} 
+                        src={getCleanGameLogo(selectedGame.id, globalLogos, selectedGame.image)} 
                         alt={selectedGame.name}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                       />
@@ -2726,7 +2749,9 @@ export default function App() {
                 noticeText={noticeText}
                 showToast={showToast}
                 loading={isTabLoading}
-                isAdmin={userData?.role === 'admin' || userData?.isAdmin === true || ['owner.css13@gmail.com', 'cutelegend7045@gmail.com', 'xsaber7644@gmil.com'].includes(userData?.email)}
+                isAdmin={userData?.role === 'admin' || userData?.isAdmin === true || ['owner.css13@gmail.com', 'cutelegend7045@gmail.com'].includes(userData?.email)}
+                onUpdateUser={handleUpdateUser}
+                onAddTransaction={handleAddTransaction}
               />
             </motion.div>
           )}
@@ -3095,7 +3120,7 @@ export default function App() {
               {selectedGame && (
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-200/50 rounded-full border border-slate-300/50 mb-4">
                   <img 
-                    src={globalLogos[selectedGame.id] || GAME_LOGO_URLS[selectedGame.id] || selectedGame.image} 
+                    src={getCleanGameLogo(selectedGame.id, globalLogos, selectedGame.image)} 
                     alt={selectedGame.name} 
                     className="w-5 h-5 rounded-md object-cover"
                   />
@@ -3149,35 +3174,8 @@ export default function App() {
         <RecentlyViewed activeTab={activeTab} onNavigate={handleTabChange} />
       )}
 
-      {/* Floating Live Support Chat Button */}
-      {activeTab === 'home' && !selectedGame && showFloatingChat && (
-        <motion.button
-          id="floating-live-chat-button"
-          initial={{ scale: 0, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          whileHover={{ scale: 1.1, y: -2 }}
-          whileTap={{ scale: 0.9 }}
-          transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-          onClick={() => window.dispatchEvent(new CustomEvent('openSupportChat'))}
-          className="fixed bottom-32 right-4 z-[999] w-14 h-14 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white rounded-full flex items-center justify-center shadow-[0_10px_25px_rgba(16,185,129,0.5)] border border-emerald-400/30 cursor-pointer group"
-          aria-label="Live Chat Support"
-        >
-          {/* Pulsing Outer Ring */}
-          <span className="absolute inset-0 rounded-full bg-emerald-500/30 animate-ping opacity-75 pointer-events-none" />
-          
-          {/* Glowing Ambient Light */}
-          <span className="absolute inset-0 rounded-full blur-md bg-emerald-500/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-
-          {/* Icon */}
-          <Headset size={26} className="relative z-10 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)] animate-[pulse_2s_infinite]" />
-          
-          {/* Live indicator dot */}
-          <span className="absolute top-1 right-1 w-3.5 h-3.5 bg-green-400 border-2 border-[#14253a] rounded-full animate-bounce" />
-        </motion.button>
-      )}
-
       {/* Bottom Navigation */}
-      {!['aviator', 'slot'].includes(activeTab) && !selectedGame && (
+      {!['aviator', 'slot', 'profile'].includes(activeTab) && !selectedGame && (
         <BottomNav activeTab={activeTab} onTabChange={handleTabChange} onToggleNotifications={() => setIsNotificationCenterOpen(!isNotificationCenterOpen)} unreadNotificationsCount={unreadNotificationsCount} isAdmin={userData?.isAdmin} />
       )}
 
@@ -3328,6 +3326,24 @@ export default function App() {
           handleTabChange('deposit');
         }}
       />
+
+      {/* Floating React Chat Button */}
+      <AnimatePresence>
+        {showFloatingChat && !selectedGame && (
+          <motion.button
+            key="floating-chat-btn"
+            initial={{ scale: 0, y: 50 }}
+            animate={{ scale: 1, y: 0 }}
+            exit={{ scale: 0, y: 50 }}
+            onClick={handleSupportRedirect}
+            className="fixed bottom-[110px] right-[24px] w-[58px] h-[58px] rounded-full bg-gradient-to-br from-teal-500 via-emerald-500 to-cyan-500 shadow-[0_10px_25px_rgba(16,185,129,0.5)] border border-white/20 z-[99999] flex items-center justify-center cursor-pointer transition-all hover:scale-108 active:scale-95"
+            aria-label="সাপোর্ট চ্যাট"
+          >
+            <Headset className="w-7 h-7 text-white stroke-[2.25]" />
+            <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-green-500 border-2 border-[#0b1523] rounded-full animate-pulse" />
+          </motion.button>
+        )}
+      </AnimatePresence>
 
       <style>{`
         @keyframes fly-around {

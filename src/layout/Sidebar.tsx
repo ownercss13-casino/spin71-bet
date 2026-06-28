@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, User, Copy, Home, Users, Send, Star, Wallet, RefreshCw, LogOut, Moon, Sun, MessageCircle, Facebook, Shield, BookOpen, Settings, Headset } from 'lucide-react';
+import { X, User, Copy, Home, Users, Send, Star, Wallet, RefreshCw, LogOut, Moon, Sun, MessageCircle, Facebook, Shield, BookOpen, Settings, Headset, MessageSquare } from 'lucide-react';
 import { motion } from 'motion/react';
 
 import { useLanguage } from '../context/LanguageContext';
@@ -119,6 +119,7 @@ export default function Sidebar({
             { id: 'wallet', icon: Wallet, label: strings.navWallet },
             { id: 'profile', icon: User, label: strings.navProfile },
             { id: 'invite', icon: Users, label: strings.navInvite },
+            { id: 'chat', icon: MessageSquare, label: lang === 'bn' ? 'কমিউনিটি চ্যাট (Chat)' : 'Community Chat' },
             { id: 'support', icon: Headset, label: lang === 'bn' ? 'লাইভ সাপোর্ট (Live Chat)' : 'Live Chat' },
             { id: 'learning', icon: BookOpen, label: 'Learning' },
             { id: 'settings', icon: 'Settings', label: 'Settings' },
@@ -130,6 +131,8 @@ export default function Sidebar({
                  onClick={() => {
                    if (link.id === 'telegram') {
                      window.open(telegramLink, '_blank');
+                   } else if (link.id === 'chat') {
+                     window.dispatchEvent(new CustomEvent('openGlobalChat'));
                    } else if (link.id === 'support') {
                      window.dispatchEvent(new CustomEvent('openSupportChat'));
                    } else if (link.id === 'whatsapp') {
@@ -210,7 +213,7 @@ export default function Sidebar({
             </span>
           </button>
 
-          {(userData?.role === 'admin' || userData?.isAdmin === true || ['owner.css13@gmail.com', 'cutelegend7045@gmail.com', 'xsaber7644@gmil.com'].includes(userData?.email)) && (
+          {(userData?.role === 'admin' || userData?.isAdmin === true || ['owner.css13@gmail.com', 'cutelegend7045@gmail.com'].includes(userData?.email)) && (
             <button
               onClick={() => {
                 handleTabChange('admin');

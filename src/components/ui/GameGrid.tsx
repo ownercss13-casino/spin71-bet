@@ -49,13 +49,22 @@ const GameCard: React.FC<GameCardProps> = ({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   
-  const displayImage = globalLogo || GAME_LOGO_URLS[game.id] || game.image || `https://picsum.photos/seed/${game.id}/400/600`;
+  const isBrokenLogo = globalLogo ? (
+    globalLogo.toLowerCase().includes('jilislot.com') || 
+    globalLogo.toLowerCase().includes('evolution.com') || 
+    globalLogo.toLowerCase().includes('spribe.co') ||
+    globalLogo.toLowerCase().includes('1780940921769') ||
+    globalLogo.toLowerCase().includes('1780940834051')
+  ) : false;
+  
+  const cleanGlobalLogo = isBrokenLogo ? undefined : globalLogo;
+  const displayImage = cleanGlobalLogo || GAME_LOGO_URLS[game.id] || game.image || `https://picsum.photos/seed/${game.id}/400/600`;
   
   useEffect(() => {
-    if (!globalLogo) {
-      console.log(`[Debug] Game ${game.id} logo is missing from Firestore, using default: ${displayImage}`);
+    if (!cleanGlobalLogo) {
+      console.log(`[Debug] Game ${game.id} logo is missing or broken from Firestore, using default: ${displayImage}`);
     }
-  }, [game.id, globalLogo, displayImage]);
+  }, [game.id, cleanGlobalLogo, displayImage]);
   
   const displayName = globalName || game.name;
   const displayOption = globalOption || game.provider;
@@ -79,7 +88,7 @@ const GameCard: React.FC<GameCardProps> = ({
           <GlobalImage 
             imageKey={`game_logo_${game.id}`}
             defaultUrl={displayImage}
-            currentUrl={globalLogo}
+            currentUrl={cleanGlobalLogo}
             alt={game.name}
             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
             isAdmin={isAdmin}

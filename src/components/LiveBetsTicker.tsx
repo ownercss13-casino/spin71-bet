@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db } from '../services/firebase';
 import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
-import { Flame, Trophy, User, ArrowUpRight, ArrowDownLeft, TrendingUp, Zap, Clock, ShieldCheck, Ticket } from 'lucide-react';
+import { Flame, Trophy, User, ArrowUpRight, ArrowDownLeft, TrendingUp, Zap, Clock, ShieldCheck, Ticket, RefreshCw } from 'lucide-react';
+import LoadingSpinner from './ui/LoadingSpinner';
 
 interface LiveBetsTickerProps {
   userData: any;
@@ -267,8 +268,8 @@ export default function LiveBetsTicker({ userData, onOpenLogin, showToast, globa
               </tr>
             ) : loadingMyBets ? (
               <tr>
-                <td colSpan={6} className="py-12 text-center text-xs text-gray-500 uppercase tracking-widest animate-pulse font-bold">
-                  আপনার বেট লোড হচ্ছে...
+                <td colSpan={6} className="py-12">
+                  <LoadingSpinner size="sm" message="ডেটা লোড হচ্ছে..." />
                 </td>
               </tr>
             ) : currentBets.length === 0 ? (

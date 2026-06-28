@@ -7,7 +7,7 @@ interface DigitColumnProps {
 
 const DigitColumn: React.FC<DigitColumnProps> = ({ digit }) => {
   return (
-    <span className="inline-block h-[1.12em] overflow-hidden relative leading-none align-bottom w-[0.62em] tabular-nums">
+    <span className="inline-block h-[1.3em] overflow-hidden relative leading-none align-baseline tabular-nums">
       <motion.span
         className="flex flex-col absolute top-0 left-0 w-full"
         animate={{ y: `-${digit * 10}%` }}
@@ -16,14 +16,14 @@ const DigitColumn: React.FC<DigitColumnProps> = ({ digit }) => {
         {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
           <span 
             key={n} 
-            className="h-[1.12em] w-full flex items-center justify-center font-black select-none text-center"
+            className="h-[1.3em] w-full flex items-center justify-center font-black select-none text-center"
           >
             {n}
           </span>
         ))}
       </motion.span>
       {/* Invisible spacer to reserve width and height */}
-      <span className="invisible select-none">0</span>
+      <span className="invisible select-none px-[0.02em] leading-[1.3em]">0</span>
     </span>
   );
 };
